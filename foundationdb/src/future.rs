@@ -251,6 +251,52 @@ impl AsRef<CStr> for FdbAddress {
     }
 }
 
+/// An slice of keys owned by a FoundationDB future
+pub struct FdbKeys {
+    _f: FdbFutureHandle,
+    keys: *const fdb_sys::FDBKey,
+    len: i32,
+}
+unsafe impl Sync for FdbKeys {}
+unsafe impl Send for FdbKeys {}
+
+impl TryFrom<FdbFutureHandle> for FdbKeys {
+    type Error = FdbError;
+
+    fn try_from(f: FdbFutureHandle) -> FdbResult<Self> {
+        let mut keys = std::ptr::null();
+        let mut len = 0;
+
+        unsafe {
+            error::eval(fdb_sys::fdb_future_get_key_array(
+                f.as_ptr(),
+                &mut keys,
+                &mut len,
+            ))?
+        }
+
+        Ok(FdbKeys { _f: f, keys, len })
+    }
+}
+
+impl Deref for FdbKeys {
+    type Target = [FdbKey];
+    fn deref(&self) -> &Self::Target {
+        assert_eq_size!(FdbKey, fdb_sys::FDBKey);
+        assert_eq_align!(FdbKey, fdb_sys::FDBKey);
+        unsafe {
+            &*(std::slice::from_raw_parts(self.keys, self.len as usize)
+                as *const [fdb_sys::FDBKey] as *const [FdbKey])
+        }
+    }
+}
+
+impl AsRef<[FdbKey]> for FdbKeys {
+    fn as_ref(&self) -> &[FdbKey] {
+        self.deref()
+    }
+}
+
 /// An slice of keyvalues owned by a foundationDB future
 pub struct FdbValues {
     _f: FdbFutureHandle,
@@ -500,5 +546,14 @@ impl TryFrom<FdbFutureHandle> for () {
     type Error = FdbError;
     fn try_from(_f: FdbFutureHandle) -> FdbResult<Self> {
         Ok(())
+    }
+}
+
+#[repr(transparent)]
+pub struct FdbKey(fdb_sys::FDBKey);
+impl FdbKey {
+    /// key
+    pub fn key(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
     }
 }

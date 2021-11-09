@@ -742,6 +742,25 @@ impl Transaction {
         })
     }
 
+    #[cfg(feature = "fdb-7_0")]
+    pub fn get_range_split_points(
+        &self,
+        begin: &[u8],
+        end: &[u8],
+        chunk_size: i64,
+    ) -> impl Future<Output = FdbResult<FdbKeys>> + Send + Sync + Unpin {
+        FdbFuture::<FdbKeys>::new(unsafe {
+            fdb_sys::fdb_transaction_get_range_split_points(
+                self.inner.as_ptr(),
+                begin.as_ptr(),
+                fdb_len(begin.len(), "begin"),
+                end.as_ptr(),
+                fdb_len(end.len(), "end"),
+                chunk_size,
+            )
+        })
+    }
+
     /// Returns an FDBFuture which will be set to the versionstamp which was used by any
     /// versionstamp operations in this transaction.
     ///
