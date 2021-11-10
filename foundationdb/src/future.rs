@@ -253,6 +253,7 @@ impl AsRef<CStr> for FdbAddress {
 }
 
 /// An slice of keys owned by a FoundationDB future
+#[cfg(feature = "fdb-7_0")]
 pub struct FdbKeys {
     _f: FdbFutureHandle,
     keys: *const fdb_sys::FDBKey,
@@ -643,6 +644,7 @@ impl TryFrom<FdbFutureHandle> for () {
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 #[repr(transparent)]
 pub struct FdbKey(fdb_sys::FDBKey);
 impl FdbKey {
