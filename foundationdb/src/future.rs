@@ -235,6 +235,7 @@ impl AsRef<[FdbAddress]> for FdbAddresses {
 /// can never own a FdbAddress directly, you can only have references to it.
 /// This way, you can never obtain a lifetime greater than the lifetime of the
 /// slice that gave you access to it.
+#[repr(transparent)]
 pub struct FdbAddress {
     c_str: *const c_char,
 }
