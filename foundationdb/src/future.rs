@@ -268,13 +268,7 @@ impl TryFrom<FdbFutureHandle> for FdbKeys {
         let mut keys = std::ptr::null();
         let mut len = 0;
 
-        unsafe {
-            error::eval(fdb_sys::fdb_future_get_key_array(
-                f.as_ptr(),
-                &mut keys,
-                &mut len,
-            ))?
-        }
+        error::eval(unsafe { fdb_sys::fdb_future_get_key_array(f.as_ptr(), &mut keys, &mut len) })?;
 
         Ok(FdbKeys { _f: f, keys, len })
     }
