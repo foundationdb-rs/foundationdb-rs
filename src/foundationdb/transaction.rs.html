@@ -1,7 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `foundationdb/src/transaction.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transaction.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
-                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb&#x2F;src&#x2F;transaction.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transaction.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -803,8 +800,7 @@
 <span id="800">800</span>
 <span id="801">801</span>
 <span id="802">802</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
@@ -817,17 +813,17 @@
 <span class="doccomment">//! https://apple.github.io/foundationdb/api-c.html#transaction</span>
 
 <span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">NonNull</span>;
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
+<span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
+<span class="kw">use</span> <span class="ident">std::ptr::NonNull</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">future</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">keyselector</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">options</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::future</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::keyselector</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
 
 <span class="kw">use</span> <span class="ident">futures</span>::{
-    <span class="ident">future</span>, <span class="ident">future</span>::<span class="ident">Either</span>, <span class="ident">stream</span>, <span class="ident">Future</span>, <span class="ident">FutureExt</span>, <span class="ident">Stream</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>,
+    <span class="ident">future</span>, <span class="ident">future::Either</span>, <span class="ident">stream</span>, <span class="ident">Future</span>, <span class="ident">FutureExt</span>, <span class="ident">Stream</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>,
 };
 
 <span class="doccomment">/// A committed transaction.</span>
@@ -850,10 +846,10 @@
     <span class="doccomment">/// another subsequent transaction.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Most applications will not call this function.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">committed_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">committed_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">version</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_committed_version</span>(<span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">version</span>)
+        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_committed_version</span>(<span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">version</span>)
         })<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">version</span>)
     }
@@ -863,13 +859,13 @@
     <span class="doccomment">/// This will not affect previously committed data.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Transaction</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Transaction</span> {
         <span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">reset</span>();
         <span class="self">self</span>.<span class="ident">tr</span>
     }
 }
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TransactionCommitted</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Transaction</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tc</span>: <span class="ident">TransactionCommitted</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Transaction</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tc</span>: <span class="ident">TransactionCommitted</span>) -&gt; <span class="ident">Transaction</span> {
         <span class="ident">tc</span>.<span class="ident">reset</span>()
     }
 }
@@ -890,9 +886,9 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// You should not call this method most of the times and use `Database::transact` which</span>
     <span class="doccomment">/// implements a retry loop strategy for you.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">on_error</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_on_error</span>(<span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">code</span>())
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">on_error</span>(<span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_on_error</span>(<span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">code</span>())
         })
         .<span class="ident">map_ok</span>(<span class="op">|</span>()<span class="op">|</span> <span class="self">self</span>.<span class="ident">tr</span>)
     }
@@ -900,7 +896,7 @@
     <span class="doccomment">/// Reset the transaction to its initial state.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Transaction</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Transaction</span> {
         <span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">reset</span>();
         <span class="self">self</span>.<span class="ident">tr</span>
     }
@@ -908,25 +904,25 @@
 
 <span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">FdbError</span>;
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">FdbError</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">FdbError</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">err</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TransactionCommitError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tce</span>: <span class="ident">TransactionCommitError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbError</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tce</span>: <span class="ident">TransactionCommitError</span>) -&gt; <span class="ident">FdbError</span> {
         <span class="ident">tce</span>.<span class="ident">err</span>
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;TransactionCommitError({})&quot;</span>, <span class="self">self</span>.<span class="ident">err</span>)
+<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;TransactionCommitError({})&quot;</span>, <span class="self">self</span>.<span class="ident">err</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
     }
 }
@@ -944,13 +940,13 @@
     <span class="doccomment">/// Reset the transaction to its initial state.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Transaction</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Transaction</span> {
         <span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">reset</span>();
         <span class="self">self</span>.<span class="ident">tr</span>
     }
 }
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TransactionCancelled</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Transaction</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tc</span>: <span class="ident">TransactionCancelled</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Transaction</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tc</span>: <span class="ident">TransactionCancelled</span>) -&gt; <span class="ident">Transaction</span> {
         <span class="ident">tc</span>.<span class="ident">reset</span>()
     }
 }
@@ -968,14 +964,14 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Transaction</span> {
     <span class="comment">// Order of fields should not be changed, because Rust drops field top-to-bottom, and</span>
     <span class="comment">// transaction should be dropped before cluster.</span>
-    <span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys</span>::<span class="ident">FDBTransaction</span><span class="op">&gt;</span>,
+    <span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys::FDBTransaction</span><span class="op">&gt;</span>,
 }
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Transaction</span> {}
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">Transaction</span> {}
 
 <span class="doccomment">/// Converts Rust `bool` into `fdb_sys::fdb_bool_t`</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_bool</span>(<span class="ident">v</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_sys</span>::<span class="ident">fdb_bool_t</span> {
+<span class="kw">fn</span> <span class="ident">fdb_bool</span>(<span class="ident">v</span>: <span class="ident">bool</span>) -&gt; <span class="ident">fdb_sys::fdb_bool_t</span> {
     <span class="kw">if</span> <span class="ident">v</span> {
         <span class="number">1</span>
     } <span class="kw">else</span> {
@@ -983,26 +979,26 @@
     }
 }
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_len</span>(<span class="ident">len</span>: <span class="ident">usize</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span> {
-    <span class="macro">assert</span><span class="macro">!</span>(
-        <span class="ident">len</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">i32</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+<span class="kw">fn</span> <span class="ident">fdb_len</span>(<span class="ident">len</span>: <span class="ident">usize</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="ident">std::os::raw::c_int</span> {
+    <span class="macro">assert!</span>(
+        <span class="ident">len</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">i32::max_value</span>() <span class="kw">as</span> <span class="ident">usize</span>,
         <span class="string">&quot;{}.len() &gt; i32::max_value()&quot;</span>,
         <span class="ident">context</span>
     );
     <span class="ident">len</span> <span class="kw">as</span> <span class="ident">i32</span>
 }
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_iteration</span>(<span class="ident">iteration</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span> {
-    <span class="kw">if</span> <span class="ident">iteration</span> <span class="op">&gt;</span> <span class="ident">i32</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> {
+<span class="kw">fn</span> <span class="ident">fdb_iteration</span>(<span class="ident">iteration</span>: <span class="ident">usize</span>) -&gt; <span class="ident">std::os::raw::c_int</span> {
+    <span class="kw">if</span> <span class="ident">iteration</span> <span class="op">&gt;</span> <span class="ident">i32::max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> {
         <span class="number">0</span> <span class="comment">// this will cause client_invalid_operation</span>
     } <span class="kw">else</span> {
         <span class="ident">iteration</span> <span class="kw">as</span> <span class="ident">i32</span>
     }
 }
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_limit</span>(<span class="ident">v</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span> {
-    <span class="kw">if</span> <span class="ident">v</span> <span class="op">&gt;</span> <span class="ident">i32</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> {
-        <span class="ident">i32</span>::<span class="ident">max_value</span>()
+<span class="kw">fn</span> <span class="ident">fdb_limit</span>(<span class="ident">v</span>: <span class="ident">usize</span>) -&gt; <span class="ident">std::os::raw::c_int</span> {
+    <span class="kw">if</span> <span class="ident">v</span> <span class="op">&gt;</span> <span class="ident">i32::max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> {
+        <span class="ident">i32::max_value</span>()
     } <span class="kw">else</span> {
         <span class="ident">v</span> <span class="kw">as</span> <span class="ident">i32</span>
     }
@@ -1035,22 +1031,22 @@
     <span class="kw">pub</span> <span class="ident">target_bytes</span>: <span class="ident">usize</span>,
     <span class="doccomment">/// One of the options::StreamingMode values indicating how the caller would like the data in</span>
     <span class="doccomment">/// the range returned.</span>
-    <span class="kw">pub</span> <span class="ident">mode</span>: <span class="ident">options</span>::<span class="ident">StreamingMode</span>,
+    <span class="kw">pub</span> <span class="ident">mode</span>: <span class="ident">options::StreamingMode</span>,
     <span class="doccomment">/// If true, key-value pairs will be returned in reverse lexicographical order beginning at</span>
     <span class="doccomment">/// the end of the range.</span>
     <span class="kw">pub</span> <span class="ident">reverse</span>: <span class="ident">bool</span>,
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">__non_exhaustive</span>: <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">__non_exhaustive</span>: <span class="ident">std::marker::PhantomData</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Reverses the range direction.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rev</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rev</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">reverse</span> <span class="op">=</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">reverse</span>;
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_range</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kvs</span>: <span class="kw-2">&amp;</span><span class="ident">FdbValues</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_range</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kvs</span>: <span class="kw-2">&amp;</span><span class="ident">FdbValues</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="op">!</span><span class="ident">kvs</span>.<span class="ident">more</span>() {
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
@@ -1060,7 +1056,7 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">limit</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">limit</span>.<span class="ident">as_mut</span>() {
             <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">=</span> <span class="ident">limit</span>.<span class="ident">saturating_sub</span>(<span class="ident">kvs</span>.<span class="ident">len</span>());
-            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">==</span> <span class="number">0</span> {
                 <span class="kw">return</span> <span class="prelude-val">None</span>;
             }
         }
@@ -1075,82 +1071,82 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>([].<span class="ident">as_ref</span>()),
-            <span class="ident">end</span>: <span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>([].<span class="ident">as_ref</span>()),
+            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>([].<span class="ident">as_ref</span>()),
+            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>([].<span class="ident">as_ref</span>()),
             <span class="ident">limit</span>: <span class="prelude-val">None</span>,
             <span class="ident">target_bytes</span>: <span class="number">0</span>,
-            <span class="ident">mode</span>: <span class="ident">options</span>::<span class="ident">StreamingMode</span>::<span class="ident">Iterator</span>,
+            <span class="ident">mode</span>: <span class="ident">options::StreamingMode::Iterator</span>,
             <span class="ident">reverse</span>: <span class="bool-val">false</span>,
-            <span class="ident">__non_exhaustive</span>: <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>,
+            <span class="ident">__non_exhaustive</span>: <span class="ident">std::marker::PhantomData</span>,
         }
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span>(<span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">begin</span>,
             <span class="ident">end</span>,
-            ..<span class="self">Self</span>::<span class="ident">default</span>()
+            ..<span class="ident"><span class="self">Self</span>::default</span>()
         }
     }
 }
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>(<span class="ident">begin</span>),
-            <span class="ident">end</span>: <span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>(<span class="ident">end</span>),
-            ..<span class="self">Self</span>::<span class="ident">default</span>()
+            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">begin</span>),
+            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">end</span>),
+            ..<span class="ident"><span class="self">Self</span>::default</span>()
         }
     }
 }
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>])<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>])) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>])) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>(<span class="ident">begin</span>),
-            <span class="ident">end</span>: <span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>(<span class="ident">end</span>),
-            ..<span class="self">Self</span>::<span class="ident">default</span>()
+            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">begin</span>),
+            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">end</span>),
+            ..<span class="ident"><span class="self">Self</span>::default</span>()
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="ident">RangeOption</span>::<span class="ident">from</span>((<span class="self">self</span>.<span class="ident">start</span>, <span class="self">self</span>.<span class="ident">end</span>))
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) -&gt; <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="ident">RangeOption::from</span>((<span class="self">self</span>.<span class="ident">start</span>, <span class="self">self</span>.<span class="ident">end</span>))
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="ident">RangeOption</span>::<span class="ident">from</span>((<span class="self">self</span>.<span class="ident">start</span>, <span class="self">self</span>.<span class="ident">end</span>))
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) -&gt; <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="ident">RangeOption::from</span>((<span class="self">self</span>.<span class="ident">start</span>, <span class="self">self</span>.<span class="ident">end</span>))
     }
 }
-<span class="kw">impl</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-        <span class="ident">RangeOption</span>::<span class="ident">from</span>((<span class="self">self</span>.<span class="ident">start</span>, <span class="self">self</span>.<span class="ident">end</span>))
+<span class="kw">impl</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) -&gt; <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
+        <span class="ident">RangeOption::from</span>((<span class="self">self</span>.<span class="ident">start</span>, <span class="self">self</span>.<span class="ident">end</span>))
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std::ops::RangeInclusive</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) -&gt; <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">into_inner</span>();
-        (<span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>(<span class="ident">start</span>)..<span class="ident">KeySelector</span>::<span class="ident">first_greater_than</span>(<span class="ident">end</span>)).<span class="ident">into</span>()
+        (<span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">start</span>)..<span class="ident">KeySelector::first_greater_than</span>(<span class="ident">end</span>)).<span class="ident">into</span>()
     }
 }
-<span class="kw">impl</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">std::ops::RangeInclusive</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) -&gt; <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">into_inner</span>();
-        (<span class="ident">KeySelector</span>::<span class="ident">first_greater_or_equal</span>(<span class="ident">start</span>)..<span class="ident">KeySelector</span>::<span class="ident">first_greater_than</span>(<span class="ident">end</span>)).<span class="ident">into</span>()
+        (<span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">start</span>)..<span class="ident">KeySelector::first_greater_than</span>(<span class="ident">end</span>)).<span class="ident">into</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Transaction</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys</span>::<span class="ident">FDBTransaction</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys::FDBTransaction</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> { <span class="ident">inner</span> }
     }
 
     <span class="doccomment">/// Called to set an option on an FDBTransaction.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">opt</span>: <span class="ident">options</span>::<span class="ident">TransactionOption</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">opt</span>: <span class="ident">options::TransactionOption</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">unsafe</span> { <span class="ident">opt</span>.<span class="ident">apply</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
     }
 
@@ -1167,7 +1163,7 @@
     <span class="doccomment">/// * `value` - the value to be inserted into the database</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
         <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_set</span>(
+            <span class="ident">fdb_sys::fdb_transaction_set</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1189,7 +1185,7 @@
     <span class="doccomment">/// * `key` - the name of the key to be removed from the database.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
         <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_clear</span>(
+            <span class="ident">fdb_sys::fdb_transaction_clear</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1209,9 +1205,9 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get</span>(
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1244,9 +1240,9 @@
     <span class="doccomment">/// If a transaction uses both an atomic operation and a strictly serializable read on the same</span>
     <span class="doccomment">/// key, the benefits of using the atomic operation (for both conflict checking and performance)</span>
     <span class="doccomment">/// are lost.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">atomic_op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">param</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">op_type</span>: <span class="ident">options</span>::<span class="ident">MutationType</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">atomic_op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">param</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">op_type</span>: <span class="ident">options::MutationType</span>) {
         <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_atomic_op</span>(
+            <span class="ident">fdb_sys::fdb_transaction_atomic_op</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1271,10 +1267,10 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">KeySelector</span>,
         <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
         <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">selector</span>.<span class="ident">key</span>();
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_key</span>(
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_key</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1303,20 +1299,20 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
         <span class="ident">opt</span>: <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
         <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
-        <span class="ident">stream</span>::<span class="ident">unfold</span>((<span class="number">1</span>, <span class="prelude-val">Some</span>(<span class="ident">opt</span>)), <span class="kw">move</span> <span class="op">|</span>(<span class="ident">iteration</span>, <span class="ident">maybe_opt</span>)<span class="op">|</span> {
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+        <span class="ident">stream::unfold</span>((<span class="number">1</span>, <span class="prelude-val">Some</span>(<span class="ident">opt</span>)), <span class="kw">move</span> <span class="op">|</span>(<span class="ident">iteration</span>, <span class="ident">maybe_opt</span>)<span class="op">|</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opt</span>) <span class="op">=</span> <span class="ident">maybe_opt</span> {
-                <span class="ident">Either</span>::<span class="ident">Left</span>(<span class="self">self</span>.<span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="ident">opt</span>, <span class="ident">iteration</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">snapshot</span>).<span class="ident">map</span>(
+                <span class="ident">Either::Left</span>(<span class="self">self</span>.<span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="ident">opt</span>, <span class="ident">iteration</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">snapshot</span>).<span class="ident">map</span>(
                     <span class="kw">move</span> <span class="op">|</span><span class="ident">maybe_values</span><span class="op">|</span> {
                         <span class="kw">let</span> <span class="ident">next_opt</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">maybe_values</span> {
-                            <span class="prelude-val">Ok</span>(<span class="ident">values</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">opt</span>.<span class="ident">next_range</span>(<span class="ident">values</span>),
-                            <span class="prelude-val">Err</span>(..) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+                            <span class="prelude-val">Ok</span>(<span class="ident">values</span>) =&gt; <span class="ident">opt</span>.<span class="ident">next_range</span>(<span class="ident">values</span>),
+                            <span class="prelude-val">Err</span>(..) =&gt; <span class="prelude-val">None</span>,
                         };
                         <span class="prelude-val">Some</span>((<span class="ident">maybe_values</span>, (<span class="ident">iteration</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">next_opt</span>)))
                     },
                 ))
             } <span class="kw">else</span> {
-                <span class="ident">Either</span>::<span class="ident">Right</span>(<span class="ident">future</span>::<span class="ident">ready</span>(<span class="prelude-val">None</span>))
+                <span class="ident">Either::Right</span>(<span class="ident">future::ready</span>(<span class="prelude-val">None</span>))
             }
         })
     }
@@ -1336,9 +1332,9 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
         <span class="ident">opt</span>: <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
         <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValue</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValue</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
         <span class="self">self</span>.<span class="ident">get_ranges</span>(<span class="ident">opt</span>, <span class="ident">snapshot</span>)
-            .<span class="ident">map_ok</span>(<span class="op">|</span><span class="ident">values</span><span class="op">|</span> <span class="ident">stream</span>::<span class="ident">iter</span>(<span class="ident">values</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="prelude-val">Ok</span>)))
+            .<span class="ident">map_ok</span>(<span class="op">|</span><span class="ident">values</span><span class="op">|</span> <span class="ident">stream::iter</span>(<span class="ident">values</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="prelude-val">Ok</span>)))
             .<span class="ident">try_flatten</span>()
     }
 
@@ -1358,14 +1354,14 @@
         <span class="ident">opt</span>: <span class="kw-2">&amp;</span><span class="ident">RangeOption</span>,
         <span class="ident">iteration</span>: <span class="ident">usize</span>,
         <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
         <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">begin</span>;
         <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">end</span>;
         <span class="kw">let</span> <span class="ident">key_begin</span> <span class="op">=</span> <span class="ident">begin</span>.<span class="ident">key</span>();
         <span class="kw">let</span> <span class="ident">key_end</span> <span class="op">=</span> <span class="ident">end</span>.<span class="ident">key</span>();
 
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_range</span>(
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_range</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key_begin</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key_begin</span>.<span class="ident">len</span>(), <span class="string">&quot;key_begin&quot;</span>),
@@ -1392,7 +1388,7 @@
     <span class="doccomment">/// `Transaction::commit`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
         <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_clear_range</span>(
+            <span class="ident">fdb_sys::fdb_transaction_clear_range</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
@@ -1425,11 +1421,11 @@
     <span class="doccomment">/// Normally, commit will wait for outstanding reads to return. However, if those reads were</span>
     <span class="doccomment">/// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,</span>
     <span class="doccomment">/// any outstanding reads will immediately return errors.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">commit</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">TransactionResult</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_commit</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }).<span class="ident">map</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">commit</span>(<span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">TransactionResult</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_commit</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }).<span class="ident">map</span>(
             <span class="kw">move</span> <span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">r</span> {
-                <span class="prelude-val">Ok</span>(()) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">TransactionCommitted</span> { <span class="ident">tr</span>: <span class="self">self</span> }),
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">TransactionCommitError</span> { <span class="ident">tr</span>: <span class="self">self</span>, <span class="ident">err</span> }),
+                <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">TransactionCommitted</span> { <span class="ident">tr</span>: <span class="self">self</span> }),
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="prelude-val">Err</span>(<span class="ident">TransactionCommitError</span> { <span class="ident">tr</span>: <span class="self">self</span>, <span class="ident">err</span> }),
             },
         )
     }
@@ -1449,17 +1445,17 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">on_error</span>(
         <span class="self">self</span>,
         <span class="ident">err</span>: <span class="ident">FdbError</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_on_error</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="ident">err</span>.<span class="ident">code</span>())
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_on_error</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="ident">err</span>.<span class="ident">code</span>())
         })
         .<span class="ident">map_ok</span>(<span class="op">|</span>()<span class="op">|</span> <span class="self">self</span>)
     }
 
     <span class="doccomment">/// Cancels the transaction. All pending or future uses of the transaction will return a</span>
     <span class="doccomment">/// transaction_cancelled error. The transaction can be used again after it is reset.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cancel</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">TransactionCancelled</span> {
-        <span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_cancel</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) };
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cancel</span>(<span class="self">self</span>) -&gt; <span class="ident">TransactionCancelled</span> {
+        <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_cancel</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) };
         <span class="ident">TransactionCancelled</span> { <span class="ident">tr</span>: <span class="self">self</span> }
     }
 
@@ -1468,9 +1464,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_addresses_for_key</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbAddresses</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_addresses_for_key</span>(
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbAddresses</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_addresses_for_key</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1503,9 +1499,9 @@
     <span class="doccomment">/// too_many_watches error. This limit can be changed using the MAX_WATCHES database option.</span>
     <span class="doccomment">/// Because a watch outlives the transaction that creates it, any watch that is no longer</span>
     <span class="doccomment">/// needed should be cancelled by dropping its future.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">watch</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_watch</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">watch</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_watch</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
@@ -1521,9 +1517,9 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_2&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_approximate_size</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_approximate_size</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>())
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_approximate_size</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>())
         })
     }
 
@@ -1538,16 +1534,16 @@
     <span class="doccomment">/// Most applications will not call this function.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_versionstamp</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_versionstamp</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) })
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_get_versionstamp</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) })
     }
 
     <span class="doccomment">/// The transaction obtains a snapshot read version automatically at the time of the first call</span>
     <span class="doccomment">/// to `get_*()` (including this one) and (unless causal consistency has been deliberately</span>
     <span class="doccomment">/// compromised by transaction options) is guaranteed to represent all transactions which were</span>
     <span class="doccomment">/// reported committed before that call.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_read_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_get_read_version</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) })
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_read_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_get_read_version</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) })
     }
 
     <span class="doccomment">/// Sets the snapshot read version used by a transaction.</span>
@@ -1558,7 +1554,7 @@
     <span class="doccomment">/// error_code_future_version. If any of get_*() have been called on this transaction already,</span>
     <span class="doccomment">/// the result is undefined.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_read_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">version</span>: <span class="ident">i64</span>) {
-        <span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_set_read_version</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="ident">version</span>) }
+        <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_set_read_version</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="ident">version</span>) }
     }
 
     <span class="doccomment">/// Reset transaction to its initial state.</span>
@@ -1571,7 +1567,7 @@
     <span class="doccomment">/// It is not necessary to call `reset()` when handling an error with `on_error()` since the</span>
     <span class="doccomment">/// transaction has already been reset.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_reset</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
+        <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_reset</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
     }
 
     <span class="doccomment">/// Adds a conflict range to a transaction without performing the associated read or write.</span>
@@ -1584,10 +1580,10 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">ty</span>: <span class="ident">options</span>::<span class="ident">ConflictRangeType</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_add_conflict_range</span>(
+        <span class="ident">ty</span>: <span class="ident">options::ConflictRangeType</span>,
+    ) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_add_conflict_range</span>(
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
                 <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
@@ -1602,9 +1598,11 @@
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Transaction</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_transaction_destroy</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>());
+            <span class="ident">fdb_sys::fdb_transaction_destroy</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>());
         }
     }
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "foundationdb";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
+    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script>
+</body></html>

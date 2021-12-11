@@ -1,7 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `foundationdb/src/database.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>database.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
-                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb&#x2F;src&#x2F;database.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>database.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -364,8 +361,7 @@
 <span id="361">361</span>
 <span id="362">362</span>
 <span id="363">363</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
@@ -377,19 +373,19 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! https://apple.github.io/foundationdb/api-c.html#database</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">TryInto</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">pin</span>::<span class="ident">Pin</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">NonNull</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+<span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
+<span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
+<span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
+<span class="kw">use</span> <span class="ident">std::ptr::NonNull</span>;
+<span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
 <span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">options</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">transaction</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::transaction</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
 
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// Represents a FoundationDB database</span>
 <span class="doccomment">///</span>
@@ -397,14 +393,14 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Modifications to a database are performed via transactions.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Database</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys</span>::<span class="ident">FDBDatabase</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys::FDBDatabase</span><span class="op">&gt;</span>,
 }
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Database</span> {}
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">Database</span> {}
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Database</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_database_destroy</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>());
+            <span class="ident">fdb_sys::fdb_database_destroy</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>());
         }
     }
 }
@@ -412,31 +408,31 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>)))]</span>
 <span class="kw">impl</span> <span class="ident">Database</span> {
     <span class="doccomment">/// Create a database for the given configuration path if any, or the default one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">path_str</span> <span class="op">=</span>
-            <span class="ident">path</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span> <span class="ident">std</span>::<span class="ident">ffi</span>::<span class="ident">CString</span>::<span class="ident">new</span>(<span class="ident">path</span>).<span class="ident">expect</span>(<span class="string">&quot;path to be convertible to CStr&quot;</span>));
+            <span class="ident">path</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span> <span class="ident">std::ffi::CString::new</span>(<span class="ident">path</span>).<span class="ident">expect</span>(<span class="string">&quot;path to be convertible to CStr&quot;</span>));
         <span class="kw">let</span> <span class="ident">path_ptr</span> <span class="op">=</span> <span class="ident">path_str</span>
             .<span class="ident">as_ref</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span> <span class="ident">path</span>.<span class="ident">as_ptr</span>())
-            .<span class="ident">unwrap_or</span>(<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>());
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">fdb_sys</span>::<span class="ident">FDBDatabase</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null_mut</span>();
-        <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_create_database</span>(<span class="ident">path_ptr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>) };
+            .<span class="ident">unwrap_or</span>(<span class="ident">std::ptr::null</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">fdb_sys::FDBDatabase</span> <span class="op">=</span> <span class="ident">std::ptr::null_mut</span>();
+        <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_create_database</span>(<span class="ident">path_ptr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>) };
         <span class="ident">drop</span>(<span class="ident">path_str</span>); <span class="comment">// path_str own the CString that we are getting the ptr from</span>
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="ident">err</span>)<span class="question-mark">?</span>;
+        <span class="ident">error::eval</span>(<span class="ident">err</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">Database</span> {
-            <span class="ident">inner</span>: <span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">v</span>)
+            <span class="ident">inner</span>: <span class="ident">NonNull::new</span>(<span class="ident">v</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;fdb_create_database to not return null if there is no error&quot;</span>),
         })
     }
 
     <span class="doccomment">/// Create a database for the given configuration path</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
-        <span class="self">Self</span>::<span class="ident">new</span>(<span class="prelude-val">Some</span>(<span class="ident">path</span>))
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
+        <span class="ident"><span class="self">Self</span>::new</span>(<span class="prelude-val">Some</span>(<span class="ident">path</span>))
     }
 
     <span class="doccomment">/// Create a database for the default configuration path</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
-        <span class="self">Self</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
+        <span class="ident"><span class="self">Self</span>::new</span>(<span class="prelude-val">None</span>)
     }
 }
 
@@ -445,32 +441,32 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is a compatibility api. If you only use API version ≥ 610 you should</span>
     <span class="doccomment">/// use `Database::new`, `Database::from_path` or  `Database::default`.</span>
-    <span class="kw">pub</span> <span class="ident">async</span> <span class="kw">fn</span> <span class="ident">new_compat</span>(<span class="ident">path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">new_compat</span>(<span class="ident">path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>))]</span>
         {
-            <span class="kw">let</span> <span class="ident">cluster</span> <span class="op">=</span> <span class="kw">crate</span>::<span class="ident">cluster</span>::<span class="ident">Cluster</span>::<span class="ident">new</span>(<span class="ident">path</span>).<span class="ident">await</span><span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">database</span> <span class="op">=</span> <span class="ident">cluster</span>.<span class="ident">create_database</span>().<span class="ident">await</span><span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">cluster</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::cluster::Cluster::new</span>(<span class="ident">path</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">database</span> <span class="op">=</span> <span class="ident">cluster</span>.<span class="ident">create_database</span>().<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(<span class="ident">database</span>)
         }
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>)))]</span>
         {
-            <span class="ident">Database</span>::<span class="ident">new</span>(<span class="ident">path</span>)
+            <span class="ident">Database::new</span>(<span class="ident">path</span>)
         }
     }
 
     <span class="doccomment">/// Called to set an option an on `Database`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">opt</span>: <span class="ident">options</span>::<span class="ident">DatabaseOption</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">opt</span>: <span class="ident">options::DatabaseOption</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">unsafe</span> { <span class="ident">opt</span>.<span class="ident">apply</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
     }
 
     <span class="doccomment">/// Creates a new transaction on the given database.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_trx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">fdb_sys</span>::<span class="ident">FDBTransaction</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null_mut</span>();
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_trx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">fdb_sys::FDBTransaction</span> <span class="op">=</span> <span class="ident">std::ptr::null_mut</span>();
         <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span>
-            <span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_database_create_transaction</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">trx</span>) };
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="ident">err</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">Transaction</span>::<span class="ident">new</span>(<span class="ident">NonNull</span>::<span class="ident">new</span>(<span class="ident">trx</span>).<span class="ident">expect</span>(
+            <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_database_create_transaction</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">trx</span>) };
+        <span class="ident">error::eval</span>(<span class="ident">err</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">Transaction::new</span>(<span class="ident">NonNull::new</span>(<span class="ident">trx</span>).<span class="ident">expect</span>(
             <span class="string">&quot;fdb_database_create_transaction to not return null if there is no error&quot;</span>,
         )))
     }
@@ -489,44 +485,44 @@
     <span class="doccomment">/// Once [Generic Associated Types](https://github.com/rust-lang/rfcs/blob/master/text/1598-generic_associated_types.md)</span>
     <span class="doccomment">/// lands in stable rust, the returned future of f won&#39;t need to be boxed anymore, also the</span>
     <span class="doccomment">/// lifetime limitations around f might be lowered.</span>
-    <span class="kw">pub</span> <span class="ident">async</span> <span class="kw">fn</span> <span class="ident">transact</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>, <span class="ident">options</span>: <span class="ident">TransactOption</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">F</span>::<span class="ident">Item</span>, <span class="ident">F</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">transact</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>, <span class="ident">options</span>: <span class="ident">TransactOption</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">F::Item</span>, <span class="ident">F::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">DatabaseTransact</span>,
     {
         <span class="kw">let</span> <span class="ident">is_idempotent</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">is_idempotent</span>;
-        <span class="kw">let</span> <span class="ident">time_out</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">time_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">Instant</span>::<span class="ident">now</span>() <span class="op">+</span> <span class="ident">d</span>);
+        <span class="kw">let</span> <span class="ident">time_out</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">time_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">Instant::now</span>() <span class="op">+</span> <span class="ident">d</span>);
         <span class="kw">let</span> <span class="ident">retry_limit</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">retry_limit</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tries</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">can_retry</span> <span class="op">=</span> <span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
             <span class="ident">tries</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
             <span class="ident">retry_limit</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">limit</span><span class="op">|</span> <span class="ident">tries</span> <span class="op">&lt;</span> <span class="ident">limit</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)
-                <span class="op">&amp;&amp;</span> <span class="ident">time_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">Instant</span>::<span class="ident">now</span>() <span class="op">&lt;</span> <span class="ident">t</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)
+                <span class="op">&amp;&amp;</span> <span class="ident">time_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">Instant::now</span>() <span class="op">&lt;</span> <span class="ident">t</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)
         };
         <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">transact</span>(<span class="ident">trx</span>).<span class="ident">await</span>;
+            <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">transact</span>(<span class="ident">trx</span>).<span class="kw">await</span>;
             <span class="ident">f</span> <span class="op">=</span> <span class="ident">r</span>.<span class="number">0</span>;
             <span class="ident">trx</span> <span class="op">=</span> <span class="ident">r</span>.<span class="number">1</span>;
             <span class="ident">trx</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">r</span>.<span class="number">2</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">item</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">trx</span>.<span class="ident">commit</span>().<span class="ident">await</span> {
-                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">break</span> <span class="prelude-val">Ok</span>(<span class="ident">item</span>),
-                    <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">item</span>) =&gt; <span class="kw">match</span> <span class="ident">trx</span>.<span class="ident">commit</span>().<span class="kw">await</span> {
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="kw">break</span> <span class="prelude-val">Ok</span>(<span class="ident">item</span>),
+                    <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
                         <span class="kw">if</span> (<span class="ident">is_idempotent</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_maybe_committed</span>()) <span class="op">&amp;&amp;</span> <span class="ident">can_retry</span>() {
-                            <span class="ident">e</span>.<span class="ident">on_error</span>().<span class="ident">await</span><span class="question-mark">?</span>
+                            <span class="ident">e</span>.<span class="ident">on_error</span>().<span class="kw">await</span><span class="question-mark">?</span>
                         } <span class="kw">else</span> {
-                            <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">F</span>::<span class="ident">Error</span>::<span class="ident">from</span>(<span class="ident">e</span>.<span class="ident">into</span>()));
+                            <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">F::Error::from</span>(<span class="ident">e</span>.<span class="ident">into</span>()));
                         }
                     }
                 },
-                <span class="prelude-val">Err</span>(<span class="ident">user_err</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">user_err</span>.<span class="ident">try_into_fdb_error</span>() {
-                    <span class="prelude-val">Ok</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Err</span>(<span class="ident">user_err</span>) =&gt; <span class="kw">match</span> <span class="ident">user_err</span>.<span class="ident">try_into_fdb_error</span>() {
+                    <span class="prelude-val">Ok</span>(<span class="ident">e</span>) =&gt; {
                         <span class="kw">if</span> (<span class="ident">is_idempotent</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_maybe_committed</span>()) <span class="op">&amp;&amp;</span> <span class="ident">can_retry</span>() {
-                            <span class="ident">trx</span>.<span class="ident">on_error</span>(<span class="ident">e</span>).<span class="ident">await</span><span class="question-mark">?</span>
+                            <span class="ident">trx</span>.<span class="ident">on_error</span>(<span class="ident">e</span>).<span class="kw">await</span><span class="question-mark">?</span>
                         } <span class="kw">else</span> {
-                            <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">F</span>::<span class="ident">Error</span>::<span class="ident">from</span>(<span class="ident">e</span>));
+                            <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">F::Error::from</span>(<span class="ident">e</span>));
                         }
                     }
-                    <span class="prelude-val">Err</span>(<span class="ident">user_err</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">user_err</span>),
+                    <span class="prelude-val">Err</span>(<span class="ident">user_err</span>) =&gt; <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">user_err</span>),
                 },
             };
         }
@@ -537,12 +533,12 @@
         <span class="ident">data</span>: <span class="ident">D</span>,
         <span class="ident">f</span>: <span class="ident">F</span>,
         <span class="ident">options</span>: <span class="ident">TransactOption</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>
     <span class="kw">where</span>
         <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
         <span class="ident">E</span>: <span class="ident">TransactError</span>,
         <span class="ident">F</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
         <span class="ident">T</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
@@ -550,7 +546,7 @@
         <span class="ident">D</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
     {
         <span class="self">self</span>.<span class="ident">transact</span>(
-            <span class="ident">boxed</span>::<span class="ident">FnMutBoxed</span> {
+            <span class="ident">boxed::FnMutBoxed</span> {
                 <span class="ident">f</span>,
                 <span class="ident">d</span>: <span class="ident">data</span>,
                 <span class="ident">m</span>: <span class="ident">PhantomData</span>,
@@ -564,10 +560,10 @@
         <span class="ident">data</span>: <span class="ident">D</span>,
         <span class="ident">f</span>: <span class="ident">F</span>,
         <span class="ident">options</span>: <span class="ident">TransactOption</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>
     <span class="kw">where</span>
         <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">F</span>:
-            <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+            <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
         <span class="ident">E</span>: <span class="ident">TransactError</span>,
         <span class="ident">F</span>: <span class="lifetime">&#39;trx</span>,
         <span class="ident">T</span>: <span class="lifetime">&#39;trx</span>,
@@ -575,7 +571,7 @@
         <span class="ident">D</span>: <span class="lifetime">&#39;trx</span>,
     {
         <span class="self">self</span>.<span class="ident">transact</span>(
-            <span class="ident">boxed_local</span>::<span class="ident">FnMutBoxedLocal</span> {
+            <span class="ident">boxed_local::FnMutBoxedLocal</span> {
                 <span class="ident">f</span>,
                 <span class="ident">d</span>: <span class="ident">data</span>,
                 <span class="ident">m</span>: <span class="ident">PhantomData</span>,
@@ -587,27 +583,27 @@
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">DatabaseTransact</span>: <span class="ident">Sized</span> {
     <span class="kw">type</span> <span class="ident">Item</span>;
     <span class="kw">type</span> <span class="ident">Error</span>: <span class="ident">TransactError</span>;
-    <span class="kw">type</span> <span class="ident">Future</span>: <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="ident">Future</span>;
+    <span class="kw">type</span> <span class="ident">Future</span>: <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident"><span class="self">Self</span>::Future</span>;
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">needless_lifetimes</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">type_complexity</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::needless_lifetimes</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::type_complexity</span>)]</span>
 <span class="kw">mod</span> <span class="ident">boxed</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="ident">async</span> <span class="kw">fn</span> <span class="ident">boxed_data_fut</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span>(
+    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">boxed_data_fut</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span>(
         <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>,
         <span class="ident">trx</span>: <span class="ident">Transaction</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>)
+    ) -&gt; (<span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>)
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
         <span class="ident">E</span>: <span class="ident">TransactError</span>,
     {
-        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">f</span>)(<span class="kw-2">&amp;</span><span class="ident">trx</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">d</span>).<span class="ident">await</span>;
+        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">f</span>)(<span class="kw-2">&amp;</span><span class="ident">trx</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">d</span>).<span class="kw">await</span>;
         (<span class="ident">f</span>, <span class="ident">trx</span>, <span class="ident">r</span>)
     }
 
@@ -621,7 +617,7 @@
         <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
         <span class="ident">F</span>: <span class="lifetime">&#39;t</span> <span class="op">+</span> <span class="ident">Send</span>,
         <span class="ident">T</span>: <span class="lifetime">&#39;t</span>,
         <span class="ident">E</span>: <span class="lifetime">&#39;t</span>,
@@ -632,35 +628,35 @@
         <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span>;
         <span class="kw">type</span> <span class="ident">Future</span> <span class="op">=</span> <span class="ident">Pin</span><span class="op">&lt;</span>
             <span class="ident">Box</span><span class="op">&lt;</span>
-                <span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span>
+                <span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span>
                     <span class="op">+</span> <span class="ident">Send</span>
                     <span class="op">+</span> <span class="lifetime">&#39;t</span>,
             <span class="op">&gt;</span>,
         <span class="op">&gt;</span>;
 
-        <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="ident">Future</span> {
+        <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident"><span class="self">Self</span>::Future</span> {
             <span class="ident">boxed_data_fut</span>(<span class="self">self</span>, <span class="ident">trx</span>).<span class="ident">boxed</span>()
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">needless_lifetimes</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">type_complexity</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::needless_lifetimes</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::type_complexity</span>)]</span>
 <span class="kw">mod</span> <span class="ident">boxed_local</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="ident">async</span> <span class="kw">fn</span> <span class="ident">boxed_local_data_fut</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span>(
+    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">boxed_local_data_fut</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span>(
         <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>,
         <span class="ident">trx</span>: <span class="ident">Transaction</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>)
+    ) -&gt; (<span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>)
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
         <span class="ident">E</span>: <span class="ident">TransactError</span>,
     {
-        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">f</span>)(<span class="kw-2">&amp;</span><span class="ident">trx</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">d</span>).<span class="ident">await</span>;
+        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">f</span>)(<span class="kw-2">&amp;</span><span class="ident">trx</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">f</span>.<span class="ident">d</span>).<span class="kw">await</span>;
         (<span class="ident">f</span>, <span class="ident">trx</span>, <span class="ident">r</span>)
     }
 
@@ -674,7 +670,7 @@
         <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
             <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
         <span class="ident">F</span>: <span class="lifetime">&#39;t</span>,
         <span class="ident">T</span>: <span class="lifetime">&#39;t</span>,
         <span class="ident">E</span>: <span class="lifetime">&#39;t</span>,
@@ -684,10 +680,10 @@
         <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>;
         <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span>;
         <span class="kw">type</span> <span class="ident">Future</span> <span class="op">=</span> <span class="ident">Pin</span><span class="op">&lt;</span>
-            <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+            <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
         <span class="op">&gt;</span>;
 
-        <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="ident">Future</span> {
+        <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident"><span class="self">Self</span>::Future</span> {
             <span class="ident">boxed_local_data_fut</span>(<span class="self">self</span>, <span class="ident">trx</span>).<span class="ident">boxed_local</span>()
         }
     }
@@ -695,18 +691,18 @@
 
 <span class="doccomment">/// A trait that must be implemented to use `Database::transact` this application error types.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">TransactError</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span>;
 }
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">TransactError</span> <span class="kw">for</span> <span class="ident">T</span>
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">TryInto</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">T</span><span class="op">&gt;</span>,
 {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">try_into</span>()
     }
 }
 <span class="kw">impl</span> <span class="ident">TransactError</span> <span class="kw">for</span> <span class="ident">FdbError</span> {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
 }
@@ -721,12 +717,14 @@
 
 <span class="kw">impl</span> <span class="ident">TransactOption</span> {
     <span class="doccomment">/// An idempotent TransactOption</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">idempotent</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">idempotent</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">is_idempotent</span>: <span class="bool-val">true</span>,
-            ..<span class="ident">TransactOption</span>::<span class="ident">default</span>()
+            ..<span class="ident">TransactOption::default</span>()
         }
     }
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "foundationdb";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
+    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script>
+</body></html>

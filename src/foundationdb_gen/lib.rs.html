@@ -1,7 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `foundationdb-gen/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../foundationdb_gen/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
-                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-gen&#x2F;src&#x2F;lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../foundationdb_gen/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -411,12 +408,11 @@
 <span id="408">408</span>
 <span id="409">409</span>
 <span id="410">410</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">xml</span>;
+</pre><pre class="rust"><code><span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">xml</span>;
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">xml</span>::<span class="ident">attribute</span>::<span class="ident">OwnedAttribute</span>;
-<span class="kw">use</span> <span class="ident">xml</span>::<span class="ident">reader</span>::{<span class="ident">EventReader</span>, <span class="ident">XmlEvent</span>};
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
+<span class="kw">use</span> <span class="ident">xml::attribute::OwnedAttribute</span>;
+<span class="kw">use</span> <span class="ident">xml::reader</span>::{<span class="ident">EventReader</span>, <span class="ident">XmlEvent</span>};
 
 <span class="kw">const</span> <span class="ident">TAB1</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;    &quot;</span>;
 <span class="kw">const</span> <span class="ident">TAB2</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;        &quot;</span>;
@@ -429,45 +425,45 @@
     <span class="ident">options</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FdbOption</span><span class="op">&gt;</span>,
 }
 <span class="kw">impl</span> <span class="ident">FdbScope</span> {
-    <span class="kw">fn</span> <span class="ident">gen_ty</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">gen_ty</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt::Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">let</span> <span class="ident">with_ty</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">with_ty</span>();
 
         <span class="kw">if</span> <span class="ident">with_ty</span> {
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;#[derive(Clone, Debug)]&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;#[derive(Clone, Debug)]&quot;</span>)<span class="question-mark">?</span>;
         } <span class="kw">else</span> {
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;#[derive(Clone, Copy, Debug)]&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;#[derive(Clone, Copy, Debug)]&quot;</span>)<span class="question-mark">?</span>;
         }
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;#[non_exhaustive]&quot;</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;pub enum {name} {{&quot;</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;#[non_exhaustive]&quot;</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;pub enum {name} {{&quot;</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">with_ty</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">with_ty</span>();
         <span class="kw">for</span> <span class="ident">option</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">iter</span>() {
             <span class="ident">option</span>.<span class="ident">gen_ty</span>(<span class="ident">w</span>, <span class="ident">with_ty</span>)<span class="question-mark">?</span>;
         }
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;}}&quot;</span>)
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;}}&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">gen_impl</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;impl {name} {{&quot;</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
+    <span class="kw">fn</span> <span class="ident">gen_impl</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt::Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;impl {name} {{&quot;</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">gen_code</span>(<span class="ident">w</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">gen_apply</span>(<span class="ident">w</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;}}&quot;</span>)
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;}}&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">gen_code</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">writeln</span><span class="macro">!</span>(
+    <span class="kw">fn</span> <span class="ident">gen_code</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt::Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="macro">writeln!</span>(
             <span class="ident">w</span>,
             <span class="string">&quot;{t}pub fn code(&amp;self) -&gt; fdb_sys::FDB{name} {{&quot;</span>,
             <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>,
             <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>,
         )<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}match *self {{&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}match *self {{&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">enum_prefix</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">c_enum_prefix</span>();
         <span class="kw">let</span> <span class="ident">with_ty</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">with_ty</span>();
 
         <span class="kw">for</span> <span class="ident">option</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">iter</span>() {
-            <span class="macro">writeln</span><span class="macro">!</span>(
+            <span class="macro">writeln!</span>(
                 <span class="ident">w</span>,
                 <span class="string">&quot;{t}{scope}::{name}{param} =&gt; fdb_sys::{enum_prefix}{code},&quot;</span>,
                 <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>,
@@ -483,29 +479,29 @@
             )<span class="question-mark">?</span>;
         }
 
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>)
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">gen_apply</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">gen_apply</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt::Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">let</span> <span class="ident">fn_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">apply_fn_name</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">name</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="ident">name</span>) =&gt; <span class="ident">name</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
         };
 
         <span class="kw">let</span> <span class="ident">first_arg</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">apply_arg_name</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;, target: *mut fdb_sys::{}&quot;</span>, <span class="ident">name</span>),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">String</span>::<span class="ident">new</span>(),
+            <span class="prelude-val">Some</span>(<span class="ident">name</span>) =&gt; <span class="macro">format!</span>(<span class="string">&quot;, target: *mut fdb_sys::{}&quot;</span>, <span class="ident">name</span>),
+            <span class="prelude-val">None</span> =&gt; <span class="ident">String::new</span>(),
         };
 
-        <span class="macro">writeln</span><span class="macro">!</span>(
+        <span class="macro">writeln!</span>(
             <span class="ident">w</span>,
             <span class="string">&quot;{t}pub unsafe fn apply(&amp;self{args}) -&gt; FdbResult&lt;()&gt; {{&quot;</span>,
             <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>,
             <span class="ident">args</span> <span class="op">=</span> <span class="ident">first_arg</span>
         )<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}let code = self.code();&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}let err = match *self {{&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}let code = self.code();&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}let err = match *self {{&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">args</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">first_arg</span>.<span class="ident">is_empty</span>() {
             <span class="string">&quot;code&quot;</span>
@@ -514,96 +510,96 @@
         };
 
         <span class="kw">for</span> <span class="ident">option</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">iter</span>() {
-            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{}{}::{}&quot;</span>, <span class="ident">TAB3</span>, <span class="self">self</span>.<span class="ident">name</span>, <span class="ident">option</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(<span class="ident">w</span>, <span class="string">&quot;{}{}::{}&quot;</span>, <span class="ident">TAB3</span>, <span class="self">self</span>.<span class="ident">name</span>, <span class="ident">option</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
             <span class="kw">match</span> <span class="ident">option</span>.<span class="ident">param_type</span> {
-                <span class="ident">FdbOptionTy</span>::<span class="ident">Empty</span> <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="macro">writeln</span><span class="macro">!</span>(
+                <span class="ident">FdbOptionTy::Empty</span> =&gt; {
+                    <span class="macro">writeln!</span>(
                         <span class="ident">w</span>,
                         <span class="string">&quot; =&gt; fdb_sys::{}({}, std::ptr::null(), 0),&quot;</span>,
                         <span class="ident">fn_name</span>, <span class="ident">args</span>
                     )<span class="question-mark">?</span>;
                 }
-                <span class="ident">FdbOptionTy</span>::<span class="ident">Int</span> <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;(v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(
+                <span class="ident">FdbOptionTy::Int</span> =&gt; {
+                    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;(v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(
                         <span class="ident">w</span>,
                         <span class="string">&quot;{}let data: [u8;8] = std::mem::transmute(v as i64);&quot;</span>,
                         <span class="ident">TAB4</span>,
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(
+                    <span class="macro">writeln!</span>(
                         <span class="ident">w</span>,
                         <span class="string">&quot;{}fdb_sys::{}({}, data.as_ptr() as *const u8, 8)&quot;</span>,
                         <span class="ident">TAB4</span>, <span class="ident">fn_name</span>, <span class="ident">args</span>
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>)<span class="question-mark">?</span>;
                 }
-                <span class="ident">FdbOptionTy</span>::<span class="ident">Bytes</span> <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;(ref v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(
+                <span class="ident">FdbOptionTy::Bytes</span> =&gt; {
+                    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;(ref v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(
                         <span class="ident">w</span>,
                         <span class="string">&quot;{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
                          i32::try_from(v.len()).expect(\&quot;len to fit in i32\&quot;))\n&quot;</span>,
                         <span class="ident">TAB4</span>, <span class="ident">fn_name</span>, <span class="ident">args</span>
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>)<span class="question-mark">?</span>;
                 }
-                <span class="ident">FdbOptionTy</span>::<span class="ident">Str</span> <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;(ref v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(
+                <span class="ident">FdbOptionTy::Str</span> =&gt; {
+                    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;(ref v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(
                         <span class="ident">w</span>,
                         <span class="string">&quot;{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
                          i32::try_from(v.len()).expect(\&quot;len to fit in i32\&quot;))\n&quot;</span>,
                         <span class="ident">TAB4</span>, <span class="ident">fn_name</span>, <span class="ident">args</span>
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB3</span>)<span class="question-mark">?</span>;
                 }
             }
         }
 
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}};&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}};&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(
             <span class="ident">w</span>,
             <span class="string">&quot;{t}if err != 0 {{ Err(FdbError::from_code(err)) }} else {{ Ok(()) }}&quot;</span>,
             <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB2</span>,
         )<span class="question-mark">?</span>;
-        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>)
+        <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}}}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">with_ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">with_ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">apply_fn_name</span>().<span class="ident">is_some</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">c_enum_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">c_enum_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>() {
-            <span class="string">&quot;NetworkOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBNetworkOption_FDB_NET_OPTION_&quot;</span>,
-            <span class="string">&quot;ClusterOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBClusterOption_FDB_CLUSTER_OPTION_&quot;</span>,
-            <span class="string">&quot;DatabaseOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBDatabaseOption_FDB_DB_OPTION_&quot;</span>,
-            <span class="string">&quot;TransactionOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBTransactionOption_FDB_TR_OPTION_&quot;</span>,
-            <span class="string">&quot;StreamingMode&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBStreamingMode_FDB_STREAMING_MODE_&quot;</span>,
-            <span class="string">&quot;MutationType&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBMutationType_FDB_MUTATION_TYPE_&quot;</span>,
-            <span class="string">&quot;ConflictRangeType&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_&quot;</span>,
-            <span class="string">&quot;ErrorPredicate&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBErrorPredicate_FDB_ERROR_PREDICATE_&quot;</span>,
-            <span class="ident">ty</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unknown Scope name: `{}`&quot;</span>, <span class="ident">ty</span>),
+            <span class="string">&quot;NetworkOption&quot;</span> =&gt; <span class="string">&quot;FDBNetworkOption_FDB_NET_OPTION_&quot;</span>,
+            <span class="string">&quot;ClusterOption&quot;</span> =&gt; <span class="string">&quot;FDBClusterOption_FDB_CLUSTER_OPTION_&quot;</span>,
+            <span class="string">&quot;DatabaseOption&quot;</span> =&gt; <span class="string">&quot;FDBDatabaseOption_FDB_DB_OPTION_&quot;</span>,
+            <span class="string">&quot;TransactionOption&quot;</span> =&gt; <span class="string">&quot;FDBTransactionOption_FDB_TR_OPTION_&quot;</span>,
+            <span class="string">&quot;StreamingMode&quot;</span> =&gt; <span class="string">&quot;FDBStreamingMode_FDB_STREAMING_MODE_&quot;</span>,
+            <span class="string">&quot;MutationType&quot;</span> =&gt; <span class="string">&quot;FDBMutationType_FDB_MUTATION_TYPE_&quot;</span>,
+            <span class="string">&quot;ConflictRangeType&quot;</span> =&gt; <span class="string">&quot;FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_&quot;</span>,
+            <span class="string">&quot;ErrorPredicate&quot;</span> =&gt; <span class="string">&quot;FDBErrorPredicate_FDB_ERROR_PREDICATE_&quot;</span>,
+            <span class="ident">ty</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unknown Scope name: `{}`&quot;</span>, <span class="ident">ty</span>),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">apply_arg_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">apply_arg_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>() {
-            <span class="string">&quot;ClusterOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBCluster&quot;</span>,
-            <span class="string">&quot;DatabaseOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBDatabase&quot;</span>,
-            <span class="string">&quot;TransactionOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;FDBTransaction&quot;</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="string">&quot;ClusterOption&quot;</span> =&gt; <span class="string">&quot;FDBCluster&quot;</span>,
+            <span class="string">&quot;DatabaseOption&quot;</span> =&gt; <span class="string">&quot;FDBDatabase&quot;</span>,
+            <span class="string">&quot;TransactionOption&quot;</span> =&gt; <span class="string">&quot;FDBTransaction&quot;</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Some</span>(<span class="ident">s</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">apply_fn_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">apply_fn_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>() {
-            <span class="string">&quot;NetworkOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;fdb_network_set_option&quot;</span>,
-            <span class="string">&quot;ClusterOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;fdb_cluster_set_option&quot;</span>,
-            <span class="string">&quot;DatabaseOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;fdb_database_set_option&quot;</span>,
-            <span class="string">&quot;TransactionOption&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;fdb_transaction_set_option&quot;</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="string">&quot;NetworkOption&quot;</span> =&gt; <span class="string">&quot;fdb_network_set_option&quot;</span>,
+            <span class="string">&quot;ClusterOption&quot;</span> =&gt; <span class="string">&quot;fdb_cluster_set_option&quot;</span>,
+            <span class="string">&quot;DatabaseOption&quot;</span> =&gt; <span class="string">&quot;fdb_database_set_option&quot;</span>,
+            <span class="string">&quot;TransactionOption&quot;</span> =&gt; <span class="string">&quot;fdb_transaction_set_option&quot;</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Some</span>(<span class="ident">s</span>)
     }
@@ -616,9 +612,9 @@
     <span class="ident">Str</span>,
     <span class="ident">Bytes</span>,
 }
-<span class="kw">impl</span> <span class="ident">std</span>::<span class="ident">default</span>::<span class="ident">Default</span> <span class="kw">for</span> <span class="ident">FdbOptionTy</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">FdbOptionTy</span>::<span class="ident">Empty</span>
+<span class="kw">impl</span> <span class="ident">std::default::Default</span> <span class="kw">for</span> <span class="ident">FdbOptionTy</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
+        <span class="ident">FdbOptionTy::Empty</span>
     }
 }
 
@@ -636,38 +632,38 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FdbOption</span> {
-    <span class="kw">fn</span> <span class="ident">gen_ty</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>, <span class="ident">with_ty</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">gen_ty</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">fmt::Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>, <span class="ident">with_ty</span>: <span class="ident">bool</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">param_description</span>.<span class="ident">is_empty</span>() {
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}/// {desc}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">desc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">param_description</span>)<span class="question-mark">?</span>;
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}///&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}/// {desc}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">desc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">param_description</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}///&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">description</span>.<span class="ident">is_empty</span>() {
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}/// {desc}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">desc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">description</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}/// {desc}&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">desc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">description</span>)<span class="question-mark">?</span>;
         }
 
         <span class="kw">if</span> <span class="kw">let</span> (<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="ident">ty</span>)) <span class="op">=</span> (<span class="ident">with_ty</span>, <span class="self">self</span>.<span class="ident">get_ty</span>()) {
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}{name}({ty}),&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>, <span class="ident">ty</span> <span class="op">=</span> <span class="ident">ty</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}{name}({ty}),&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>, <span class="ident">ty</span> <span class="op">=</span> <span class="ident">ty</span>)<span class="question-mark">?</span>;
         } <span class="kw">else</span> {
-            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}{name},&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;{t}{name},&quot;</span>, <span class="ident">t</span> <span class="op">=</span> <span class="ident">TAB1</span>, <span class="ident">name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">name</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">get_ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">get_ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">param_type</span> {
-            <span class="ident">FdbOptionTy</span>::<span class="ident">Int</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;i32&quot;</span>),
-            <span class="ident">FdbOptionTy</span>::<span class="ident">Str</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;String&quot;</span>),
-            <span class="ident">FdbOptionTy</span>::<span class="ident">Bytes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;Vec&lt;u8&gt;&quot;</span>),
-            <span class="ident">FdbOptionTy</span>::<span class="ident">Empty</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">FdbOptionTy::Int</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;i32&quot;</span>),
+            <span class="ident">FdbOptionTy::Str</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;String&quot;</span>),
+            <span class="ident">FdbOptionTy::Bytes</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;Vec&lt;u8&gt;&quot;</span>),
+            <span class="ident">FdbOptionTy::Empty</span> =&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="kw">fn</span> <span class="ident">to_rs_enum_name</span>(<span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+<span class="kw">fn</span> <span class="ident">to_rs_enum_name</span>(<span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">String</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">is_start_of_word</span> <span class="op">=</span> <span class="bool-val">true</span>;
     <span class="ident">v</span>.<span class="ident">chars</span>()
         .<span class="ident">filter_map</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> {
-            <span class="kw">if</span> <span class="ident">c</span> <span class="op">=</span><span class="op">=</span> <span class="string">&#39;_&#39;</span> {
+            <span class="kw">if</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span> {
                 <span class="ident">is_start_of_word</span> <span class="op">=</span> <span class="bool-val">true</span>;
                 <span class="prelude-val">None</span>
             } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">is_start_of_word</span> {
@@ -681,48 +677,48 @@
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">OwnedAttribute</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbOption</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">attrs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">OwnedAttribute</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">opt</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">default</span>();
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">attrs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">OwnedAttribute</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">opt</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::default</span>();
         <span class="kw">for</span> <span class="ident">attr</span> <span class="kw">in</span> <span class="ident">attrs</span> {
             <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">attr</span>.<span class="ident">value</span>;
             <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">name</span>.<span class="ident">local_name</span>.<span class="ident">as_str</span>() {
-                <span class="string">&quot;name&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;name&quot;</span> =&gt; {
                     <span class="ident">opt</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">to_rs_enum_name</span>(<span class="ident">v</span>.<span class="ident">as_str</span>());
                     <span class="ident">opt</span>.<span class="ident">c_name</span> <span class="op">=</span> <span class="ident">v</span>.<span class="ident">to_uppercase</span>();
                 }
-                <span class="string">&quot;code&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;code&quot;</span> =&gt; {
                     <span class="ident">opt</span>.<span class="ident">code</span> <span class="op">=</span> <span class="ident">v</span>.<span class="ident">parse</span>().<span class="ident">expect</span>(<span class="string">&quot;code to be a i32&quot;</span>);
                 }
-                <span class="string">&quot;paramType&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;paramType&quot;</span> =&gt; {
                     <span class="ident">opt</span>.<span class="ident">param_type</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
-                        <span class="string">&quot;Int&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">FdbOptionTy</span>::<span class="ident">Int</span>,
-                        <span class="string">&quot;String&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">FdbOptionTy</span>::<span class="ident">Str</span>,
-                        <span class="string">&quot;Bytes&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">FdbOptionTy</span>::<span class="ident">Bytes</span>,
-                        <span class="string">&quot;&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">FdbOptionTy</span>::<span class="ident">Empty</span>,
-                        <span class="ident">ty</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unexpected param_type: {}&quot;</span>, <span class="ident">ty</span>),
+                        <span class="string">&quot;Int&quot;</span> =&gt; <span class="ident">FdbOptionTy::Int</span>,
+                        <span class="string">&quot;String&quot;</span> =&gt; <span class="ident">FdbOptionTy::Str</span>,
+                        <span class="string">&quot;Bytes&quot;</span> =&gt; <span class="ident">FdbOptionTy::Bytes</span>,
+                        <span class="string">&quot;&quot;</span> =&gt; <span class="ident">FdbOptionTy::Empty</span>,
+                        <span class="ident">ty</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected param_type: {}&quot;</span>, <span class="ident">ty</span>),
                     };
                 }
-                <span class="string">&quot;paramDescription&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;paramDescription&quot;</span> =&gt; {
                     <span class="ident">opt</span>.<span class="ident">param_description</span> <span class="op">=</span> <span class="ident">v</span>;
                 }
-                <span class="string">&quot;description&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;description&quot;</span> =&gt; {
                     <span class="ident">opt</span>.<span class="ident">description</span> <span class="op">=</span> <span class="ident">v</span>;
                 }
-                <span class="string">&quot;hidden&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
-                    <span class="string">&quot;true&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">opt</span>.<span class="ident">hidden</span> <span class="op">=</span> <span class="bool-val">true</span>,
-                    <span class="string">&quot;false&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">opt</span>.<span class="ident">hidden</span> <span class="op">=</span> <span class="bool-val">false</span>,
-                    <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unexpected boolean value in &#39;hidden&#39;: {}&quot;</span>, <span class="ident">v</span>),
+                <span class="string">&quot;hidden&quot;</span> =&gt; <span class="kw">match</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
+                    <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">opt</span>.<span class="ident">hidden</span> <span class="op">=</span> <span class="bool-val">true</span>,
+                    <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">opt</span>.<span class="ident">hidden</span> <span class="op">=</span> <span class="bool-val">false</span>,
+                    <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected boolean value in &#39;hidden&#39;: {}&quot;</span>, <span class="ident">v</span>),
                 },
-                <span class="string">&quot;defaultFor&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;defaultFor&quot;</span> =&gt; {
                     <span class="ident">opt</span>.<span class="ident">default_for</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">v</span>.<span class="ident">parse</span>().<span class="ident">expect</span>(<span class="string">&quot;defaultFor to be a i32&quot;</span>));
                 }
-                <span class="string">&quot;persistent&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
-                    <span class="string">&quot;true&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">opt</span>.<span class="ident">persistent</span> <span class="op">=</span> <span class="bool-val">true</span>,
-                    <span class="string">&quot;false&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">opt</span>.<span class="ident">persistent</span> <span class="op">=</span> <span class="bool-val">false</span>,
-                    <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unexpected boolean value in &#39;persistent&#39;: {}&quot;</span>, <span class="ident">v</span>),
+                <span class="string">&quot;persistent&quot;</span> =&gt; <span class="kw">match</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
+                    <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">opt</span>.<span class="ident">persistent</span> <span class="op">=</span> <span class="bool-val">true</span>,
+                    <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">opt</span>.<span class="ident">persistent</span> <span class="op">=</span> <span class="bool-val">false</span>,
+                    <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected boolean value in &#39;persistent&#39;: {}&quot;</span>, <span class="ident">v</span>),
                 },
-                <span class="ident">attr</span> <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unexpected option attribute: {}&quot;</span>, <span class="ident">attr</span>);
+                <span class="ident">attr</span> =&gt; {
+                    <span class="macro">panic!</span>(<span class="string">&quot;unexpected option attribute: {}&quot;</span>, <span class="ident">attr</span>);
                 }
             }
         }
@@ -730,72 +726,72 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">on_scope</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">parser</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FdbOption</span><span class="op">&gt;</span>
+<span class="kw">fn</span> <span class="ident">on_scope</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">parser</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">I</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FdbOption</span><span class="op">&gt;</span>
 <span class="kw">where</span>
-    <span class="ident">I</span>: <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">xml</span>::<span class="ident">reader</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">XmlEvent</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">I</span>: <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">xml::reader::Result</span><span class="op">&lt;</span><span class="ident">XmlEvent</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
     <span class="kw">for</span> <span class="ident">e</span> <span class="kw">in</span> <span class="ident">parser</span> {
         <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">unwrap</span>();
         <span class="kw">match</span> <span class="ident">e</span> {
-            <span class="ident">XmlEvent</span>::<span class="ident">StartElement</span> {
+            <span class="ident">XmlEvent::StartElement</span> {
                 <span class="ident">name</span>, <span class="ident">attributes</span>, ..
-            } <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">name</span>.<span class="ident">local_name</span>, <span class="string">&quot;Option&quot;</span>, <span class="string">&quot;unexpected token&quot;</span>);
+            } =&gt; {
+                <span class="macro">assert_eq!</span>(<span class="ident">name</span>.<span class="ident">local_name</span>, <span class="string">&quot;Option&quot;</span>, <span class="string">&quot;unexpected token&quot;</span>);
 
-                <span class="kw">let</span> <span class="ident">option</span> <span class="op">=</span> <span class="ident">FdbOption</span>::<span class="ident">from</span>(<span class="ident">attributes</span>.<span class="ident">clone</span>());
+                <span class="kw">let</span> <span class="ident">option</span> <span class="op">=</span> <span class="ident">FdbOption::from</span>(<span class="ident">attributes</span>.<span class="ident">clone</span>());
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">option</span>.<span class="ident">hidden</span> {
                     <span class="ident">options</span>.<span class="ident">push</span>(<span class="ident">option</span>);
                 }
             }
-            <span class="ident">XmlEvent</span>::<span class="ident">EndElement</span> { <span class="ident">name</span>, .. } <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">local_name</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;Scope&quot;</span> {
+            <span class="ident">XmlEvent::EndElement</span> { <span class="ident">name</span>, .. } =&gt; {
+                <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">local_name</span> <span class="op">==</span> <span class="string">&quot;Scope&quot;</span> {
                     <span class="kw">return</span> <span class="ident">options</span>;
                 }
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}
+            <span class="kw">_</span> =&gt; {}
         }
     }
 
-    <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unexpected end of token&quot;</span>);
+    <span class="macro">panic!</span>(<span class="string">&quot;unexpected end of token&quot;</span>);
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>), <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;/usr/include/foundationdb/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;/usr/include/foundationdb/fdb.options&quot;</span>);
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>), <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;/usr/local/include/foundationdb/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;/usr/local/include/foundationdb/fdb.options&quot;</span>);
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>), <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
 <span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span>
-    <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;C:/Program Files/foundationdb/include/foundationdb/fdb.options&quot;</span>);
+    <span class="macro">include_bytes!</span>(<span class="string">&quot;C:/Program Files/foundationdb/include/foundationdb/fdb.options&quot;</span>);
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../include/510/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/510/fdb.options&quot;</span>);
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../include/520/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/520/fdb.options&quot;</span>);
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../include/600/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/600/fdb.options&quot;</span>);
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_1&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../include/610/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/610/fdb.options&quot;</span>);
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;embedded-fdb-include&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_2&quot;</span>))]</span>
-<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../include/620/fdb.options&quot;</span>);
+<span class="kw">const</span> <span class="ident">OPTIONS_DATA</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/620/fdb.options&quot;</span>);
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit</span>(<span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Write</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit</span>(<span class="ident">w</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">OPTIONS_DATA</span>;
-    <span class="kw">let</span> <span class="ident">parser</span> <span class="op">=</span> <span class="ident">EventReader</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">reader</span>);
+    <span class="kw">let</span> <span class="ident">parser</span> <span class="op">=</span> <span class="ident">EventReader::new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">reader</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">parser</span>.<span class="ident">into_iter</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scopes</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scopes</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
 
     <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
         <span class="kw">match</span> <span class="ident">e</span>.<span class="ident">unwrap</span>() {
-            <span class="ident">XmlEvent</span>::<span class="ident">StartElement</span> {
+            <span class="ident">XmlEvent::StartElement</span> {
                 <span class="ident">name</span>, <span class="ident">attributes</span>, ..
-            } <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">local_name</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;Scope&quot;</span> {
+            } =&gt; {
+                <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">local_name</span> <span class="op">==</span> <span class="string">&quot;Scope&quot;</span> {
                     <span class="kw">let</span> <span class="ident">scope_name</span> <span class="op">=</span> <span class="ident">attributes</span>
                         .<span class="ident">into_iter</span>()
-                        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">attr</span><span class="op">|</span> <span class="ident">attr</span>.<span class="ident">name</span>.<span class="ident">local_name</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;name&quot;</span>)
+                        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">attr</span><span class="op">|</span> <span class="ident">attr</span>.<span class="ident">name</span>.<span class="ident">local_name</span> <span class="op">==</span> <span class="string">&quot;name&quot;</span>)
                         .<span class="ident">unwrap</span>();
 
                     <span class="kw">let</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">on_scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">iter</span>);
@@ -805,16 +801,16 @@
                     });
                 }
             }
-            <span class="ident">XmlEvent</span>::<span class="ident">EndElement</span> { .. } <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">XmlEvent::EndElement</span> { .. } =&gt; {
                 <span class="comment">//</span>
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}
+            <span class="kw">_</span> =&gt; {}
         }
     }
 
-    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;use std::convert::TryFrom;&quot;</span>)<span class="question-mark">?</span>;
-    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;use crate::{{FdbError, FdbResult}};&quot;</span>)<span class="question-mark">?</span>;
-    <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">w</span>, <span class="string">&quot;use foundationdb_sys as fdb_sys;&quot;</span>)<span class="question-mark">?</span>;
+    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;use std::convert::TryFrom;&quot;</span>)<span class="question-mark">?</span>;
+    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;use crate::{{FdbError, FdbResult}};&quot;</span>)<span class="question-mark">?</span>;
+    <span class="macro">writeln!</span>(<span class="ident">w</span>, <span class="string">&quot;use foundationdb_sys as fdb_sys;&quot;</span>)<span class="question-mark">?</span>;
     <span class="kw">for</span> <span class="ident">scope</span> <span class="kw">in</span> <span class="ident">scopes</span>.<span class="ident">iter</span>() {
         <span class="ident">scope</span>.<span class="ident">gen_ty</span>(<span class="ident">w</span>)<span class="question-mark">?</span>;
         <span class="ident">scope</span>.<span class="ident">gen_impl</span>(<span class="ident">w</span>)<span class="question-mark">?</span>;
@@ -822,5 +818,7 @@
 
     <span class="prelude-val">Ok</span>(())
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "foundationdb_gen";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb_gen" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
+    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script>
+</body></html>

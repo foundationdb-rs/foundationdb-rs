@@ -1,7 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `foundationdb/src/api.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>api.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
-                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb&#x2F;src&#x2F;api.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>api.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -324,8 +321,7 @@
 <span id="321">321</span>
 <span id="322">322</span>
 <span id="323">323</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
@@ -340,21 +336,21 @@
 <span class="doccomment">//! - [API versioning](https://apple.github.io/foundationdb/api-c.html#api-versioning)</span>
 <span class="doccomment">//! - [Network](https://apple.github.io/foundationdb/api-c.html#network)</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">panic</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">Condvar</span>, <span class="ident">Mutex</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
+<span class="kw">use</span> <span class="ident">std::panic</span>;
+<span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
+<span class="kw">use</span> <span class="ident">std::sync</span>::{<span class="ident">Arc</span>, <span class="ident">Condvar</span>, <span class="ident">Mutex</span>};
+<span class="kw">use</span> <span class="ident">std::thread</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">options</span>::<span class="ident">NetworkOption</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options::NetworkOption</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbResult</span>};
 <span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
 
 <span class="doccomment">/// Returns the max api version of the underlying Fdb C API Client</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_max_api_version</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> {
-    <span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_get_max_api_version</span>() }
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_max_api_version</span>() -&gt; <span class="ident">i32</span> {
+    <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_get_max_api_version</span>() }
 }
 
-<span class="kw">static</span> <span class="ident">VERSION_SELECTED</span>: <span class="ident">AtomicBool</span> <span class="op">=</span> <span class="ident">AtomicBool</span>::<span class="ident">new</span>(<span class="bool-val">false</span>);
+<span class="kw">static</span> <span class="ident">VERSION_SELECTED</span>: <span class="ident">AtomicBool</span> <span class="op">=</span> <span class="ident">AtomicBool::new</span>(<span class="bool-val">false</span>);
 
 <span class="doccomment">/// A Builder with which different versions of the Fdb C API can be initialized</span>
 <span class="doccomment">///</span>
@@ -369,7 +365,7 @@
 
 <span class="kw">impl</span> <span class="ident">FdbApiBuilder</span> {
     <span class="doccomment">/// The version of run-time behavior the API is requested to provide.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">runtime_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">runtime_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i32</span> {
         <span class="self">self</span>.<span class="ident">runtime_version</span>
     }
 
@@ -377,7 +373,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Must be less than or equal to header_version, `foundationdb_sys::FDB_API_VERSION`, and should almost always be equal.</span>
     <span class="doccomment">/// Language bindings which themselves expose API versioning will usually pass the version requested by the application.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_runtime_version</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">version</span>: <span class="ident">i32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_runtime_version</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">version</span>: <span class="ident">i32</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">runtime_version</span> <span class="op">=</span> <span class="ident">version</span>;
         <span class="self">self</span>
     }
@@ -387,14 +383,14 @@
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This function will panic if called more than once</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkBuilder</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">VERSION_SELECTED</span>.<span class="ident">compare_and_swap</span>(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="ident">Ordering</span>::<span class="ident">AcqRel</span>) {
-            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;the fdb select api version can only be run once per process&quot;</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkBuilder</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">VERSION_SELECTED</span>.<span class="ident">compare_and_swap</span>(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="ident">Ordering::AcqRel</span>) {
+            <span class="macro">panic!</span>(<span class="string">&quot;the fdb select api version can only be run once per process&quot;</span>);
         }
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys</span>::<span class="ident">fdb_select_api_version_impl</span>(
+        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_select_api_version_impl</span>(
                 <span class="self">self</span>.<span class="ident">runtime_version</span>,
-                <span class="ident">fdb_sys</span>::<span class="ident">FDB_API_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>,
+                <span class="ident">fdb_sys::FDB_API_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>,
             )
         })<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">NetworkBuilder</span> { <span class="ident">_private</span>: () })
@@ -402,9 +398,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">FdbApiBuilder</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">FdbApiBuilder</span> {
-            <span class="ident">runtime_version</span>: <span class="ident">fdb_sys</span>::<span class="ident">FDB_API_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>,
+            <span class="ident">runtime_version</span>: <span class="ident">fdb_sys::FDB_API_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>,
         }
     }
 }
@@ -427,7 +423,7 @@
 
 <span class="kw">impl</span> <span class="ident">NetworkBuilder</span> {
     <span class="doccomment">/// Set network options.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="self">self</span>, <span class="ident">option</span>: <span class="ident">NetworkOption</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="self">self</span>, <span class="ident">option</span>: <span class="ident">NetworkOption</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">unsafe</span> { <span class="ident">option</span>.<span class="ident">apply</span>()<span class="question-mark">?</span> };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
@@ -467,11 +463,11 @@
     <span class="doccomment">/// fdb_network.stop().expect(&quot;failed to stop network&quot;);</span>
     <span class="doccomment">/// net_thread.join().expect(&quot;failed to join fdb thread&quot;);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">mutex_atomic</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>(<span class="ident">NetworkRunner</span>, <span class="ident">NetworkWait</span>)<span class="op">&gt;</span> {
-        <span class="kw">unsafe</span> { <span class="ident">error</span>::<span class="ident">eval</span>(<span class="ident">fdb_sys</span>::<span class="ident">fdb_setup_network</span>())<span class="question-mark">?</span> }
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::mutex_atomic</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>(<span class="ident">NetworkRunner</span>, <span class="ident">NetworkWait</span>)<span class="op">&gt;</span> {
+        <span class="kw">unsafe</span> { <span class="ident">error::eval</span>(<span class="ident">fdb_sys::fdb_setup_network</span>())<span class="question-mark">?</span> }
 
-        <span class="kw">let</span> <span class="ident">cond</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>((<span class="ident">Mutex</span>::<span class="ident">new</span>(<span class="bool-val">false</span>), <span class="ident">Condvar</span>::<span class="ident">new</span>()));
+        <span class="kw">let</span> <span class="ident">cond</span> <span class="op">=</span> <span class="ident">Arc::new</span>((<span class="ident">Mutex::new</span>(<span class="bool-val">false</span>), <span class="ident">Condvar::new</span>()));
         <span class="prelude-val">Ok</span>((<span class="ident">NetworkRunner</span> { <span class="ident">cond</span>: <span class="ident">cond</span>.<span class="ident">clone</span>() }, <span class="ident">NetworkWait</span> { <span class="ident">cond</span> }))
     }
 
@@ -517,7 +513,7 @@
     <span class="doccomment">///     drop(network);</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">boot</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkAutoStop</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">boot</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkAutoStop</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">runner</span>, <span class="ident">cond</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">build</span>()<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">net_thread</span> <span class="op">=</span> <span class="ident">runner</span>.<span class="ident">spawn</span>();
@@ -548,11 +544,11 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This will only returns once the `stop` method on the associated `NetworkStop`</span>
     <span class="doccomment">/// object is called or if the foundationDB event loop return an error.</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">_run</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">_run</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">_run</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         {
             <span class="kw">let</span> (<span class="ident">lock</span>, <span class="ident">cvar</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">cond</span>;
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">started</span> <span class="op">=</span> <span class="ident">lock</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
@@ -561,11 +557,11 @@
             <span class="ident">cvar</span>.<span class="ident">notify_one</span>();
         }
 
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_run_network</span>() })
+        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_run_network</span>() })
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">thread</span>::<span class="ident">JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="self">self</span>) -&gt; <span class="ident">thread::JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="ident">thread::spawn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
             <span class="self">self</span>.<span class="ident">run</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to run network thread&quot;</span>);
         })
     }
@@ -584,7 +580,7 @@
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Panics if the internal lock cannot is poisoned</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wait</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">NetworkStop</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wait</span>(<span class="self">self</span>) -&gt; <span class="ident">NetworkStop</span> {
         <span class="comment">// Wait for the thread to start up.</span>
         {
             <span class="kw">let</span> (<span class="ident">lock</span>, <span class="ident">cvar</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">cond</span>;
@@ -607,8 +603,8 @@
 
 <span class="kw">impl</span> <span class="ident">NetworkStop</span> {
     <span class="doccomment">/// Signals the event loop invoked by `Network::run` to terminate.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stop</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">error</span>::<span class="ident">eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys</span>::<span class="ident">fdb_stop_network</span>() })
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stop</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_stop_network</span>() })
     }
 }
 
@@ -622,14 +618,14 @@
 <span class="doccomment">/// Panics if the network thread cannot be joined.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetworkAutoStop</span> {
     <span class="ident">network</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NetworkStop</span><span class="op">&gt;</span>,
-    <span class="ident">handle</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">handle</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">std::thread::JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">NetworkAutoStop</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">network</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">stop</span>() {
-            <span class="macro">eprintln</span><span class="macro">!</span>(<span class="string">&quot;failed to stop network: {}&quot;</span>, <span class="ident">err</span>);
+            <span class="macro">eprintln!</span>(<span class="string">&quot;failed to stop network: {}&quot;</span>, <span class="ident">err</span>);
             <span class="comment">// Not aborting can probably cause undefined behavior</span>
-            <span class="ident">std</span>::<span class="ident">process</span>::<span class="ident">abort</span>();
+            <span class="ident">std::process::abort</span>();
         }
         <span class="self">self</span>.<span class="ident">handle</span>
             .<span class="ident">take</span>()
@@ -645,8 +641,10 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_max_api</span>() {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">get_max_api_version</span>() <span class="op">&gt;</span> <span class="number">0</span>);
+        <span class="macro">assert!</span>(<span class="ident">get_max_api_version</span>() <span class="op">&gt;</span> <span class="number">0</span>);
     }
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "foundationdb";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
+    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script>
+</body></html>

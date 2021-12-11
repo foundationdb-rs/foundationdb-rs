@@ -1,7 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-739c8e6e41e81f9c/out/bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled ><script src="../../../../../../../../../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../../../../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../../../../../../../../../foundationdb_sys/index.html'><div class='logo-container rust-logo'><img src='../../../../../../../../../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../../../../../../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../../../../../../../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
-                <a id="settings-menu" href="../../../../../../../../../../../../settings.html"><img src="../../../../../../../../../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `&#x2F;home&#x2F;runner&#x2F;work&#x2F;foundationdb-rs&#x2F;foundationdb-rs&#x2F;target&#x2F;debug&#x2F;build&#x2F;foundationdb-sys-44d99e89d9b42f02&#x2F;out&#x2F;bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../../../../../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../../../../../../../../../foundationdb_sys/index.html'><div class='logo-container rust-logo'><img src='../../../../../../../../../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../../../../../../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../../../../../../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../../../../../../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -652,13 +649,28 @@
 <span id="649">649</span>
 <span id="650">650</span>
 <span id="651">651</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="comment">/* automatically generated by rust-bindgen 0.55.1 */</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+</pre><pre class="rust"><code><span class="comment">/* automatically generated by rust-bindgen 0.55.1 */</span>
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDB_API_VERSION</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">620</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_STDINT_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_FEATURES_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_DEFAULT_SOURCE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_ISOC2X</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__USE_ISOC11</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__USE_ISOC99</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__USE_ISOC95</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
@@ -676,30 +688,36 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__USE_ATFILE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__USE_FORTIFY_LEVEL</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_DEPRECATED_GETS</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_DEPRECATED_SCANF</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_STDC_PREDEF_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__STDC_IEC_559__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__STDC_IEC_559_COMPLEX__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__STDC_ISO_10646__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">201706</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__STDC_NO_THREADS__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GNU_LIBRARY__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">6</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">2</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_MINOR__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">27</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_MINOR__</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">31</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_SYS_CDEFS_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__glibc_c99_flexarr_available</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__WORDSIZE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">64</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__WORDSIZE_TIME64_COMPAT32</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__SYSCALL_WORDSIZE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">64</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__LONG_DOUBLE_USES_FLOAT128</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__HAVE_GENERIC_SELECTION</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_LIB_EXT2</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_IEC_60559_BFP_EXT</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_IEC_60559_BFP_EXT_C2X</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_IEC_60559_FUNCS_EXT</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_IEC_60559_FUNCS_EXT_C2X</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__GLIBC_USE_IEC_60559_TYPES_EXT</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_BITS_TYPES_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__TIMESIZE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">64</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_BITS_TYPESIZES_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__OFF_T_MATCHES_OFF64_T</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__INO_T_MATCHES_INO64_T</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__RLIM_T_MATCHES_RLIM64_T</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__STATFS_MATCHES_STATFS64</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">__FD_SETSIZE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1024</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_BITS_TIME64_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_BITS_WCHAR_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_BITS_STDINT_INTN_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_BITS_STDINT_UINTN_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
@@ -740,103 +758,111 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIZE_MAX</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">WINT_MIN</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">WINT_MAX</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">4294967295</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_char</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uchar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_short</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ushort</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_int</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_long</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int8_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_schar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint8_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uchar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int16_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_short</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint16_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ushort</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int32_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint32_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__quad_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_quad_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__intmax_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uintmax_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__dev_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uid_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__gid_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__ino_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__ino64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__mode_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__nlink_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__off_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__off64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__pid_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_char</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uchar</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_short</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ushort</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_int</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_long</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int8_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_schar</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint8_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uchar</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int16_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_short</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint16_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ushort</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int32_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint32_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int_least8_t</span> <span class="op">=</span> <span class="ident">__int8_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint_least8_t</span> <span class="op">=</span> <span class="ident">__uint8_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int_least16_t</span> <span class="op">=</span> <span class="ident">__int16_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint_least16_t</span> <span class="op">=</span> <span class="ident">__uint16_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int_least32_t</span> <span class="op">=</span> <span class="ident">__int32_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint_least32_t</span> <span class="op">=</span> <span class="ident">__uint32_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__int_least64_t</span> <span class="op">=</span> <span class="ident">__int64_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uint_least64_t</span> <span class="op">=</span> <span class="ident">__uint64_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__quad_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__u_quad_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__intmax_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uintmax_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__dev_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__uid_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__gid_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__ino_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__ino64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__mode_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__nlink_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__off_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__off64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__pid_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">__fsid_t</span> {
-    <span class="kw">pub</span> <span class="ident">__val</span>: [::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>; <span class="number">2usize</span>],
+    <span class="kw">pub</span> <span class="ident">__val</span>: [<span class="ident">::std::os::raw::c_int</span>; <span class="number">2usize</span>],
 }
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">bindgen_test_layout___fsid_t</span>() {
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        ::<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">__fsid_t</span><span class="op">&gt;</span>(),
+    <span class="macro">assert_eq!</span>(
+        <span class="ident">::std::mem::size_of</span>::<span class="op">&lt;</span><span class="ident">__fsid_t</span><span class="op">&gt;</span>(),
         <span class="number">8usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;Size of: &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">__fsid_t</span>))
+        <span class="macro">concat!</span>(<span class="string">&quot;Size of: &quot;</span>, <span class="macro">stringify!</span>(<span class="ident">__fsid_t</span>))
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        ::<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">align_of</span>::<span class="op">&lt;</span><span class="ident">__fsid_t</span><span class="op">&gt;</span>(),
+    <span class="macro">assert_eq!</span>(
+        <span class="ident">::std::mem::align_of</span>::<span class="op">&lt;</span><span class="ident">__fsid_t</span><span class="op">&gt;</span>(),
         <span class="number">4usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;Alignment of &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">__fsid_t</span>))
+        <span class="macro">concat!</span>(<span class="string">&quot;Alignment of &quot;</span>, <span class="macro">stringify!</span>(<span class="ident">__fsid_t</span>))
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(::<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">__fsid_t</span><span class="op">&gt;</span>())).<span class="ident">__val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="ident">::std::ptr::null</span>::<span class="op">&lt;</span><span class="ident">__fsid_t</span><span class="op">&gt;</span>())).<span class="ident">__val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
         <span class="number">0usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(
+        <span class="macro">concat!</span>(
             <span class="string">&quot;Offset of field: &quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">__fsid_t</span>),
+            <span class="macro">stringify!</span>(<span class="ident">__fsid_t</span>),
             <span class="string">&quot;::&quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">__val</span>)
+            <span class="macro">stringify!</span>(<span class="ident">__val</span>)
         )
     );
 }
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__clock_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__rlim_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__rlim64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__id_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__time_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__useconds_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__suseconds_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__daddr_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__key_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__clockid_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__timer_t</span> <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__blksize_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__blkcnt_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__blkcnt64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsblkcnt_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsblkcnt64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsfilcnt_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsfilcnt64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsword_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__ssize_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__syscall_slong_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__syscall_ulong_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__clock_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__rlim_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__rlim64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__id_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__time_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__useconds_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__suseconds_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__daddr_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__key_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__clockid_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__timer_t</span> <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__blksize_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__blkcnt_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__blkcnt64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsblkcnt_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsblkcnt64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsfilcnt_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsfilcnt64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__fsword_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__ssize_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__syscall_slong_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__syscall_ulong_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__loff_t</span> <span class="op">=</span> <span class="ident">__off64_t</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__caddr_t</span> <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__intptr_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__socklen_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__sig_atomic_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least8_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_schar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least16_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_short</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least32_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least8_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uchar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least16_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ushort</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least32_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast8_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_schar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast16_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast32_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_long</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast8_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uchar</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast16_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast32_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast64_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__caddr_t</span> <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__intptr_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__socklen_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__sig_atomic_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least8_t</span> <span class="op">=</span> <span class="ident">__int_least8_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least16_t</span> <span class="op">=</span> <span class="ident">__int_least16_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least32_t</span> <span class="op">=</span> <span class="ident">__int_least32_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_least64_t</span> <span class="op">=</span> <span class="ident">__int_least64_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least8_t</span> <span class="op">=</span> <span class="ident">__uint_least8_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least16_t</span> <span class="op">=</span> <span class="ident">__uint_least16_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least32_t</span> <span class="op">=</span> <span class="ident">__uint_least32_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_least64_t</span> <span class="op">=</span> <span class="ident">__uint_least64_t</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast8_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_schar</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast16_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast32_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">int_fast64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_long</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast8_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uchar</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast16_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast32_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uint_fast64_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">intmax_t</span> <span class="op">=</span> <span class="ident">__intmax_t</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">uintmax_t</span> <span class="op">=</span> <span class="ident">__uintmax_t</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_LOCAL_ADDRESS</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">10</span>;
@@ -874,7 +900,7 @@
     <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">82</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_SECTION_FIRED_PROBABILITY</span>:
     <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">83</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBNetworkOption</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_LOCATION_CACHE_SIZE</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">10</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_MAX_WATCHES</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">20</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_MACHINE_ID</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">21</span>;
@@ -890,7 +916,7 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_CAUSAL_READ_RISKY</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">504</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_INCLUDE_PORT_IN_ADDRESS</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span>
     <span class="number">505</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_CAUSAL_WRITE_RISKY</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">10</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_CAUSAL_READ_RISKY</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">20</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_CAUSAL_READ_DISABLE</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">21</span>;
@@ -926,7 +952,7 @@
     <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">701</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_READ_LOCK_AWARE</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">702</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_USE_PROVISIONAL_PROXIES</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">711</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBTransactionOption</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_WANT_ALL</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="op">-</span><span class="number">2</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_ITERATOR</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_EXACT</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="number">0</span>;
@@ -934,7 +960,7 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_MEDIUM</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="number">2</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_LARGE</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="number">3</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_SERIAL</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="number">4</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBStreamingMode</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBMutationType_FDB_MUTATION_TYPE_ADD</span>: <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="number">2</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBMutationType_FDB_MUTATION_TYPE_AND</span>: <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="number">6</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBMutationType_FDB_MUTATION_TYPE_BIT_AND</span>: <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="number">6</span>;
@@ -950,14 +976,14 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBMutationType_FDB_MUTATION_TYPE_BYTE_MIN</span>: <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="number">16</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBMutationType_FDB_MUTATION_TYPE_BYTE_MAX</span>: <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="number">17</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBMutationType_FDB_MUTATION_TYPE_COMPARE_AND_CLEAR</span>: <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="number">20</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBMutationType</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBMutationType</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_READ</span>: <span class="ident">FDBConflictRangeType</span> <span class="op">=</span> <span class="number">0</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_WRITE</span>: <span class="ident">FDBConflictRangeType</span> <span class="op">=</span> <span class="number">1</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBConflictRangeType</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBConflictRangeType</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBErrorPredicate_FDB_ERROR_PREDICATE_RETRYABLE</span>: <span class="ident">FDBErrorPredicate</span> <span class="op">=</span> <span class="number">50000</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBErrorPredicate_FDB_ERROR_PREDICATE_MAYBE_COMMITTED</span>: <span class="ident">FDBErrorPredicate</span> <span class="op">=</span> <span class="number">50001</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBErrorPredicate_FDB_ERROR_PREDICATE_RETRYABLE_NOT_COMMITTED</span>: <span class="ident">FDBErrorPredicate</span> <span class="op">=</span> <span class="number">50002</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBErrorPredicate</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_uint</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBErrorPredicate</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FDB_future</span> {
@@ -976,97 +1002,97 @@
     <span class="ident">_unused</span>: [<span class="ident">u8</span>; <span class="number">0</span>],
 }
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBTransaction</span> <span class="op">=</span> <span class="ident">FDB_transaction</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">fdb_error_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">fdb_bool_t</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">fdb_error_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">fdb_bool_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_get_error</span>(<span class="ident">code</span>: <span class="ident">fdb_error_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_get_error</span>(<span class="ident">code</span>: <span class="ident">fdb_error_t</span>) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_error_predicate</span>(
-        <span class="ident">predicate_test</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">predicate_test</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">code</span>: <span class="ident">fdb_error_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_bool_t</span>;
+    ) -&gt; <span class="ident">fdb_bool_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_network_set_option</span>(
         <span class="ident">option</span>: <span class="ident">FDBNetworkOption</span>,
         <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">value_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">value_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_setup_network</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_setup_network</span>() -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_run_network</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_run_network</span>() -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_stop_network</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_stop_network</span>() -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_add_network_thread_completion_hook</span>(
-        <span class="ident">hook</span>: ::<span class="ident">std</span>::<span class="ident">option</span>::<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">arg1</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>)<span class="op">&gt;</span>,
-        <span class="ident">hook_parameter</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">hook</span>: <span class="ident">::std::option::Option</span><span class="op">&lt;</span><span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">arg1</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>)<span class="op">&gt;</span>,
+        <span class="ident">hook_parameter</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>, <span class="ident">packed</span>(<span class="number">4</span>))]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">keyvalue</span> {
-    <span class="kw">pub</span> <span class="ident">key</span>: <span class="kw-2">*</span><span class="kw">const</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>,
-    <span class="kw">pub</span> <span class="ident">key_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>,
-    <span class="kw">pub</span> <span class="ident">value_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+    <span class="kw">pub</span> <span class="ident">key</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_void</span>,
+    <span class="kw">pub</span> <span class="ident">key_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    <span class="kw">pub</span> <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_void</span>,
+    <span class="kw">pub</span> <span class="ident">value_length</span>: <span class="ident">::std::os::raw::c_int</span>,
 }
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">bindgen_test_layout_keyvalue</span>() {
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        ::<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>(),
+    <span class="macro">assert_eq!</span>(
+        <span class="ident">::std::mem::size_of</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>(),
         <span class="number">24usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;Size of: &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">keyvalue</span>))
+        <span class="macro">concat!</span>(<span class="string">&quot;Size of: &quot;</span>, <span class="macro">stringify!</span>(<span class="ident">keyvalue</span>))
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        ::<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">align_of</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>(),
+    <span class="macro">assert_eq!</span>(
+        <span class="ident">::std::mem::align_of</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>(),
         <span class="number">4usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;Alignment of &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">keyvalue</span>))
+        <span class="macro">concat!</span>(<span class="string">&quot;Alignment of &quot;</span>, <span class="macro">stringify!</span>(<span class="ident">keyvalue</span>))
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(::<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">key</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="ident">::std::ptr::null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">key</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
         <span class="number">0usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(
+        <span class="macro">concat!</span>(
             <span class="string">&quot;Offset of field: &quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">keyvalue</span>),
+            <span class="macro">stringify!</span>(<span class="ident">keyvalue</span>),
             <span class="string">&quot;::&quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">key</span>)
+            <span class="macro">stringify!</span>(<span class="ident">key</span>)
         )
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(::<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">key_length</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="ident">::std::ptr::null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">key_length</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
         <span class="number">8usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(
+        <span class="macro">concat!</span>(
             <span class="string">&quot;Offset of field: &quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">keyvalue</span>),
+            <span class="macro">stringify!</span>(<span class="ident">keyvalue</span>),
             <span class="string">&quot;::&quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">key_length</span>)
+            <span class="macro">stringify!</span>(<span class="ident">key_length</span>)
         )
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(::<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="ident">::std::ptr::null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
         <span class="number">12usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(
+        <span class="macro">concat!</span>(
             <span class="string">&quot;Offset of field: &quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">keyvalue</span>),
+            <span class="macro">stringify!</span>(<span class="ident">keyvalue</span>),
             <span class="string">&quot;::&quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">value</span>)
+            <span class="macro">stringify!</span>(<span class="ident">value</span>)
         )
     );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(::<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">value_length</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="ident">::std::ptr::null</span>::<span class="op">&lt;</span><span class="ident">keyvalue</span><span class="op">&gt;</span>())).<span class="ident">value_length</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span> },
         <span class="number">20usize</span>,
-        <span class="macro">concat</span><span class="macro">!</span>(
+        <span class="macro">concat!</span>(
             <span class="string">&quot;Offset of field: &quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">keyvalue</span>),
+            <span class="macro">stringify!</span>(<span class="ident">keyvalue</span>),
             <span class="string">&quot;::&quot;</span>,
-            <span class="macro">stringify</span><span class="macro">!</span>(<span class="ident">value_length</span>)
+            <span class="macro">stringify!</span>(<span class="ident">value_length</span>)
         )
     );
 }
@@ -1081,62 +1107,62 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_destroy</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>);
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_block_until_ready</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_block_until_ready</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_is_ready</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_bool_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_is_ready</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>) -&gt; <span class="ident">fdb_bool_t</span>;
 }
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBCallback</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">option</span>::<span class="prelude-ty">Option</span><span class="op">&lt;</span>
-    <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">future</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>, <span class="ident">callback_parameter</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>),
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBCallback</span> <span class="op">=</span> <span class="ident">::std::option::Option</span><span class="op">&lt;</span>
+    <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">future</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>, <span class="ident">callback_parameter</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>),
 <span class="op">&gt;</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_set_callback</span>(
         <span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>,
         <span class="ident">callback</span>: <span class="ident">FDBCallback</span>,
-        <span class="ident">callback_parameter</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">callback_parameter</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_error</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_error</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_int64</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>, <span class="ident">out</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">i64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_int64</span>(<span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>, <span class="ident">out</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">i64</span>) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_key</span>(
         <span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>,
         <span class="ident">out_key</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">out_key_length</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">out_key_length</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_value</span>(
         <span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>,
         <span class="ident">out_present</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">fdb_bool_t</span>,
         <span class="ident">out_value</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">out_value_length</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">out_value_length</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_keyvalue_array</span>(
         <span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>,
         <span class="ident">out_kv</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">FDBKeyValue</span>,
-        <span class="ident">out_count</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">out_count</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">out_more</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">fdb_bool_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_string_array</span>(
         <span class="ident">f</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>,
-        <span class="ident">out_strings</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>,
-        <span class="ident">out_count</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">out_strings</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
+        <span class="ident">out_count</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_create_database</span>(
-        <span class="ident">cluster_file_path</span>: <span class="kw-2">*</span><span class="kw">const</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>,
+        <span class="ident">cluster_file_path</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">out_database</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBDatabase</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_destroy</span>(<span class="ident">d</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBDatabase</span>);
@@ -1146,14 +1172,14 @@
         <span class="ident">d</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBDatabase</span>,
         <span class="ident">option</span>: <span class="ident">FDBDatabaseOption</span>,
         <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">value_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">value_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_create_transaction</span>(
         <span class="ident">d</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBDatabase</span>,
         <span class="ident">out_transaction</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_destroy</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>);
@@ -1166,75 +1192,75 @@
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">option</span>: <span class="ident">FDBTransactionOption</span>,
         <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">value_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">value_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_set_read_version</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>, <span class="ident">version</span>: <span class="ident">i64</span>);
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_read_version</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_read_version</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">snapshot</span>: <span class="ident">fdb_bool_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_key</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">or_equal</span>: <span class="ident">fdb_bool_t</span>,
-        <span class="ident">offset</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">offset</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">snapshot</span>: <span class="ident">fdb_bool_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_addresses_for_key</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_range</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">begin_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">begin_key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">begin_or_equal</span>: <span class="ident">fdb_bool_t</span>,
-        <span class="ident">begin_offset</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">begin_offset</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">end_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">end_key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">end_or_equal</span>: <span class="ident">fdb_bool_t</span>,
-        <span class="ident">end_offset</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-        <span class="ident">limit</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-        <span class="ident">target_bytes</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">end_offset</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">limit</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">target_bytes</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">mode</span>: <span class="ident">FDBStreamingMode</span>,
-        <span class="ident">iteration</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">iteration</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">snapshot</span>: <span class="ident">fdb_bool_t</span>,
         <span class="ident">reverse</span>: <span class="ident">fdb_bool_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_set</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">value_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">value_length</span>: <span class="ident">::std::os::raw::c_int</span>,
     );
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_atomic_op</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">param</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">param_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">param_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">operation_type</span>: <span class="ident">FDBMutationType</span>,
     );
 }
@@ -1242,42 +1268,42 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_clear</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
     );
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_clear_range</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">begin_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">begin_key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">end_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">end_key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
     );
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_watch</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+        <span class="ident">key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_commit</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_commit</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_committed_version</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">out_version</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">i64</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_approximate_size</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_approximate_size</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_versionstamp</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_versionstamp</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_on_error</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>, <span class="ident">error</span>: <span class="ident">fdb_error_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_on_error</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>, <span class="ident">error</span>: <span class="ident">fdb_error_t</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_reset</span>(<span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>);
@@ -1286,23 +1312,25 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_add_conflict_range</span>(
         <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
         <span class="ident">begin_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">begin_key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">end_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
-        <span class="ident">end_key_name_length</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
+        <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">type_</span>: <span class="ident">FDBConflictRangeType</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_select_api_version_impl</span>(
-        <span class="ident">runtime_version</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-        <span class="ident">header_version</span>: ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fdb_error_t</span>;
+        <span class="ident">runtime_version</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">header_version</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_get_max_api_version</span>() <span class="op">-</span><span class="op">&gt;</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_get_max_api_version</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_get_client_version</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> ::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_get_client_version</span>() -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../../../../../../../../../../";window.currentCrate = "foundationdb_sys";</script><script src="../../../../../../../../../../../../main.js"></script><script src="../../../../../../../../../../../../source-script.js"></script><script src="../../../../../../../../../../../../source-files.js"></script><script defer src="../../../../../../../../../../../../search-index.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-current-crate="foundationdb_sys" data-search-index-js="../../../../../../../../../../../../search-index.js" data-search-js="../../../../../../../../../../../../search.js"></div>
+    <script src="../../../../../../../../../../../../main.js"></script><script src="../../../../../../../../../../../../source-script.js"></script><script src="../../../../../../../../../../../../source-files.js"></script>
+</body></html>
