@@ -32,7 +32,7 @@ esac
   ## Run the test
   echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, MAX_API_VERSION, types=ALL_TYPES)
 " >> ./bindings/bindingtester/known_testers.py
-  ./bindings/bindingtester/bindingtester.py --test-name scripted rust
-  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 610 --test-name api --compare python rust
-  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 610 --test-name api --concurrency 5 rust
+  python2 ./bindings/bindingtester/bindingtester.py --test-name scripted rust
+  python2 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 610 --test-name api --compare python rust
+  python2 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 610 --test-name api --concurrency 5 rust
 )

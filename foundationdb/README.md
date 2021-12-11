@@ -4,7 +4,7 @@ This is a wrapper library around the FoundationDB (Fdb) C API. It implements fut
 
 ## Prerequisites
 
-Rust 1.40+
+Rust 1.46+
 
 ### Install FoundationDB
 

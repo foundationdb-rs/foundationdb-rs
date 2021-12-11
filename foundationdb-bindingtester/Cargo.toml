@@ -36,4 +36,4 @@ foundationdb-sys = { version = "0.5.1", path = "../foundationdb-sys", default-fe
 futures = "0.3.0"
 log = "0.4.8"
 num-bigint = "0.3.0"
-structopt = "0.3.3"
+structopt = "0.3.12"
