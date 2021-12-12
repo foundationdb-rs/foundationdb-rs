@@ -15,7 +15,7 @@ The repo consists of multiple crates
 The current version requires rustc 1.46+ to work.
 The previous version (0.3) is still maintained and is available within the 0.3 branch.
 
-You can access the `master` branch documentation [here](https://foundationdb-rs.github.io/foundationdb-rs/foundationdb/index.html).
+You can access the `main` branch documentation [here](https://foundationdb-rs.github.io/foundationdb-rs/foundationdb/index.html).
 
 ## License
 

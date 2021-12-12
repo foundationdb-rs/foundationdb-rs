@@ -23,7 +23,7 @@ categories = ["database"]
 features = ["embedded-fdb-include"]
 
 [badges]
-codecov = { repository = "Clikengo/foundationdb-rs", branch = "master", service = "github" }
+codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
 
 [features]
 default = ["fdb-6_2"]
