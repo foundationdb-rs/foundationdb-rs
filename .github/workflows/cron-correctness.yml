@@ -43,4 +43,4 @@ jobs:
         run: scripts/setup_bindingtester.sh target/debug/bindingtester
 
       - name: Run bindingtester
-        run: scripts/run_bindingtester.sh 1000
+        run: scripts/run_bindingtester.sh 300
