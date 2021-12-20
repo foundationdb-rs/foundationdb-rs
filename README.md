@@ -17,6 +17,10 @@ The previous version (0.3) is still maintained and is available within the 0.3 b
 
 You can access the `main` branch documentation [here](https://foundationdb-rs.github.io/foundationdb-rs/foundationdb/index.html).
 
+## Supported platforms
+
+Supported platforms are listed on the [foundationdb's README](foundationdb/README.md).
+
 ## Correctness
 
 Special care has been set up to be sure that the crate is correct, like official bindings. Every hour, we are running thousands of seeds on the [BindingTester](https://github.com/apple/foundationdb/blob/master/bindings/bindingtester/spec/bindingApiTester.md).
