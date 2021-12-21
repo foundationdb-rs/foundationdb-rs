@@ -475,6 +475,9 @@ fn strinc(key: Bytes) -> Bytes {
         if key[i] != 0xff {
             key[i] += 1;
             return Bytes::from(key);
+        } else {
+            // stripping key from trailing 0xFF bytes
+            key.remove(i);
         }
     }
     panic!("failed to strinc");
