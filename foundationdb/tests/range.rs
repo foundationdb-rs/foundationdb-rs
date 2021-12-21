@@ -18,6 +18,8 @@ fn test_range() {
     futures::executor::block_on(test_get_range_async()).expect("failed to run");
     futures::executor::block_on(test_range_option_async()).expect("failed to run");
     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
+    #[cfg(feature = "fdb-6_3")]
+    futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
 }
 
 async fn test_get_range_async() -> FdbResult<()> {
@@ -200,6 +202,34 @@ async fn test_range_option_async() -> FdbResult<()> {
             4901
         );
     }
+
+    Ok(())
+}
+async fn test_get_estimate_range() -> FdbResult<()> {
+    const N: usize = 10000;
+
+    let db = common::database().await?;
+    let trx = db.create_trx()?;
+    let key_begin = "test-rangeoption-";
+    let key_end = "test-rangeoption.";
+    let k = |i: u32| format!("{}-{:010}", key_begin, i);
+
+    eprintln!("clearing...");
+    trx.clear_range(key_begin.as_bytes(), key_end.as_bytes());
+
+    eprintln!("inserting...");
+    for i in 0..10000 {
+        let value = common::random_str(10);
+        trx.set(k(i).as_bytes(), value.as_bytes());
+    }
+    trx.commit().await?;
+
+    let trx = db.create_trx()?;
+    let estimate = trx
+        .get_estimated_range_size_bytes(key_begin.as_bytes(), key_end.as_bytes())
+        .await?;
+    eprintln!("get an estimate of {} bytes", estimate);
+    assert!(estimate > 0);
 
     Ok(())
 }

@@ -27,6 +27,8 @@ jobs:
 
       - name: Install FoundationDB
         uses: Clikengo/foundationdb-actions-install@v1
+        with:
+          version: "6.3.15"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -59,6 +61,12 @@ jobs:
         with:
           command: test
           args: --manifest-path foundationdb/Cargo.toml --features num-bigint --tests
+
+      - name: Test 6.3
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-6_3 --tests
 
       - name: Test 6.2
         uses: actions-rs/cargo@v1
@@ -112,6 +120,8 @@ jobs:
 
       - name: Install FoundationDB
         uses: Clikengo/foundationdb-actions-install@v1
+        with:
+          version: "6.3.15"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -143,6 +153,8 @@ jobs:
 
       - name: Install FoundationDB
         uses: Clikengo/foundationdb-actions-install@v1
+        with:
+          version: "6.3.15"
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -175,6 +187,8 @@ jobs:
 
       - name: Install FoundationDB
         uses: Clikengo/foundationdb-actions-install@v1
+        with:
+          version: "6.3.15"
 
       - uses: actions-rs/toolchain@v1
         with:

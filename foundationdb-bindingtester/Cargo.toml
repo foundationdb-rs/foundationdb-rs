@@ -20,7 +20,7 @@ categories = ["database"]
 license = "MIT/Apache-2.0"
 
 [features]
-default = ["fdb-6_2"]
+default = ["fdb-6_3"]
 # Use the locally embedded foundationdb fdb_c.h and fdb.options files
 embedded-fdb-include = ["foundationdb/embedded-fdb-include"]
 fdb-5_1 = ["foundationdb/fdb-5_1"]
@@ -28,6 +28,7 @@ fdb-5_2 = ["foundationdb/fdb-5_2"]
 fdb-6_0 = ["foundationdb/fdb-6_0"]
 fdb-6_1 = ["foundationdb/fdb-6_1"]
 fdb-6_2 = ["foundationdb/fdb-6_2"]
+fdb-6_3 = ["foundationdb/fdb-6_3"]
 
 [dependencies]
 env_logger = "0.7.1"
