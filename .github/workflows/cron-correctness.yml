@@ -10,6 +10,7 @@ jobs:
   bindingtester:
     name: Binding Tester
     runs-on: ubuntu-latest
+    if: github.repository == 'foundationdb-rs/foundationdb-rs'
 
     strategy:
       matrix:
