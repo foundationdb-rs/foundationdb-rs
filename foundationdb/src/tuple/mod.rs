@@ -274,11 +274,11 @@ mod tests {
 
         // versionstamp
         test_serde(
-            Versionstamp::complete(b"\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03".clone(), 0),
+            Versionstamp::complete(*b"\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03", 0),
             b"\x33\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03\x00\x00",
         );
         test_serde(
-            Versionstamp::complete(b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a".clone(), 657),
+            Versionstamp::complete(*b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a", 657),
             b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91",
         );
 
@@ -627,21 +627,21 @@ mod tests {
         test_serde(Element::Int(-1), &[0x13, 254]);
         test_serde(
             Element::Versionstamp(Versionstamp::complete(
-                b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a".clone(),
+                *b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a",
                 657,
             )),
             b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91",
         );
         test_serde(
             (Element::Versionstamp(Versionstamp::complete(
-                b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a".clone(),
+                *b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a",
                 657,
             )),),
             b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91",
         );
         test_serde(
             (Element::Versionstamp(Versionstamp::complete(
-                b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a".clone(),
+                *b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a",
                 657,
             )),),
             b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91",

@@ -142,7 +142,7 @@ async fn test_transact_async() -> FdbResult<()> {
         trx.get(KEY, false).await?;
 
         // make current transaction invalid by making conflict
-        make_dirty(&db, KEY).await?;
+        make_dirty(db, KEY).await?;
 
         trx.set(KEY, common::random_str(10).as_bytes());
 
@@ -182,7 +182,7 @@ async fn test_transact_limit() -> FdbResult<()> {
         trx.get(KEY, false).await?;
 
         // make current transaction invalid by making conflict
-        make_dirty(&db, KEY).await?;
+        make_dirty(db, KEY).await?;
 
         trx.set(KEY, common::random_str(10).as_bytes());
 
@@ -223,7 +223,7 @@ async fn test_transact_timeout() -> FdbResult<()> {
         trx.get(KEY, false).await?;
 
         // make current transaction invalid by making conflict
-        make_dirty(&db, KEY).await?;
+        make_dirty(db, KEY).await?;
 
         trx.set(KEY, common::random_str(10).as_bytes());
 

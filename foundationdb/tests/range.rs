@@ -53,8 +53,8 @@ async fn test_get_range_async() -> FdbResult<()> {
         let len = range.len();
         let mut i = 0;
         for kv in &range {
-            assert!(kv.key().len() > 0);
-            assert!(kv.value().len() > 0);
+            assert!(!kv.key().is_empty());
+            assert!(!kv.value().is_empty());
             i += 1;
         }
         assert_eq!(i, len);

@@ -947,9 +947,9 @@ impl StackMachine {
                 debug!(
                     "get_range begin={:?}\n, begin={:?}\n, end={:?}\n,end={:?}\n, limit={:?}, rev={:?}, mode={:?}",
                     begin,
-                    unpack::<Element>(&begin.key()),
+                    unpack::<Element>(begin.key()),
                     end,
-                    unpack::<Element>(&end.key()),
+                    unpack::<Element>(end.key()),
                     limit,
                     reverse,
                     mode
@@ -1250,11 +1250,15 @@ impl StackMachine {
                     let begin = self.pop_bytes().await;
                     let end = self.pop_bytes().await;
 
-                    match trx.as_mut().get_estimated_range_size_bytes(&begin, &end).await {
+                    match trx
+                        .as_mut()
+                        .get_estimated_range_size_bytes(&begin, &end)
+                        .await
+                    {
                         Ok(estimate) => {
                             debug!("got an estimate of {} bytes", estimate);
                             self.push(number, ESTIMATE_RANGE_RESPONSE.clone().into_owned());
-                        },
+                        }
                         Err(error) => {
                             self.push_err(number, error);
                         }
