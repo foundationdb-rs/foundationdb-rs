@@ -8,4 +8,4 @@ on:
 
 jobs:
   bindingtester:
-    uses: .github/workflows/pr-correctness.yml@main
+    uses: .github/workflows/correctness.yml@main
