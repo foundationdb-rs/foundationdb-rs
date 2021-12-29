@@ -5,42 +5,6 @@ on:
     types: [ labeled, unlabeled, opened, synchronize, reopened ]
   workflow_call:
 
-jobs:
-  bindingtester:
-    if: contains(github.event.pull_request.labels.*.name, 'correctness')
-    name: Binding Tester
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        parallelism: ["1", "2", "3"]
-    env:
-      CARGO_INCREMENTAL: 0
-      RUST_BACKTRACE: 1
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-
-      - name: Install FoundationDB
-        uses: Clikengo/foundationdb-actions-install@v1
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p bindingtester
-
-      - name: Setup bindingtester
-        run: scripts/setup_bindingtester.sh target/debug/bindingtester
-
-      - name: Run bindingtester
-        run: scripts/run_bindingtester.sh 1000
+jobs​: 
+ ​ ​bindingtester​: 
+ ​   ​uses​: ​.github/workflows/correctness.yml@main
