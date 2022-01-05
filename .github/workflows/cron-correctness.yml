@@ -25,7 +25,7 @@ jobs:
           submodules: recursive
 
       - name: Install FoundationDB
-        uses: Clikengo/foundationdb-actions-install@v1
+        uses: foundationdb-rs/foundationdb-actions-install@v1
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
