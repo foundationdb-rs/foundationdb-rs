@@ -5,6 +5,6 @@ on:
     types: [ labeled, unlabeled, opened, synchronize, reopened ]
   workflow_call:
 
-jobs​: 
- ​ ​bindingtester​: 
- ​   ​uses​: ​.github/workflows/correctness.yml@main
+jobs:
+  bindingtester:
+    uses: .github/workflows/correctness.yml@main
