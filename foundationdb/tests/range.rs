@@ -19,7 +19,9 @@ fn test_range() {
     futures::executor::block_on(test_range_option_async()).expect("failed to run");
     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
     #[cfg(feature = "fdb-6_3")]
-    futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
+    {
+        futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
+    }
 }
 
 async fn test_get_range_async() -> FdbResult<()> {
@@ -205,6 +207,8 @@ async fn test_range_option_async() -> FdbResult<()> {
 
     Ok(())
 }
+
+#[cfg(feature = "fdb-6_3")]
 async fn test_get_estimate_range() -> FdbResult<()> {
     const N: usize = 10000;
 
