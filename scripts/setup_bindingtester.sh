@@ -10,7 +10,7 @@ case $(uname) in
   ;;
   Linux)
     sudo apt update
-    sudo apt install mono-devel -y
+    sudo apt install mono-devel ninja-build liblz4-dev -y
   ;;
   *) echo "only macOS or Ubuntu is supported"
 esac
