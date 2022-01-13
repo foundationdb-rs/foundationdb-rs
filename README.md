@@ -1,3 +1,4 @@
+[![Discord](https://img.shields.io/discord/925467557903884349)](https://discord.gg/dGVcvQGv)
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/foundationdb-rs/foundationdb-rs/CI)](https://github.com/foundationdb-rs/foundationdb-rs/actions)
 [![Codecov](https://img.shields.io/codecov/c/github/foundationdb-rs/foundationdb-rs)](https://codecov.io/gh/foundationdb-rs/foundationdb-rs)
 ![Rustc 1.46+](https://img.shields.io/badge/rustc-1.46+-lightgrey)
