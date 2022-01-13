@@ -6,6 +6,42 @@ This is a wrapper library around the FoundationDB (Fdb) C API. It implements fut
 
 Rust 1.46+
 
+## Supported platforms
+
+### Tier 1
+
+`Tier 1` targets can be thought of as "guaranteed to work". This means that:
+
+* we are actively checking correctness with the [BindingTester](https://github.com/apple/foundationdb/blob/master/bindings/bindingtester/spec/bindingApiTester.md),
+* we are running classic Rust tests on each pull requests,
+* you can use the crate on the platform.
+
+| Platform     	| Tier 	| Notes 	|
+|--------------	|------	|-------	|
+| linux x86_64 	| 1    	|       	|
+
+### Tier 2
+
+`Tier 2` targets can be thought of as "guaranteed to build". This means that:
+
+* we are running classic Rust tests on each pull requests,
+* you can use the crate on the platform.
+
+But we are not checking correctness.
+
+| Platform     	| Tier 	| Notes 	|
+|--------------	|------	|-------	|
+| osx x86_64 	| 2    	|       	|
+
+### Tier 3
+
+`Tier 3` targets are platforms we would like to have as Tier 2. You might be able to compile, but no CI has been set up.
+
+| Platform     	| Tier 	| Notes 	|
+|--------------	|------	|-------	|
+| Windows x86_64 | 3    	| [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135)   	|
+| osx Silicon 	| 3    	| [Waiting for official dylib support](https://forums.foundationdb.org/t/arm-client-library/3072)       	|
+
 ### Install FoundationDB
 
 Install FoundationDB on your system, see [FoundationDB Local Development](https://apple.github.io/foundationdb/local-dev.html), or these instructions:
