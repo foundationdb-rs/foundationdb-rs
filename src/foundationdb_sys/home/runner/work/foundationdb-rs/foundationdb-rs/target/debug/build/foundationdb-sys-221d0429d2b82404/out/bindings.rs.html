@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `&#x2F;home&#x2F;runner&#x2F;work&#x2F;foundationdb-rs&#x2F;foundationdb-rs&#x2F;target&#x2F;debug&#x2F;build&#x2F;foundationdb-sys-3353d76bebf40904&#x2F;out&#x2F;bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../../../../../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../../../../../../../../../foundationdb_sys/index.html'><div class='logo-container rust-logo'><img src='../../../../../../../../../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../../../../../../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../../../../../../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../../../../../../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `&#x2F;home&#x2F;runner&#x2F;work&#x2F;foundationdb-rs&#x2F;foundationdb-rs&#x2F;target&#x2F;debug&#x2F;build&#x2F;foundationdb-sys-221d0429d2b82404&#x2F;out&#x2F;bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../../../../../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../../../../../../../../../foundationdb_sys/index.html'><div class='logo-container rust-logo'><img src='../../../../../../../../../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../../../../../../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../../../../../../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../../../../../../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -664,9 +664,30 @@
 <span id="664">664</span>
 <span id="665">665</span>
 <span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
 </pre><pre class="rust"><code><span class="comment">/* automatically generated by rust-bindgen 0.55.1 */</span>
 
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDB_API_VERSION</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">620</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDB_API_VERSION</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">630</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_STDINT_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_FEATURES_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_DEFAULT_SOURCE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
@@ -872,6 +893,9 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TRACE_MAX_LOGS_SIZE</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">32</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TRACE_LOG_GROUP</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">33</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TRACE_FORMAT</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">34</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TRACE_CLOCK_SOURCE</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">35</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TRACE_FILE_IDENTIFIER</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">36</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TRACE_PARTIAL_FILE_SUFFIX</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">39</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_KNOB</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">40</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TLS_PLUGIN</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">41</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_TLS_CERT_BYTES</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">42</span>;
@@ -892,8 +916,10 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_EXTERNAL_CLIENT_LIBRARY</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">62</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_EXTERNAL_CLIENT_DIRECTORY</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">63</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_DISABLE_LOCAL_CLIENT</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">64</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_CLIENT_THREADS_PER_VERSION</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">65</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_DISABLE_CLIENT_STATISTICS_LOGGING</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">70</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_ENABLE_SLOW_TASK_PROFILING</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">71</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_ENABLE_RUN_LOOP_PROFILING</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">71</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_ENABLE</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">80</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_DISABLE</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">81</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_SECTION_ACTIVATED_PROBABILITY</span>:
@@ -916,6 +942,7 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_CAUSAL_READ_RISKY</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">504</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_INCLUDE_PORT_IN_ADDRESS</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span>
     <span class="number">505</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_BYPASS_UNREADABLE</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">700</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_CAUSAL_WRITE_RISKY</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">10</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_CAUSAL_READ_RISKY</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">20</span>;
@@ -941,6 +968,7 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_LOG_TRANSACTION</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">404</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_TRANSACTION_LOGGING_MAX_FIELD_LENGTH</span>:
     <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">405</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_SERVER_REQUEST_TRACING</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">406</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_TIMEOUT</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">500</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_RETRY_LIMIT</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">501</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_MAX_RETRY_DELAY</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">502</span>;
@@ -952,6 +980,11 @@
     <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">701</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_READ_LOCK_AWARE</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">702</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_USE_PROVISIONAL_PROXIES</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">711</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_REPORT_CONFLICTING_KEYS</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">712</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_SPECIAL_KEY_SPACE_RELAXED</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">713</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_TAG</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">800</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_AUTO_THROTTLE_TAG</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">801</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_BYPASS_UNREADABLE</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">1100</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_WANT_ALL</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="op">-</span><span class="number">2</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_ITERATOR</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
@@ -1038,9 +1071,9 @@
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>, <span class="ident">packed</span>(<span class="number">4</span>))]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">keyvalue</span> {
-    <span class="kw">pub</span> <span class="ident">key</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_void</span>,
+    <span class="kw">pub</span> <span class="ident">key</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
     <span class="kw">pub</span> <span class="ident">key_length</span>: <span class="ident">::std::os::raw::c_int</span>,
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_void</span>,
+    <span class="kw">pub</span> <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
     <span class="kw">pub</span> <span class="ident">value_length</span>: <span class="ident">::std::os::raw::c_int</span>,
 }
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1317,6 +1350,15 @@
         <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">type_</span>: <span class="ident">FDBConflictRangeType</span>,
     ) -&gt; <span class="ident">fdb_error_t</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_estimated_range_size_bytes</span>(
+        <span class="ident">tr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBTransaction</span>,
+        <span class="ident">begin_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
+        <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">end_key_name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
+        <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_select_api_version_impl</span>(

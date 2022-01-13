@@ -955,11 +955,11 @@
 
         <span class="comment">// versionstamp</span>
         <span class="ident">test_serde</span>(
-            <span class="ident">Versionstamp::complete</span>(<span class="string">b&quot;\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03&quot;</span>.<span class="ident">clone</span>(), <span class="number">0</span>),
+            <span class="ident">Versionstamp::complete</span>(<span class="kw-2">*</span><span class="string">b&quot;\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03&quot;</span>, <span class="number">0</span>),
             <span class="string">b&quot;\x33\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03\x00\x00&quot;</span>,
         );
         <span class="ident">test_serde</span>(
-            <span class="ident">Versionstamp::complete</span>(<span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>.<span class="ident">clone</span>(), <span class="number">657</span>),
+            <span class="ident">Versionstamp::complete</span>(<span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>, <span class="number">657</span>),
             <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
         );
 
@@ -1308,21 +1308,21 @@
         <span class="ident">test_serde</span>(<span class="ident">Element::Int</span>(<span class="op">-</span><span class="number">1</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">254</span>]);
         <span class="ident">test_serde</span>(
             <span class="ident">Element::Versionstamp</span>(<span class="ident">Versionstamp::complete</span>(
-                <span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>.<span class="ident">clone</span>(),
+                <span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>,
                 <span class="number">657</span>,
             )),
             <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
         );
         <span class="ident">test_serde</span>(
             (<span class="ident">Element::Versionstamp</span>(<span class="ident">Versionstamp::complete</span>(
-                <span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>.<span class="ident">clone</span>(),
+                <span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>,
                 <span class="number">657</span>,
             )),),
             <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
         );
         <span class="ident">test_serde</span>(
             (<span class="ident">Element::Versionstamp</span>(<span class="ident">Versionstamp::complete</span>(
-                <span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>.<span class="ident">clone</span>(),
+                <span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>,
                 <span class="number">657</span>,
             )),),
             <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
