@@ -145,7 +145,7 @@ async fn ditch_trx(trx: &Transaction, student: &str, class: &str) {
         .expect("get failed")
         .expect("class seats were not initialized");
     let available_seats: i64 =
-        unpack::<i64>(&available_seats.deref()).expect("failed to decode i64") + 1;
+        unpack::<i64>(available_seats.deref()).expect("failed to decode i64") + 1;
 
     //println!("{} ditching class: {}", student, class);
     trx.set(&class_key, &pack(&available_seats));
@@ -207,7 +207,7 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
 async fn signup(db: &Database, student: String, class: String) -> Result<()> {
     db.transact_boxed_local(
         (student, class),
-        |trx, (student, class)| signup_trx(&trx, student, class).boxed_local(),
+        |trx, (student, class)| signup_trx(trx, student, class).boxed_local(),
         TransactOption::default(),
     )
     .await
@@ -258,19 +258,19 @@ async fn perform_op(
     match mood {
         Mood::Add => {
             let class = all_classes.choose(rng).unwrap();
-            signup(&db, student_id.to_string(), class.to_string()).await?;
+            signup(db, student_id.to_string(), class.to_string()).await?;
             my_classes.push(class.to_string());
         }
         Mood::Ditch => {
             let class = all_classes.choose(rng).unwrap();
-            ditch(&db, student_id.to_string(), class.to_string()).await?;
+            ditch(db, student_id.to_string(), class.to_string()).await?;
             my_classes.retain(|s| s != class);
         }
         Mood::Switch => {
             let old_class = my_classes.choose(rng).unwrap().to_string();
             let new_class = all_classes.choose(rng).unwrap();
             switch_classes(
-                &db,
+                db,
                 student_id.to_string(),
                 old_class.to_string(),
                 new_class.to_string(),
@@ -297,7 +297,7 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
     for _ in 0..num_ops {
         let mut moods = Vec::<Mood>::new();
 
-        if my_classes.len() > 0 {
+        if !my_classes.is_empty() {
             moods.push(Mood::Ditch);
             moods.push(Mood::Switch);
         }
@@ -306,7 +306,7 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
             moods.push(Mood::Add);
         }
 
-        let mood = moods.choose(&mut rng).map(|mood| *mood).unwrap();
+        let mood = moods.choose(&mut rng).copied().unwrap();
 
         // on errors we recheck for available classes
         if perform_op(

@@ -27,13 +27,16 @@ static GOT_COMMITTED_VERSION: Element =
 static ERROR_NONE: Element = Element::Bytes(Bytes(Cow::Borrowed(b"ERROR: NONE")));
 static ERROR_MULTIPLE: Element = Element::Bytes(Bytes(Cow::Borrowed(b"ERROR: MULTIPLE")));
 static OK: Element = Element::Bytes(Bytes(Cow::Borrowed(b"OK")));
+static ESTIMATE_RANGE_RESPONSE: Element =
+    Element::Bytes(Bytes(Cow::Borrowed(b"GOT_ESTIMATED_RANGE_SIZE")));
 
-#[cfg(feature = "fdb-6_2")]
+#[cfg(any(feature = "fdb-6_3", feature = "fdb-6_2"))]
 static GOT_APPROXIMATE_SIZE: Element =
     Element::Bytes(Bytes(Cow::Borrowed(b"GOT_APPROXIMATE_SIZE")));
 
 use crate::fdb::options::{MutationType, StreamingMode};
 use tuple::VersionstampOffset;
+
 fn mutation_from_str(s: &str) -> MutationType {
     match s {
         "ADD" => MutationType::Add,
@@ -171,6 +174,7 @@ enum InstrCode {
     GetCommittedVersion,
     GetApproximateSize,
     WaitFuture,
+    GetEstimatedRangeSize,
 
     TuplePack,
     TuplePackWithVersionstamp,
@@ -247,6 +251,7 @@ impl Instr {
             "GET_COMMITTED_VERSION" => GetCommittedVersion,
             "GET_APPROXIMATE_SIZE" => GetApproximateSize,
             "WAIT_FUTURE" => WaitFuture,
+            "GET_ESTIMATED_RANGE_SIZE" => GetEstimatedRangeSize,
 
             "TUPLE_PACK" => TuplePack,
             "TUPLE_PACK_WITH_VERSIONSTAMP" => TuplePackWithVersionstamp,
@@ -470,6 +475,9 @@ fn strinc(key: Bytes) -> Bytes {
         if key[i] != 0xff {
             key[i] += 1;
             return Bytes::from(key);
+        } else {
+            // stripping key from trailing 0xFF bytes
+            key.remove(i);
         }
     }
     panic!("failed to strinc");
@@ -939,9 +947,9 @@ impl StackMachine {
                 debug!(
                     "get_range begin={:?}\n, begin={:?}\n, end={:?}\n,end={:?}\n, limit={:?}, rev={:?}, mode={:?}",
                     begin,
-                    unpack::<Element>(&begin.key()),
+                    unpack::<Element>(begin.key()),
                     end,
-                    unpack::<Element>(&end.key()),
+                    unpack::<Element>(end.key()),
                     limit,
                     reverse,
                     mode
@@ -1207,7 +1215,7 @@ impl StackMachine {
             // limits, so these bindings can obtain different sizes back.
             GetApproximateSize => {
                 debug!("get_approximate_size");
-                #[cfg(feature = "fdb-6_2")]
+                #[cfg(any(feature = "fdb-6_3", feature = "fdb-6_2"))]
                 {
                     trx.as_mut()
                         .get_approximate_size()
@@ -1215,7 +1223,7 @@ impl StackMachine {
                         .expect("failed to get approximate size");
                     self.push(number, GOT_APPROXIMATE_SIZE.clone().into_owned());
                 }
-                #[cfg(not(feature = "fdb-6_2"))]
+                #[cfg(not(any(feature = "fdb-6_3", feature = "fdb-6_2")))]
                 {
                     unimplemented!("get_approximate_size requires fdb620+");
                 }
@@ -1230,6 +1238,38 @@ impl StackMachine {
                 let item = self.pop().await;
                 self.stack.push(item);
             }
+
+            // Pops the top two items off of the stack as BEGIN_KEY and END_KEY to
+            // construct a key range. Then call the `getEstimatedRangeSize` API of
+            // the language binding. Make sure the API returns without error. Finally
+            // push the string "GOT_ESTIMATED_RANGE_SIZE" onto the stack.
+            GetEstimatedRangeSize => {
+                debug!("get estimated range size");
+                #[cfg(feature = "fdb-6_3")]
+                {
+                    let begin = self.pop_bytes().await;
+                    let end = self.pop_bytes().await;
+
+                    match trx
+                        .as_mut()
+                        .get_estimated_range_size_bytes(&begin, &end)
+                        .await
+                    {
+                        Ok(estimate) => {
+                            debug!("got an estimate of {} bytes", estimate);
+                            self.push(number, ESTIMATE_RANGE_RESPONSE.clone().into_owned());
+                        }
+                        Err(error) => {
+                            self.push_err(number, error);
+                        }
+                    };
+                }
+                #[cfg(not(feature = "fdb-6_3"))]
+                {
+                    unimplemented!("get_estimated_range_size requires fdb630+");
+                }
+            }
+
             // Pops the top item off of the stack as N. Pops the next N items off of the
             // stack and packs them as the tuple [item0,item1,...,itemN], and then pushes
             // this single packed value onto the stack.
