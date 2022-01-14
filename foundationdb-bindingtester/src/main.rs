@@ -17,6 +17,7 @@ use fdb::tuple::{pack, pack_into, unpack, Bytes, Element, Subspace, TuplePack};
 use fdb::*;
 use futures::future;
 use futures::prelude::*;
+use num_bigint::BigInt;
 
 static WAITED_FOR_EMPTY: Element = Element::Bytes(Bytes(Cow::Borrowed(b"WAITED_FOR_EMPTY")));
 static RESULT_NOT_PRESENT: Element = Element::Bytes(Bytes(Cow::Borrowed(b"RESULT_NOT_PRESENT")));
@@ -715,7 +716,11 @@ impl StackMachine {
                 let b = self.pop_element().await;
                 debug!("sub {:?} - {:?}", a, b);
                 let c = match (a, b) {
-                    (Element::Int(a), Element::Int(b)) => Element::Int(a - b),
+                    // checking for possible overflow
+                    (Element::Int(a), Element::Int(b)) => match a.checked_sub(b) {
+                        None => Element::BigInt(BigInt::from(a) - BigInt::from(b)),
+                        Some(c) => Element::Int(c),
+                    },
                     (Element::Float(a), Element::Float(b)) => Element::Float(a - b),
                     (Element::Double(a), Element::Double(b)) => Element::Double(a - b),
                     (Element::BigInt(a), Element::BigInt(b)) => Element::BigInt(a - b),
