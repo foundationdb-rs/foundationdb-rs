@@ -20,4 +20,6 @@ do
   ./bindings/bindingtester/bindingtester.py --test-name scripted rust
   ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name api --compare python rust
   ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name api --concurrency 5 rust
+  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python
+  ./bindings/bindingtester/bindingtester.py --num-ops 100 --api-version 630 --test-name directory_hca --concurrency 1 rust --no-directory-snapshot-ops
 done
