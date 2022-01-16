@@ -67,7 +67,10 @@ async fn test_create_then_open_then_delete(
         open_output.err().unwrap()
     );
 
-    assert_eq!(create_output.unwrap().bytes(), open_output.unwrap().bytes());
+    assert_eq!(
+        create_output.unwrap().bytes().unwrap(),
+        open_output.unwrap().bytes().unwrap()
+    );
     trx.commit().await.expect("cannot commit");
 
     // removing folder

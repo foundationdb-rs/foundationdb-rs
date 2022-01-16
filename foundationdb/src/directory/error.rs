@@ -47,6 +47,16 @@ pub enum DirectoryError {
     CannotMoveBetweenSubdirectory,
     /// Prefix is not empty
     PrefixNotEmpty,
+    /// cannot open subspace in the root of a directory partition
+    CannotOpenDirectoryPartition,
+    /// cannot get key for the root of a directory partition
+    CannotGetKeyDirectoryPartition,
+    /// cannot pack for the root of a directory partition
+    CannotPackDirectoryPartition,
+    /// cannot unpack keys using the root of a directory partition
+    CannotUnpackDirectoryPartition,
+    /// cannot get range for the root of a directory partition
+    CannotRangeDirectoryPartition,
     IoError(io::Error),
     FdbError(error::FdbError),
     HcaError(HcaError),

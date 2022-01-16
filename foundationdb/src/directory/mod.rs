@@ -159,49 +159,51 @@ pub enum DirectoryOutput {
     DirectoryPartition(DirectoryPartition),
 }
 
-// TODO: should we have a Subspace trait?
 impl DirectoryOutput {
-    pub fn subspace<T: TuplePack>(&self, t: &T) -> Subspace {
+    pub fn subspace<T: TuplePack>(&self, t: &T) -> Result<Subspace, DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.subspace(t),
+            DirectoryOutput::DirectorySubspace(d) => Ok(d.subspace(t)),
             DirectoryOutput::DirectoryPartition(_) => {
-                panic!("cannot open subspace in the root of a directory partition")
+                Err(DirectoryError::CannotOpenDirectoryPartition)
             }
         }
     }
 
-    pub fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> Result<&[u8], DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.bytes(),
+            DirectoryOutput::DirectorySubspace(d) => Ok(d.bytes()),
             DirectoryOutput::DirectoryPartition(_) => {
-                panic!("cannot get key for the root of a directory partition")
+                Err(DirectoryError::CannotOpenDirectoryPartition)
             }
         }
     }
 
-    pub fn pack<T: TuplePack>(&self, t: &T) -> Vec<u8> {
+    pub fn pack<T: TuplePack>(&self, t: &T) -> Result<Vec<u8>, DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.pack(t),
+            DirectoryOutput::DirectorySubspace(d) => Ok(d.pack(t)),
             DirectoryOutput::DirectoryPartition(_) => {
-                panic!("cannot pack for the root of a directory partition")
+                Err(DirectoryError::CannotPackDirectoryPartition)
             }
         }
     }
 
-    pub fn unpack<'de, T: TupleUnpack<'de>>(&self, key: &'de [u8]) -> PackResult<T> {
+    pub fn unpack<'de, T: TupleUnpack<'de>>(
+        &self,
+        key: &'de [u8],
+    ) -> Result<PackResult<T>, DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.unpack(key),
+            DirectoryOutput::DirectorySubspace(d) => Ok(d.unpack(key)),
             DirectoryOutput::DirectoryPartition(_) => {
-                panic!("cannot unpack keys using the root of a directory partition")
+                Err(DirectoryError::CannotPackDirectoryPartition)
             }
         }
     }
 
-    pub fn range(&self) -> (Vec<u8>, Vec<u8>) {
+    pub fn range(&self) -> Result<(Vec<u8>, Vec<u8>), DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.range(),
+            DirectoryOutput::DirectorySubspace(d) => Ok(d.range()),
             DirectoryOutput::DirectoryPartition(_) => {
-                panic!("cannot get range for the root of a directory partition")
+                Err(DirectoryError::CannotRangeDirectoryPartition)
             }
         }
     }

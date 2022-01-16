@@ -348,7 +348,8 @@ impl DirectoryLayer {
             let parent = self
                 .create_or_open_internal(trx, list.to_vec(), None, None, true, true)
                 .await?;
-            Ok(self.node_with_prefix(&parent.bytes().to_vec()))
+
+            Ok(self.node_with_prefix(&parent.bytes()?.to_vec()))
         } else {
             Ok(self.root_node.clone())
         }

@@ -651,6 +651,11 @@ impl StackMachine {
         let element = self.pop_element().await;
         match element {
             Element::Bytes(v) => v,
+            // checking nested bytes in a Tuple as well
+            Element::Tuple(elements) => match elements.get(0) {
+                Some(Element::Bytes(b)) => b.clone(),
+                _ => panic!("bytes were expected, found a Tuple with no Bytes in it"),
+            },
             _ => panic!("bytes were expected, found {:?}", element),
         }
     }
@@ -2290,10 +2295,21 @@ impl StackMachine {
                 let data = self.pop_bytes().await;
                 let data = data.to_vec();
                 debug!("directory_unpack {:?}", data);
-                let data: Vec<Element> = self.unpack_with_current_subspace(&data).unwrap().unwrap();
-                for element in data {
-                    debug!(" - {:?}", element);
-                    self.push(number, Element::Tuple(vec![element.into_owned()]));
+                match self.unpack_with_current_subspace(&data) {
+                    None => self.push_directory_err(
+                        &instr.code,
+                        number,
+                        DirectoryError::Other(String::from(
+                            "Cannot unpack with Directory Partition",
+                        )),
+                    ),
+                    Some(packed) => {
+                        let data: Vec<Element> = packed.unwrap();
+                        for element in data {
+                            debug!(" - {:?}", element);
+                            self.push(number, Element::Tuple(vec![element.into_owned()]));
+                        }
+                    }
                 }
             }
 
@@ -2324,10 +2340,22 @@ impl StackMachine {
                     }
                     _ => {
                         let tuple = Element::Tuple(buf);
-                        let subspace = self.subspace_with_current_item(&tuple).unwrap();
-                        let (begin_range, end_range) = subspace.range();
-                        self.push(number, Element::Bytes(begin_range.into()));
-                        self.push(number, Element::Bytes(end_range.into()));
+                        match self.subspace_with_current_item(&tuple) {
+                            None => {
+                                self.push_directory_err(
+                                    &instr.code,
+                                    number,
+                                    DirectoryError::Other(String::from(
+                                        "operation not allowed on directoryPartition",
+                                    )),
+                                );
+                            }
+                            Some(subspace) => {
+                                let (begin_range, end_range) = subspace.range();
+                                self.push(number, Element::Bytes(begin_range.into()));
+                                self.push(number, Element::Bytes(end_range.into()));
+                            }
+                        }
                     }
                 }
             }
@@ -2338,19 +2366,27 @@ impl StackMachine {
             // the specified key. Push 1 if it does and 0 if it doesn't.
             DirectoryContains => {
                 let raw_prefix = self.pop_bytes().await;
-                let b = match self.get_current_directory_item() {
-                    None => panic!("not found"),
-                    Some(DirectoryStackItem::Subspace(s)) => s.is_start_of(&raw_prefix.to_vec()),
+                let maybe_contains = match self.get_current_directory_item() {
+                    None => None,
+                    Some(DirectoryStackItem::Subspace(s)) => {
+                        Some(s.is_start_of(&raw_prefix.to_vec()))
+                    }
                     Some(DirectoryStackItem::DirectoryOutput(d)) => match d {
                         DirectoryOutput::DirectorySubspace(s) => {
-                            s.is_start_of(&raw_prefix.to_vec())
+                            Some(s.is_start_of(&raw_prefix.to_vec()))
                         }
-                        _ => panic!("not a DirectorySubspace"),
+                        _ => None,
                     },
-                    _ => panic!("not found"),
+                    _ => None,
                 };
-
-                self.push(number, Element::Int(b as i64));
+                match maybe_contains {
+                    None => self.push_directory_err(
+                        &instr.code,
+                        number,
+                        DirectoryError::Other(String::from("cannot perform contains")),
+                    ),
+                    Some(bool) => self.push(number, Element::Int(bool as i64)),
+                }
             }
 
             // Use the current directory for this operation.
@@ -2368,9 +2404,14 @@ impl StackMachine {
                 }
 
                 let tuple = Element::Tuple(buf);
-                self.directory_stack.push(DirectoryStackItem::Subspace(
-                    self.subspace_with_current_item(&tuple).unwrap(),
-                ));
+                match self.subspace_with_current_item(&tuple) {
+                    None => self.push_directory_err(
+                        &instr.code,
+                        number,
+                        DirectoryError::Other(String::from("Cannot subspace with current item")),
+                    ),
+                    Some(s) => self.directory_stack.push(DirectoryStackItem::Subspace(s)),
+                }
             }
 
             // Use the current directory for this operation.
@@ -2543,23 +2584,31 @@ impl StackMachine {
                         DirectoryError::Other(String::from("bad input on bytes")),
                     );
                 }
-                Some(raw_prefix) => {
-                    let ssb = self.get_bytes_for_current_directory().unwrap();
-                    if !raw_prefix.to_vec().starts_with(&ssb) {
-                        self.push_directory_err(
-                            &instr.code,
-                            number,
-                            DirectoryError::Version(String::from(
-                                "String does not start with raw prefix",
-                            )),
-                        );
-                    } else {
-                        self.push(
-                            number,
-                            Element::Bytes(Bytes::from(raw_prefix[ssb.len()..].to_owned())),
-                        );
+                Some(raw_prefix) => match self.get_bytes_for_current_directory() {
+                    None => self.push_directory_err(
+                        &instr.code,
+                        number,
+                        DirectoryError::Version(String::from(
+                            "cannot get bytes for DirectoryPartition",
+                        )),
+                    ),
+                    Some(ssb) => {
+                        if !raw_prefix.to_vec().starts_with(&ssb) {
+                            self.push_directory_err(
+                                &instr.code,
+                                number,
+                                DirectoryError::Version(String::from(
+                                    "String does not start with raw prefix",
+                                )),
+                            );
+                        } else {
+                            self.push(
+                                number,
+                                Element::Bytes(Bytes::from(raw_prefix[ssb.len()..].to_owned())),
+                            );
+                        }
                     }
-                }
+                },
             },
         }
 
@@ -2606,8 +2655,8 @@ impl StackMachine {
         self.directory_stack.get(self.directory_index)
     }
 
-    fn get_current_directory(&self) -> Option<Box<dyn Directory>> {
-        match self.directory_stack.get(self.directory_index) {
+    fn get_current_directory(&mut self) -> Option<Box<dyn Directory>> {
+        match self.get_current_directory_item() {
             None => None,
             Some(directory_or_subspace) => match directory_or_subspace {
                 DirectoryStackItem::Directory(d) => Some(Box::new(d.clone())),
@@ -2630,6 +2679,7 @@ impl StackMachine {
         }
     }
 
+    // It can return a None if it is a DirectoryPartition
     fn unpack_with_current_subspace<'de, T: TupleUnpack<'de>>(
         &self,
         key: &'de [u8],
@@ -2637,18 +2687,27 @@ impl StackMachine {
         match self.directory_stack.get(self.directory_index) {
             None => None,
             Some(directory_or_subspace) => match directory_or_subspace {
-                DirectoryStackItem::DirectoryOutput(d) => Some(d.unpack(key)),
+                DirectoryStackItem::DirectoryOutput(d) => match d {
+                    DirectoryOutput::DirectorySubspace(directory_subspace) => {
+                        Some(directory_subspace.unpack(key))
+                    }
+                    DirectoryOutput::DirectoryPartition(_) => None,
+                },
                 DirectoryStackItem::Subspace(d) => Some(d.unpack(key)),
                 _ => None,
             },
         }
     }
 
+    // It can return a None if it is a DirectoryPartition
     fn subspace_with_current_item<T: TuplePack>(&self, t: &T) -> Option<Subspace> {
         match self.directory_stack.get(self.directory_index) {
             None => None,
             Some(directory_or_subspace) => match directory_or_subspace {
-                DirectoryStackItem::DirectoryOutput(d) => Some(d.subspace(t)),
+                DirectoryStackItem::DirectoryOutput(d) => match d {
+                    DirectoryOutput::DirectorySubspace(s) => Some(s.subspace(t)),
+                    DirectoryOutput::DirectoryPartition(_) => None,
+                },
                 DirectoryStackItem::Subspace(d) => Some(d.subspace(t)),
                 _ => None,
             },
