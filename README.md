@@ -1,3 +1,4 @@
+[![Discord](https://img.shields.io/discord/925467557903884349)](https://discord.gg/dGVcvQGv)
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/foundationdb-rs/foundationdb-rs/CI)](https://github.com/foundationdb-rs/foundationdb-rs/actions)
 [![Codecov](https://img.shields.io/codecov/c/github/foundationdb-rs/foundationdb-rs)](https://codecov.io/gh/foundationdb-rs/foundationdb-rs)
 ![Rustc 1.46+](https://img.shields.io/badge/rustc-1.46+-lightgrey)
@@ -16,6 +17,10 @@ The current version requires rustc 1.46+ to work.
 The previous version (0.3) is still maintained and is available within the 0.3 branch.
 
 You can access the `main` branch documentation [here](https://foundationdb-rs.github.io/foundationdb-rs/foundationdb/index.html).
+
+## Supported platforms
+
+Supported platforms are listed on the [foundationdb's README](foundationdb/README.md).
 
 ## Correctness
 

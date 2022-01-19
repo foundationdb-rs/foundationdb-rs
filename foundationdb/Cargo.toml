@@ -26,7 +26,7 @@ features = ["embedded-fdb-include"]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
 
 [features]
-default = ["fdb-6_2", "uuid"]
+default = ["fdb-6_3", "uuid"]
 # Use the locally embedded foundationdb fdb_c.h and fdb.options files
 embedded-fdb-include = [
     "foundationdb-sys/embedded-fdb-include",
@@ -37,6 +37,7 @@ fdb-5_2 = ["foundationdb-sys/fdb-5_2", "foundationdb-gen/fdb-5_2"]
 fdb-6_0 = ["foundationdb-sys/fdb-6_0", "foundationdb-gen/fdb-6_0"]
 fdb-6_1 = ["foundationdb-sys/fdb-6_1", "foundationdb-gen/fdb-6_1"]
 fdb-6_2 = ["foundationdb-sys/fdb-6_2", "foundationdb-gen/fdb-6_2"]
+fdb-6_3 = ["foundationdb-sys/fdb-6_3", "foundationdb-gen/fdb-6_3"]
 
 [build-dependencies]
 foundationdb-gen = { version = "0.5.1", path = "../foundationdb-gen", default-features = false }

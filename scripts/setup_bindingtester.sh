@@ -10,7 +10,7 @@ case $(uname) in
   ;;
   Linux)
     sudo apt update
-    sudo apt install mono-devel -y
+    sudo apt install mono-devel ninja-build liblz4-dev -y
   ;;
   *) echo "only macOS or Ubuntu is supported"
 esac
@@ -22,14 +22,18 @@ esac
   cd ${fdb_builddir:?}
 
   ## Get foundationdb source
-  git clone --depth 1 https://github.com/apple/foundationdb.git -b release-6.1
+  git clone --depth 1 https://github.com/apple/foundationdb.git -b release-6.3
   cd foundationdb
-  git checkout release-6.1
+  git checkout release-6.3
 
-  ## need the python api bindings
-  make fdb_python
+  ## build python api bindings
+  mkdir cmake_build && cd cmake_build
+  cmake -G Ninja ../
+  ninja python_binding
+  cp ./bindings/python/fdb/fdboptions.py ../bindings/python/fdb/fdboptions.py
+  cd ..
 
-  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, MAX_API_VERSION, types=ALL_TYPES)
+  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 630, types=ALL_TYPES)
 " >> ./bindings/bindingtester/known_testers.py
 )
 

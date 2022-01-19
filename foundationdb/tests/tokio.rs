@@ -22,7 +22,7 @@ async fn do_transact() {
             .expect("failed to open fdb"),
     );
 
-    let adb = db.clone();
+    let adb = db;
     tokio::spawn(async move {
         async fn txnfn(_txn: &Transaction) -> FdbResult<()> {
             Ok(())
@@ -45,7 +45,7 @@ async fn do_trx() {
             .expect("failed to open fdb"),
     );
 
-    let adb = db.clone();
+    let adb = db;
     tokio::spawn(async move {
         adb.create_trx()
             .expect("failed to create trx")

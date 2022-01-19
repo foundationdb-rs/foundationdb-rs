@@ -17,7 +17,7 @@ fn test_watch() {
 }
 
 async fn test_watch_async() -> FdbResult<()> {
-    const KEY: &'static [u8] = b"test-watch";
+    const KEY: &[u8] = b"test-watch";
 
     let db = common::database().await?;
 
@@ -40,7 +40,7 @@ async fn test_watch_async() -> FdbResult<()> {
 }
 
 async fn test_watch_without_commit_async() -> FdbResult<()> {
-    const KEY: &'static [u8] = b"test-watch-2";
+    const KEY: &[u8] = b"test-watch-2";
 
     let db = common::database().await?;
 
