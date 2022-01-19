@@ -42,7 +42,7 @@ jobs:
           args: -p bindingtester
   
       - name: Setup bindingtester
-        run: scripts/setup_bindingtester.shtarget/debug/bindingtester
+        run: scripts/setup_bindingtester.sh target/debug/bindingtester
   
       - name: Run bindingtester
-        run: scripts/run_bindingtester.sh${{inputs.iterations}}
+        run: scripts/run_bindingtester.sh ${{inputs.iterations}}
