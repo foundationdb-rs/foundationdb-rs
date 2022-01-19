@@ -8,4 +8,4 @@ on:
 
 jobs:
   bindingtester:
-    uses: foundationdb-rs/foundationdb-rs/.github/workflows/correctness.yml@main
+    uses: foundationdb-rs/foundationdb-rs/.github/workflows/correctness.yml@main 300
