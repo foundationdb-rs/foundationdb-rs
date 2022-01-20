@@ -1,8 +1,6 @@
 name: Scheduled correctness
 
 on:
-  # https://crontab.guru/#0_*_*_*_*
-  # “At minute 0.”
   schedule:
   - cron: "0 * * * *"
 
