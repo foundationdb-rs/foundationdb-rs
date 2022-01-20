@@ -8,6 +8,6 @@ on:
 
 jobs:
   bindingtester:
-    uses: ./.github/workflows/correctness.yml@main
+    uses: foundationdb-rs/foundationdb-rs/.github/workflows/correctness.yml@main
     with:
       iterations: 300
