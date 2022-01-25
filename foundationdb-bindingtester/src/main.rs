@@ -38,8 +38,8 @@ static GOT_APPROXIMATE_SIZE: Element =
 
 use crate::fdb::options::{MutationType, StreamingMode};
 
-use foundationdb::directory::directory_layer::DirectoryLayer;
-use foundationdb::directory::error::DirectoryError;
+use foundationdb::directory::DirectoryError;
+use foundationdb::directory::DirectoryLayer;
 use foundationdb::directory::{Directory, DirectoryOutput};
 use foundationdb::tuple::{PackResult, TupleUnpack};
 
@@ -2266,7 +2266,7 @@ impl StackMachine {
             DirectoryPackKey => {
                 let n: usize = self.pop_usize().await;
                 debug!("DirectoryPackKey {}", n);
-                let mut buf = Vec::new();
+                let mut buf = Vec::with_capacity(n);
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
                     debug!(" - {:?}", element);
@@ -2319,7 +2319,7 @@ impl StackMachine {
             // range.begin and range.end onto the stack.
             DirectoryRange => {
                 let n: usize = self.pop_usize().await;
-                let mut buf = Vec::new();
+                let mut buf = Vec::with_capacity(n);
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
                     debug!(" - {:?}", element);
@@ -2371,12 +2371,9 @@ impl StackMachine {
                     Some(DirectoryStackItem::Subspace(s)) => {
                         Some(s.is_start_of(&raw_prefix.to_vec()))
                     }
-                    Some(DirectoryStackItem::DirectoryOutput(d)) => match d {
-                        DirectoryOutput::DirectorySubspace(s) => {
-                            Some(s.is_start_of(&raw_prefix.to_vec()))
-                        }
-                        _ => None,
-                    },
+                    Some(DirectoryStackItem::DirectoryOutput(
+                        DirectoryOutput::DirectorySubspace(s),
+                    )) => Some(s.is_start_of(&raw_prefix.to_vec())),
                     _ => None,
                 };
                 match maybe_contains {

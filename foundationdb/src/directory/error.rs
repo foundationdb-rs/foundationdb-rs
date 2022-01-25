@@ -47,6 +47,8 @@ pub enum DirectoryError {
     CannotMoveBetweenSubdirectory,
     /// Prefix is not empty
     PrefixNotEmpty,
+    /// Thrown when the subpath cannot be computed due to length errors
+    CannotCreateSubpath,
     /// cannot open subspace in the root of a directory partition
     CannotOpenDirectoryPartition,
     /// cannot get key for the root of a directory partition

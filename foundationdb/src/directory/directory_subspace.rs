@@ -47,18 +47,22 @@ impl DirectorySubspace {
         &self,
         path: Vec<String>,
         directory_layer: Option<DirectoryLayer>,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, DirectoryError> {
+        let directory = match directory_layer {
+            None => self.directory_layer.clone(),
+            Some(d) => d,
+        };
+
+        if directory.path.len() > self.path.len() {
+            return Err(DirectoryError::CannotCreateSubpath);
+        }
+
         let mut new_path = vec![];
 
-        new_path.extend_from_slice(
-            &self.path[directory_layer
-                .unwrap_or_else(|| self.directory_layer.clone())
-                .path
-                .len()..],
-        );
+        new_path.extend_from_slice(&self.path[directory.path.len()..]);
         new_path.extend_from_slice(&path);
 
-        new_path
+        Ok(new_path)
     }
 }
 
@@ -116,7 +120,7 @@ impl Directory for DirectorySubspace {
         self.directory_layer
             .create_or_open(
                 txn,
-                self.get_partition_subpath(path.to_owned(), None),
+                self.get_partition_subpath(path.to_owned(), None)?,
                 prefix,
                 layer,
             )
@@ -133,7 +137,7 @@ impl Directory for DirectorySubspace {
         self.directory_layer
             .create(
                 txn,
-                self.get_partition_subpath(path.to_owned(), None),
+                self.get_partition_subpath(path.to_owned(), None)?,
                 prefix,
                 layer,
             )
@@ -149,7 +153,7 @@ impl Directory for DirectorySubspace {
         self.directory_layer
             .open(
                 txn,
-                self.get_partition_subpath(path.to_owned(), None),
+                self.get_partition_subpath(path.to_owned(), None)?,
                 layer,
             )
             .await
@@ -161,7 +165,7 @@ impl Directory for DirectorySubspace {
         directory_layer
             .exists(
                 trx,
-                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone())),
+                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone()))?,
             )
             .await
     }
@@ -172,7 +176,7 @@ impl Directory for DirectorySubspace {
         new_path: Vec<String>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         let directory_layer = self.get_directory_layer_for_path(&[]);
-        let directory_layer_path = directory_layer.path.to_owned();
+        let directory_layer_path = &directory_layer.path;
 
         if directory_layer_path.len() > new_path.len() {
             return Err(DirectoryError::CannotMoveBetweenPartition);
@@ -195,7 +199,7 @@ impl Directory for DirectorySubspace {
         directory_layer
             .move_to(
                 trx,
-                self.get_partition_subpath(vec![], Some(directory_layer.clone())),
+                self.get_partition_subpath(vec![], Some(directory_layer.clone()))?,
                 new_relative_path.to_owned(),
             )
             .await
@@ -210,8 +214,8 @@ impl Directory for DirectorySubspace {
         self.directory_layer
             .move_to(
                 trx,
-                self.get_partition_subpath(old_path, None),
-                self.get_partition_subpath(new_path, None),
+                self.get_partition_subpath(old_path, None)?,
+                self.get_partition_subpath(new_path, None)?,
             )
             .await
     }
@@ -221,7 +225,7 @@ impl Directory for DirectorySubspace {
         directory_layer
             .remove(
                 trx,
-                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone())),
+                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone()))?,
             )
             .await
     }
@@ -235,7 +239,7 @@ impl Directory for DirectorySubspace {
         directory_layer
             .remove_if_exists(
                 trx,
-                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone())),
+                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone()))?,
             )
             .await
     }
@@ -246,7 +250,7 @@ impl Directory for DirectorySubspace {
         path: Vec<String>,
     ) -> Result<Vec<String>, DirectoryError> {
         self.directory_layer
-            .list(trx, self.get_partition_subpath(path.to_owned(), None))
+            .list(trx, self.get_partition_subpath(path.to_owned(), None)?)
             .await
     }
 }

@@ -95,22 +95,26 @@ impl DirectoryPartition {
         &self,
         path: Vec<String>,
         directory_layer: Option<DirectoryLayer>,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, DirectoryError> {
+        let directory = match directory_layer {
+            None => self.directory_subspace.directory_layer.clone(),
+            Some(d) => d,
+        };
+
+        if directory.path.len() > self.directory_subspace.get_path().len() {
+            return Err(DirectoryError::CannotCreateSubpath);
+        }
+
         let mut new_path = vec![];
 
-        new_path.extend_from_slice(
-            &self.directory_subspace.get_path()[directory_layer
-                .unwrap_or_else(|| self.directory_subspace.directory_layer.clone())
-                .path
-                .len()..],
-        );
+        new_path.extend_from_slice(&self.directory_subspace.get_path()[directory.path.len()..]);
         new_path.extend_from_slice(&path);
 
-        new_path
+        Ok(new_path)
     }
 
     pub fn get_layer(&self) -> Vec<u8> {
-        String::from("partition").into_bytes()
+        b"partition".to_vec()
     }
 }
 
@@ -157,7 +161,7 @@ impl Directory for DirectoryPartition {
         directory_layer
             .exists(
                 trx,
-                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone())),
+                self.get_partition_subpath(path, Some(directory_layer.clone()))?,
             )
             .await
     }
@@ -168,7 +172,7 @@ impl Directory for DirectoryPartition {
         new_path: Vec<String>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         let directory_layer = self.get_directory_layer_for_path(&[]);
-        let directory_layer_path = directory_layer.path.to_owned();
+        let directory_layer_path = &directory_layer.path;
 
         if directory_layer_path.len() > new_path.len() {
             return Err(DirectoryError::CannotMoveBetweenPartition);
@@ -191,7 +195,7 @@ impl Directory for DirectoryPartition {
         directory_layer
             .move_to(
                 trx,
-                self.get_partition_subpath(vec![], Some(directory_layer.clone())),
+                self.get_partition_subpath(vec![], Some(directory_layer.clone()))?,
                 new_relative_path.to_owned(),
             )
             .await
@@ -214,7 +218,7 @@ impl Directory for DirectoryPartition {
         directory_layer
             .remove(
                 trx,
-                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone())),
+                self.get_partition_subpath(path, Some(directory_layer.clone()))?,
             )
             .await
     }
@@ -228,7 +232,7 @@ impl Directory for DirectoryPartition {
         directory_layer
             .remove_if_exists(
                 trx,
-                self.get_partition_subpath(path.to_owned(), Some(directory_layer.clone())),
+                self.get_partition_subpath(path, Some(directory_layer.clone()))?,
             )
             .await
     }

@@ -20,7 +20,6 @@ use crate::RangeOption;
 use crate::{FdbResult, Transaction};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use byteorder::{LittleEndian, WriteBytesExt};
 
 use std::cmp::Ordering;
 
@@ -197,7 +196,7 @@ impl DirectoryLayer {
     pub(crate) fn contents_of_node(
         &self,
         node: Subspace,
-        path: Vec<String>,
+        path: &[String],
         layer: Vec<u8>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         let prefix: Vec<u8> = self.node_subspace.unpack(node.bytes())?;
@@ -308,6 +307,10 @@ impl DirectoryLayer {
         prefix: Option<Vec<u8>>,
         allow_create: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
+        if path.is_empty() {
+            return Err(DirectoryError::NoPathProvided);
+        }
+
         if !allow_create {
             return Err(DirectoryError::DirectoryDoesNotExists);
         }
@@ -334,7 +337,7 @@ impl DirectoryLayer {
         trx.set(key.bytes(), &new_prefix);
         trx.set(&key_layer, &layer);
 
-        self.contents_of_node(node, path.to_owned(), layer.to_owned())
+        self.contents_of_node(node, &path, layer.to_owned())
     }
 
     async fn get_parent_node(
@@ -342,17 +345,19 @@ impl DirectoryLayer {
         trx: &Transaction,
         path: Vec<String>,
     ) -> Result<Subspace, DirectoryError> {
-        if path.len() > 1 {
-            let (_, list) = path.split_last().unwrap();
+        return match path.split_last() {
+            None => Ok(self.root_node.clone()),
+            Some((_, remains)) => {
+                if remains.is_empty() {
+                    return Ok(self.root_node.clone());
+                }
+                let parent = self
+                    .create_or_open_internal(trx, remains.to_vec(), None, None, true, true)
+                    .await?;
 
-            let parent = self
-                .create_or_open_internal(trx, list.to_vec(), None, None, true, true)
-                .await?;
-
-            Ok(self.node_with_prefix(&parent.bytes()?.to_vec()))
-        } else {
-            Ok(self.root_node.clone())
-        }
+                Ok(self.node_with_prefix(&parent.bytes()?.to_vec()))
+            }
+        };
     }
 
     async fn is_prefix_free(
@@ -498,9 +503,9 @@ impl DirectoryLayer {
     /// `initialize_directory` is initializing the directory
     async fn initialize_directory(&self, trx: &Transaction) -> Result<(), DirectoryError> {
         let mut value = vec![];
-        value.write_u32::<LittleEndian>(MAJOR_VERSION).unwrap();
-        value.write_u32::<LittleEndian>(MINOR_VERSION).unwrap();
-        value.write_u32::<LittleEndian>(PATCH_VERSION).unwrap();
+        value.extend(MAJOR_VERSION.to_le_bytes());
+        value.extend(MINOR_VERSION.to_le_bytes());
+        value.extend(PATCH_VERSION.to_le_bytes());
         let version_subspace: &[u8] = b"version";
         let directory_version_key = self.root_node.subspace(&version_subspace);
         trx.set(directory_version_key.bytes(), &value);
@@ -619,36 +624,29 @@ impl DirectoryLayer {
         }
 
         let subspace_parent_node = match parent_node.subspace {
-            // not reachable because `self.find` is creating a node with a subspace,
-            None => unreachable!("node's subspace is not set"),
+            // not reachable because `parent_node.exists` has been checked above
+            None => unreachable!("parent_node's subspace is not set"),
             Some(ref s) => s.clone(),
         };
 
-        let key =
-            subspace_parent_node.subspace(&(DEFAULT_SUB_DIRS, new_path.to_owned().last().unwrap()));
+        let key = subspace_parent_node.subspace(&(DEFAULT_SUB_DIRS, new_path.last().unwrap()));
         let value: Vec<u8> = self
             .node_subspace
-            .unpack(old_node.subspace.clone().unwrap().bytes())?;
+            .unpack(old_node.subspace.as_ref().unwrap().bytes())?;
         trx.set(key.bytes(), &value);
 
         self.remove_from_parent(trx, old_path.to_owned()).await?;
 
-        self.contents_of_node(
-            old_node.subspace.unwrap(),
-            new_path.to_owned(),
-            old_node.layer,
-        )
+        self.contents_of_node(old_node.subspace.unwrap(), &new_path, old_node.layer)
     }
 
     async fn remove_from_parent(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        mut path: Vec<String>,
     ) -> Result<(), DirectoryError> {
-        let (last_element, parent_path) = match path.split_last() {
-            None => return Err(DirectoryError::BadDestinationDirectory),
-            Some((last, elements)) => (last.clone(), elements.to_vec()),
-        };
+        let last_element = path.pop().ok_or(DirectoryError::BadDestinationDirectory)?;
+        let parent_path = path;
 
         let parent_node = self.find(trx, parent_path).await?;
         match parent_node.subspace {

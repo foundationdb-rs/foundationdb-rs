@@ -32,7 +32,7 @@
 //!     let trx = db.create_trx()?;
 //!
 //!     // creates a directory
-//!     let directory = foundationdb::directory::directory_layer::DirectoryLayer::default();
+//!     let directory = foundationdb::directory::DirectoryLayer::default();
 //!
 //!     // use the directory to create a subspace to use
 //!     let content_subspace = directory.create_or_open(
@@ -56,21 +56,22 @@
 //! futures::executor::block_on(async_main()).expect("failed to run");
 //! drop(network);
 //! ```
-pub mod directory_layer;
-pub mod directory_partition;
-pub mod directory_subspace;
-pub mod error;
-pub(crate) mod node;
 
-use crate::directory::directory_subspace::DirectorySubspace;
-use crate::directory::error::DirectoryError;
-use async_trait::async_trait;
+#[warn(clippy::needless_borrow)]
+mod directory_layer;
+mod directory_partition;
+mod directory_subspace;
+mod error;
+mod node;
 
-use crate::Transaction;
-
-use crate::directory::directory_partition::DirectoryPartition;
 use crate::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
+use crate::Transaction;
+use async_trait::async_trait;
 use core::cmp;
+pub use directory_layer::DirectoryLayer;
+pub use directory_partition::DirectoryPartition;
+pub use directory_subspace::DirectorySubspace;
+pub use error::DirectoryError;
 use std::cmp::Ordering;
 
 /// `Directory` represents a subspace of keys in a FoundationDB database, identified by a hierarchical path.
@@ -334,13 +335,13 @@ pub(crate) fn strinc(key: Vec<u8>) -> Vec<u8> {
     for i in (0..key.len()).rev() {
         if key[i] != 0xff {
             key[i] += 1;
-            return key;
+            break;
         } else {
             // stripping key from trailing 0xFF bytes
             key.remove(i);
         }
     }
-    panic!("failed to strinc");
+    return key;
 }
 
 #[cfg(test)]
@@ -367,8 +368,8 @@ mod tests {
         );
 
         assert_eq!(strinc(vec![61u8, 62u8, 255u8]), vec![61u8, 63u8]);
-        // from seed 3180880087
         assert_eq!(strinc(vec![253u8, 255u8]), vec![254u8]);
         assert_eq!(strinc(vec![253u8, 255u8, 255u8]), vec![254u8]);
+        assert_eq!(strinc(vec![255u8, 255u8, 255u8]), vec![]);
     }
 }

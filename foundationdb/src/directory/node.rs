@@ -65,7 +65,6 @@ impl Node {
                 .subspace
                 .as_ref()
                 .unwrap()
-                .to_owned()
                 .subspace(&(DEFAULT_SUB_DIRS)),
         );
 
@@ -89,7 +88,7 @@ impl Node {
             None => unreachable!(),
             Some(subspace) => self.directory_layer.contents_of_node(
                 subspace.to_owned(),
-                self.current_path.to_owned(),
+                &self.current_path,
                 self.layer.to_owned(),
             ),
         }
