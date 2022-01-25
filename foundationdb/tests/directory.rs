@@ -45,12 +45,12 @@ fn test_directory() {
 async fn test_create_then_open_then_delete(
     db: &Database,
     directory: &DirectoryLayer,
-    paths: Vec<String>,
+    path: Vec<String>,
 ) -> FdbResult<()> {
     let trx = db.create_trx()?;
 
-    eprintln!("creating {:?}", &paths);
-    let create_output = directory.create(&trx, paths.to_owned(), None, None).await;
+    eprintln!("creating {:?}", &path);
+    let create_output = directory.create(&trx, &path, None, None).await;
     assert!(
         create_output.is_ok(),
         "cannot create: {:?}",
@@ -59,8 +59,8 @@ async fn test_create_then_open_then_delete(
     trx.commit().await.expect("cannot commit");
     let trx = db.create_trx()?;
 
-    eprintln!("opening {:?}", &paths);
-    let open_output = directory.open(&trx, paths.to_owned(), None).await;
+    eprintln!("opening {:?}", &path);
+    let open_output = directory.open(&trx, &path, None).await;
     assert!(
         open_output.is_ok(),
         "cannot create: {:?}",

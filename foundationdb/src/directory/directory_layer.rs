@@ -109,7 +109,7 @@ impl DirectoryLayer {
         node_subspace: Subspace,
         content_subspace: Subspace,
         allow_manual_prefixes: bool,
-        path: Vec<String>,
+        path: &[String],
     ) -> Self {
         let root_node = node_subspace.subspace(&node_subspace.bytes());
 
@@ -120,7 +120,7 @@ impl DirectoryLayer {
                 content_subspace,
                 allocator: HighContentionAllocator::new(root_node.subspace(&DEFAULT_HCA_PREFIX)),
                 allow_manual_prefixes,
-                path,
+                path: Vec::from(path),
             }),
         }
     }
@@ -137,11 +137,11 @@ impl DirectoryLayer {
         self.inner.node_subspace.subspace(prefix)
     }
 
-    async fn find(&self, trx: &Transaction, path: Vec<String>) -> Result<Node, DirectoryError> {
+    async fn find(&self, trx: &Transaction, path: &[String]) -> Result<Node, DirectoryError> {
         let mut node = Node {
             subspace: Some(self.root_node.clone()),
             current_path: vec![],
-            target_path: path.clone(),
+            target_path: Vec::from(path),
             layer: vec![],
             loaded_metadata: false,
             directory_layer: self.clone(),
@@ -164,7 +164,7 @@ impl DirectoryLayer {
             node = Node {
                 subspace: self.node_with_optional_prefix(fdb_slice_value),
                 current_path: node.current_path.clone(),
-                target_path: path.clone(),
+                target_path: Vec::from(path),
                 layer: vec![],
                 loaded_metadata: false,
                 directory_layer: self.clone(),
@@ -203,11 +203,11 @@ impl DirectoryLayer {
 
         if layer.as_slice().eq(PARTITION_LAYER) {
             Ok(DirectoryOutput::DirectoryPartition(
-                DirectoryPartition::new(self.to_absolute_path(path), prefix, self.clone()),
+                DirectoryPartition::new(&self.to_absolute_path(path), prefix, self.clone()),
             ))
         } else {
             Ok(DirectoryOutput::DirectorySubspace(DirectorySubspace::new(
-                self.to_absolute_path(path),
+                &self.to_absolute_path(path),
                 prefix,
                 self,
                 layer,
@@ -220,7 +220,7 @@ impl DirectoryLayer {
     async fn create_or_open_internal(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
         allow_create: bool,
@@ -240,7 +240,7 @@ impl DirectoryLayer {
             return Err(DirectoryError::NoPathProvided);
         }
 
-        let node = self.find(trx, path.to_owned()).await?;
+        let node = self.find(trx, path).await?;
 
         if node.exists() {
             if node.is_in_partition(false) {
@@ -253,7 +253,7 @@ impl DirectoryLayer {
                             .directory_layer
                             .create_or_open_internal(
                                 trx,
-                                sub_path.to_owned(),
+                                &sub_path,
                                 prefix,
                                 layer,
                                 allow_create,
@@ -302,7 +302,7 @@ impl DirectoryLayer {
     async fn create_internal(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         layer: Option<Vec<u8>>,
         prefix: Option<Vec<u8>>,
         allow_create: bool,
@@ -328,7 +328,7 @@ impl DirectoryLayer {
             return Err(DirectoryError::DirectoryPrefixInUse);
         }
 
-        let parent_node = self.get_parent_node(trx, path.to_owned()).await?;
+        let parent_node = self.get_parent_node(trx, path).await?;
         let node = self.node_with_prefix(&new_prefix);
 
         let key = parent_node.subspace(&(DEFAULT_SUB_DIRS, path.last().unwrap()));
@@ -337,13 +337,13 @@ impl DirectoryLayer {
         trx.set(key.bytes(), &new_prefix);
         trx.set(&key_layer, &layer);
 
-        self.contents_of_node(node, &path, layer.to_owned())
+        self.contents_of_node(node, path, layer.to_owned())
     }
 
     async fn get_parent_node(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<Subspace, DirectoryError> {
         return match path.split_last() {
             None => Ok(self.root_node.clone()),
@@ -352,7 +352,7 @@ impl DirectoryLayer {
                     return Ok(self.root_node.clone());
                 }
                 let parent = self
-                    .create_or_open_internal(trx, remains.to_vec(), None, None, true, true)
+                    .create_or_open_internal(trx, remains, None, None, true, true)
                     .await?;
 
                 Ok(self.node_with_prefix(&parent.bytes()?.to_vec()))
@@ -523,11 +523,11 @@ impl DirectoryLayer {
     async fn exists_internal(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<bool, DirectoryError> {
         self.check_version(trx, false).await?;
 
-        let node = self.find(trx, path.to_owned()).await?;
+        let node = self.find(trx, path).await?;
 
         if !node.exists() {
             return Ok(false);
@@ -536,7 +536,7 @@ impl DirectoryLayer {
         if node.is_in_partition(false) {
             return node
                 .get_contents()?
-                .exists(trx, node.to_owned().get_partition_subpath())
+                .exists(trx, &node.get_partition_subpath())
                 .await;
         }
 
@@ -546,11 +546,11 @@ impl DirectoryLayer {
     async fn list_internal(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<Vec<String>, DirectoryError> {
         self.check_version(trx, false).await?;
 
-        let node = self.find(trx, path.to_owned()).await?;
+        let node = self.find(trx, path).await?;
         if !node.exists() {
             return Err(DirectoryError::PathDoesNotExists);
         }
@@ -561,7 +561,7 @@ impl DirectoryLayer {
                     return directory_partition
                         .directory_subspace
                         .directory_layer
-                        .list(trx, node.get_partition_subpath())
+                        .list(trx, &node.get_partition_subpath())
                         .await
                 }
             };
@@ -573,19 +573,19 @@ impl DirectoryLayer {
     async fn move_to_internal(
         &self,
         trx: &Transaction,
-        old_path: Vec<String>,
-        new_path: Vec<String>,
+        old_path: &[String],
+        new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.check_version(trx, true).await?;
 
         if old_path.len() <= new_path.len()
-            && compare_slice(&old_path[..], &new_path[..old_path.len()]) == Ordering::Equal
+            && compare_slice(old_path, &new_path[..old_path.len()]) == Ordering::Equal
         {
             return Err(DirectoryError::CannotMoveBetweenSubdirectory);
         }
 
-        let old_node = self.find(trx, old_path.to_owned()).await?;
-        let new_node = self.find(trx, new_path.to_owned()).await?;
+        let old_node = self.find(trx, old_path).await?;
+        let new_node = self.find(trx, new_path).await?;
 
         if !old_node.exists() {
             return Err(DirectoryError::PathDoesNotExists);
@@ -603,8 +603,8 @@ impl DirectoryLayer {
                 .get_contents()?
                 .move_to(
                     trx,
-                    old_node.get_partition_subpath(),
-                    new_node.get_partition_subpath(),
+                    &old_node.get_partition_subpath(),
+                    &new_node.get_partition_subpath(),
                 )
                 .await;
         }
@@ -618,7 +618,7 @@ impl DirectoryLayer {
             Some((_, elements)) => elements.to_vec(),
         };
 
-        let parent_node = self.find(trx, parent_path).await?;
+        let parent_node = self.find(trx, &parent_path).await?;
         if !parent_node.exists() {
             return Err(DirectoryError::ParentDirDoesNotExists);
         }
@@ -637,7 +637,7 @@ impl DirectoryLayer {
 
         self.remove_from_parent(trx, old_path.to_owned()).await?;
 
-        self.contents_of_node(old_node.subspace.unwrap(), &new_path, old_node.layer)
+        self.contents_of_node(old_node.subspace.unwrap(), new_path, old_node.layer)
     }
 
     async fn remove_from_parent(
@@ -648,7 +648,7 @@ impl DirectoryLayer {
         let last_element = path.pop().ok_or(DirectoryError::BadDestinationDirectory)?;
         let parent_path = path;
 
-        let parent_node = self.find(trx, parent_path).await?;
+        let parent_node = self.find(trx, &parent_path).await?;
         match parent_node.subspace {
             None => {}
             Some(subspace) => {
@@ -664,7 +664,7 @@ impl DirectoryLayer {
     async fn remove_internal(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         fail_on_nonexistent: bool,
     ) -> Result<bool, DirectoryError> {
         self.check_version(trx, true).await?;
@@ -673,7 +673,7 @@ impl DirectoryLayer {
             return Err(DirectoryError::CannotModifyRootDirectory);
         }
 
-        let node = self.find(trx, path.to_owned()).await?;
+        let node = self.find(trx, path).await?;
 
         if !node.exists() {
             return if fail_on_nonexistent {
@@ -692,7 +692,7 @@ impl DirectoryLayer {
                     return d
                         .directory_subspace
                         .directory_layer
-                        .remove_internal(trx, node.get_partition_subpath(), fail_on_nonexistent)
+                        .remove_internal(trx, &node.get_partition_subpath(), fail_on_nonexistent)
                         .await
                 }
             }
@@ -749,7 +749,7 @@ impl Directory for DirectoryLayer {
     async fn create_or_open(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
@@ -760,7 +760,7 @@ impl Directory for DirectoryLayer {
     async fn create(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
@@ -771,21 +771,21 @@ impl Directory for DirectoryLayer {
     async fn open(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.create_or_open_internal(txn, path, None, layer, false, true)
             .await
     }
 
-    async fn exists(&self, trx: &Transaction, path: Vec<String>) -> Result<bool, DirectoryError> {
+    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
         self.exists_internal(trx, path).await
     }
 
     async fn move_directory(
         &self,
         _trx: &Transaction,
-        _new_path: Vec<String>,
+        _new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError> {
         Err(DirectoryError::CannotMoveRootDirectory)
     }
@@ -798,28 +798,28 @@ impl Directory for DirectoryLayer {
     async fn move_to(
         &self,
         trx: &Transaction,
-        old_path: Vec<String>,
-        new_path: Vec<String>,
+        old_path: &[String],
+        new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.move_to_internal(trx, old_path, new_path).await
     }
 
-    async fn remove(&self, trx: &Transaction, path: Vec<String>) -> Result<bool, DirectoryError> {
-        self.remove_internal(trx, path.to_owned(), true).await
+    async fn remove(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
+        self.remove_internal(trx, path, true).await
     }
 
     async fn remove_if_exists(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<bool, DirectoryError> {
-        self.remove_internal(trx, path.to_owned(), false).await
+        self.remove_internal(trx, path, false).await
     }
 
     async fn list(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<Vec<String>, DirectoryError> {
         self.list_internal(trx, path).await
     }

@@ -32,14 +32,16 @@
 //!     let trx = db.create_trx()?;
 //!
 //!     // creates a directory
-//!     let directory = foundationdb::directory::DirectoryLayer::default();
+//!     let directory = foundationdb::directory::DirectoryLayer::default(); //!
+//!
+//!     let path = vec![String::from("my-awesome-app"), String::from("my-awesome-user")];
 //!
 //!     // use the directory to create a subspace to use
 //!     let content_subspace = directory.create_or_open(
 //!         // the transaction used to read/write the directory.
 //!         &trx,
 //!         // the path used, which can view as a UNIX path like `/app/my-app`.
-//!         vec![String::from("my-awesome-app"), String::from("my-awesome-user")],
+//!         &path,
 //!         // do not use any custom prefix or layer
 //!         None, None,
 //!     ).await;
@@ -80,7 +82,7 @@ pub trait Directory {
     async fn create_or_open(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError>;
@@ -89,7 +91,7 @@ pub trait Directory {
     async fn create(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError>;
@@ -98,44 +100,41 @@ pub trait Directory {
     async fn open(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Checks if the subdirectory of this Directory located at path exists.
-    async fn exists(&self, trx: &Transaction, path: Vec<String>) -> Result<bool, DirectoryError>;
+    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError>;
 
     /// Moves this Directory to the specified newAbsolutePath.
     async fn move_directory(
         &self,
         trx: &Transaction,
-        new_path: Vec<String>,
+        new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Moves the subdirectory of this Directory located at oldpath to newpath.
     async fn move_to(
         &self,
         trx: &Transaction,
-        old_path: Vec<String>,
-        new_path: Vec<String>,
+        old_path: &[String],
+        new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Removes the subdirectory of this Directory located at path and all of its subdirectories, as well as all of their contents.
-    async fn remove(&self, trx: &Transaction, path: Vec<String>) -> Result<bool, DirectoryError>;
+    async fn remove(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError>;
 
     /// Removes the subdirectory of this Directory located at path (if the path exists) and all of its subdirectories, as well as all of their contents.
     async fn remove_if_exists(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<bool, DirectoryError>;
 
     /// List the subdirectories of this directory at a given subpath.
-    async fn list(
-        &self,
-        trx: &Transaction,
-        path: Vec<String>,
-    ) -> Result<Vec<String>, DirectoryError>;
+    async fn list(&self, trx: &Transaction, path: &[String])
+        -> Result<Vec<String>, DirectoryError>;
 }
 
 pub(crate) fn compare_slice<T: Ord>(a: &[T], b: &[T]) -> cmp::Ordering {
@@ -228,7 +227,7 @@ impl Directory for DirectoryOutput {
     async fn create_or_open(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
@@ -245,7 +244,7 @@ impl Directory for DirectoryOutput {
     async fn create(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         prefix: Option<Vec<u8>>,
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
@@ -258,7 +257,7 @@ impl Directory for DirectoryOutput {
     async fn open(
         &self,
         txn: &Transaction,
-        path: Vec<String>,
+        path: &[String],
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
@@ -267,7 +266,7 @@ impl Directory for DirectoryOutput {
         }
     }
 
-    async fn exists(&self, trx: &Transaction, path: Vec<String>) -> Result<bool, DirectoryError> {
+    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.exists(trx, path).await,
             DirectoryOutput::DirectoryPartition(d) => d.exists(trx, path).await,
@@ -277,7 +276,7 @@ impl Directory for DirectoryOutput {
     async fn move_directory(
         &self,
         trx: &Transaction,
-        new_path: Vec<String>,
+        new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.move_directory(trx, new_path).await,
@@ -288,8 +287,8 @@ impl Directory for DirectoryOutput {
     async fn move_to(
         &self,
         trx: &Transaction,
-        old_path: Vec<String>,
-        new_path: Vec<String>,
+        old_path: &[String],
+        new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.move_to(trx, old_path, new_path).await,
@@ -297,7 +296,7 @@ impl Directory for DirectoryOutput {
         }
     }
 
-    async fn remove(&self, trx: &Transaction, path: Vec<String>) -> Result<bool, DirectoryError> {
+    async fn remove(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.remove(trx, path).await,
             DirectoryOutput::DirectoryPartition(d) => d.remove(trx, path).await,
@@ -307,7 +306,7 @@ impl Directory for DirectoryOutput {
     async fn remove_if_exists(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<bool, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.remove_if_exists(trx, path).await,
@@ -318,7 +317,7 @@ impl Directory for DirectoryOutput {
     async fn list(
         &self,
         trx: &Transaction,
-        path: Vec<String>,
+        path: &[String],
     ) -> Result<Vec<String>, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.list(trx, path).await,

@@ -1795,7 +1795,7 @@ impl StackMachine {
                 match directory
                     .create(
                         txn,
-                        (*path.get(0).unwrap().to_owned()).to_vec(),
+                        path.get(0).unwrap(),
                         prefix,
                         layer,
                     )
@@ -1855,7 +1855,7 @@ impl StackMachine {
                 );
 
                 match directory
-                    .open(txn, (*path.get(0).unwrap().to_owned()).to_vec(), layer)
+                    .open(txn, path.get(0).unwrap(), layer)
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -1916,7 +1916,7 @@ impl StackMachine {
                 match directory
                     .create_or_open(
                         txn,
-                        (*path.get(0).unwrap().to_owned()).to_vec(),
+                        path.get(0).unwrap(),
                         None,
                         layer,
                     )
@@ -2004,8 +2004,8 @@ impl StackMachine {
                 match directory
                     .move_to(
                         txn,
-                        (*paths.get(0).unwrap().to_vec()).to_owned(),
-                        (*paths.get(1).unwrap().to_vec()).to_owned(),
+                        paths.get(0).unwrap(),
+                        paths.get(1).unwrap(),
                     )
                     .await
                 {
@@ -2056,7 +2056,7 @@ impl StackMachine {
                 );
 
                 match directory
-                    .move_directory(txn, (*paths.get(0).unwrap().to_vec()).to_owned())
+                    .move_directory(txn, paths.get(0).unwrap())
                     .await
                 {
                     Ok(s) => {
@@ -2107,7 +2107,7 @@ impl StackMachine {
                     "removing path {:?} using directory at index {}",
                     paths, self.directory_index
                 );
-                match directory.remove(txn, paths.to_owned()).await {
+                match directory.remove(txn, paths).await {
                     Ok(deleted) => {
                         if !deleted {
                             self.push_directory_err(
@@ -2150,7 +2150,7 @@ impl StackMachine {
                 };
 
                 let paths = paths.get(0).expect("could not retrieve a path");
-                match directory.remove_if_exists(txn, paths.to_owned()).await {
+                match directory.remove_if_exists(txn, paths).await {
                     Ok(_) => {
                         if is_db {
                             local_trx.commit().await.expect("could not commit");
@@ -2192,7 +2192,7 @@ impl StackMachine {
                     },
                 };
 
-                match directory.list(txn, paths.to_vec()).await {
+                match directory.list(txn, &paths).await {
                     Ok(children) => {
                         let mut elements: Vec<Element> = vec![];
                         debug!(
@@ -2245,7 +2245,7 @@ impl StackMachine {
                 };
 
                 let paths = paths.get(0).expect("could not retrieve a path");
-                match directory.exists(txn, paths.to_owned()).await {
+                match directory.exists(txn, paths).await {
                     Ok(exists) => {
                         self.push(number, Element::Int(i64::from(exists)));
                         if is_db {
@@ -2511,7 +2511,7 @@ impl StackMachine {
                 let value_layer = pack(&self.get_layer_for_current_directory().unwrap());
 
                 let exists = directory
-                    .exists(txn, vec![])
+                    .exists(txn, &Vec::new())
                     .await
                     .expect("could not list directory");
 
@@ -2522,7 +2522,7 @@ impl StackMachine {
                 })]));
 
                 let children = if exists {
-                    directory.list(txn, vec![]).await.unwrap()
+                    directory.list(txn, &Vec::new()).await.unwrap()
                 } else {
                     vec![]
                 };
