@@ -1793,12 +1793,7 @@ impl StackMachine {
                 );
 
                 match directory
-                    .create(
-                        txn,
-                        path.get(0).unwrap(),
-                        prefix,
-                        layer,
-                    )
+                    .create(txn, path.get(0).unwrap(), prefix, layer)
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -1854,10 +1849,7 @@ impl StackMachine {
                     self.directory_index
                 );
 
-                match directory
-                    .open(txn, path.get(0).unwrap(), layer)
-                    .await
-                {
+                match directory.open(txn, path.get(0).unwrap(), layer).await {
                     Ok(directory_subspace) => {
                         debug!(
                             "pushing newly opened DirectoryOutput at index {}",
@@ -1914,12 +1906,7 @@ impl StackMachine {
                     self.directory_index
                 );
                 match directory
-                    .create_or_open(
-                        txn,
-                        path.get(0).unwrap(),
-                        None,
-                        layer,
-                    )
+                    .create_or_open(txn, path.get(0).unwrap(), None, layer)
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -2002,11 +1989,7 @@ impl StackMachine {
                 );
 
                 match directory
-                    .move_to(
-                        txn,
-                        paths.get(0).unwrap(),
-                        paths.get(1).unwrap(),
-                    )
+                    .move_to(txn, paths.get(0).unwrap(), paths.get(1).unwrap())
                     .await
                 {
                     Ok(s) => {
@@ -2055,10 +2038,7 @@ impl StackMachine {
                     self.directory_index, &paths
                 );
 
-                match directory
-                    .move_directory(txn, paths.get(0).unwrap())
-                    .await
-                {
+                match directory.move_directory(txn, paths.get(0).unwrap()).await {
                     Ok(s) => {
                         debug!(
                             "pushing moved directory {:?} at index {}",

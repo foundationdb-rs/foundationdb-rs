@@ -742,10 +742,6 @@ impl DirectoryLayer {
 
 #[async_trait]
 impl Directory for DirectoryLayer {
-    /// `create_or_open` opens the directory specified by path (relative to this
-    /// Directory), and returns the directory and its contents as a
-    /// Subspace. If the directory does not exist, it is created
-    /// (creating parent directories if necessary).
     async fn create_or_open(
         &self,
         txn: &Transaction,

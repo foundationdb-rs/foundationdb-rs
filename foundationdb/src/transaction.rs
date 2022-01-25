@@ -8,7 +8,7 @@
 
 //! Implementations of the FDBTransaction C API
 //!
-//! https://apple.github.io/foundationdb/api-c.html#transaction
+//! <https://apple.github.io/foundationdb/api-c.html#transaction>
 
 use foundationdb_sys as fdb_sys;
 use std::fmt;

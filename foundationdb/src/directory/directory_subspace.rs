@@ -118,12 +118,7 @@ impl Directory for DirectorySubspace {
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.directory_layer
-            .create_or_open(
-                txn,
-                &self.get_partition_subpath(path, None)?,
-                prefix,
-                layer,
-            )
+            .create_or_open(txn, &self.get_partition_subpath(path, None)?, prefix, layer)
             .await
     }
 
@@ -135,12 +130,7 @@ impl Directory for DirectorySubspace {
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.directory_layer
-            .create(
-                txn,
-                &self.get_partition_subpath(path, None)?,
-                prefix,
-                layer,
-            )
+            .create(txn, &self.get_partition_subpath(path, None)?, prefix, layer)
             .await
     }
 
@@ -151,11 +141,7 @@ impl Directory for DirectorySubspace {
         layer: Option<Vec<u8>>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.directory_layer
-            .open(
-                txn,
-                &self.get_partition_subpath(path, None)?,
-                layer,
-            )
+            .open(txn, &self.get_partition_subpath(path, None)?, layer)
             .await
     }
 

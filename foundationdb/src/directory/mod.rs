@@ -79,6 +79,10 @@ use std::cmp::Ordering;
 #[async_trait]
 pub trait Directory {
     /// Creates or opens the subdirectory of this Directory located at path (creating parent directories, if necessary).
+    ///
+    /// # Warning
+    ///
+    /// If you need to create several paths with the same prefix, you **must** use several transactions(See [this link](https://github.com/apple/foundationdb/issues/895#issuecomment-436704180) for context)
     async fn create_or_open(
         &self,
         txn: &Transaction,
@@ -88,6 +92,10 @@ pub trait Directory {
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Creates a subdirectory of this Directory located at path (creating parent directories if necessary).
+    ///
+    /// # Warning
+    ///
+    /// If you need to create several paths with the same prefix, you **must** use several transactions(See [this link](https://github.com/apple/foundationdb/issues/895#issuecomment-436704180) for context)
     async fn create(
         &self,
         txn: &Transaction,
