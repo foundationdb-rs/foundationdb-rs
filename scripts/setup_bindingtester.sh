@@ -4,6 +4,16 @@ set -x
 
 fdb_rs_dir=$(pwd)
 bindingtester="${fdb_rs_dir:?}/$1"
+case $(uname) in
+  Darwin)
+    brew install mono
+  ;;
+  Linux)
+    sudo apt update
+    sudo apt install mono-devel ninja-build liblz4-dev -y
+  ;;
+  *) echo "only macOS or Ubuntu is supported"
+esac
 
 ## build the python bindings
 (

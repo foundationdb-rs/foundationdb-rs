@@ -503,9 +503,9 @@ impl DirectoryLayer {
     /// `initialize_directory` is initializing the directory
     async fn initialize_directory(&self, trx: &Transaction) -> Result<(), DirectoryError> {
         let mut value = vec![];
-        value.extend(MAJOR_VERSION.to_le_bytes());
-        value.extend(MINOR_VERSION.to_le_bytes());
-        value.extend(PATCH_VERSION.to_le_bytes());
+        value.extend(&MAJOR_VERSION.to_le_bytes());
+        value.extend(&MINOR_VERSION.to_le_bytes());
+        value.extend(&PATCH_VERSION.to_le_bytes());
         let version_subspace: &[u8] = b"version";
         let directory_version_key = self.root_node.subspace(&version_subspace);
         trx.set(directory_version_key.bytes(), &value);
