@@ -32,7 +32,7 @@
 //!     let trx = db.create_trx()?;
 //!
 //!     // creates a directory
-//!     let directory = foundationdb::directory::DirectoryLayer::default(); //!
+//!     let directory = foundationdb::directory::DirectoryLayer::default();
 //!
 //!     let path = vec![String::from("my-awesome-app"), String::from("my-awesome-user")];
 //!
