@@ -57,7 +57,6 @@
 //! drop(network);
 //! ```
 
-#[warn(clippy::needless_borrow)]
 mod directory_layer;
 mod directory_partition;
 mod directory_subspace;
@@ -341,7 +340,7 @@ pub(crate) fn strinc(key: Vec<u8>) -> Vec<u8> {
             key.remove(i);
         }
     }
-    return key;
+    key
 }
 
 #[cfg(test)]

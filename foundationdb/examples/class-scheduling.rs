@@ -22,21 +22,21 @@ use foundationdb::{Database, FdbError, RangeOption, TransactError, TransactOptio
 
 type Result<T> = std::result::Result<T, Error>;
 enum Error {
-    FdbError(FdbError),
+    Internal(FdbError),
     NoRemainingSeats,
     TooManyClasses,
 }
 
 impl From<FdbError> for Error {
     fn from(err: FdbError) -> Self {
-        Error::FdbError(err)
+        Error::Internal(err)
     }
 }
 
 impl TransactError for Error {
     fn try_into_fdb_error(self) -> std::result::Result<FdbError, Self> {
         match self {
-            Error::FdbError(err) => Ok(err),
+            Error::Internal(err) => Ok(err),
             _ => Err(self),
         }
     }
@@ -225,8 +225,8 @@ async fn switch_classes(
         old_class: &str,
         new_class: &str,
     ) -> Result<()> {
-        ditch_trx(trx, student_id.clone(), old_class.clone()).await;
-        signup_trx(trx, student_id.clone(), new_class.clone()).await?;
+        ditch_trx(trx, student_id, old_class).await;
+        signup_trx(trx, student_id, new_class).await?;
         Ok(())
     }
 

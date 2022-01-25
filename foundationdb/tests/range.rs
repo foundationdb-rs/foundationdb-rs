@@ -51,7 +51,7 @@ async fn test_get_range_async() -> FdbResult<()> {
 
         let range = trx.get_range(&opt, 1, false).await?;
         assert!(range.len() > 0);
-        assert_eq!(range.more(), true);
+        assert!(range.more());
         let len = range.len();
         let mut i = 0;
         for kv in &range {
@@ -62,16 +62,17 @@ async fn test_get_range_async() -> FdbResult<()> {
         assert_eq!(i, len);
 
         let refs_asc = (&range).into_iter().collect::<Vec<_>>();
-        let refs_desc = (&range).into_iter().rev().collect::<Vec<_>>();
-        assert_eq!(refs_asc, refs_desc.into_iter().rev().collect::<Vec<_>>());
+        assert_eq!(
+            refs_asc,
+            (&range).into_iter().rev().rev().collect::<Vec<_>>()
+        );
 
         let owned_asc = trx
             .get_range(&opt, 1, false)
             .await?
             .into_iter()
             .collect::<Vec<_>>();
-        let owned_desc = range.into_iter().rev().collect::<Vec<_>>();
-        assert_eq!(owned_asc, owned_desc.into_iter().rev().collect::<Vec<_>>());
+        assert_eq!(owned_asc, range.into_iter().rev().rev().collect::<Vec<_>>());
     }
 
     Ok(())
@@ -210,7 +211,7 @@ async fn test_range_option_async() -> FdbResult<()> {
 
 #[cfg(feature = "fdb-6_3")]
 async fn test_get_estimate_range() -> FdbResult<()> {
-    const N: usize = 10000;
+    const N: u32 = 10000;
 
     let db = common::database().await?;
     let trx = db.create_trx()?;
@@ -222,7 +223,7 @@ async fn test_get_estimate_range() -> FdbResult<()> {
     trx.clear_range(key_begin.as_bytes(), key_end.as_bytes());
 
     eprintln!("inserting...");
-    for i in 0..10000 {
+    for i in 0..N {
         let value = common::random_str(10);
         trx.set(k(i).as_bytes(), value.as_bytes());
     }

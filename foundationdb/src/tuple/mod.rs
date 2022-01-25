@@ -349,67 +349,55 @@ mod tests {
         test_serde(i64::min_value(), b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff");
 
         test_serde(9252427359321063944i128, b"\x1c\x80g9\xa9np\x02\x08");
-        assert!(
-            match unpack::<i64>(b"\x1c\x80g9\xa9np\x02\x08").unwrap_err() {
-                PackError::UnsupportedIntLength => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            unpack::<i64>(b"\x1c\x80g9\xa9np\x02\x08").unwrap_err(),
+            PackError::UnsupportedIntLength
+        ));
 
         test_serde(
             -9252427359321063944i128,
             b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7",
         );
-        assert!(
-            match unpack::<i64>(b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7").unwrap_err() {
-                PackError::UnsupportedIntLength => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            unpack::<i64>(b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7").unwrap_err(),
+            PackError::UnsupportedIntLength
+        ));
 
         test_serde(
             u64::max_value() as i128,
             b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff",
         );
-        assert!(
-            match unpack::<i64>(b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff").unwrap_err() {
-                PackError::UnsupportedIntLength => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            unpack::<i64>(b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff").unwrap_err(),
+            PackError::UnsupportedIntLength
+        ));
 
         test_serde(
             -(u64::max_value() as i128),
             b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00",
         );
-        assert!(
-            match unpack::<i64>(b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00").unwrap_err() {
-                PackError::UnsupportedIntLength => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            unpack::<i64>(b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00").unwrap_err(),
+            PackError::UnsupportedIntLength
+        ));
 
         test_serde(
             (i64::max_value() as i128) + 1,
             b"\x1c\x80\x00\x00\x00\x00\x00\x00\x00",
         );
-        assert!(
-            match unpack::<i64>(b"\x1c\x80\x00\x00\x00\x00\x00\x00\x00").unwrap_err() {
-                PackError::UnsupportedIntLength => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            unpack::<i64>(b"\x1c\x80\x00\x00\x00\x00\x00\x00\x00").unwrap_err(),
+            PackError::UnsupportedIntLength
+        ));
 
         test_serde(
             (i64::min_value() as i128) - 1,
             b"\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe",
         );
-        assert!(
-            match unpack::<i64>(b"\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe").unwrap_err() {
-                PackError::UnsupportedIntLength => true,
-                _ => false,
-            }
-        );
+        assert!(matches!(
+            unpack::<i64>(b"\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe").unwrap_err(),
+            PackError::UnsupportedIntLength
+        ));
     }
 
     #[cfg(feature = "num-bigint")]

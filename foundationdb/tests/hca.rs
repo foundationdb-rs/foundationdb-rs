@@ -39,9 +39,9 @@ async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
     let mut all_ints = Vec::new();
 
     for _ in 0..N {
-        let mut tx = db.create_trx()?;
+        let tx = db.create_trx()?;
 
-        let next_int: i64 = hca.allocate(&mut tx).await.unwrap();
+        let next_int: i64 = hca.allocate(&tx).await.unwrap();
         all_ints.push(next_int);
 
         tx.commit().await?;
@@ -84,8 +84,8 @@ async fn test_hca_concurrent_allocations_async() -> FdbResult<()> {
     Ok(())
 }
 
-fn check_hca_result_uniqueness(results: &Vec<i64>) {
-    let result_set: HashSet<i64> = HashSet::from_iter(results.clone());
+fn check_hca_result_uniqueness(results: &[i64]) {
+    let result_set: HashSet<i64> = HashSet::from_iter(results.to_owned());
 
     if results.len() != result_set.len() {
         panic!(

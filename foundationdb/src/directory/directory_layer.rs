@@ -203,11 +203,11 @@ impl DirectoryLayer {
 
         if layer.as_slice().eq(PARTITION_LAYER) {
             Ok(DirectoryOutput::DirectoryPartition(
-                DirectoryPartition::new(self.to_absolute_path(&path), prefix, self.clone()),
+                DirectoryPartition::new(self.to_absolute_path(path), prefix, self.clone()),
             ))
         } else {
             Ok(DirectoryOutput::DirectorySubspace(DirectorySubspace::new(
-                self.to_absolute_path(&path),
+                self.to_absolute_path(path),
                 prefix,
                 self,
                 layer,

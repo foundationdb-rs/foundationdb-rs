@@ -12,7 +12,7 @@
 
 use foundationdb_sys as fdb_sys;
 use std::fmt;
-use std::ops::Deref;
+use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
 
 use crate::future::*;
@@ -309,31 +309,34 @@ impl<'a> From<(&'a [u8], &'a [u8])> for RangeOption<'a> {
         }
     }
 }
+impl<'a> From<std::ops::Range<KeySelector<'a>>> for RangeOption<'a> {
+    fn from(range: Range<KeySelector<'a>>) -> Self {
+        RangeOption::from((range.start, range.end))
+    }
+}
 
-impl<'a> Into<RangeOption<'a>> for std::ops::Range<KeySelector<'a>> {
-    fn into(self) -> RangeOption<'a> {
-        RangeOption::from((self.start, self.end))
+impl<'a> From<std::ops::Range<&'a [u8]>> for RangeOption<'a> {
+    fn from(range: Range<&'a [u8]>) -> Self {
+        RangeOption::from((range.start, range.end))
     }
 }
-impl<'a> Into<RangeOption<'a>> for std::ops::Range<&'a [u8]> {
-    fn into(self) -> RangeOption<'a> {
-        RangeOption::from((self.start, self.end))
+
+impl From<std::ops::Range<std::vec::Vec<u8>>> for RangeOption<'static> {
+    fn from(range: Range<Vec<u8>>) -> Self {
+        RangeOption::from((range.start, range.end))
     }
 }
-impl Into<RangeOption<'static>> for std::ops::Range<Vec<u8>> {
-    fn into(self) -> RangeOption<'static> {
-        RangeOption::from((self.start, self.end))
-    }
-}
-impl<'a> Into<RangeOption<'a>> for std::ops::RangeInclusive<&'a [u8]> {
-    fn into(self) -> RangeOption<'a> {
-        let (start, end) = self.into_inner();
+
+impl<'a> From<std::ops::RangeInclusive<&'a [u8]>> for RangeOption<'a> {
+    fn from(range: RangeInclusive<&'a [u8]>) -> Self {
+        let (start, end) = range.into_inner();
         (KeySelector::first_greater_or_equal(start)..KeySelector::first_greater_than(end)).into()
     }
 }
-impl Into<RangeOption<'static>> for std::ops::RangeInclusive<Vec<u8>> {
-    fn into(self) -> RangeOption<'static> {
-        let (start, end) = self.into_inner();
+
+impl From<std::ops::RangeInclusive<std::vec::Vec<u8>>> for RangeOption<'static> {
+    fn from(range: RangeInclusive<Vec<u8>>) -> Self {
+        let (start, end) = range.into_inner();
         (KeySelector::first_greater_or_equal(start)..KeySelector::first_greater_than(end)).into()
     }
 }

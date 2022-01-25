@@ -86,8 +86,8 @@ async fn test_set_conflict_async() -> FdbResult<()> {
         format!("{:?}", err),
         "TransactionCommitError(Transaction not committed due to conflict with another transaction)"
     );
-    assert_eq!(err.is_retryable(), true);
-    assert_eq!(err.is_retryable_not_committed(), true);
+    assert!(err.is_retryable());
+    assert!(err.is_retryable_not_committed());
 
     Ok(())
 }
