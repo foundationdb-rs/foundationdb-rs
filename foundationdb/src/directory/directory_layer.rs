@@ -136,51 +136,47 @@ impl DirectoryLayer {
         self.inner.node_subspace.subspace(prefix)
     }
 
-    async fn find(&self, trx: &Transaction, path: &[String]) -> Result<Node, DirectoryError> {
-        let mut node = Node {
-            subspace: Some(self.root_node.clone()),
-            current_path: vec![],
-            target_path: Vec::from(path),
-            layer: vec![],
-            loaded_metadata: false,
-            directory_layer: self.clone(),
-        };
+    async fn find(
+        &self,
+        trx: &Transaction,
+        path: &[String],
+    ) -> Result<Option<Node>, DirectoryError> {
+        let mut current_path = vec![];
+        let mut node_subspace = self.root_node.clone();
+        let mut layer = vec![];
+        let mut loaded = false;
 
         // walking through the provided path
         for path_name in path.iter() {
-            node.current_path.push(path_name.clone());
-            let node_subspace = match node.subspace {
-                // unreachable because on first iteration, it is set to root_node,
-                // on other iteration, `node.exists` is checking for the subspace's value
-                None => unreachable!("node's subspace is not set"),
-                Some(s) => s,
-            };
+            current_path.push(path_name.clone());
             let key = node_subspace.subspace(&(DEFAULT_SUB_DIRS, path_name.to_owned()));
 
             // finding the next node
             let fdb_slice_value = trx.get(key.bytes(), false).await?;
 
-            node = Node {
-                subspace: self.node_with_optional_prefix(fdb_slice_value),
-                current_path: node.current_path,
-                target_path: Vec::from(path),
-                layer: vec![],
-                loaded_metadata: false,
-                directory_layer: self.clone(),
+            loaded = true;
+            node_subspace = match self.node_with_optional_prefix(fdb_slice_value) {
+                None => return Ok(None),
+                Some(subspace) => subspace,
             };
 
-            node.load_metadata(trx).await?;
-
-            if !node.exists() || node.layer.as_slice().eq(PARTITION_LAYER) {
-                return Ok(node);
+            layer = Node::load_metadata(trx, &node_subspace).await?;
+            if layer.as_slice().eq(PARTITION_LAYER) {
+                break;
             }
         }
 
-        if !node.loaded_metadata {
-            node.load_metadata(trx).await?;
+        if !loaded {
+            layer = Node::load_metadata(trx, &node_subspace).await?;
         }
 
-        Ok(node)
+        Ok(Some(Node {
+            subspace: node_subspace,
+            current_path,
+            target_path: Vec::from(path),
+            directory_layer: self.clone(),
+            layer,
+        }))
     }
 
     fn to_absolute_path(&self, sub_path: &[String]) -> Vec<String> {
@@ -194,11 +190,11 @@ impl DirectoryLayer {
 
     pub(crate) fn contents_of_node(
         &self,
-        node: &Subspace,
+        subspace: &Subspace,
         path: &[String],
         layer: &[u8],
     ) -> Result<DirectoryOutput, DirectoryError> {
-        let prefix: Vec<u8> = self.node_subspace.unpack(node.bytes())?;
+        let prefix: Vec<u8> = self.node_subspace.unpack(subspace.bytes())?;
 
         if layer.eq(PARTITION_LAYER) {
             Ok(DirectoryOutput::DirectoryPartition(
@@ -239,9 +235,7 @@ impl DirectoryLayer {
             return Err(DirectoryError::NoPathProvided);
         }
 
-        let node = self.find(trx, path).await?;
-
-        if node.exists() {
+        if let Some(node) = self.find(trx, path).await? {
             if node.is_in_partition(false) {
                 let sub_path = node.get_partition_subpath();
                 match node.get_contents()? {
@@ -521,20 +515,15 @@ impl DirectoryLayer {
     ) -> Result<bool, DirectoryError> {
         self.check_version(trx, false).await?;
 
-        let node = self.find(trx, path).await?;
-
-        if !node.exists() {
-            return Ok(false);
+        match self.find(trx, path).await? {
+            None => Ok(false),
+            Some(node) if node.is_in_partition(false) => {
+                node.get_contents()?
+                    .exists(trx, &node.get_partition_subpath())
+                    .await
+            }
+            Some(_node) => Ok(true),
         }
-
-        if node.is_in_partition(false) {
-            return node
-                .get_contents()?
-                .exists(trx, &node.get_partition_subpath())
-                .await;
-        }
-
-        Ok(true)
     }
 
     async fn list_internal(
@@ -544,10 +533,10 @@ impl DirectoryLayer {
     ) -> Result<Vec<String>, DirectoryError> {
         self.check_version(trx, false).await?;
 
-        let node = self.find(trx, path).await?;
-        if !node.exists() {
-            return Err(DirectoryError::PathDoesNotExists);
-        }
+        let node = self
+            .find(trx, path)
+            .await?
+            .ok_or(DirectoryError::PathDoesNotExists)?;
         if node.is_in_partition(true) {
             match node.get_contents()? {
                 DirectoryOutput::DirectorySubspace(_) => unreachable!("already in partition"),
@@ -578,54 +567,54 @@ impl DirectoryLayer {
             return Err(DirectoryError::CannotMoveBetweenSubdirectory);
         }
 
-        let old_node = self.find(trx, old_path).await?;
-        let new_node = self.find(trx, new_path).await?;
+        let old_node = self
+            .find(trx, old_path)
+            .await?
+            .ok_or(DirectoryError::PathDoesNotExists)?;
+        let old_node_exists_in_partition = old_node.is_in_partition(false);
+        if let Some(new_node) = self.find(trx, new_path).await? {
+            let new_node_exists_in_partition = new_node.is_in_partition(false);
+            if old_node_exists_in_partition || new_node_exists_in_partition {
+                if !old_node_exists_in_partition
+                    || !new_node_exists_in_partition
+                    || old_node.current_path.eq(&new_node.current_path)
+                {
+                    return Err(DirectoryError::CannotMoveBetweenPartition);
+                }
 
-        let old_node_subspace = match &old_node.subspace {
-            Some(subspace) => subspace,
-            None => return Err(DirectoryError::PathDoesNotExists),
-        };
-
-        if old_node.is_in_partition(false) || new_node.is_in_partition(false) {
-            if !old_node.is_in_partition(false)
-                || !new_node.is_in_partition(false)
-                || old_node.current_path.eq(&new_node.current_path)
-            {
-                return Err(DirectoryError::CannotMoveBetweenPartition);
+                return new_node
+                    .get_contents()?
+                    .move_to(
+                        trx,
+                        &old_node.get_partition_subpath(),
+                        &new_node.get_partition_subpath(),
+                    )
+                    .await;
             }
 
-            return new_node
-                .get_contents()?
-                .move_to(
-                    trx,
-                    &old_node.get_partition_subpath(),
-                    &new_node.get_partition_subpath(),
-                )
-                .await;
-        }
-
-        if new_node.exists() {
             return Err(DirectoryError::DirAlreadyExists);
+        } else if old_node_exists_in_partition {
+            return Err(DirectoryError::CannotMoveBetweenPartition);
         }
 
         let (new_path_last, parent_path) = new_path
             .split_last()
             .ok_or(DirectoryError::DirAlreadyExists)?;
 
-        let parent_node = self.find(trx, &parent_path).await?;
-        let subspace_parent_node = match &parent_node.subspace {
-            // not reachable because `parent_node.exists` has been checked above
-            None => return Err(DirectoryError::ParentDirDoesNotExists),
-            Some(s) => s,
-        };
+        let parent_node = self
+            .find(trx, parent_path)
+            .await?
+            .ok_or(DirectoryError::ParentDirDoesNotExists)?;
 
-        let key = subspace_parent_node.subspace(&(DEFAULT_SUB_DIRS, new_path_last));
-        let value: Vec<u8> = self.node_subspace.unpack(old_node_subspace.bytes())?;
+        let key = parent_node
+            .subspace
+            .subspace(&(DEFAULT_SUB_DIRS, new_path_last));
+        let value: Vec<u8> = self.node_subspace.unpack(old_node.subspace.bytes())?;
         trx.set(key.bytes(), &value);
 
         self.remove_from_parent(trx, old_path).await?;
 
-        self.contents_of_node(old_node_subspace, new_path, &old_node.layer)
+        self.contents_of_node(&old_node.subspace, new_path, &old_node.layer)
     }
 
     async fn remove_from_parent(
@@ -637,11 +626,10 @@ impl DirectoryLayer {
             .split_last()
             .ok_or(DirectoryError::BadDestinationDirectory)?;
 
-        let parent_node = self.find(trx, parent_path).await?;
-        match parent_node.subspace {
+        match self.find(trx, parent_path).await? {
             None => {}
-            Some(subspace) => {
-                let key = subspace.pack(&(DEFAULT_SUB_DIRS, last_element));
+            Some(parent_node) => {
+                let key = parent_node.subspace.pack(&(DEFAULT_SUB_DIRS, last_element));
                 trx.clear(&key);
             }
         }
@@ -662,10 +650,8 @@ impl DirectoryLayer {
             return Err(DirectoryError::CannotModifyRootDirectory);
         }
 
-        let node = self.find(trx, path).await?;
-
-        let subspace = match &node.subspace {
-            Some(subspace) => subspace,
+        let node = match self.find(trx, path).await? {
+            Some(node) => node,
             None if fail_on_nonexistent => return Err(DirectoryError::DirectoryDoesNotExists),
             None => return Ok(false),
         };
@@ -685,7 +671,7 @@ impl DirectoryLayer {
             }
         }
 
-        self.remove_recursive(trx, subspace).await?;
+        self.remove_recursive(trx, &node.subspace).await?;
         self.remove_from_parent(trx, path).await?;
 
         Ok(true)
