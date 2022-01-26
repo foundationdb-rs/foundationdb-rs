@@ -34,15 +34,20 @@ impl<E: TuplePack> From<E> for Subspace {
 
 impl Subspace {
     /// `all` returns the Subspace corresponding to all keys in a FoundationDB database.
-    pub fn all() -> Subspace {
+    pub fn all() -> Self {
         Self { prefix: Vec::new() }
     }
 
     /// `from_bytes` returns a new Subspace from the provided bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Self {
+    pub fn from_prefix_key(prefix: impl Into<Vec<u8>>) -> Self {
         Self {
-            prefix: bytes.to_vec(),
+            prefix: prefix.into(),
         }
+    }
+
+    /// Convert into prefix key bytes
+    pub fn into_prefix_key(self) -> Vec<u8> {
+        self.prefix
     }
 
     /// Returns a new Subspace whose prefix extends this Subspace with a given tuple encodable.

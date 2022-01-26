@@ -58,8 +58,8 @@ impl DirectoryPartition {
         node_subspace_bytes.extend_from_slice(DEFAULT_NODE_PREFIX);
 
         let new_directory_layer = DirectoryLayer::new_with_path(
-            Subspace::from_bytes(&node_subspace_bytes),
-            Subspace::from_bytes(prefix.as_slice()),
+            Subspace::from_prefix_key(node_subspace_bytes),
+            Subspace::from_prefix_key(prefix.as_slice()),
             false,
             path,
         );
@@ -79,7 +79,7 @@ impl DirectoryPartition {
 }
 
 impl DirectoryPartition {
-    pub fn get_path(&self) -> Vec<String> {
+    pub fn get_path(&self) -> &[String] {
         self.inner.directory_subspace.get_path()
     }
 
@@ -113,8 +113,8 @@ impl DirectoryPartition {
         Ok(new_path)
     }
 
-    pub fn get_layer(&self) -> Vec<u8> {
-        b"partition".to_vec()
+    pub fn get_layer(&self) -> &[u8] {
+        b"partition"
     }
 }
 
@@ -124,8 +124,8 @@ impl Directory for DirectoryPartition {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.inner
             .directory_subspace
@@ -137,8 +137,8 @@ impl Directory for DirectoryPartition {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.inner
             .directory_subspace
@@ -150,7 +150,7 @@ impl Directory for DirectoryPartition {
         &self,
         txn: &Transaction,
         path: &[String],
-        layer: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.inner.directory_subspace.open(txn, path, layer).await
     }
@@ -196,7 +196,7 @@ impl Directory for DirectoryPartition {
             .move_to(
                 trx,
                 &self.get_partition_subpath(&Vec::new(), Some(directory_layer.clone()))?,
-                &new_relative_path.to_owned(),
+                &new_relative_path,
             )
             .await
     }

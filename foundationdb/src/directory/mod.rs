@@ -87,8 +87,8 @@ pub trait Directory {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Creates a subdirectory of this Directory located at path (creating parent directories if necessary).
@@ -100,8 +100,8 @@ pub trait Directory {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Opens the subdirectory of this Directory located at path.
@@ -109,7 +109,7 @@ pub trait Directory {
         &self,
         txn: &Transaction,
         path: &[String],
-        layer: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Checks if the subdirectory of this Directory located at path exists.
@@ -215,14 +215,14 @@ impl DirectoryOutput {
         }
     }
 
-    pub fn get_path(&self) -> Vec<String> {
+    pub fn get_path(&self) -> &[String] {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.get_path(),
             DirectoryOutput::DirectoryPartition(d) => d.get_path(),
         }
     }
 
-    pub fn get_layer(&self) -> Vec<u8> {
+    pub fn get_layer(&self) -> &[u8] {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.get_layer(),
             DirectoryOutput::DirectoryPartition(d) => d.get_layer(),
@@ -236,8 +236,8 @@ impl Directory for DirectoryOutput {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => {
@@ -253,8 +253,8 @@ impl Directory for DirectoryOutput {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.create(txn, path, prefix, layer).await,
@@ -266,7 +266,7 @@ impl Directory for DirectoryOutput {
         &self,
         txn: &Transaction,
         path: &[String],
-        layer: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
             DirectoryOutput::DirectorySubspace(d) => d.open(txn, path, layer).await,

@@ -75,7 +75,7 @@ impl Default for DirectoryLayer {
     /// construct a non-standard root directory to control where metadata and keys are stored.
     fn default() -> Self {
         Self::new(
-            Subspace::from_bytes(DEFAULT_NODE_PREFIX),
+            Subspace::from_prefix_key(DEFAULT_NODE_PREFIX),
             Subspace::all(),
             false,
         )
@@ -89,13 +89,14 @@ impl DirectoryLayer {
         allow_manual_prefixes: bool,
     ) -> Self {
         let root_node = node_subspace.subspace(&node_subspace.bytes());
+        let allocator = HighContentionAllocator::new(root_node.subspace(&DEFAULT_HCA_PREFIX));
 
         DirectoryLayer {
             inner: Arc::new(DirectoryLayerInner {
-                root_node: root_node.clone(),
+                root_node,
                 node_subspace,
                 content_subspace,
-                allocator: HighContentionAllocator::new(root_node.subspace(&DEFAULT_HCA_PREFIX)),
+                allocator,
                 allow_manual_prefixes,
                 path: vec![],
             }),
@@ -109,21 +110,22 @@ impl DirectoryLayer {
         path: &[String],
     ) -> Self {
         let root_node = node_subspace.subspace(&node_subspace.bytes());
+        let allocator = HighContentionAllocator::new(root_node.subspace(&DEFAULT_HCA_PREFIX));
 
         DirectoryLayer {
             inner: Arc::new(DirectoryLayerInner {
-                root_node: root_node.clone(),
+                root_node,
                 node_subspace,
                 content_subspace,
-                allocator: HighContentionAllocator::new(root_node.subspace(&DEFAULT_HCA_PREFIX)),
+                allocator,
                 allow_manual_prefixes,
                 path: Vec::from(path),
             }),
         }
     }
 
-    pub fn get_path(&self) -> Vec<String> {
-        self.path.clone()
+    pub fn get_path(&self) -> &[String] {
+        self.path.as_slice()
     }
 
     fn node_with_optional_prefix(&self, prefix: Option<FdbSlice>) -> Option<Subspace> {
@@ -160,7 +162,7 @@ impl DirectoryLayer {
 
             node = Node {
                 subspace: self.node_with_optional_prefix(fdb_slice_value),
-                current_path: node.current_path.clone(),
+                current_path: node.current_path,
                 target_path: Vec::from(path),
                 layer: vec![],
                 loaded_metadata: false,
@@ -192,13 +194,13 @@ impl DirectoryLayer {
 
     pub(crate) fn contents_of_node(
         &self,
-        node: Subspace,
+        node: &Subspace,
         path: &[String],
-        layer: Vec<u8>,
+        layer: &[u8],
     ) -> Result<DirectoryOutput, DirectoryError> {
         let prefix: Vec<u8> = self.node_subspace.unpack(node.bytes())?;
 
-        if layer.as_slice().eq(PARTITION_LAYER) {
+        if layer.eq(PARTITION_LAYER) {
             Ok(DirectoryOutput::DirectoryPartition(
                 DirectoryPartition::new(&self.to_absolute_path(path), prefix, self.clone()),
             ))
@@ -207,7 +209,7 @@ impl DirectoryLayer {
                 &self.to_absolute_path(path),
                 prefix,
                 self,
-                layer,
+                layer.to_owned(),
             )))
         }
     }
@@ -218,8 +220,8 @@ impl DirectoryLayer {
         &self,
         trx: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&'async_recursion [u8]>,
+        layer: Option<&'async_recursion [u8]>,
         allow_create: bool,
         allow_open: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
@@ -271,7 +273,7 @@ impl DirectoryLayer {
 
     async fn open_internal(
         &self,
-        layer: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
         node: &Node,
         allow_open: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
@@ -283,7 +285,7 @@ impl DirectoryLayer {
             None => {}
             Some(layer) => {
                 if !layer.is_empty() {
-                    match compare_slice(&layer, &node.layer) {
+                    match compare_slice(layer, &node.layer) {
                         Ordering::Equal => {}
                         _ => {
                             return Err(DirectoryError::IncompatibleLayer);
@@ -300,13 +302,11 @@ impl DirectoryLayer {
         &self,
         trx: &Transaction,
         path: &[String],
-        layer: Option<Vec<u8>>,
-        prefix: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
+        prefix: Option<&[u8]>,
         allow_create: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        if path.is_empty() {
-            return Err(DirectoryError::NoPathProvided);
-        }
+        let path_last = path.last().ok_or(DirectoryError::NoPathProvided)?;
 
         if !allow_create {
             return Err(DirectoryError::DirectoryDoesNotExists);
@@ -315,10 +315,10 @@ impl DirectoryLayer {
         let layer = layer.unwrap_or_default();
 
         self.check_version(trx, allow_create).await?;
-        let new_prefix = self.get_prefix(trx, prefix.clone()).await?;
+        let new_prefix = self.get_prefix(trx, prefix).await?;
 
         let is_prefix_free = self
-            .is_prefix_free(trx, new_prefix.to_owned(), prefix.is_none())
+            .is_prefix_free(trx, new_prefix.as_slice(), prefix.is_none())
             .await?;
 
         if !is_prefix_free {
@@ -328,13 +328,13 @@ impl DirectoryLayer {
         let parent_node = self.get_parent_node(trx, path).await?;
         let node = self.node_with_prefix(&new_prefix);
 
-        let key = parent_node.subspace(&(DEFAULT_SUB_DIRS, path.last().unwrap()));
-        let key_layer = node.pack(&LAYER_SUFFIX.to_vec());
+        let key = parent_node.subspace(&(DEFAULT_SUB_DIRS, path_last));
+        let key_layer = node.pack(&LAYER_SUFFIX);
 
         trx.set(key.bytes(), &new_prefix);
-        trx.set(&key_layer, &layer);
+        trx.set(&key_layer, layer);
 
-        self.contents_of_node(node, path, layer.to_owned())
+        self.contents_of_node(&node, path, layer)
     }
 
     async fn get_parent_node(
@@ -352,7 +352,7 @@ impl DirectoryLayer {
                     .create_or_open_internal(trx, remains, None, None, true, true)
                     .await?;
 
-                Ok(self.node_with_prefix(&parent.bytes()?.to_vec()))
+                Ok(self.node_with_prefix(&parent.bytes()?))
             }
         };
     }
@@ -360,16 +360,14 @@ impl DirectoryLayer {
     async fn is_prefix_free(
         &self,
         trx: &Transaction,
-        prefix: Vec<u8>,
+        prefix: &[u8],
         snapshot: bool,
     ) -> Result<bool, DirectoryError> {
         if prefix.is_empty() {
             return Ok(false);
         }
 
-        let node = self
-            .node_containing_key(trx, prefix.to_owned(), snapshot)
-            .await?;
+        let node = self.node_containing_key(trx, prefix, snapshot).await?;
 
         if node.is_some() {
             return Ok(false);
@@ -377,7 +375,7 @@ impl DirectoryLayer {
 
         let range_option = RangeOption::from((
             self.node_subspace.pack(&prefix),
-            self.node_subspace.pack(&strinc(prefix)),
+            self.node_subspace.pack(&strinc(prefix.to_vec())),
         ));
 
         let result = trx.get_range(&range_option, 1, snapshot).await?;
@@ -388,7 +386,7 @@ impl DirectoryLayer {
     async fn node_containing_key(
         &self,
         trx: &Transaction,
-        key: Vec<u8>,
+        key: &[u8],
         snapshot: bool,
     ) -> Result<Option<Subspace>, DirectoryError> {
         if key.starts_with(self.node_subspace.bytes()) {
@@ -414,10 +412,9 @@ impl DirectoryLayer {
                 let previous_prefix: Vec<Element> =
                     self.node_subspace.unpack(fdb_key_value.key())?;
 
-                if let Some(Element::Bytes(b)) = previous_prefix.get(0) {
-                    let previous_prefix = b.to_vec();
-                    if key.starts_with(&previous_prefix) {
-                        return Ok(Some(self.node_with_prefix(&previous_prefix)));
+                if let Some(Element::Bytes(previous_prefix)) = previous_prefix.get(0) {
+                    if key.starts_with(previous_prefix) {
+                        return Ok(Some(self.node_with_prefix(previous_prefix)));
                     };
                 };
             }
@@ -428,7 +425,7 @@ impl DirectoryLayer {
     async fn get_prefix(
         &self,
         trx: &Transaction,
-        prefix: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
     ) -> Result<Vec<u8>, DirectoryError> {
         match prefix {
             None => {
@@ -445,9 +442,9 @@ impl DirectoryLayer {
                     return Err(DirectoryError::PrefixNotEmpty);
                 }
 
-                Ok(subspace.bytes().to_vec())
+                Ok(subspace.into_prefix_key())
             }
-            Some(v) => Ok(v),
+            Some(v) => Ok(v.to_vec()),
         }
     }
 
@@ -584,9 +581,10 @@ impl DirectoryLayer {
         let old_node = self.find(trx, old_path).await?;
         let new_node = self.find(trx, new_path).await?;
 
-        if !old_node.exists() {
-            return Err(DirectoryError::PathDoesNotExists);
-        }
+        let old_node_subspace = match &old_node.subspace {
+            Some(subspace) => subspace,
+            None => return Err(DirectoryError::PathDoesNotExists),
+        };
 
         if old_node.is_in_partition(false) || new_node.is_in_partition(false) {
             if !old_node.is_in_partition(false)
@@ -606,46 +604,40 @@ impl DirectoryLayer {
                 .await;
         }
 
-        if new_node.exists() || new_path.is_empty() {
+        if new_node.exists() {
             return Err(DirectoryError::DirAlreadyExists);
         }
 
-        let parent_path = match new_path.split_last() {
-            None => vec![],
-            Some((_, elements)) => elements.to_vec(),
-        };
+        let (new_path_last, parent_path) = new_path
+            .split_last()
+            .ok_or(DirectoryError::DirAlreadyExists)?;
 
         let parent_node = self.find(trx, &parent_path).await?;
-        if !parent_node.exists() {
-            return Err(DirectoryError::ParentDirDoesNotExists);
-        }
-
-        let subspace_parent_node = match parent_node.subspace {
+        let subspace_parent_node = match &parent_node.subspace {
             // not reachable because `parent_node.exists` has been checked above
-            None => unreachable!("parent_node's subspace is not set"),
-            Some(ref s) => s.clone(),
+            None => return Err(DirectoryError::ParentDirDoesNotExists),
+            Some(s) => s,
         };
 
-        let key = subspace_parent_node.subspace(&(DEFAULT_SUB_DIRS, new_path.last().unwrap()));
-        let value: Vec<u8> = self
-            .node_subspace
-            .unpack(old_node.subspace.as_ref().unwrap().bytes())?;
+        let key = subspace_parent_node.subspace(&(DEFAULT_SUB_DIRS, new_path_last));
+        let value: Vec<u8> = self.node_subspace.unpack(old_node_subspace.bytes())?;
         trx.set(key.bytes(), &value);
 
-        self.remove_from_parent(trx, old_path.to_owned()).await?;
+        self.remove_from_parent(trx, old_path).await?;
 
-        self.contents_of_node(old_node.subspace.unwrap(), new_path, old_node.layer)
+        self.contents_of_node(old_node_subspace, new_path, &old_node.layer)
     }
 
     async fn remove_from_parent(
         &self,
         trx: &Transaction,
-        mut path: Vec<String>,
+        path: &[String],
     ) -> Result<(), DirectoryError> {
-        let last_element = path.pop().ok_or(DirectoryError::BadDestinationDirectory)?;
-        let parent_path = path;
+        let (last_element, parent_path) = path
+            .split_last()
+            .ok_or(DirectoryError::BadDestinationDirectory)?;
 
-        let parent_node = self.find(trx, &parent_path).await?;
+        let parent_node = self.find(trx, parent_path).await?;
         match parent_node.subspace {
             None => {}
             Some(subspace) => {
@@ -672,13 +664,11 @@ impl DirectoryLayer {
 
         let node = self.find(trx, path).await?;
 
-        if !node.exists() {
-            return if fail_on_nonexistent {
-                Err(DirectoryError::DirectoryDoesNotExists)
-            } else {
-                Ok(false)
-            };
-        }
+        let subspace = match &node.subspace {
+            Some(subspace) => subspace,
+            None if fail_on_nonexistent => return Err(DirectoryError::DirectoryDoesNotExists),
+            None => return Ok(false),
+        };
 
         if node.is_in_partition(false) {
             match node.get_contents()? {
@@ -695,9 +685,8 @@ impl DirectoryLayer {
             }
         }
 
-        self.remove_recursive(trx, node.subspace.unwrap().clone())
-            .await?;
-        self.remove_from_parent(trx, path.to_owned()).await?;
+        self.remove_recursive(trx, subspace).await?;
+        self.remove_from_parent(trx, path).await?;
 
         Ok(true)
     }
@@ -706,7 +695,7 @@ impl DirectoryLayer {
     async fn remove_recursive(
         &self,
         trx: &Transaction,
-        node_sub: Subspace,
+        node_sub: &Subspace,
     ) -> Result<(), DirectoryError> {
         let sub_dir = node_sub.subspace(&(DEFAULT_SUB_DIRS));
         let (mut begin, end) = sub_dir.range();
@@ -719,7 +708,7 @@ impl DirectoryLayer {
 
             for row_key in range {
                 let sub_node = self.node_with_prefix(&row_key.value());
-                self.remove_recursive(trx, sub_node).await?;
+                self.remove_recursive(trx, &sub_node).await?;
                 begin = row_key.key().pack_to_vec();
             }
 
@@ -731,7 +720,7 @@ impl DirectoryLayer {
         let node_prefix: Vec<u8> = self.node_subspace.unpack(node_sub.bytes())?;
 
         trx.clear_range(&node_prefix, &strinc(node_prefix.to_owned()));
-        trx.clear_subspace_range(&node_sub);
+        trx.clear_subspace_range(node_sub);
 
         Ok(())
     }
@@ -743,8 +732,8 @@ impl Directory for DirectoryLayer {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.create_or_open_internal(txn, path, prefix, layer, true, true)
             .await
@@ -754,8 +743,8 @@ impl Directory for DirectoryLayer {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.create_or_open_internal(txn, path, prefix, layer, true, false)
             .await
@@ -765,7 +754,7 @@ impl Directory for DirectoryLayer {
         &self,
         txn: &Transaction,
         path: &[String],
-        layer: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.create_or_open_internal(txn, path, None, layer, false, true)
             .await

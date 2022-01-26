@@ -36,7 +36,7 @@ impl DirectorySubspace {
     ) -> Self {
         DirectorySubspace {
             directory_layer: directory_layer.clone(),
-            subspace: Subspace::from_bytes(&prefix),
+            subspace: Subspace::from_prefix_key(prefix),
             path: Vec::from(path),
             layer,
         }
@@ -87,16 +87,16 @@ impl DirectorySubspace {
         self.subspace.range()
     }
 
-    pub fn get_path(&self) -> Vec<String> {
-        self.path.clone()
+    pub fn get_path(&self) -> &[String] {
+        self.path.as_slice()
     }
 
     pub fn set_path(&mut self, path: Vec<String>) {
         self.path = path;
     }
 
-    pub fn get_layer(&self) -> Vec<u8> {
-        self.layer.clone()
+    pub fn get_layer(&self) -> &[u8] {
+        self.layer.as_slice()
     }
 
     pub fn is_start_of(&self, key: &[u8]) -> bool {
@@ -114,8 +114,8 @@ impl Directory for DirectorySubspace {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.directory_layer
             .create_or_open(txn, &self.get_partition_subpath(path, None)?, prefix, layer)
@@ -126,8 +126,8 @@ impl Directory for DirectorySubspace {
         &self,
         txn: &Transaction,
         path: &[String],
-        prefix: Option<Vec<u8>>,
-        layer: Option<Vec<u8>>,
+        prefix: Option<&[u8]>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.directory_layer
             .create(txn, &self.get_partition_subpath(path, None)?, prefix, layer)
@@ -138,7 +138,7 @@ impl Directory for DirectorySubspace {
         &self,
         txn: &Transaction,
         path: &[String],
-        layer: Option<Vec<u8>>,
+        layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.directory_layer
             .open(txn, &self.get_partition_subpath(path, None)?, layer)

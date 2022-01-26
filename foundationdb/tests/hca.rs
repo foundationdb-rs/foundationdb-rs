@@ -29,11 +29,11 @@ async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
 
     {
         let tx = db.create_trx()?;
-        tx.clear_subspace_range(&Subspace::from_bytes(KEY));
+        tx.clear_subspace_range(&Subspace::from_prefix_key(KEY));
         tx.commit().await?;
     }
 
-    let hca = HighContentionAllocator::new(Subspace::from_bytes(KEY));
+    let hca = HighContentionAllocator::new(Subspace::from_prefix_key(KEY));
 
     let mut all_ints = Vec::new();
 
@@ -64,11 +64,11 @@ async fn test_hca_concurrent_allocations_async() -> FdbResult<()> {
 
     {
         let tx = db.create_trx()?;
-        tx.clear_subspace_range(&Subspace::from_bytes(KEY));
+        tx.clear_subspace_range(&Subspace::from_prefix_key(KEY));
         tx.commit().await?;
     }
 
-    let hca = HighContentionAllocator::new(Subspace::from_bytes(KEY));
+    let hca = HighContentionAllocator::new(Subspace::from_prefix_key(KEY));
 
     let all_ints: Vec<i64> = future::try_join_all((0..N).map(|_| {
         db.transact_boxed(

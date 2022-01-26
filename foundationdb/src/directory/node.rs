@@ -25,7 +25,7 @@ impl Node {
             return Ok(());
         }
 
-        let key = self.subspace.as_ref().unwrap().pack(&LAYER_SUFFIX.to_vec());
+        let key = self.subspace.as_ref().unwrap().pack(&LAYER_SUFFIX);
         self.layer = match trx.get(&key, false).await {
             Ok(None) => vec![],
             Err(err) => return Err(DirectoryError::FdbError(err)),
@@ -71,7 +71,7 @@ impl Node {
         let fdb_values = trx.get_range(&range_option, 1_024, false).await?;
 
         for fdb_value in fdb_values {
-            let subspace = Subspace::from_bytes(fdb_value.key());
+            let subspace = Subspace::from_prefix_key(fdb_value.key());
             // stripping from subspace
             let sub_directory: (i64, String) =
                 self.subspace.as_ref().unwrap().unpack(subspace.bytes())?;
@@ -86,11 +86,10 @@ impl Node {
 
         match &self.subspace {
             None => unreachable!(),
-            Some(subspace) => self.directory_layer.contents_of_node(
-                subspace.to_owned(),
-                &self.current_path,
-                self.layer.to_owned(),
-            ),
+            Some(subspace) => {
+                self.directory_layer
+                    .contents_of_node(subspace, &self.current_path, &self.layer)
+            }
         }
     }
 }

@@ -664,16 +664,7 @@ impl StackMachine {
         let element = self.pop_element().await;
         match element {
             Element::Bytes(v) => Some(v.to_vec()),
-            Element::Nil => None,
-            Element::String(_) => None,
-            Element::Tuple(_) => None,
-            Element::Int(_) => None,
-            Element::BigInt(_) => None,
-            Element::Float(_) => None,
-            Element::Double(_) => None,
-            Element::Bool(_) => None,
-            Element::Uuid(_) => None,
-            Element::Versionstamp(_) => None,
+            _ => None,
         }
     }
 
@@ -1705,8 +1696,8 @@ impl StackMachine {
             DirectoryCreateSubspace => {
                 let tuple_prefix = self.pop_string_tuple(1).await;
                 let raw_prefix = self.pop_bytes().await;
-                let subspace =
-                    Subspace::from_bytes(&raw_prefix).subspace(tuple_prefix.get(0).unwrap());
+                let subspace = Subspace::from_prefix_key(raw_prefix.into_owned())
+                    .subspace(tuple_prefix.get(0).unwrap());
                 debug!(
                     "pushing a new subspace {:?} at index {}",
                     &subspace,
@@ -1795,7 +1786,12 @@ impl StackMachine {
                 );
 
                 match directory
-                    .create(txn, path.get(0).unwrap(), prefix, layer)
+                    .create(
+                        txn,
+                        path.get(0).unwrap(),
+                        prefix.as_deref(),
+                        layer.as_deref(),
+                    )
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -1851,7 +1847,10 @@ impl StackMachine {
                     self.directory_index
                 );
 
-                match directory.open(txn, path.get(0).unwrap(), layer).await {
+                match directory
+                    .open(txn, path.get(0).unwrap(), layer.as_deref())
+                    .await
+                {
                     Ok(directory_subspace) => {
                         debug!(
                             "pushing newly opened DirectoryOutput at index {}",
@@ -1908,7 +1907,7 @@ impl StackMachine {
                     self.directory_index
                 );
                 match directory
-                    .create_or_open(txn, path.get(0).unwrap(), None, layer)
+                    .create_or_open(txn, path.get(0).unwrap(), None, layer.as_deref())
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -2416,7 +2415,8 @@ impl StackMachine {
                         panic!("could not find an active transaction");
                     }
                 };
-                let key = Subspace::from_bytes(&*raw_prefix).pack(&self.directory_index);
+                let key =
+                    Subspace::from_prefix_key(raw_prefix.into_owned()).pack(&self.directory_index);
 
                 match self.directory_stack.get(self.directory_index) {
                     None => panic!("nothing in the stack"),
@@ -2489,7 +2489,8 @@ impl StackMachine {
                 };
 
                 let raw_prefix = self.pop_bytes().await;
-                let subspace = Subspace::from_bytes(&*raw_prefix).subspace(&(self.directory_index));
+                let subspace = Subspace::from_prefix_key(raw_prefix.into_owned())
+                    .subspace(&(self.directory_index));
 
                 let key_path = subspace.pack(&(String::from("path")));
                 let value_path = pack(&self.get_path_for_current_directory().unwrap());
@@ -2698,7 +2699,7 @@ impl StackMachine {
         }
     }
 
-    fn get_path_for_current_directory(&self) -> Option<Vec<String>> {
+    fn get_path_for_current_directory(&self) -> Option<&[String]> {
         match self.directory_stack.get(self.directory_index) {
             None => None,
             Some(directory_or_subspace) => match directory_or_subspace {
@@ -2709,12 +2710,12 @@ impl StackMachine {
         }
     }
 
-    fn get_layer_for_current_directory(&self) -> Option<Vec<u8>> {
+    fn get_layer_for_current_directory(&self) -> Option<&[u8]> {
         match self.directory_stack.get(self.directory_index) {
             None => None,
             Some(directory_or_subspace) => match directory_or_subspace {
                 DirectoryStackItem::DirectoryOutput(d) => Some(d.get_layer()),
-                DirectoryStackItem::Directory(_) => Some(vec![]),
+                DirectoryStackItem::Directory(_) => Some(&[]),
                 _ => None,
             },
         }
