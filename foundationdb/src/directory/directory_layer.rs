@@ -20,11 +20,8 @@ use crate::RangeOption;
 use crate::{FdbResult, Transaction};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-
 use std::cmp::Ordering;
-
 use std::ops::Deref;
-use std::option::Option::Some;
 use std::sync::Arc;
 
 pub(crate) const DEFAULT_SUB_DIRS: i64 = 0;

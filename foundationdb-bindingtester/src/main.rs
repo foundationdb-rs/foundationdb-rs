@@ -739,15 +739,17 @@ impl StackMachine {
         debug!("[{}] DIRECTORY_ERROR during {:?}: {:?}", number, code, err);
         self.push(number, Element::Tuple(vec![ERROR_DIRECTORY.clone()]));
 
-        if let InstrCode::DirectoryCreateSubspace
-        | InstrCode::DirectoryCreateOrOpen
-        | InstrCode::DirectoryCreateLayer
-        | InstrCode::DirectoryCreate
-        | InstrCode::DirectoryOpen
-        | InstrCode::DirectoryMove
-        | InstrCode::DirectoryMoveTo
-        | InstrCode::DirectoryOpenSubspace = code
-        {
+        if matches!(
+            code,
+            InstrCode::DirectoryCreateSubspace
+                | InstrCode::DirectoryCreateOrOpen
+                | InstrCode::DirectoryCreateLayer
+                | InstrCode::DirectoryCreate
+                | InstrCode::DirectoryOpen
+                | InstrCode::DirectoryMove
+                | InstrCode::DirectoryMoveTo
+                | InstrCode::DirectoryOpenSubspace
+        ) {
             debug!(
                 "pushed NULL in the directory_stack at index {} because of the error",
                 self.directory_stack.len()
@@ -2038,7 +2040,10 @@ impl StackMachine {
                     self.directory_index, &paths
                 );
 
-                match directory.move_directory(txn, paths.get(0).unwrap()).await {
+                match directory
+                    .move_directory(txn, paths.get(0).expect("popped tuple has no item"))
+                    .await
+                {
                     Ok(s) => {
                         debug!(
                             "pushing moved directory {:?} at index {}",
@@ -2161,7 +2166,9 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
+                let local_trx = db
+                    .create_trx()
+                    .expect("could not create a local transaction");
                 let txn = match is_db {
                     true => &local_trx,
                     false => match trx {
@@ -2373,7 +2380,7 @@ impl StackMachine {
             DirectoryOpenSubspace => {
                 let n: usize = self.pop_usize().await;
                 debug!("DirectoryRange {}", n);
-                let mut buf = Vec::new();
+                let mut buf = Vec::with_capacity(n);
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
                     debug!(" - {:?}", element);
