@@ -100,6 +100,7 @@ pub mod api;
 #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
 pub mod cluster;
 mod database;
+pub mod directory;
 mod error;
 pub mod future;
 mod keyselector;

@@ -8,7 +8,7 @@
 
 //! Implementations of the FDBDatabase C API
 //!
-//! https://apple.github.io/foundationdb/api-c.html#database
+//! <https://apple.github.io/foundationdb/api-c.html#database>
 
 use std::convert::TryInto;
 use std::marker::PhantomData;

@@ -29,7 +29,6 @@ use std::ops::Deref;
 use std::os::raw::c_char;
 use std::pin::Pin;
 use std::ptr::NonNull;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use foundationdb_sys as fdb_sys;
@@ -325,7 +324,7 @@ impl IntoIterator for FdbValues {
 
     fn into_iter(self) -> Self::IntoIter {
         FdbValuesIter {
-            f: Rc::new(self._f),
+            f: Arc::new(self._f),
             keyvalues: self.keyvalues,
             len: self.len,
             pos: 0,
@@ -335,11 +334,14 @@ impl IntoIterator for FdbValues {
 
 /// An iterator of keyvalues owned by a foundationDB future
 pub struct FdbValuesIter {
-    f: Rc<FdbFutureHandle>,
+    f: Arc<FdbFutureHandle>,
     keyvalues: *const fdb_sys::FDBKeyValue,
     len: i32,
     pos: i32,
 }
+
+unsafe impl Send for FdbValuesIter {}
+
 impl Iterator for FdbValuesIter {
     type Item = FdbValue;
     fn next(&mut self) -> Option<Self::Item> {
@@ -404,9 +406,12 @@ impl DoubleEndedIterator for FdbValuesIter {
 /// Until dropped, this might prevent multiple key/values from beeing freed.
 /// (i.e. the future that own the data is dropped once all data it provided is dropped)
 pub struct FdbValue {
-    _f: Rc<FdbFutureHandle>,
+    _f: Arc<FdbFutureHandle>,
     keyvalue: *const fdb_sys::FDBKeyValue,
 }
+
+unsafe impl Send for FdbValue {}
+
 impl Deref for FdbValue {
     type Target = FdbKeyValue;
     fn deref(&self) -> &Self::Target {

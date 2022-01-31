@@ -50,11 +50,6 @@ impl From<[u8; 12]> for Versionstamp {
         Versionstamp { bytes }
     }
 }
-impl Into<[u8; 12]> for Versionstamp {
-    fn into(self) -> [u8; 12] {
-        self.bytes
-    }
-}
 
 impl<'a> Element<'a> {
     pub fn count_incomplete_versionstamp(&self) -> usize {

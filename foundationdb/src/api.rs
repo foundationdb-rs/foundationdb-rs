@@ -61,7 +61,10 @@ impl FdbApiBuilder {
     ///
     /// This function will panic if called more than once
     pub fn build(self) -> FdbResult<NetworkBuilder> {
-        if VERSION_SELECTED.compare_and_swap(false, true, Ordering::AcqRel) {
+        if VERSION_SELECTED
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
             panic!("the fdb select api version can only be run once per process");
         }
         error::eval(unsafe {
