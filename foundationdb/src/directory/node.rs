@@ -46,7 +46,7 @@ impl Node {
         let fdb_values = trx.get_range(&range_option, 1_024, false).await?;
 
         for fdb_value in fdb_values {
-            let subspace = Subspace::from_prefix_key(fdb_value.key());
+            let subspace = Subspace::from_bytes(fdb_value.key());
             // stripping from subspace
             let sub_directory: (i64, String) = self.subspace.unpack(subspace.bytes())?;
             results.push(sub_directory.1);

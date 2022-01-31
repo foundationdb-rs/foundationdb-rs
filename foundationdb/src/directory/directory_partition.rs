@@ -58,8 +58,8 @@ impl DirectoryPartition {
         node_subspace_bytes.extend_from_slice(DEFAULT_NODE_PREFIX);
 
         let new_directory_layer = DirectoryLayer::new_with_path(
-            Subspace::from_prefix_key(node_subspace_bytes),
-            Subspace::from_prefix_key(prefix.as_slice()),
+            Subspace::from_bytes(node_subspace_bytes),
+            Subspace::from_bytes(prefix.as_slice()),
             false,
             path,
         );

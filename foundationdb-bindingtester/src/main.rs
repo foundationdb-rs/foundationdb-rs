@@ -1696,7 +1696,7 @@ impl StackMachine {
             DirectoryCreateSubspace => {
                 let tuple_prefix = self.pop_string_tuple(1).await;
                 let raw_prefix = self.pop_bytes().await;
-                let subspace = Subspace::from_prefix_key(raw_prefix.into_owned())
+                let subspace = Subspace::from_bytes(raw_prefix.into_owned())
                     .subspace(tuple_prefix.get(0).unwrap());
                 debug!(
                     "pushing a new subspace {:?} at index {}",
@@ -2415,8 +2415,7 @@ impl StackMachine {
                         panic!("could not find an active transaction");
                     }
                 };
-                let key =
-                    Subspace::from_prefix_key(raw_prefix.into_owned()).pack(&self.directory_index);
+                let key = Subspace::from_bytes(raw_prefix.into_owned()).pack(&self.directory_index);
 
                 match self.directory_stack.get(self.directory_index) {
                     None => panic!("nothing in the stack"),
@@ -2489,8 +2488,8 @@ impl StackMachine {
                 };
 
                 let raw_prefix = self.pop_bytes().await;
-                let subspace = Subspace::from_prefix_key(raw_prefix.into_owned())
-                    .subspace(&(self.directory_index));
+                let subspace =
+                    Subspace::from_bytes(raw_prefix.into_owned()).subspace(&self.directory_index);
 
                 let key_path = subspace.pack(&(String::from("path")));
                 let value_path = pack(&self.get_path_for_current_directory().unwrap());

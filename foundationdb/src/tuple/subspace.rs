@@ -38,15 +38,15 @@ impl Subspace {
         Self { prefix: Vec::new() }
     }
 
-    /// `from_bytes` returns a new Subspace from the provided bytes.
-    pub fn from_prefix_key(prefix: impl Into<Vec<u8>>) -> Self {
+    /// Returns a new Subspace from the provided bytes.
+    pub fn from_bytes(prefix: impl Into<Vec<u8>>) -> Self {
         Self {
             prefix: prefix.into(),
         }
     }
 
     /// Convert into prefix key bytes
-    pub fn into_prefix_key(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         self.prefix
     }
 

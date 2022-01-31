@@ -36,7 +36,7 @@ impl DirectorySubspace {
     ) -> Self {
         DirectorySubspace {
             directory_layer: directory_layer.clone(),
-            subspace: Subspace::from_prefix_key(prefix),
+            subspace: Subspace::from_bytes(prefix),
             path: Vec::from(path),
             layer,
         }

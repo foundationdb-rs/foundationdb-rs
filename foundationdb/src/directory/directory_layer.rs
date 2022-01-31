@@ -75,7 +75,7 @@ impl Default for DirectoryLayer {
     /// construct a non-standard root directory to control where metadata and keys are stored.
     fn default() -> Self {
         Self::new(
-            Subspace::from_prefix_key(DEFAULT_NODE_PREFIX),
+            Subspace::from_bytes(DEFAULT_NODE_PREFIX),
             Subspace::all(),
             false,
         )
@@ -436,7 +436,7 @@ impl DirectoryLayer {
                     return Err(DirectoryError::PrefixNotEmpty);
                 }
 
-                Ok(subspace.into_prefix_key())
+                Ok(subspace.into_bytes())
             }
             Some(v) => Ok(v.to_vec()),
         }
