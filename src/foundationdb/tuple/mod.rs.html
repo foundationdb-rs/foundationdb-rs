@@ -668,18 +668,6 @@
 <span id="667">667</span>
 <span id="668">668</span>
 <span id="669">669</span>
-<span id="670">670</span>
-<span id="671">671</span>
-<span id="672">672</span>
-<span id="673">673</span>
-<span id="674">674</span>
-<span id="675">675</span>
-<span id="676">676</span>
-<span id="677">677</span>
-<span id="678">678</span>
-<span id="679">679</span>
-<span id="680">680</span>
-<span id="681">681</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of the official tuple layer typecodes</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The official specification can be found [here](https://github.com/apple/foundationdb/blob/master/design/tuple.md).</span>
@@ -1031,67 +1019,55 @@
         <span class="ident">test_serde</span>(<span class="ident">i64::min_value</span>(), <span class="string">b&quot;\x0C\x7f\xff\xff\xff\xff\xff\xff\xff&quot;</span>);
 
         <span class="ident">test_serde</span>(<span class="number">9252427359321063944i128</span>, <span class="string">b&quot;\x1c\x80g9\xa9np\x02\x08&quot;</span>);
-        <span class="macro">assert!</span>(
-            <span class="kw">match</span> <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x1c\x80g9\xa9np\x02\x08&quot;</span>).<span class="ident">unwrap_err</span>() {
-                <span class="ident">PackError::UnsupportedIntLength</span> =&gt; <span class="bool-val">true</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
-            }
-        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x1c\x80g9\xa9np\x02\x08&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">PackError::UnsupportedIntLength</span>
+        ));
 
         <span class="ident">test_serde</span>(
             <span class="op">-</span><span class="number">9252427359321063944i128</span>,
             <span class="string">b&quot;\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7&quot;</span>,
         );
-        <span class="macro">assert!</span>(
-            <span class="kw">match</span> <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7&quot;</span>).<span class="ident">unwrap_err</span>() {
-                <span class="ident">PackError::UnsupportedIntLength</span> =&gt; <span class="bool-val">true</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
-            }
-        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">PackError::UnsupportedIntLength</span>
+        ));
 
         <span class="ident">test_serde</span>(
             <span class="ident">u64::max_value</span>() <span class="kw">as</span> <span class="ident">i128</span>,
             <span class="string">b&quot;\x1c\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
         );
-        <span class="macro">assert!</span>(
-            <span class="kw">match</span> <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x1c\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>).<span class="ident">unwrap_err</span>() {
-                <span class="ident">PackError::UnsupportedIntLength</span> =&gt; <span class="bool-val">true</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
-            }
-        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x1c\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">PackError::UnsupportedIntLength</span>
+        ));
 
         <span class="ident">test_serde</span>(
             <span class="op">-</span>(<span class="ident">u64::max_value</span>() <span class="kw">as</span> <span class="ident">i128</span>),
             <span class="string">b&quot;\x0c\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
         );
-        <span class="macro">assert!</span>(
-            <span class="kw">match</span> <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x0c\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>).<span class="ident">unwrap_err</span>() {
-                <span class="ident">PackError::UnsupportedIntLength</span> =&gt; <span class="bool-val">true</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
-            }
-        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x0c\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">PackError::UnsupportedIntLength</span>
+        ));
 
         <span class="ident">test_serde</span>(
             (<span class="ident">i64::max_value</span>() <span class="kw">as</span> <span class="ident">i128</span>) <span class="op">+</span> <span class="number">1</span>,
             <span class="string">b&quot;\x1c\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
         );
-        <span class="macro">assert!</span>(
-            <span class="kw">match</span> <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x1c\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>).<span class="ident">unwrap_err</span>() {
-                <span class="ident">PackError::UnsupportedIntLength</span> =&gt; <span class="bool-val">true</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
-            }
-        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x1c\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">PackError::UnsupportedIntLength</span>
+        ));
 
         <span class="ident">test_serde</span>(
             (<span class="ident">i64::min_value</span>() <span class="kw">as</span> <span class="ident">i128</span>) <span class="op">-</span> <span class="number">1</span>,
             <span class="string">b&quot;\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
         );
-        <span class="macro">assert!</span>(
-            <span class="kw">match</span> <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>).<span class="ident">unwrap_err</span>() {
-                <span class="ident">PackError::UnsupportedIntLength</span> =&gt; <span class="bool-val">true</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
-            }
-        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">unpack</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="string">b&quot;\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">PackError::UnsupportedIntLength</span>
+        ));
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;num-bigint&quot;</span>)]</span>

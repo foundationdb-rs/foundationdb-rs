@@ -322,6 +322,9 @@
 <span id="321">321</span>
 <span id="322">322</span>
 <span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
@@ -385,7 +388,10 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This function will panic if called more than once</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkBuilder</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">VERSION_SELECTED</span>.<span class="ident">compare_and_swap</span>(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="ident">Ordering::AcqRel</span>) {
+        <span class="kw">if</span> <span class="ident">VERSION_SELECTED</span>
+            .<span class="ident">compare_exchange</span>(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="ident">Ordering::AcqRel</span>, <span class="ident">Ordering::Acquire</span>)
+            .<span class="ident">is_err</span>()
+        {
             <span class="macro">panic!</span>(<span class="string">&quot;the fdb select api version can only be run once per process&quot;</span>);
         }
         <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
