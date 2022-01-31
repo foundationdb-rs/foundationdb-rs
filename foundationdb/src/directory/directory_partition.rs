@@ -195,7 +195,7 @@ impl Directory for DirectoryPartition {
         directory_layer
             .move_to(
                 trx,
-                &self.get_partition_subpath(&Vec::new(), Some(directory_layer.clone()))?,
+                &self.get_partition_subpath(&[], Some(directory_layer.clone()))?,
                 &new_relative_path,
             )
             .await

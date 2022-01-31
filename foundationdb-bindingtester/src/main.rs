@@ -2491,25 +2491,22 @@ impl StackMachine {
                 let subspace =
                     Subspace::from_bytes(raw_prefix.into_owned()).subspace(&self.directory_index);
 
-                let key_path = subspace.pack(&(String::from("path")));
+                let key_path = subspace.pack(&"path");
                 let value_path = pack(&self.get_path_for_current_directory().unwrap());
 
-                let key_layer = subspace.pack(&("layer"));
+                let key_layer = subspace.pack(&"layer");
                 let value_layer = pack(&self.get_layer_for_current_directory().unwrap());
 
                 let exists = directory
-                    .exists(txn, &Vec::new())
+                    .exists(txn, &[])
                     .await
                     .expect("could not list directory");
 
-                let key_exists = subspace.pack(&(String::from("exists")));
-                let value_exists = pack(&Element::Tuple(vec![Element::Int(match exists {
-                    true => 1,
-                    false => 0,
-                })]));
+                let key_exists = subspace.pack(&"exists");
+                let value_exists = pack(&Element::Tuple(vec![Element::Int(exists.into())]));
 
                 let children = if exists {
-                    directory.list(txn, &Vec::new()).await.unwrap()
+                    directory.list(txn, &[]).await.unwrap()
                 } else {
                     vec![]
                 };
@@ -2521,7 +2518,7 @@ impl StackMachine {
                         .collect(),
                 );
 
-                let key_children = subspace.pack(&(String::from("children")));
+                let key_children = subspace.pack(&"children");
                 let value_children = pack(&tuple_children);
 
                 txn.set(&key_path, &value_path);

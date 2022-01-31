@@ -129,7 +129,7 @@ impl DirectoryLayer {
     }
 
     fn node_with_optional_prefix(&self, prefix: Option<FdbSlice>) -> Option<Subspace> {
-        prefix.map(|fdb_slice| self.node_with_prefix(&(&*fdb_slice)))
+        prefix.map(|fdb_slice| self.node_with_prefix(&fdb_slice.deref()))
     }
 
     fn node_with_prefix<T: TuplePack>(&self, prefix: &T) -> Subspace {
@@ -683,7 +683,7 @@ impl DirectoryLayer {
         trx: &Transaction,
         node_sub: &Subspace,
     ) -> Result<(), DirectoryError> {
-        let sub_dir = node_sub.subspace(&(DEFAULT_SUB_DIRS));
+        let sub_dir = node_sub.subspace(&DEFAULT_SUB_DIRS);
         let (mut begin, end) = sub_dir.range();
 
         loop {
