@@ -4,9 +4,23 @@ This is a wrapper library around the FoundationDB (Fdb) C API. It implements fut
 
 ## Prerequisites
 
-Rust 1.46+
+* Rust 1.46 or more,
+* FoundationDB's client installed.
 
-## Supported platforms
+## Platform Support
+
+Support for different platforms ("targets") are organized into three tiers, each with a different set of guarantees. For more information on the policies for targets at each tier, see the [Target Tier Policy](#target-tier-policy).
+
+| Platform | Tier | Notes |
+| --- | --- | --- |
+| linux x86_64 | 1 | |
+|osx x86_64 | 2 | |
+| Windows x86_64 | 3     | [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135)  |
+| osx Silicon 	| 3    	| [Waiting for official dylib support](https://forums.foundationdb.org/t/arm-client-library/3072)        |
+
+For more information on the policies for targets at each tier, see the
+
+## Target Tier Policy
 
 ### Tier 1
 
@@ -16,9 +30,6 @@ Rust 1.46+
 * we are running classic Rust tests on each pull requests,
 * you can use the crate on the platform.
 
-| Platform     	| Tier 	| Notes 	|
-|--------------	|------	|-------	|
-| linux x86_64 	| 1    	|       	|
 
 ### Tier 2
 
@@ -29,61 +40,63 @@ Rust 1.46+
 
 But we are not checking correctness.
 
-| Platform     	| Tier 	| Notes 	|
-|--------------	|------	|-------	|
-| osx x86_64 	| 2    	|       	|
-
 ### Tier 3
 
 `Tier 3` targets are platforms we would like to have as Tier 2. You might be able to compile, but no CI has been set up.
 
-| Platform     	| Tier 	| Notes 	|
-|--------------	|------	|-------	|
-| Windows x86_64 | 3    	| [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135)   	|
-| osx Silicon 	| 3    	| [Waiting for official dylib support](https://forums.foundationdb.org/t/arm-client-library/3072)       	|
+## Getting Started
 
 ### Install FoundationDB
 
-Install FoundationDB on your system, see [FoundationDB Local Development](https://apple.github.io/foundationdb/local-dev.html), or these instructions:
+You first need to install FoundationDB. You can follow the official documentation:
 
-- Ubuntu Linux (this may work on the Linux subsystem for Windows as well)
+* [Getting Started on Linux](https://apple.github.io/foundationdb/getting-started-linux.html)
+* [Getting started on macOS](https://apple.github.io/foundationdb/getting-started-mac.html)
 
-```console
-$> curl -O https://www.foundationdb.org/downloads/6.2.15/ubuntu/installers/foundationdb-clients_6.2.25-1_amd64.deb
-$> curl -O https://www.foundationdb.org/downloads/6.2.15/ubuntu/installers/foundationdb-server_6.2.25-1_amd64.deb
-$> sudo dpkg -i foundationdb-clients_6.2.25-1_amd64.deb
-$> sudo dpkg -i foundationdb-server_6.2.25-1_amd64.deb
-```
-
-- macOS
-
-```console
-$> curl -O https://www.foundationdb.org/downloads/6.2.25/macOS/installers/FoundationDB-6.2.25.pkg
-$> sudo installer -pkg FoundationDB-6.2.25.pkg -target /
-```
-
-- Windows
-
-https://www.foundationdb.org/downloads/6.2.25/windows/installers/foundationdb-6.2.25-x64.msi
-
-## Add dependencies on foundationdb-rs
+### Add dependencies on foundationdb-rs
 
 ```toml
 [dependencies]
-foundationdb = "0.5"
+foundationdb = "0.6"
 futures = "0.3"
 ```
 
-## Initialization
+This Rust crate is not tied to any Async Runtime.
 
-Due to limitations in the C API, the Client and it's associated Network can only be initialized and run once per the life of a process. Generally the `foundationdb::boot` function will be enough to initialize the Client. See `foundationdb::api` for more configuration options of the Fdb Client.
+### Exposed features
 
-## Example
+| Features | Notes |
+| --- | --- |
+| `fdb-5_1` | Support for FoundationDB 5.1.X |
+| `fdb-5_2` | Support for FoundationDB 5.2.X |
+| `fdb-6_0` | Support for FoundationDB 6.0.X |
+| `fdb-6_1` | Support for FoundationDB 6.1.X |
+| `fdb-6_2` | Support for FoundationDB 6.2.X |
+| `fdb-6_3` | Support for FoundationDB 6.3.X |
+| `embedded-fdb-include` | Use the locally embedded FoundationDB fdb_c.h and fdb.options files to compile |
+| `uuid` | Support for the uuid crate for Tuples |
+| `num-bigint` | Support for the bigint crate for Tuples |
+
+### Hello, World using the crate
+
+We are going to use the Tokio runtime for this example:
 
 ```rust
 use futures::prelude::*;
 
-async fn async_main() -> foundationdb::FdbResult<()> {
+#[tokio::main]
+async fn main() {
+    // Safe because drop is called before the program exits
+    let network = unsafe { foundationdb::boot() };
+
+    // Have fun with the FDB API
+    hello_world().await.expect("could not run the hello world");
+
+    // shutdown the client
+    drop(network);
+}
+
+async fn hello_world() -> foundationdb::FdbResult<()> {
     let db = foundationdb::Database::default()?;
 
     // write a value
@@ -97,30 +110,26 @@ async fn async_main() -> foundationdb::FdbResult<()> {
     let value = maybe_value.unwrap(); // unwrap the option
 
     assert_eq!(b"world", &value.as_ref());
-
     Ok(())
 }
-
-// Safe because drop is called before the program exits
-let network = unsafe { foundationdb::boot() };
-futures::executor::block_on(async_main()).expect("failed to run");
-drop(network);
 ```
 
-```rust
-#[tokio::main]
-async fn main() {
-    // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
+## Additional notes
 
-    // Have fun with the FDB API
+### The class-scheduling tutorial 
 
-    // shutdown the client
-    drop(network);
-}
-```
+The official FoundationDB's tutorial is called the [Class Scheduling](https://apple.github.io/foundationdb/class-scheduling.html). You can find the Rust version in the [examples](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples).
 
-## Migration from 0.4 to 0.5
+### Must-read documentations
+
+* [Developer Guide](https://apple.github.io/foundationdb/developer-guide.html)
+* [Data Modeling Guide](https://apple.github.io/foundationdb/data-modeling.html)
+
+### Initialization
+
+Due to limitations in the C API, the Client and it's associated Network can only be initialized and run once per the life of a process. Generally the `foundationdb::boot` function will be enough to initialize the Client. See `foundationdb::api` for more configuration options of the Fdb Client.
+
+###  Migration from 0.4 to 0.5
 
 The initialization of foundationdb API has changed due to undefined behavior being possible with only safe code (issues #170, #181, pulls #179, #182).
 
@@ -146,6 +155,6 @@ futures::executor::block_on(async_main()).expect("failed to run");
 drop(network);
 ```
 
-## API stability
+### API stability
 
 _WARNING_ Until the 1.0 release of this library, the API may be in constant flux.

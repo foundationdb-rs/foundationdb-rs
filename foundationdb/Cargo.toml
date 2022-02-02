@@ -1,9 +1,10 @@
 [package]
 name = "foundationdb"
-version = "0.5.1"
+version = "0.6.0"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
+    "Pierre Zemb <contact@pierrezemb.fr>"
 ]
 edition = "2018"
 
@@ -40,10 +41,10 @@ fdb-6_2 = ["foundationdb-sys/fdb-6_2", "foundationdb-gen/fdb-6_2"]
 fdb-6_3 = ["foundationdb-sys/fdb-6_3", "foundationdb-gen/fdb-6_3"]
 
 [build-dependencies]
-foundationdb-gen = { version = "0.5.1", path = "../foundationdb-gen", default-features = false }
+foundationdb-gen = { version = "0.6.0", path = "../foundationdb-gen", default-features = false }
 
 [dependencies]
-foundationdb-sys = { version = "0.5.1", path = "../foundationdb-sys", default-features = false }
+foundationdb-sys = { version = "0.6.0", path = "../foundationdb-sys", default-features = false }
 futures = "0.3.14"
 memchr = "2.2.1"
 rand = { version = "0.7.2", features = ["default", "small_rng"] }
