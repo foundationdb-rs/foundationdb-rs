@@ -133,23 +133,13 @@ Due to limitations in the C API, the Client and it's associated Network can only
 
 The initialization of foundationdb API has changed due to undefined behavior being possible with only safe code (issues #170, #181, pulls #179, #182).
 
-Previously you had to wrote:
-
-```rust
-let network = foundationdb::boot().expect("failed to initialize Fdb");
-
-futures::executor::block_on(async_main()).expect("failed to run");
-// cleanly shutdown the client
-drop(network);
-```
-
-This can be converted to:
+Previously you had to wrote `foundationdb::boot().expect("failed to initialize Fdb");`, now this can be converted to:
 
 ```rust
 // Safe because drop is called before the program exits
 let network = unsafe { foundationdb::boot() };
 
-futures::executor::block_on(async_main()).expect("failed to run");
+// do stuff
 
 // cleanly shutdown the client
 drop(network);
