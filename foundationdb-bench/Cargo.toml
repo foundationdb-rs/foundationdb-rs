@@ -5,7 +5,8 @@ authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
 ]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 
 description = """
 Bindings to the C api for FoundationDB
