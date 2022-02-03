@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.6.0
+
+- #33: Bump MSRV to Rust 2021 (1.56.0)
+- #26: Add Directory
+- #19: Add and defaults to foundationdb 6.3.x API version
+- #15: Introduce Platform tier
+- #11: Move from master branch to main
+- Moved repo from Clikengo to foundationdb-rs
+
 ## 0.5.1
 
 - #207: Better documentation of API init methods
