@@ -1,9 +1,5 @@
 name: Scheduled correctness
 
-on:
-  schedule:
-  - cron: "0 * * * *"
-
 jobs:
   bindingtester:
     uses: foundationdb-rs/foundationdb-rs/.github/workflows/correctness.yml@main
