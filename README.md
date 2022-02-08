@@ -1,5 +1,6 @@
 [![Discord](https://img.shields.io/discord/925467557903884349)](https://discord.gg/zkgtbtFfWY)
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/foundationdb-rs/foundationdb-rs/CI)](https://github.com/foundationdb-rs/foundationdb-rs/actions)
+[![dependency status](https://deps.rs/repo/github/foundationdb-rs/foundationdb-rs/status.svg)](https://deps.rs/repo/github/foundationdb-rs/foundationdb-rs)
 [![Codecov](https://img.shields.io/codecov/c/github/foundationdb-rs/foundationdb-rs)](https://codecov.io/gh/foundationdb-rs/foundationdb-rs)
 ![Rustc 1.56+](https://img.shields.io/badge/rustc-1.56+-lightgrey)
 
