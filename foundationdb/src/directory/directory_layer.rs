@@ -572,12 +572,13 @@ impl DirectoryLayer {
             .await?
             .ok_or(DirectoryError::PathDoesNotExists)?;
         let old_node_exists_in_partition = old_node.is_in_partition(false);
+
         if let Some(new_node) = self.find(trx, new_path).await? {
             let new_node_exists_in_partition = new_node.is_in_partition(false);
             if old_node_exists_in_partition || new_node_exists_in_partition {
                 if !old_node_exists_in_partition
                     || !new_node_exists_in_partition
-                    || old_node.current_path.eq(&new_node.current_path)
+                    || !old_node.current_path.eq(&new_node.current_path)
                 {
                     return Err(DirectoryError::CannotMoveBetweenPartition);
                 }
