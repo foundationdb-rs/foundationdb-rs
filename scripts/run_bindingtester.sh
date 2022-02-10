@@ -14,6 +14,7 @@ cd "${fdb_builddir:?}/foundationdb"
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 2483220251
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 241550211
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 1508488514
+./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 4203526853
 
 START=1
 END=${1-1}
