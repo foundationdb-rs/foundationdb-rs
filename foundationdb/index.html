@@ -1,32 +1,77 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="FoundationDB Rust Client API"><meta name="keywords" content="rust, rustlang, rust-lang, foundationdb"><title>foundationdb - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings" ></script><script src="../storage.js"></script><script src="../crates.js"></script><script defer src="../main.js"></script>
-    <noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../foundationdb/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><h2 class="location">Crate foundationdb</h2><div class="block version"><div class="narrow-helper"></div><p>Version 0.5.1</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all foundationdb's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><div id="sidebar-vars" data-name="foundationdb" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../wheel.svg"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">foundationdb</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/foundationdb/lib.rs.html#8-175" title="goto source code">[src]</a></span></h1><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="foundationdb-rust-client-api" class="section-header"><a href="#foundationdb-rust-client-api">FoundationDB Rust Client API</a></h2>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="FoundationDB Rust Client API"><meta name="keywords" content="rust, rustlang, rust-lang, foundationdb"><title>foundationdb - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../dark.css" disabled><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script src="../crates.js"></script><script defer src="../main.js"></script>
+    <noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a class="sidebar-logo" href="../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.png" alt="logo"></div>
+        </a><h2 class="location">Crate foundationdb</h2><div class="block version"><div class="narrow-helper"></div><p>Version 0.6.0</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all foundationdb's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><div id="sidebar-vars" data-name="foundationdb" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../foundationdb/index.html"><img class="rust-logo" src="../rust-logo.png" alt="logo"></a><nav class="sub"><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">foundationdb</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/foundationdb/lib.rs.html#7-88" title="goto source code">[src]</a></span></h1><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="foundationdb-rust-client-api" class="section-header"><a href="#foundationdb-rust-client-api">FoundationDB Rust Client API</a></h2>
 <p>This is a wrapper library around the FoundationDB (Fdb) C API. It implements futures based interfaces over the Fdb future C implementations.</p>
-<h3 id="prerequisites" class="section-header"><a href="#prerequisites">Prerequisites</a></h3><h4 id="install-foundationdb" class="section-header"><a href="#install-foundationdb">Install FoundationDB</a></h4>
-<p>Install FoundationDB on your system, see <a href="https://apple.github.io/foundationdb/local-dev.html">FoundationDB Local Development</a>, or these instructions:</p>
+<h3 id="prerequisites" class="section-header"><a href="#prerequisites">Prerequisites</a></h3>
 <ul>
-<li>Ubuntu Linux (this may work on the Linux subsystem for Windows as well)</li>
+<li>Rust 1.56 or more,</li>
+<li>FoundationDB’s client installed.</li>
 </ul>
-<div class="example-wrap"><pre class="language-console"><code>$&gt; curl -O https://www.foundationdb.org/downloads/6.2.25/ubuntu/installers/foundationdb-clients_6.2.25-1_amd64.deb
-$&gt; curl -O https://www.foundationdb.org/downloads/6.2.25/ubuntu/installers/foundationdb-server_6.2.25-1_amd64.deb
-$&gt; sudo dpkg -i foundationdb-clients_6.2.25-1_amd64.deb
-$&gt; sudo dpkg -i foundationdb-server_6.2.25-1_amd64.deb</code></pre></div>
+<h3 id="platform-support" class="section-header"><a href="#platform-support">Platform Support</a></h3>
+<p>Support for different platforms (“targets”) are organized into three tiers, each with a different set of guarantees. For more information on the policies for targets at each tier, see the <a href="#target-tier-policy">Target Tier Policy</a>.</p>
+<div><table><thead><tr><th>Platform</th><th>Tier</th><th>Notes</th></tr></thead><tbody>
+<tr><td>linux x86_64</td><td>1</td><td></td></tr>
+<tr><td>osx x86_64</td><td>2</td><td></td></tr>
+<tr><td>Windows x86_64</td><td>3</td><td><a href="https://github.com/apple/foundationdb/issues/5135">Windows build has been officially discontinue, now maintained by the community</a></td></tr>
+<tr><td>osx Silicon</td><td>3</td><td><a href="https://forums.foundationdb.org/t/arm-client-library/3072">Waiting for official dylib support</a></td></tr>
+</tbody></table>
+</div>
+<p>For more information on the policies for targets at each tier, see the</p>
+<h3 id="target-tier-policy" class="section-header"><a href="#target-tier-policy">Target Tier Policy</a></h3><h4 id="tier-1" class="section-header"><a href="#tier-1">Tier 1</a></h4>
+<p><code>Tier 1</code> targets can be thought of as “guaranteed to work”. This means that:</p>
 <ul>
-<li>macOS</li>
+<li>we are actively checking correctness with the <a href="https://github.com/apple/foundationdb/blob/master/bindings/bindingtester/spec/bindingApiTester.md">BindingTester</a>,</li>
+<li>we are running classic Rust tests on each pull requests,</li>
+<li>you can use the crate on the platform.</li>
 </ul>
-<div class="example-wrap"><pre class="language-console"><code>$&gt; curl -O https://www.foundationdb.org/downloads/6.2.25/macOS/installers/FoundationDB-6.2.25.pkg
-$&gt; sudo installer -pkg FoundationDB-6.2.25.pkg -target /</code></pre></div>
+<h4 id="tier-2" class="section-header"><a href="#tier-2">Tier 2</a></h4>
+<p><code>Tier 2</code> targets can be thought of as “guaranteed to build”. This means that:</p>
 <ul>
-<li>Windows</li>
+<li>we are running classic Rust tests on each pull requests,</li>
+<li>you can use the crate on the platform.</li>
 </ul>
-<p>Install <a href="https://www.foundationdb.org/downloads/6.2.25/windows/installers/foundationdb-6.2.25-x64.msi">foundationdb-6.2.25-x64.msi</a></p>
-<h3 id="add-dependencies-on-foundationdb-rs" class="section-header"><a href="#add-dependencies-on-foundationdb-rs">Add dependencies on foundationdb-rs</a></h3><div class="example-wrap"><pre class="language-toml"><code>[dependencies]
-foundationdb = &quot;0.5&quot;
-futures = &quot;0.3&quot;</code></pre></div><h3 id="initialization" class="section-header"><a href="#initialization">Initialization</a></h3>
-<p>Due to limitations in the C API, the Client and it’s associated Network can only be initialized and run once per the life of a process. Generally the <code>foundationdb::init</code> function will be enough to initialize the Client. See <code>foundationdb::default_api</code> and <code>foundationdb::builder</code> for more configuration options of the Fdb Client.</p>
-<h3 id="example" class="section-header"><a href="#example">Example</a></h3>
+<p>But we are not checking correctness.</p>
+<h4 id="tier-3" class="section-header"><a href="#tier-3">Tier 3</a></h4>
+<p><code>Tier 3</code> targets are platforms we would like to have as Tier 2. You might be able to compile, but no CI has been set up.</p>
+<h3 id="getting-started" class="section-header"><a href="#getting-started">Getting Started</a></h3><h4 id="install-foundationdb" class="section-header"><a href="#install-foundationdb">Install FoundationDB</a></h4>
+<p>You first need to install FoundationDB. You can follow the official documentation:</p>
+<ul>
+<li><a href="https://apple.github.io/foundationdb/getting-started-linux.html">Getting Started on Linux</a></li>
+<li><a href="https://apple.github.io/foundationdb/getting-started-mac.html">Getting started on macOS</a></li>
+</ul>
+<h4 id="add-dependencies-on-foundationdb-rs" class="section-header"><a href="#add-dependencies-on-foundationdb-rs">Add dependencies on foundationdb-rs</a></h4><div class="example-wrap"><pre class="language-toml"><code>[dependencies]
+foundationdb = &quot;0.6&quot;
+futures = &quot;0.3&quot;</code></pre></div>
+<p>This Rust crate is not tied to any Async Runtime.</p>
+<h4 id="exposed-features" class="section-header"><a href="#exposed-features">Exposed features</a></h4><div><table><thead><tr><th>Features</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>fdb-5_1</code></td><td>Support for FoundationDB 5.1.X</td></tr>
+<tr><td><code>fdb-5_2</code></td><td>Support for FoundationDB 5.2.X</td></tr>
+<tr><td><code>fdb-6_0</code></td><td>Support for FoundationDB 6.0.X</td></tr>
+<tr><td><code>fdb-6_1</code></td><td>Support for FoundationDB 6.1.X</td></tr>
+<tr><td><code>fdb-6_2</code></td><td>Support for FoundationDB 6.2.X</td></tr>
+<tr><td><code>fdb-6_3</code></td><td>Support for FoundationDB 6.3.X</td></tr>
+<tr><td><code>embedded-fdb-include</code></td><td>Use the locally embedded FoundationDB fdb_c.h and fdb.options files to compile</td></tr>
+<tr><td><code>uuid</code></td><td>Support for the uuid crate for Tuples</td></tr>
+<tr><td><code>num-bigint</code></td><td>Support for the bigint crate for Tuples</td></tr>
+</tbody></table>
+</div><h4 id="hello-world-using-the-crate" class="section-header"><a href="#hello-world-using-the-crate">Hello, World using the crate</a></h4>
+<p>We are going to use the Tokio runtime for this example:</p>
+
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 
-<span class="kw">async</span> <span class="kw">fn</span> <span class="ident">async_main</span>() -&gt; <span class="ident">foundationdb::FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+<span class="attribute">#[<span class="ident">tokio::main</span>]</span>
+<span class="kw">async</span> <span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="comment">// Safe because drop is called before the program exits</span>
+    <span class="kw">let</span> <span class="ident">network</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">foundationdb::boot</span>() };
+
+    <span class="comment">// Have fun with the FDB API</span>
+    <span class="ident">hello_world</span>().<span class="kw">await</span>.<span class="ident">expect</span>(<span class="string">&quot;could not run the hello world&quot;</span>);
+
+    <span class="comment">// shutdown the client</span>
+    <span class="ident">drop</span>(<span class="ident">network</span>);
+}
+
+<span class="kw">async</span> <span class="kw">fn</span> <span class="ident">hello_world</span>() -&gt; <span class="ident">foundationdb::FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">db</span> <span class="op">=</span> <span class="ident">foundationdb::Database::default</span>()<span class="question-mark">?</span>;
 
     <span class="comment">// write a value</span>
@@ -40,26 +85,29 @@ futures = &quot;0.3&quot;</code></pre></div><h3 id="initialization" class="secti
     <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">maybe_value</span>.<span class="ident">unwrap</span>(); <span class="comment">// unwrap the option</span>
 
     <span class="macro">assert_eq!</span>(<span class="string">b&quot;world&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">value</span>.<span class="ident">as_ref</span>());
-
     <span class="prelude-val">Ok</span>(())
-}
-
-<span class="comment">// Safe because drop is called before the program exits</span>
-<span class="kw">let</span> <span class="ident">network</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">foundationdb::boot</span>() };
-<span class="ident">futures::executor::block_on</span>(<span class="ident">async_main</span>()).<span class="ident">expect</span>(<span class="string">&quot;failed to run&quot;</span>);
-<span class="ident">drop</span>(<span class="ident">network</span>);</code></pre></div>
-
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attribute">#[<span class="ident">tokio::main</span>]</span>
-<span class="kw">async</span> <span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="comment">// Safe because drop is called before the program exits</span>
-    <span class="kw">let</span> <span class="ident">network</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">foundationdb::boot</span>() };
-
-    <span class="comment">// Have fun with the FDB API</span>
-
-    <span class="comment">// shutdown the client</span>
-    <span class="ident">drop</span>(<span class="ident">network</span>);
 }</code></pre></div>
-<h3 id="api-stability" class="section-header"><a href="#api-stability">API stability</a></h3>
+<h3 id="additional-notes" class="section-header"><a href="#additional-notes">Additional notes</a></h3><h4 id="the-class-scheduling-tutorial" class="section-header"><a href="#the-class-scheduling-tutorial">The class-scheduling tutorial</a></h4>
+<p>The official FoundationDB’s tutorial is called the <a href="https://apple.github.io/foundationdb/class-scheduling.html">Class Scheduling</a>. You can find the Rust version in the <a href="https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples">examples</a>.</p>
+<h4 id="must-read-documentations" class="section-header"><a href="#must-read-documentations">Must-read documentations</a></h4>
+<ul>
+<li><a href="https://apple.github.io/foundationdb/developer-guide.html">Developer Guide</a></li>
+<li><a href="https://apple.github.io/foundationdb/data-modeling.html">Data Modeling Guide</a></li>
+</ul>
+<h4 id="initialization" class="section-header"><a href="#initialization">Initialization</a></h4>
+<p>Due to limitations in the C API, the Client and it’s associated Network can only be initialized and run once per the life of a process. Generally the <code>foundationdb::boot</code> function will be enough to initialize the Client. See <code>foundationdb::api</code> for more configuration options of the Fdb Client.</p>
+<h4 id="migration-from-04-to-05" class="section-header"><a href="#migration-from-04-to-05">Migration from 0.4 to 0.5</a></h4>
+<p>The initialization of foundationdb API has changed due to undefined behavior being possible with only safe code (issues #170, #181, pulls #179, #182).</p>
+<p>Previously you had to wrote <code>foundationdb::boot().expect(&quot;failed to initialize Fdb&quot;);</code>, now this can be converted to:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Safe because drop is called before the program exits</span>
+<span class="kw">let</span> <span class="ident">network</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">foundationdb::boot</span>() };
+
+<span class="comment">// do stuff</span>
+
+<span class="comment">// cleanly shutdown the client</span>
+<span class="ident">drop</span>(<span class="ident">network</span>);</code></pre></div>
+<h4 id="api-stability" class="section-header"><a href="#api-stability">API stability</a></h4>
 <p><em>WARNING</em> Until the 1.0 release of this library, the API may be in constant flux.</p>
 </div></details><h2 id="modules" class="small-section-header"><a href="#modules">Modules</a></h2>
 <div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="mod" href="api/index.html" title="foundationdb::api mod">api</a></div><div class="item-right docblock-short"><p>Configuration of foundationDB API and Network</p>
@@ -85,5 +133,5 @@ may return to the caller before actually delivering their Fdbresult.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.default_config_path.html" title="foundationdb::default_config_path fn">default_config_path</a></div><div class="item-right docblock-short"><p>Returns the default Fdb cluster configuration file path</p>
 </div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2>
 <div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.FdbResult.html" title="foundationdb::FdbResult type">FdbResult</a></div><div class="item-right docblock-short"><p>Alias for <code>Result&lt;..., FdbError&gt;</code></p>
-</div></div></div></section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="foundationdb" data-search-index-js="../search-index.js" data-search-js="../search.js"></div>
+</div></div></div></section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0 (9d1b2106e 2022-02-23)" ></div>
 </body></html>
