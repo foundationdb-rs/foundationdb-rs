@@ -176,7 +176,7 @@ impl HighContentionAllocator {
                 // full, so this should be expected to take 2 tries.  Under high
                 // contention (and when the window advances), there is an additional
                 // subsequent risk of conflict for this transaction.
-                let candidate: i64 = rng.gen_range(start, start + window);
+                let candidate: i64 = rng.gen_range(start..start + window);
                 let recent_candidate = self.recent.subspace(&candidate);
 
                 let (latest_counter, candidate_value) = {
