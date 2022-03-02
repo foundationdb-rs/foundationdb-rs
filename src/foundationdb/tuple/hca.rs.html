@@ -408,7 +408,7 @@
                 <span class="comment">// full, so this should be expected to take 2 tries.  Under high</span>
                 <span class="comment">// contention (and when the window advances), there is an additional</span>
                 <span class="comment">// subsequent risk of conflict for this transaction.</span>
-                <span class="kw">let</span> <span class="ident">candidate</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="ident">start</span>, <span class="ident">start</span> <span class="op">+</span> <span class="ident">window</span>);
+                <span class="kw">let</span> <span class="ident">candidate</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="ident">start</span>..<span class="ident">start</span> <span class="op">+</span> <span class="ident">window</span>);
                 <span class="kw">let</span> <span class="ident">recent_candidate</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">recent</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="ident">candidate</span>);
 
                 <span class="kw">let</span> (<span class="ident">latest_counter</span>, <span class="ident">candidate_value</span>) <span class="op">=</span> {
