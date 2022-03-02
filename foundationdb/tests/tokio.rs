@@ -8,7 +8,7 @@ mod common;
 #[test]
 fn test_tokio_send() {
     let _guard = unsafe { foundationdb::boot() };
-    let mut rt = Runtime::new().unwrap();
+    let rt = Runtime::new().unwrap();
     rt.block_on(async {
         do_transact().await;
         do_trx().await;

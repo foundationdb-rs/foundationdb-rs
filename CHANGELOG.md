@@ -5,6 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.6.0
 
+- #34: Bump dependencies
 - #33: Bump MSRV to Rust 2021 (1.56.0)
 - #26: Add Directory
 - #19: Add and defaults to foundationdb 6.3.x API version
