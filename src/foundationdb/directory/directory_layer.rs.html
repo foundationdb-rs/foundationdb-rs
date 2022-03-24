@@ -1018,7 +1018,7 @@
         <span class="ident">allow_create</span>: <span class="ident">bool</span>,
         <span class="ident">allow_open</span>: <span class="ident">bool</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">DirectoryOutput</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">check_version</span>(<span class="ident">trx</span>, <span class="ident">allow_create</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">check_version</span>(<span class="ident">trx</span>, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">if</span> <span class="ident">prefix</span>.<span class="ident">is_some</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">allow_manual_prefixes</span> {
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">is_empty</span>() {
