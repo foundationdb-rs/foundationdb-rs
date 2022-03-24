@@ -221,7 +221,7 @@ impl DirectoryLayer {
         allow_create: bool,
         allow_open: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.check_version(trx, allow_create).await?;
+        self.check_version(trx, false).await?;
 
         if prefix.is_some() && !self.allow_manual_prefixes {
             if self.path.is_empty() {
