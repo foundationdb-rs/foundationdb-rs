@@ -550,7 +550,7 @@ impl DirectoryLayer {
             };
         }
 
-        Ok(node.list_sub_folders(trx).await?)
+        node.list_sub_folders(trx).await
     }
 
     async fn move_to_internal(

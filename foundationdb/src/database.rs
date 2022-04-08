@@ -240,7 +240,7 @@ mod boxed {
         ) -> Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>,
         E: TransactError,
     {
-        let r = (&mut f.f)(&trx, &mut f.d).await;
+        let r = (f.f)(&trx, &mut f.d).await;
         (f, trx, r)
     }
 
@@ -293,7 +293,7 @@ mod boxed_local {
         ) -> Pin<Box<dyn Future<Output = Result<T, E>> + 'a>>,
         E: TransactError,
     {
-        let r = (&mut f.f)(&trx, &mut f.d).await;
+        let r = (f.f)(&trx, &mut f.d).await;
         (f, trx, r)
     }
 
