@@ -308,7 +308,7 @@ impl DirectoryLayer {
 
         let layer = layer.unwrap_or_default();
 
-        self.check_version(trx, allow_create).await?;
+        self.check_version(trx, true).await?;
         let new_prefix = self.get_prefix(trx, prefix).await?;
 
         let is_prefix_free = self
@@ -550,7 +550,7 @@ impl DirectoryLayer {
             };
         }
 
-        Ok(node.list_sub_folders(trx).await?)
+        node.list_sub_folders(trx).await
     }
 
     async fn move_to_internal(
@@ -567,35 +567,42 @@ impl DirectoryLayer {
             return Err(DirectoryError::CannotMoveBetweenSubdirectory);
         }
 
-        let old_node = self
-            .find(trx, old_path)
-            .await?
-            .ok_or(DirectoryError::PathDoesNotExists)?;
+        let old_node = self.find(trx, old_path).await?;
+        let new_node = self.find(trx, new_path).await?;
+
+        let old_node = match old_node {
+            None => return Err(DirectoryError::PathDoesNotExists),
+            Some(n) => n,
+        };
         let old_node_exists_in_partition = old_node.is_in_partition(false);
 
-        if let Some(new_node) = self.find(trx, new_path).await? {
-            let new_node_exists_in_partition = new_node.is_in_partition(false);
-            if old_node_exists_in_partition || new_node_exists_in_partition {
-                if !old_node_exists_in_partition
-                    || !new_node_exists_in_partition
-                    || !old_node.current_path.eq(&new_node.current_path)
-                {
+        match new_node {
+            None => {
+                if old_node_exists_in_partition {
                     return Err(DirectoryError::CannotMoveBetweenPartition);
                 }
-
-                return new_node
-                    .get_contents()?
-                    .move_to(
-                        trx,
-                        &old_node.get_partition_subpath(),
-                        &new_node.get_partition_subpath(),
-                    )
-                    .await;
             }
+            Some(new_node) => {
+                let new_node_exists_in_partition = new_node.is_in_partition(false);
+                if old_node_exists_in_partition || new_node_exists_in_partition {
+                    if !old_node_exists_in_partition
+                        || !new_node_exists_in_partition
+                        || !old_node.current_path.eq(&new_node.current_path)
+                    {
+                        return Err(DirectoryError::CannotMoveBetweenPartition);
+                    }
 
-            return Err(DirectoryError::DirAlreadyExists);
-        } else if old_node_exists_in_partition {
-            return Err(DirectoryError::CannotMoveBetweenPartition);
+                    return new_node
+                        .get_contents()?
+                        .move_to(
+                            trx,
+                            &old_node.get_partition_subpath(),
+                            &new_node.get_partition_subpath(),
+                        )
+                        .await;
+                }
+                return Err(DirectoryError::DirAlreadyExists);
+            }
         }
 
         let (new_path_last, parent_path) = new_path

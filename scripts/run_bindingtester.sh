@@ -22,6 +22,9 @@ cd "${fdb_builddir:?}/foundationdb"
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 1951034301
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 1700644945
 
+# https://github.com/foundationdb-rs/foundationdb-rs/issues/42
+./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version 630 --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 584458794
+
 START=1
 END=${1-1}
 for i in $(eval echo "{$START..$END}")
