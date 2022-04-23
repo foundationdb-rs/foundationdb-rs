@@ -22,7 +22,7 @@ esac
   cd ${fdb_builddir:?}
 
   ## Get foundationdb source
-  git clone --depth 1 https://github.com/apple/foundationdb.git -b release-6.3
+  git clone --depth 1 https://github.com/apple/foundationdb.git -b release-7.0
   cd foundationdb
   git checkout release-6.3
 
