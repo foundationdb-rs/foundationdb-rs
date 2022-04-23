@@ -92,6 +92,7 @@ fn main() {
         .clang_arg(INCLUDE_PATH)
         .header(wrapper_path)
         .generate_comments(true)
+        .layout_tests(false)
         .generate()
         .expect("Unable to generate FoundationDB bindings");
     bindings
