@@ -165,4 +165,9 @@ fn main() {
     let digest_data_from_database = sha256_hex_digest(data_from_database);
 
     assert_eq!(digest_data_from_database, digest_input);
+
+    println!(
+        "Hex digest of file {} =>\n {}\nHex digest of stored data for key {} =>\n {}",
+        file_name, digest_input, file_name, digest_data_from_database
+    );
 }
