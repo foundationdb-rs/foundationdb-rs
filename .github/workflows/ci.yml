@@ -104,6 +104,18 @@ jobs:
           command: run
           args: --example class-scheduling
 
+      - name: Example simple-index
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example simple-index
+      
+      - name: Example blob
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example blob  
+
   bindingtester:
     name: Binding Tester
     runs-on: ubuntu-latest
