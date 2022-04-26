@@ -28,11 +28,12 @@ static GOT_COMMITTED_VERSION: Element =
 static ERROR_NONE: Element = Element::Bytes(Bytes(Cow::Borrowed(b"ERROR: NONE")));
 static ERROR_MULTIPLE: Element = Element::Bytes(Bytes(Cow::Borrowed(b"ERROR: MULTIPLE")));
 static OK: Element = Element::Bytes(Bytes(Cow::Borrowed(b"OK")));
+#[cfg(any(feature = "fdb-6_3", feature = "fdb-7_0"))]
 static ESTIMATE_RANGE_RESPONSE: Element =
     Element::Bytes(Bytes(Cow::Borrowed(b"GOT_ESTIMATED_RANGE_SIZE")));
 static ERROR_DIRECTORY: Element = Element::Bytes(Bytes(Cow::Borrowed(b"DIRECTORY_ERROR")));
 
-#[cfg(any(feature = "fdb-6_3", feature = "fdb-6_2"))]
+#[cfg(any(feature = "fdb-7_0", feature = "fdb-6_3", feature = "fdb-6_2"))]
 static GOT_APPROXIMATE_SIZE: Element =
     Element::Bytes(Bytes(Cow::Borrowed(b"GOT_APPROXIMATE_SIZE")));
 
@@ -1358,7 +1359,7 @@ impl StackMachine {
             // limits, so these bindings can obtain different sizes back.
             GetApproximateSize => {
                 debug!("get_approximate_size");
-                #[cfg(any(feature = "fdb-6_3", feature = "fdb-6_2"))]
+                #[cfg(any(feature = "fdb-7_0", feature = "fdb-6_3", feature = "fdb-6_2"))]
                 {
                     trx.as_mut()
                         .get_approximate_size()
@@ -1366,7 +1367,7 @@ impl StackMachine {
                         .expect("failed to get approximate size");
                     self.push(number, GOT_APPROXIMATE_SIZE.clone().into_owned());
                 }
-                #[cfg(not(any(feature = "fdb-6_3", feature = "fdb-6_2")))]
+                #[cfg(not(any(feature = "fdb-7_0", feature = "fdb-6_3", feature = "fdb-6_2")))]
                 {
                     unimplemented!("get_approximate_size requires fdb620+");
                 }
@@ -1388,7 +1389,7 @@ impl StackMachine {
             // push the string "GOT_ESTIMATED_RANGE_SIZE" onto the stack.
             GetEstimatedRangeSize => {
                 debug!("get estimated range size");
-                #[cfg(feature = "fdb-6_3")]
+                #[cfg(any(feature = "fdb-6_3", feature = "fdb-7_0"))]
                 {
                     let begin = self.pop_bytes().await;
                     let end = self.pop_bytes().await;
@@ -1407,7 +1408,7 @@ impl StackMachine {
                         }
                     };
                 }
-                #[cfg(not(feature = "fdb-6_3"))]
+                #[cfg(not(any(feature = "fdb-6_3", feature = "fdb-7_0")))]
                 {
                     unimplemented!("get_estimated_range_size requires fdb630+");
                 }

@@ -260,9 +260,12 @@ pub struct FdbKeys {
     keys: *const fdb_sys::FDBKey,
     len: i32,
 }
+#[cfg(feature = "fdb-7_0")]
 unsafe impl Sync for FdbKeys {}
+#[cfg(feature = "fdb-7_0")]
 unsafe impl Send for FdbKeys {}
 
+#[cfg(feature = "fdb-7_0")]
 impl TryFrom<FdbFutureHandle> for FdbKeys {
     type Error = FdbError;
 
@@ -276,6 +279,7 @@ impl TryFrom<FdbFutureHandle> for FdbKeys {
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl Deref for FdbKeys {
     type Target = [FdbKey];
     fn deref(&self) -> &Self::Target {
@@ -288,12 +292,14 @@ impl Deref for FdbKeys {
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl AsRef<[FdbKey]> for FdbKeys {
     fn as_ref(&self) -> &[FdbKey] {
         self.deref()
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl<'a> IntoIterator for &'a FdbKeys {
     type Item = &'a FdbKey;
     type IntoIter = std::slice::Iter<'a, FdbKey>;
@@ -303,6 +309,7 @@ impl<'a> IntoIterator for &'a FdbKeys {
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 /// An iterator of keyvalues owned by a foundationDB future
 pub struct FdbKeysIter {
     f: Rc<FdbFutureHandle>,
@@ -311,6 +318,7 @@ pub struct FdbKeysIter {
     pos: i32,
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl Iterator for FdbKeysIter {
     type Item = FdbRowKey;
     fn next(&mut self) -> Option<Self::Item> {
@@ -344,6 +352,7 @@ impl Iterator for FdbKeysIter {
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl IntoIterator for FdbKeys {
     type Item = FdbRowKey;
     type IntoIter = FdbKeysIter;
@@ -512,11 +521,13 @@ impl DoubleEndedIterator for FdbValuesIter {
 ///
 /// Until dropped, this might prevent multiple key/values from beeing freed.
 /// (i.e. the future that own the data is dropped once all data it provided is dropped)
+#[cfg(feature = "fdb-7_0")]
 pub struct FdbRowKey {
     _f: Rc<FdbFutureHandle>,
     row_key: *const fdb_sys::FDBKey,
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl Deref for FdbRowKey {
     type Target = FdbKey;
     fn deref(&self) -> &Self::Target {
@@ -525,18 +536,22 @@ impl Deref for FdbRowKey {
         unsafe { &*(self.row_key as *const FdbKey) }
     }
 }
+#[cfg(feature = "fdb-7_0")]
 impl AsRef<FdbKey> for FdbRowKey {
     fn as_ref(&self) -> &FdbKey {
         self.deref()
     }
 }
+#[cfg(feature = "fdb-7_0")]
 impl PartialEq for FdbRowKey {
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl Eq for FdbRowKey {}
+#[cfg(feature = "fdb-7_0")]
 impl fmt::Debug for FdbRowKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.deref().fmt(f)
@@ -648,6 +663,8 @@ impl TryFrom<FdbFutureHandle> for () {
 #[cfg(feature = "fdb-7_0")]
 #[repr(transparent)]
 pub struct FdbKey(fdb_sys::FDBKey);
+
+#[cfg(feature = "fdb-7_0")]
 impl FdbKey {
     /// key
     pub fn key(&self) -> &[u8] {
@@ -655,13 +672,17 @@ impl FdbKey {
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl PartialEq for FdbKey {
     fn eq(&self, other: &Self) -> bool {
         self.key() == other.key()
     }
 }
 
+#[cfg(feature = "fdb-7_0")]
 impl Eq for FdbKey {}
+
+#[cfg(feature = "fdb-7_0")]
 impl fmt::Debug for FdbKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({:?})", crate::tuple::Bytes::from(self.key()),)
