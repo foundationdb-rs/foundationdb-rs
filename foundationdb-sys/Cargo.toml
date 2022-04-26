@@ -29,7 +29,7 @@ features = ["embedded-fdb-include"]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
 
 [features]
-default = ["fdb-7_0"]
+default = []
 # Use the locally embedded foundationdb fdb_c.h file
 embedded-fdb-include = []
 fdb-5_1 = []

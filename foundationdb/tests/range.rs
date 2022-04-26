@@ -267,6 +267,10 @@ async fn test_get_range_split_points() -> FdbResult<()> {
     let splits = trx
         .get_range_split_points(key_begin.as_bytes(), key_end.as_bytes(), 100)
         .await?;
+    assert!(splits.len() > 0);
+    splits
+        .iter()
+        .map(|key| eprintln!("split point: {:?}", key.key()));
 
     Ok(())
 }
