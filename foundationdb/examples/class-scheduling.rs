@@ -363,11 +363,13 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
     println!("Ran {} transactions", students * ops_per_student);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let _guard = unsafe { fdb::boot() };
-    let db = futures::executor::block_on(fdb::Database::new_compat(None))
+    let db = fdb::Database::new_compat(None)
+        .await
         .expect("failed to get database");
-    futures::executor::block_on(init(&db, &*ALL_CLASSES));
+    init(&db, &*ALL_CLASSES).await;
     println!("Initialized");
-    futures::executor::block_on(run_sim(&db, 10, 10));
+    run_sim(&db, 10, 10).await;
 }
