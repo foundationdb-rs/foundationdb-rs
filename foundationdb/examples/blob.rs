@@ -1,8 +1,10 @@
-use foundationdb::tuple::Subspace;
+use foundationdb::tuple::{pack, unpack, PackError, Subspace};
 use foundationdb::{Database, RangeOption};
+use pretty_bytes::converter::convert;
 use ring::digest::{Context, SHA256};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
+use uuid::Uuid;
 
 ///
 /// The goal of this example is to create a record entry for a binary data.
@@ -72,15 +74,24 @@ fn load_bytes_from_file(path: &str) -> (Vec<u8>, String) {
 
 static CHUNK_SIZE: usize = 1024;
 
-/// Writes to database a slice of data chunked with the specified chunk size if any
-/// and with the corresponding key name into the given subspace
-async fn write_blob(
-    db: &Database,
-    subspace: &Subspace,
-    key_name: &str,
-    data: &Vec<u8>,
-    chunk_size: Option<usize>,
-) {
+/// Write slice of data to database using given subspace
+async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
+    if data.len() == 0 {
+        return;
+    }
+
+    let transaction = db.create_trx().expect("Unable to create transaction");
+
+    transaction.set(&subspace.bytes(), data.as_slice());
+    transaction
+        .commit()
+        .await
+        .expect("Unable to commit transaction");
+}
+
+/// Writes to database a slice of data chunked with to the given subspace
+/// If chunk size isn't provided **CHUNK_SIZE**
+async fn write_blob(db: &Database, subspace: &Subspace, data: &Vec<u8>, chunk_size: Option<usize>) {
     if data.len() == 0 {
         return;
     }
@@ -94,7 +105,7 @@ async fn write_blob(
         let start = i * chunk_size;
         let end = start + chunk.len();
 
-        let key = subspace.pack(&(key_name, format!("{:06}", start)));
+        let key = subspace.pack(&(start));
         transaction.set(&key, &data[start..end]);
         i += 1;
     });
@@ -105,29 +116,35 @@ async fn write_blob(
         .expect("Unable to commit transaction");
 }
 
-/// Gets data from database from the given subspace with specified key name.
-async fn read_blob(db: &Database, subspace: &Subspace, key_name: &str) -> Option<Vec<u8>> {
+/// Read data from database
+async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
     let transaction = db.create_trx().expect("Unable to create transaction");
 
-    let begin = subspace.pack(&(key_name));
-    let mut end = subspace.pack(&(key_name));
-    end.pop();
-    end.push(255_u8);
+    let get_result = transaction.get(subspace.bytes(), false).await;
 
-    let range = RangeOption::from((begin, end));
+    if let Ok(result) = get_result {
+        if let Some(data) = result {
+            return Some(data.to_vec());
+        }
+    }
 
-    // TODO : verify why iteration < 8 fails the test
-    let get_result = transaction.get_range(&range, 8, false).await;
+    None
+}
+
+/// Gets data from database from the given subspace with specified key name.
+async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
+    let transaction = db.create_trx().expect("Unable to create transaction");
+
+    let range = RangeOption::from(subspace.range());
+
+    let get_result = transaction.get_range(&range, 1_024, false).await;
 
     if let Ok(results) = get_result {
         let mut data: Vec<u8> = vec![];
 
         for result in results {
             let value = result.value();
-
             data.extend(value.into_iter());
-
-            // dbg!(String::from_utf8_lossy(&result.key()));
         }
 
         return Some(data);
@@ -136,38 +153,143 @@ async fn read_blob(db: &Database, subspace: &Subspace, key_name: &str) -> Option
     None
 }
 
-fn main() {
+struct FileManifest {
+    name: String,
+    chunk_size: Option<usize>,
+    digest: String,
+    size: usize,
+}
+
+impl FileManifest {
+    pub fn serialize(&self) -> Vec<u8> {
+        pack(&(&self.name, self.chunk_size, &self.digest, &self.size))
+    }
+
+    pub fn try_deserialize(value: &[u8]) -> Result<Self, PackError> {
+        let (name, chunk_size, digest, size): (String, Option<usize>, String, usize) =
+            unpack(value)?;
+
+        Ok(FileManifest {
+            name,
+            chunk_size,
+            digest,
+            size,
+        })
+    }
+}
+
+// impl Display for FileManifest {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         dbg!(String::from_utf8_lossy(&self.subspace.bytes()));
+//
+//         let (_, name, chunk_size): (String, String, usize) =
+//             unpack(&self.subspace.bytes()).expect("Unable to unpack data");
+//
+//         write!(f, "file: {}, chunk size: {}", name, chunk_size)
+//     }
+// }
+
+async fn populate_data(
+    db: &Database,
+    subspace: &Subspace,
+    file_names: &Vec<&str>,
+    chunk_sizes: &Vec<usize>,
+) -> Vec<Subspace> {
+    let mut files_subspace: Vec<Subspace> = vec![];
+
+    for file_name in file_names {
+        log::info!("Loading data and building sha256 digest for {}", file_name);
+        let (data, digest) = load_bytes_from_file(file_name);
+
+        for chunk_size in chunk_sizes {
+            let uuid = Uuid::new_v4();
+
+            let subspace_file = subspace.subspace(&(uuid));
+            let subspace_data = subspace_file.subspace(&("_data"));
+            let subspace_manifest = subspace_file.subspace(&("_manifest"));
+
+            println!(
+                "\tWriting blob {} with chunk of {}",
+                file_name,
+                convert(*chunk_size as f64)
+            );
+            write_blob(&db, &subspace_data, &data, Some(*chunk_size)).await;
+
+            let manifest = FileManifest {
+                name: file_name.to_string(),
+                chunk_size: Some(*chunk_size),
+                digest: digest.clone(),
+                size: data.len(),
+            }
+            .serialize();
+            write_data(&db, &subspace_manifest, &manifest).await;
+
+            files_subspace.push(subspace_file);
+        }
+
+        let uuid = Uuid::new_v4().to_string();
+        let subspace_file = subspace.subspace(&(uuid));
+        let subspace_data = subspace_file.subspace(&("_data"));
+        let subspace_manifest = subspace_file.subspace(&("_manifest"));
+
+        let manifest = FileManifest {
+            name: file_name.to_string(),
+            chunk_size: None,
+            digest: digest.clone(),
+            size: data.len(),
+        }
+        .serialize();
+        write_data(&db, &subspace_manifest, &manifest).await;
+        write_blob(&db, &subspace_data, &data, None).await;
+    }
+
+    files_subspace
+}
+
+async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
+    for file_subspace in files_subspaces {
+        let (_, uuid): (String, Uuid) =
+            unpack(&file_subspace.bytes()).expect("Unable to unpack file key");
+
+        let manifest_subspace = file_subspace.subspace(&("_manifest"));
+        let data_subspace = file_subspace.subspace(&("_data"));
+        let manifest_data = read_data(&db, &manifest_subspace)
+            .await
+            .expect("Unable to get manifest");
+        let manifest = FileManifest::try_deserialize(&manifest_data)
+            .expect("Unable to deserialize manifest data");
+
+        let data_from_database = read_blob(&db, &data_subspace).await;
+
+        let data_from_database = Cursor::new(data_from_database.unwrap());
+        let digest_data_from_database = sha256_hex_digest(data_from_database);
+
+        println!(
+            "Hex digest of file {} =>\n {}\nHex digest of stored data for key {} =>\n {}",
+            manifest.name,
+            manifest.digest,
+            uuid.to_string(),
+            digest_data_from_database
+        );
+        assert_eq!(digest_data_from_database, manifest.digest);
+    }
+}
+
+#[tokio::main]
+async fn main() {
     let _guard = unsafe { foundationdb::boot() };
-    let db =
-        futures::executor::block_on(Database::new_compat(None)).expect("Unable to create database");
+    let db = Database::new_compat(None)
+        .await
+        .expect("Unable to create database");
 
     // Create the subspace handling image data
-    let images_subspace = Subspace::from_bytes("images");
+    let images_subspace = Subspace::all().subspace(&("images"));
 
-    futures::executor::block_on(clear_subspace(&db, vec![&images_subspace]));
-    let file_name = "./assets/logo-400x400.png";
+    clear_subspace(&db, vec![&images_subspace]).await;
+    let file_names = vec!["./assets/logo-400x400.png"];
 
-    let (data, digest_input) = load_bytes_from_file(file_name);
+    let chunk_sizes = vec![500, 512, 1000, 2000, 4000, 10000, 20000];
 
-    futures::executor::block_on(write_blob(
-        &db,
-        &images_subspace,
-        file_name,
-        &data,
-        Some(512),
-    ));
-    let data_from_database =
-        futures::executor::block_on(read_blob(&db, &images_subspace, file_name));
-
-    assert_ne!(data_from_database, None);
-
-    let data_from_database = Cursor::new(data_from_database.unwrap());
-    let digest_data_from_database = sha256_hex_digest(data_from_database);
-
-    assert_eq!(digest_data_from_database, digest_input);
-
-    println!(
-        "Hex digest of file {} =>\n {}\nHex digest of stored data for key {} =>\n {}",
-        file_name, digest_input, file_name, digest_data_from_database
-    );
+    let files = populate_data(&db, &images_subspace, &file_names, &chunk_sizes).await;
+    check_data_stored(&db, files).await;
 }
