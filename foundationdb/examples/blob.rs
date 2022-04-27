@@ -2,6 +2,7 @@ use foundationdb::tuple::{pack, unpack, PackError, Subspace};
 use foundationdb::{Database, RangeOption};
 use pretty_bytes::converter::convert;
 use ring::digest::{Context, SHA256};
+use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use uuid::Uuid;
@@ -158,15 +159,22 @@ struct FileManifest {
     chunk_size: Option<usize>,
     digest: String,
     size: usize,
+    uuid: Uuid,
 }
 
 impl FileManifest {
     pub fn serialize(&self) -> Vec<u8> {
-        pack(&(&self.name, self.chunk_size, &self.digest, &self.size))
+        pack(&(
+            &self.name,
+            self.chunk_size,
+            &self.digest,
+            &self.size,
+            &self.uuid,
+        ))
     }
 
     pub fn try_deserialize(value: &[u8]) -> Result<Self, PackError> {
-        let (name, chunk_size, digest, size): (String, Option<usize>, String, usize) =
+        let (name, chunk_size, digest, size, uuid): (String, Option<usize>, String, usize, Uuid) =
             unpack(value)?;
 
         Ok(FileManifest {
@@ -174,20 +182,24 @@ impl FileManifest {
             chunk_size,
             digest,
             size,
+            uuid,
         })
     }
 }
 
-// impl Display for FileManifest {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         dbg!(String::from_utf8_lossy(&self.subspace.bytes()));
-//
-//         let (_, name, chunk_size): (String, String, usize) =
-//             unpack(&self.subspace.bytes()).expect("Unable to unpack data");
-//
-//         write!(f, "file: {}, chunk size: {}", name, chunk_size)
-//     }
-// }
+impl Display for FileManifest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Manifest of data {}\n\t\tname: {}\n\t\tchecksum: {}\n\t\tsize: {}\n\t\tblock size: {}\n",
+            self.uuid,
+            self.name,
+            self.digest,
+            convert(self.size as f64),
+            convert(self.chunk_size.unwrap_or(CHUNK_SIZE) as f64)
+        )
+    }
+}
 
 async fn populate_data(
     db: &Database,
@@ -197,8 +209,10 @@ async fn populate_data(
 ) -> Vec<Subspace> {
     let mut files_subspace: Vec<Subspace> = vec![];
 
+    println!("--- Populate database");
     for file_name in file_names {
-        log::info!("Loading data and building sha256 digest for {}", file_name);
+        println!("Writing file {}", file_name);
+
         let (data, digest) = load_bytes_from_file(file_name);
 
         for chunk_size in chunk_sizes {
@@ -208,11 +222,7 @@ async fn populate_data(
             let subspace_data = subspace_file.subspace(&("_data"));
             let subspace_manifest = subspace_file.subspace(&("_manifest"));
 
-            println!(
-                "\tWriting blob {} with chunk of {}",
-                file_name,
-                convert(*chunk_size as f64)
-            );
+            println!("\twith chunk of {}", convert(*chunk_size as f64));
             write_blob(&db, &subspace_data, &data, Some(*chunk_size)).await;
 
             let manifest = FileManifest {
@@ -220,6 +230,7 @@ async fn populate_data(
                 chunk_size: Some(*chunk_size),
                 digest: digest.clone(),
                 size: data.len(),
+                uuid,
             }
             .serialize();
             write_data(&db, &subspace_manifest, &manifest).await;
@@ -227,7 +238,7 @@ async fn populate_data(
             files_subspace.push(subspace_file);
         }
 
-        let uuid = Uuid::new_v4().to_string();
+        let uuid = Uuid::new_v4();
         let subspace_file = subspace.subspace(&(uuid));
         let subspace_data = subspace_file.subspace(&("_data"));
         let subspace_manifest = subspace_file.subspace(&("_manifest"));
@@ -237,6 +248,7 @@ async fn populate_data(
             chunk_size: None,
             digest: digest.clone(),
             size: data.len(),
+            uuid,
         }
         .serialize();
         write_data(&db, &subspace_manifest, &manifest).await;
@@ -247,10 +259,8 @@ async fn populate_data(
 }
 
 async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
+    println!("\n--- Checking data stored");
     for file_subspace in files_subspaces {
-        let (_, uuid): (String, Uuid) =
-            unpack(&file_subspace.bytes()).expect("Unable to unpack file key");
-
         let manifest_subspace = file_subspace.subspace(&("_manifest"));
         let data_subspace = file_subspace.subspace(&("_data"));
         let manifest_data = read_data(&db, &manifest_subspace)
@@ -264,14 +274,9 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
         let data_from_database = Cursor::new(data_from_database.unwrap());
         let digest_data_from_database = sha256_hex_digest(data_from_database);
 
-        println!(
-            "Hex digest of file {} =>\n {}\nHex digest of stored data for key {} =>\n {}",
-            manifest.name,
-            manifest.digest,
-            uuid.to_string(),
-            digest_data_from_database
-        );
+        println!("{}", manifest);
         assert_eq!(digest_data_from_database, manifest.digest);
+        println!("\t Verify data integrity:\n\t\tfrom database hex digest : {}\n\t\treference hex digest     : {}\n", manifest.digest, digest_data_from_database);
     }
 }
 
