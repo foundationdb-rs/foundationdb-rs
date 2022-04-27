@@ -112,7 +112,7 @@ async fn search_user_by_zipcode(
 }
 
 #[tokio::main]
-fn main() {
+async fn main() {
     let _guard = unsafe { foundationdb::boot() };
     let db = Database::new_compat(None)
         .await
