@@ -60,3 +60,5 @@ byteorder = "1.4.3"
 lazy_static = "1.4.0"
 log = "0.4.16"
 tokio = { version = "1.17.0", features = ["full"] }
+ring = "0.16.20"
+data-encoding = "2.3.2"
