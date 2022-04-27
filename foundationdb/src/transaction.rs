@@ -600,7 +600,7 @@ impl Transaction {
     }
 
     /// Get the estimated byte size of the key range based on the byte sample collected by FDB
-    #[cfg(feature = "fdb-6_3")]
+    #[cfg(any(feature = "fdb-7_0", feature = "fdb-6_3"))]
     pub fn get_estimated_range_size_bytes(
         &self,
         begin: &[u8],
@@ -733,7 +733,7 @@ impl Transaction {
     /// ranges, and write conflict ranges.
     ///
     /// This can be called multiple times before the transaction is committed.
-    #[cfg(any(feature = "fdb-6_3", feature = "fdb-6_2"))]
+    #[cfg(any(feature = "fdb-7_0", feature = "fdb-6_3", feature = "fdb-6_2"))]
     pub fn get_approximate_size(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
@@ -742,6 +742,8 @@ impl Transaction {
         })
     }
 
+    /// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.
+    /// Note: the returned split points contain the start key and end key of the given range.
     #[cfg(feature = "fdb-7_0")]
     pub fn get_range_split_points(
         &self,
