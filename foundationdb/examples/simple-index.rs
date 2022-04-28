@@ -111,28 +111,27 @@ async fn search_user_by_zipcode(
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let _guard = unsafe { foundationdb::boot() };
-    let db = futures::executor::block_on(foundationdb::Database::new_compat(None))
+    let db = Database::new_compat(None)
+        .await
         .expect("failed to get database");
 
     let user_subspace = Subspace::from_bytes("user");
     let zipcode_index_subspace = Subspace::from_bytes("zipcode_index");
 
-    futures::executor::block_on(clear_subspaces(
+    clear_subspaces(
         &db,
         &vec![user_subspace.clone(), zipcode_index_subspace.clone()],
-    ));
+    )
+    .await;
 
-    futures::executor::block_on(populate_users(&db, &user_subspace, &zipcode_index_subspace))
+    populate_users(&db, &user_subspace, &zipcode_index_subspace)
+        .await
         .expect("Unable to populate database");
 
-    let users = futures::executor::block_on(search_user_by_zipcode(
-        &db,
-        &user_subspace,
-        &zipcode_index_subspace,
-        "205",
-    ));
+    let users = search_user_by_zipcode(&db, &user_subspace, &zipcode_index_subspace, "205").await;
 
     if let Some(users) = users {
         users.iter().for_each(|user| println!("{}", user));

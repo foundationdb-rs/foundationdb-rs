@@ -120,6 +120,16 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
 
 The official FoundationDB's tutorial is called the [Class Scheduling](https://apple.github.io/foundationdb/class-scheduling.html). You can find the Rust version in the [examples](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples).
 
+### The blob tutorial
+
+The official FoundationDB documentation provides also [another topic](https://apple.github.io/foundationdb/largeval.html#modeling-large-values) 
+which is further discussed inside a [design recipe](https://apple.github.io/foundationdb/blob.html). 
+A Rust implementation can be found [here](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob.rs). 
+
+Another [example](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob-with-manifest.rs), 
+explores how to use subspaces to attach metadata to our blob.
+
+
 ### Must-read documentations
 
 * [Developer Guide](https://apple.github.io/foundationdb/developer-guide.html)
