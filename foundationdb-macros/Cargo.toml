@@ -1,0 +1,26 @@
+[package]
+name = "foundationdb-macros"
+version = "0.1.0"
+authors = [
+    "Pierre Zemb <contact@pierrezemb.fr>"
+]
+edition = "2021"
+rust-version = "1.56"
+
+description = """
+Macro definitions used to maintain the FoundationDB's crate
+"""
+
+documentation = "https://docs.rs/foundationdb"
+repository = "https://github.com/foundationdb-rs/foundationdb-rs"
+license = "MIT/Apache-2.0"
+
+readme = "README.md"
+keywords = ["foundationdb", "proc-macro"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.91", features = ["full"]}
+quote = "1.0.18"
