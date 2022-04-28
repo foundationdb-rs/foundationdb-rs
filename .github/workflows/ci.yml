@@ -98,7 +98,7 @@ jobs:
           command: test
           args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-5_1 --tests
 
-      - name: Example
+      - name: Example class-scheduling
         uses: actions-rs/cargo@v1
         with:
           command: run
@@ -114,7 +114,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --example blob  
+          args: --example blob
+
+      - name: Example blob-with-manifest
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example blob-with-manifest
 
   bindingtester:
     name: Binding Tester
