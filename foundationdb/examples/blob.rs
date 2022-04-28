@@ -8,11 +8,90 @@ use std::io::{Cursor, Read, Seek, SeekFrom};
 use uuid::Uuid;
 
 ///
-/// The goal of this example is to create a record entry for a binary data.
+/// The goal of this example is to create a simple blob storage system
 ///
-/// Because this ones are to big to fit into a single key/value.
+/// As we can't predict the size of data, we'll create a system of data involving
+/// a manifest and a bunch of chunk of data.
 ///
-/// We have to split it as a bunch of keys of for example 1kb each.
+/// The genuine idea would be to create a simple key => value entry ans to store every bytes
+/// into it.
+///
+/// For example:
+///  my_file => <data>
+///
+/// This way has to major cons:
+///     - first  we can't add metadata : i.e checksum digest
+///     - second : what if your data exceed 4GB
+///
+/// The idea is to split the key between a manifest and a data
+///
+/// A manifest can be represent as:
+///     uuid              : the unique identifier through database
+///     name              : the name of the data
+///     size              : size of total data
+///     chunk size        : max chunk size
+///     number of chunks  : number of chunks of total data
+///
+/// As foundation DB can only store binary data, we have to pack our manifest.
+///
+/// This can be done through a tuple of data.
+///
+/// The foundation DB packing API is clever enough to keep the type of each field.
+///
+/// The "/" materialize the foundation subspace separator you can see it as "\x02"
+///
+/// This manifest will be stored as
+///
+/// <uuid>/_manifest => <manifest_data>
+///
+/// Then each chunk of data
+///
+/// <uuid>/_data/0 => <chunk_data_0>
+/// <uuid>/_data/1 => <chunk_data_1>
+/// <uuid>/_data/2 => <chunk_data_2>
+/// <uuid>/_data/3 => <chunk_data_3>
+/// ...
+/// <uuid>/_data/n => <chunk_data_n>
+///
+/// To get data from database we have to gather all chunk of data associated to defined uuid,
+/// we have to scan the database using the subspace of the uuid.
+///
+/// As all data is contained inside the <uuid>/_data subspace.
+///
+/// We can range between <uuid>/_data/\x00 and <uuid>/_data/\xff
+///
+/// \x00 is the minimal value that can be stored in subspace
+/// \xff is the maximal value that can be stored in subspace
+///
+/// So
+///     \x00 <= 0 < \xff
+///     \x00 <= 1 < \xff
+///     \x00 <= 2 < \xff
+///     ...
+///     \x00 <= n < \xff
+///     
+///
+/// Thus foundation DB will retrieve keys/values:
+///
+///     <uuid>/_data/0 => <chunk_data_0>
+///     <uuid>/_data/1 => <chunk_data_1>
+///     <uuid>/_data/2 => <chunk_data_2>
+///     <uuid>/_data/3 => <chunk_data_3>
+///     ...
+///     <uuid>/_data/n => <chunk_data_n>
+///
+/// If we accumulate each chunk data, we gather the original data.
+///
+/// Finally, we have to check the correctness of our data.
+///
+/// As we have stored the manifest in the <uuid>/_manifest subspace
+///
+/// We can get this key/value.
+///
+/// Unpack the manifest_data to the type tuple and finally recreate our manifest containing
+/// the hex digest.
+///
+/// We can compute the checksum of data from database and compare it to the manifest digest.
 ///
 /// Workflow:
 ///
@@ -21,7 +100,7 @@ use uuid::Uuid;
 /// 2 - Compute checksum of input data
 /// 3 - Write bytes to database
 /// 4 - Read bytes from database
-/// 5 - Compute checksum of output data
+/// 5 - Compute checksum of output data and verify correctness
 
 async fn clear_subspace(db: &Database, subspaces: Vec<&Subspace>) {
     let transaction = db.create_trx().expect("Unable to create transaction");
@@ -92,29 +171,36 @@ async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
 
 /// Writes to database a slice of data chunked with to the given subspace
 /// If chunk size isn't provided **CHUNK_SIZE**
-async fn write_blob(db: &Database, subspace: &Subspace, data: &Vec<u8>, chunk_size: Option<usize>) {
+async fn write_blob(
+    db: &Database,
+    subspace: &Subspace,
+    data: &Vec<u8>,
+    chunk_size: Option<usize>,
+) -> usize {
     if data.len() == 0 {
-        return;
+        return 0;
     }
 
     let transaction = db.create_trx().expect("Unable to create transaction");
 
     let chunk_size = chunk_size.unwrap_or(CHUNK_SIZE);
 
-    let mut i = 0;
+    let mut chunk_number = 0;
     data.chunks(chunk_size).for_each(|chunk| {
-        let start = i * chunk_size;
+        let start = chunk_number * chunk_size;
         let end = start + chunk.len();
 
-        let key = subspace.pack(&(start));
+        let key = subspace.pack(&(chunk_number));
         transaction.set(&key, &data[start..end]);
-        i += 1;
+        chunk_number += 1;
     });
 
     transaction
         .commit()
         .await
         .expect("Unable to commit transaction");
+
+    chunk_number
 }
 
 /// Read data from database
@@ -157,6 +243,7 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 struct FileManifest {
     name: String,
     chunk_size: Option<usize>,
+    nb_chunks: usize,
     digest: String,
     size: usize,
     uuid: Uuid,
@@ -167,6 +254,7 @@ impl FileManifest {
         pack(&(
             &self.name,
             self.chunk_size,
+            self.nb_chunks,
             &self.digest,
             &self.size,
             &self.uuid,
@@ -174,12 +262,19 @@ impl FileManifest {
     }
 
     pub fn try_deserialize(value: &[u8]) -> Result<Self, PackError> {
-        let (name, chunk_size, digest, size, uuid): (String, Option<usize>, String, usize, Uuid) =
-            unpack(value)?;
+        let (name, chunk_size, nb_chunks, digest, size, uuid): (
+            String,
+            Option<usize>,
+            usize,
+            String,
+            usize,
+            Uuid,
+        ) = unpack(value)?;
 
         Ok(FileManifest {
             name,
             chunk_size,
+            nb_chunks,
             digest,
             size,
             uuid,
@@ -191,12 +286,13 @@ impl Display for FileManifest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Manifest of data {}\n\t\tname: {}\n\t\tchecksum: {}\n\t\tsize: {}\n\t\tblock size: {}\n",
+            "Manifest of data {}\n\t\tname: {}\n\t\tchecksum: {}\n\t\tsize: {}\n\t\tblock size: {}\n\t\tnumber of chunks: {}\n",
             self.uuid,
             self.name,
             self.digest,
             convert(self.size as f64),
-            convert(self.chunk_size.unwrap_or(CHUNK_SIZE) as f64)
+            convert(self.chunk_size.unwrap_or(CHUNK_SIZE) as f64),
+            self.nb_chunks
         )
     }
 }
@@ -223,11 +319,12 @@ async fn populate_data(
             let subspace_manifest = subspace_file.subspace(&("_manifest"));
 
             println!("\twith chunk of {}", convert(*chunk_size as f64));
-            write_blob(&db, &subspace_data, &data, Some(*chunk_size)).await;
+            let nb_chunks = write_blob(&db, &subspace_data, &data, Some(*chunk_size)).await;
 
             let manifest = FileManifest {
                 name: file_name.to_string(),
                 chunk_size: Some(*chunk_size),
+                nb_chunks,
                 digest: digest.clone(),
                 size: data.len(),
                 uuid,
@@ -243,16 +340,17 @@ async fn populate_data(
         let subspace_data = subspace_file.subspace(&("_data"));
         let subspace_manifest = subspace_file.subspace(&("_manifest"));
 
+        let nb_chunks = write_blob(&db, &subspace_data, &data, None).await;
         let manifest = FileManifest {
             name: file_name.to_string(),
             chunk_size: None,
+            nb_chunks,
             digest: digest.clone(),
             size: data.len(),
             uuid,
         }
         .serialize();
         write_data(&db, &subspace_manifest, &manifest).await;
-        write_blob(&db, &subspace_data, &data, None).await;
     }
 
     files_subspace
