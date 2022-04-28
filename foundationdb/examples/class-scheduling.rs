@@ -94,35 +94,47 @@ fn init_classes(trx: &Transaction, all_classes: &[String]) {
 }
 
 async fn init(db: &Database, all_classes: &[String]) {
-    let trx = db.create_trx().expect("could not create transaction");
-    trx.clear_subspace_range(&"attends".into());
-    trx.clear_subspace_range(&"class".into());
-    init_classes(&trx, all_classes);
-
-    trx.commit().await.expect("failed to initialize data");
+    match db
+        .run(|trx| async move {
+            trx.clear_subspace_range(&"attends".into());
+            trx.clear_subspace_range(&"class".into());
+            init_classes(&trx, all_classes);
+            Ok(())
+        })
+        .await
+    {
+        Ok(()) => {}
+        Err(err) => panic!("could not init db: {}", err),
+    }
 }
 
 async fn get_available_classes(db: &Database) -> Vec<String> {
-    let trx = db.create_trx().expect("could not create transaction");
+    match db
+        .run(|trx| async move {
+            let range = RangeOption::from(&Subspace::from("class"));
 
-    let range = RangeOption::from(&Subspace::from("class"));
+            let got_range = trx
+                .get_range(&range, 1_024, false)
+                .await
+                .expect("failed to get classes");
+            let mut available_classes = Vec::<String>::new();
 
-    let got_range = trx
-        .get_range(&range, 1_024, false)
+            for key_value in got_range.iter() {
+                let count: i64 = unpack(key_value.value()).expect("failed to decode count");
+
+                if count > 0 {
+                    let class: String = unpack(key_value.key()).expect("failed to decode class");
+                    available_classes.push(class);
+                }
+            }
+
+            Ok(available_classes)
+        })
         .await
-        .expect("failed to get classes");
-    let mut available_classes = Vec::<String>::new();
-
-    for key_value in got_range.iter() {
-        let count: i64 = unpack(key_value.value()).expect("failed to decode count");
-
-        if count > 0 {
-            let class: String = unpack(key_value.key()).expect("failed to decode class");
-            available_classes.push(class);
-        }
+    {
+        Ok(vecs) => vecs,
+        Err(err) => panic!("could not get all classes: {}", err),
     }
-
-    available_classes
 }
 
 async fn ditch_trx(trx: &Transaction, student: &str, class: &str) {

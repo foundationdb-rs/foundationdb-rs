@@ -44,6 +44,7 @@ impl FdbError {
             .expect("bad error string from FoundationDB")
     }
 
+    // https://github.com/apple/foundationdb/blob/07e531947765696c3d0e80703967dd5da420fb28/bindings/c/fdb_c.cpp#L67
     fn is_error_predicate(self, predicate: options::ErrorPredicate) -> bool {
         let check =
             unsafe { fdb_sys::fdb_error_predicate(predicate.code() as i32, self.error_code) };

@@ -24,6 +24,8 @@ use crate::{error, FdbError, FdbResult};
 
 use futures::prelude::*;
 
+pub const COMMIT_UNKNOWN_RESULT_CODE: ::std::os::raw::c_int = 1021;
+
 /// Represents a FoundationDB database
 ///
 /// A mutable, lexicographically ordered mapping from binary keys to binary values.
@@ -162,6 +164,109 @@ impl Database {
                     Err(user_err) => break Err(user_err),
                 },
             };
+        }
+    }
+
+    /// Runs a transactional function against this Database with retry logic.
+    /// The associated closure will be called until a non-retryable FDBException (or any Throwable other than an FDBException)
+    /// is thrown or commit(), when called after apply(), returns success.
+    /// This call is blocking -- this method will not return until commit() has been called and returned success.
+    ///
+    /// # Warning: retry
+    ///
+    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
+    /// set `TransactionOption::RetryLimit` or `TransactionOption::SetTimeout` on the transaction
+    /// if the task need to be guaranteed to finish.
+    ///
+    /// # Warning: idempotent closure
+    ///
+    /// As with other client/server databases, in some failure scenarios a client may be unable to determine
+    /// whether a transaction succeeded. In these cases, your transaction may be executed twice, so your closure must be idempotent.
+    /// Please see `Database::run_transaction()` to have more control over [commit_unknown_result exception](https://apple.github.io/foundationdb/developer-guide.html#transactions-with-unknown-results)
+    ///
+    /// ```rust
+    ///  db.run(|trx| async move {
+    ///      // Setting a timeout to 1s
+    ///      trx.set_option(TransactionOption::Timeout(1_000))?;
+    ///      // Setting a retry limit to 10
+    ///      trx.set_option(TransactionOption::RetryLimit(10))?;
+    ///      assert!(trx.get(b"hello", false).await?.is_none());
+    ///      Ok(())
+    ///  })
+    ///  .await?;
+    /// ```
+    pub async fn run<F, Fut, T>(&self, f: F) -> FdbResult<T>
+    where
+        F: Fn(Transaction) -> Fut,
+        Fut: Future<Output = FdbResult<T>>,
+    {
+        self.run_transaction(false, f).await.map(|result| result.0)
+    }
+
+    /// Runs a transactional function against this Database with retry logic, while giving you control
+    /// on how to handle transaction that are maybe committed.
+    /// This will allow you to not retry on maybe_committed errors.
+    pub async fn run_transaction<F, Fut, T>(
+        &self,
+        fail_on_maybe_committed: bool,
+        closure: F,
+    ) -> FdbResult<(T, i64)>
+    where
+        F: Fn(Transaction) -> Fut,
+        Fut: Future<Output = FdbResult<T>>,
+    {
+        // we just need to create the transaction once,
+        // in case there is a error, it will be reset automatically
+        let mut transaction = self.create_trx()?;
+
+        loop {
+            // executing the closure
+            let result_closure = closure(transaction.clone()).await;
+
+            if let Err(e) = result_closure {
+                // The closure returned an Error,
+                // we first need to check for commit_unknown_result,
+                // as most layers wants to know this scenario
+                if e.is_maybe_committed() && fail_on_maybe_committed {
+                    return Err(e);
+                }
+                // checking if it is a retryable error
+                match transaction.on_error(e).await {
+                    // we can retry the error
+                    Ok(t) => {
+                        transaction = t;
+                        continue;
+                    }
+                    Err(non_retryable_error) => return Err(non_retryable_error),
+                }
+            }
+
+            let commit_result = transaction.commit().await;
+
+            match commit_result {
+                Ok(transaction_committed) => {
+                    // at that point, as we already have committed the data, we can assume
+                    // that any errors during retrieval of the versionstamp is like an
+                    // commit_unknown_result error
+                    let versionstamp = transaction_committed
+                        .committed_version()
+                        .map_err(|_| FdbError::from_code(COMMIT_UNKNOWN_RESULT_CODE))?;
+                    return Ok((result_closure.unwrap(), versionstamp));
+                }
+                Err(transaction_commit_error) => {
+                    if transaction_commit_error.is_maybe_committed() && fail_on_maybe_committed {
+                        return Err(*transaction_commit_error);
+                    }
+                    // we have an error during commit, checking if it is a retryable error
+                    match transaction_commit_error.on_error().await {
+                        Ok(t) => {
+                            transaction = t;
+                            continue;
+                        }
+                        Err(non_retryable_error) => return Err(non_retryable_error),
+                    }
+                }
+            }
         }
     }
 
