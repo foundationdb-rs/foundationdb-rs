@@ -6,6 +6,7 @@
 // copied, modified, or distributed except according to those terms.
 
 use foundationdb::*;
+use foundationdb_macros::cfg_api_versions;
 use futures::future;
 use futures::prelude::*;
 use std::borrow::Cow;
@@ -18,7 +19,7 @@ fn test_range() {
     futures::executor::block_on(test_get_range_async()).expect("failed to run");
     futures::executor::block_on(test_range_option_async()).expect("failed to run");
     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
-    #[cfg(feature = "fdb-6_3")]
+    #[cfg(any(feature = "fdb-6_3", feature = "fdb-7_0"))]
     {
         futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
     }
@@ -213,7 +214,7 @@ async fn test_range_option_async() -> FdbResult<()> {
     Ok(())
 }
 
-#[cfg(feature = "fdb-6_3")]
+#[cfg_api_versions(min = 630)]
 async fn test_get_estimate_range() -> FdbResult<()> {
     const N: u32 = 10000;
 
@@ -243,7 +244,7 @@ async fn test_get_estimate_range() -> FdbResult<()> {
     Ok(())
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 async fn test_get_range_split_points() -> FdbResult<()> {
     const N: u32 = 10000;
 

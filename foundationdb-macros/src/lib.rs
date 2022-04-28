@@ -2,9 +2,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
-use syn::AttributeArgs;
 use syn::__private::TokenStream2;
-use syn::{ItemFn, Lit, Meta, NestedMeta};
+use syn::{AttributeArgs, Item, Lit, Meta, NestedMeta};
 
 /// Allow to compute the range of supported api versions for a functionality.
 ///
@@ -24,7 +23,7 @@ use syn::{ItemFn, Lit, Meta, NestedMeta};
 /// Not specifying a `max` allow easy bump to a new version.
 #[proc_macro_attribute]
 pub fn cfg_api_versions(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(item as ItemFn);
+    let input = syn::parse_macro_input!(item as Item);
     let attributes = syn::parse_macro_input!(attr as AttributeArgs);
 
     let (minimum_version, maximum_version) = parse_version_arguments(&attributes);
@@ -67,14 +66,14 @@ fn find_attribute(attribute: &NestedMeta, key: &str) -> Option<i32> {
 }
 
 fn generate_feature_range(
-    input: &ItemFn,
+    input: &Item,
     minimum_version: i32,
     maximum_version: Option<i32>,
 ) -> TokenStream {
     let allowed_fdb_versions: Vec<TokenStream2> =
         get_supported_feature_range(minimum_version, maximum_version)
             .iter()
-            .map(|fdb_version| quote!(feature = #fdb_version).into())
+            .map(|fdb_version| quote!(feature = #fdb_version))
             .collect();
 
     quote!(

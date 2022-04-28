@@ -29,9 +29,9 @@ use std::ops::Deref;
 use std::os::raw::c_char;
 use std::pin::Pin;
 use std::ptr::NonNull;
-use std::rc::Rc;
 use std::sync::Arc;
 
+use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 use futures::prelude::*;
 use futures::task::{AtomicWaker, Context, Poll};
@@ -254,18 +254,18 @@ impl AsRef<CStr> for FdbAddress {
 }
 
 /// An slice of keys owned by a FoundationDB future
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 pub struct FdbKeys {
     _f: FdbFutureHandle,
     keys: *const fdb_sys::FDBKey,
     len: i32,
 }
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 unsafe impl Sync for FdbKeys {}
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 unsafe impl Send for FdbKeys {}
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl TryFrom<FdbFutureHandle> for FdbKeys {
     type Error = FdbError;
 
@@ -279,7 +279,7 @@ impl TryFrom<FdbFutureHandle> for FdbKeys {
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl Deref for FdbKeys {
     type Target = [FdbKey];
     fn deref(&self) -> &Self::Target {
@@ -292,14 +292,14 @@ impl Deref for FdbKeys {
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl AsRef<[FdbKey]> for FdbKeys {
     fn as_ref(&self) -> &[FdbKey] {
         self.deref()
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl<'a> IntoIterator for &'a FdbKeys {
     type Item = &'a FdbKey;
     type IntoIter = std::slice::Iter<'a, FdbKey>;
@@ -309,21 +309,26 @@ impl<'a> IntoIterator for &'a FdbKeys {
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 /// An iterator of keyvalues owned by a foundationDB future
 pub struct FdbKeysIter {
-    f: Rc<FdbFutureHandle>,
+    f: std::rc::Rc<FdbFutureHandle>,
     keys: *const fdb_sys::FDBKey,
     len: i32,
     pos: i32,
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl Iterator for FdbKeysIter {
     type Item = FdbRowKey;
     fn next(&mut self) -> Option<Self::Item> {
         #[allow(clippy::iter_nth_zero)]
         self.nth(0)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let rem = (self.len - self.pos) as usize;
+        (rem, Some(rem))
     }
 
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
@@ -345,21 +350,16 @@ impl Iterator for FdbKeysIter {
             }
         }
     }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let rem = (self.len - self.pos) as usize;
-        (rem, Some(rem))
-    }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl IntoIterator for FdbKeys {
     type Item = FdbRowKey;
     type IntoIter = FdbKeysIter;
 
     fn into_iter(self) -> Self::IntoIter {
         FdbKeysIter {
-            f: Rc::new(self._f),
+            f: std::rc::Rc::new(self._f),
             keys: self.keys,
             len: self.len,
             pos: 0,
@@ -521,13 +521,13 @@ impl DoubleEndedIterator for FdbValuesIter {
 ///
 /// Until dropped, this might prevent multiple key/values from beeing freed.
 /// (i.e. the future that own the data is dropped once all data it provided is dropped)
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 pub struct FdbRowKey {
-    _f: Rc<FdbFutureHandle>,
+    _f: std::rc::Rc<FdbFutureHandle>,
     row_key: *const fdb_sys::FDBKey,
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl Deref for FdbRowKey {
     type Target = FdbKey;
     fn deref(&self) -> &Self::Target {
@@ -536,22 +536,22 @@ impl Deref for FdbRowKey {
         unsafe { &*(self.row_key as *const FdbKey) }
     }
 }
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl AsRef<FdbKey> for FdbRowKey {
     fn as_ref(&self) -> &FdbKey {
         self.deref()
     }
 }
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl PartialEq for FdbRowKey {
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl Eq for FdbRowKey {}
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl fmt::Debug for FdbRowKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.deref().fmt(f)
@@ -660,11 +660,11 @@ impl TryFrom<FdbFutureHandle> for () {
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 #[repr(transparent)]
 pub struct FdbKey(fdb_sys::FDBKey);
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl FdbKey {
     /// key
     pub fn key(&self) -> &[u8] {
@@ -672,17 +672,17 @@ impl FdbKey {
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl PartialEq for FdbKey {
     fn eq(&self, other: &Self) -> bool {
         self.key() == other.key()
     }
 }
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl Eq for FdbKey {}
 
-#[cfg(feature = "fdb-7_0")]
+#[cfg_api_versions(min = 700)]
 impl fmt::Debug for FdbKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({:?})", crate::tuple::Bytes::from(self.key()),)

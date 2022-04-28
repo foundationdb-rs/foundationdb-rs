@@ -16,6 +16,7 @@ use std::pin::Pin;
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
+use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 
 use crate::options;
@@ -42,7 +43,7 @@ impl Drop for Database {
     }
 }
 
-#[cfg(not(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0")))]
+#[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
