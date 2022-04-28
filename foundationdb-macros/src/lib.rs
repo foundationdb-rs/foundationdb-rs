@@ -9,18 +9,14 @@ use syn::{AttributeArgs, Item, Lit, Meta, NestedMeta};
 ///
 /// This macro came out from the frustration of bumping fdb's version, where
 /// we are spending most of our time searching for things like:
-/// ```rust
-/// #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
-/// ```
-/// and adding the new version manually. Thanks to the macro, we can now specify a `minimum` and an optional `max` version, like this:
-/// ```rust
-/// #[cfg_api_versions(min = 510, max = 600)]
-/// ```
-/// will be translated to:
-/// ```rust
-/// #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
-/// ```
-/// Not specifying a `max` allow easy bump to a new version.
+/// `#[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]`
+/// and adding the new version manually.
+///
+/// Thanks to the macro, we can now specify a `minimum` and an optional `max` version, and
+/// generate the right list of any. Not specifying a `max` allow easy bump to a new version.
+///
+/// `#[cfg_api_versions(min = 510, max = 600)]` will be translated to:
+/// `#[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]`
 #[proc_macro_attribute]
 pub fn cfg_api_versions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
