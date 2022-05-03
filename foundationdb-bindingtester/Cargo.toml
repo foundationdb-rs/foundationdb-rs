@@ -13,7 +13,7 @@ description = """
 Bindings to the C api for FoundationDB
 """
 
-repository = "https://github.com/Clikengo/foundationdb-rs"
+repository = "https://github.com/foundationdb-rs/foundationdb-rs"
 
 readme = "README.md"
 keywords = ["foundationdb", "kv"]
