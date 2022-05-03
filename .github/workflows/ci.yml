@@ -28,7 +28,7 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "6.3.23"
+          version: "7.0.0"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -61,6 +61,12 @@ jobs:
         with:
           command: test
           args: --manifest-path foundationdb/Cargo.toml --features num-bigint --tests
+
+      - name: Test 7.0
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-7_0 --tests
 
       - name: Test 6.3
         uses: actions-rs/cargo@v1
@@ -139,7 +145,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "6.3.15"
+          version: "7.0.0"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -172,7 +178,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "6.3.15"
+          version: "7.0.0"
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -206,7 +212,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "6.3.15"
+          version: "7.0.0"
 
       - uses: actions-rs/toolchain@v1
         with:

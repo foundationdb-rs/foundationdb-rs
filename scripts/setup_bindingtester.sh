@@ -22,9 +22,9 @@ esac
   cd ${fdb_builddir:?}
 
   ## Get foundationdb source
-  git clone --depth 1 https://github.com/apple/foundationdb.git -b release-6.3
+  git clone --depth 1 https://github.com/apple/foundationdb.git -b release-7.0
   cd foundationdb
-  git checkout release-6.3
+  git checkout release-7.0
 
   ## build python api bindings
   mkdir cmake_build && cd cmake_build
@@ -33,7 +33,7 @@ esac
   cp ./bindings/python/fdb/fdboptions.py ../bindings/python/fdb/fdboptions.py
   cd ..
 
-  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 630, types=ALL_TYPES)
+  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 700, types=ALL_TYPES)
 " >> ./bindings/bindingtester/known_testers.py
 )
 

@@ -19,6 +19,7 @@ use crate::future::*;
 use crate::keyselector::*;
 use crate::options;
 use crate::{error, FdbError, FdbResult};
+use foundationdb_macros::cfg_api_versions;
 
 use futures::{
     future, future::Either, stream, Future, FutureExt, Stream, TryFutureExt, TryStreamExt,
@@ -600,7 +601,7 @@ impl Transaction {
     }
 
     /// Get the estimated byte size of the key range based on the byte sample collected by FDB
-    #[cfg(feature = "fdb-6_3")]
+    #[cfg_api_versions(min = 630)]
     pub fn get_estimated_range_size_bytes(
         &self,
         begin: &[u8],
@@ -733,12 +734,33 @@ impl Transaction {
     /// ranges, and write conflict ranges.
     ///
     /// This can be called multiple times before the transaction is committed.
-    #[cfg(any(feature = "fdb-6_3", feature = "fdb-6_2"))]
+    #[cfg_api_versions(min = 620)]
     pub fn get_approximate_size(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
         FdbFuture::new(unsafe {
             fdb_sys::fdb_transaction_get_approximate_size(self.inner.as_ptr())
+        })
+    }
+
+    /// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.
+    /// Note: the returned split points contain the start key and end key of the given range.
+    #[cfg_api_versions(min = 700)]
+    pub fn get_range_split_points(
+        &self,
+        begin: &[u8],
+        end: &[u8],
+        chunk_size: i64,
+    ) -> impl Future<Output = FdbResult<FdbKeys>> + Send + Sync + Unpin {
+        FdbFuture::<FdbKeys>::new(unsafe {
+            fdb_sys::fdb_transaction_get_range_split_points(
+                self.inner.as_ptr(),
+                begin.as_ptr(),
+                fdb_len(begin.len(), "begin"),
+                end.as_ptr(),
+                fdb_len(end.len(), "end"),
+                chunk_size,
+            )
         })
     }
 

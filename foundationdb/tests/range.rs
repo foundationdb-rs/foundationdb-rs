@@ -6,6 +6,7 @@
 // copied, modified, or distributed except according to those terms.
 
 use foundationdb::*;
+use foundationdb_macros::cfg_api_versions;
 use futures::future;
 use futures::prelude::*;
 use std::borrow::Cow;
@@ -18,9 +19,13 @@ fn test_range() {
     futures::executor::block_on(test_get_range_async()).expect("failed to run");
     futures::executor::block_on(test_range_option_async()).expect("failed to run");
     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
-    #[cfg(feature = "fdb-6_3")]
+    #[cfg(any(feature = "fdb-6_3", feature = "fdb-7_0"))]
     {
         futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
+    }
+    #[cfg(feature = "fdb-7_0")]
+    {
+        futures::executor::block_on(test_get_range_split_points()).expect("failed to run");
     }
 }
 
@@ -209,7 +214,7 @@ async fn test_range_option_async() -> FdbResult<()> {
     Ok(())
 }
 
-#[cfg(feature = "fdb-6_3")]
+#[cfg_api_versions(min = 630)]
 async fn test_get_estimate_range() -> FdbResult<()> {
     const N: u32 = 10000;
 
@@ -236,5 +241,36 @@ async fn test_get_estimate_range() -> FdbResult<()> {
     eprintln!("get an estimate of {} bytes", estimate);
     assert!(estimate > 0);
 
+    Ok(())
+}
+
+#[cfg_api_versions(min = 700)]
+async fn test_get_range_split_points() -> FdbResult<()> {
+    const N: u32 = 10000;
+
+    let db = common::database().await?;
+    let trx = db.create_trx()?;
+    let key_begin = "test-split-point-";
+    let key_end = "test-split-point.";
+    let k = |i: u32| format!("{}-{:010}", key_begin, i);
+
+    eprintln!("clearing...");
+    trx.clear_range(key_begin.as_bytes(), key_end.as_bytes());
+
+    eprintln!("inserting...");
+    for i in 0..N {
+        let value = common::random_str(10);
+        trx.set(k(i).as_bytes(), value.as_bytes());
+    }
+    trx.commit().await?;
+
+    let trx = db.create_trx()?;
+    let splits = trx
+        .get_range_split_points(key_begin.as_bytes(), key_end.as_bytes(), 100)
+        .await?;
+    assert!(splits.len() > 0);
+    for split in splits {
+        eprintln!("split point: {:?}", split.key());
+    }
     Ok(())
 }
