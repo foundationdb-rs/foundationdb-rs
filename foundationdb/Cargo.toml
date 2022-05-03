@@ -14,7 +14,7 @@ High level client bindings for FoundationDB.
 """
 
 documentation = "https://docs.rs/foundationdb"
-repository = "https://github.com/Clikengo/foundationdb-rs"
+repository = "https://github.com/foundationdb-rs/foundationdb-rs"
 license = "MIT/Apache-2.0"
 
 readme = "README.md"
