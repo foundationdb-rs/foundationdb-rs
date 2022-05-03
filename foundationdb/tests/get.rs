@@ -4,7 +4,9 @@
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
+use foundationdb::tuple::Versionstamp;
 use foundationdb::*;
+use foundationdb_macros::cfg_api_versions;
 use futures::future::*;
 use std::ops::Deref;
 use std::sync::{atomic::*, Arc};
@@ -25,6 +27,13 @@ fn test_get() {
     futures::executor::block_on(test_read_version_async()).expect("failed to run");
     futures::executor::block_on(test_set_read_version_async()).expect("failed to run");
     futures::executor::block_on(test_get_addresses_for_key_async()).expect("failed to run");
+    #[cfg(any(
+        feature = "fdb-7_0",
+        feature = "fdb-6_3",
+        feature = "fdb-6_2",
+        feature = "fdb-6_1"
+    ))]
+    futures::executor::block_on(test_metadata_version()).expect("failed to run");
 }
 
 async fn test_set_get_async() -> FdbResult<()> {
@@ -296,6 +305,33 @@ async fn test_get_addresses_for_key_async() -> FdbResult<()> {
     let addr0 = it.next().unwrap();
     eprintln!("{}", addr0.to_str().unwrap());
     assert!(it.next().is_none());
+
+    Ok(())
+}
+
+#[cfg_api_versions(min = 610)]
+async fn test_metadata_version() -> FdbResult<()> {
+    let db = common::database().await?;
+
+    let trx = db.create_trx()?;
+    trx.set_option(options::TransactionOption::AccessSystemKeys)?;
+    trx.update_metadata_version();
+    let commit_result = trx.commit().await.expect("could not commit");
+    let commit_version = commit_result.committed_version()?;
+    assert!(commit_version > 0, "transaction was read-only(-1)");
+
+    // second time, we should have the previous `commit_version`
+    let trx = db.create_trx()?;
+    trx.set_option(options::TransactionOption::ReadSystemKeys)?;
+    let metadata_version = trx
+        .get_metadata_version(false)
+        .await?
+        .expect("metadataVersion should be set by the previous transaction");
+    eprintln!(
+        "commit_version: {}, metadata_version: {}",
+        commit_version, metadata_version
+    );
+    assert_eq!(commit_version, metadata_version);
 
     Ok(())
 }
