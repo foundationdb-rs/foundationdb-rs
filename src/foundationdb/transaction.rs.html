@@ -826,6 +826,28 @@
 <span id="821">821</span>
 <span id="822">822</span>
 <span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
@@ -847,6 +869,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::keyselector</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
+<span class="kw">use</span> <span class="ident">foundationdb_macros::cfg_api_versions</span>;
 
 <span class="kw">use</span> <span class="ident">futures</span>::{
     <span class="ident">future</span>, <span class="ident">future::Either</span>, <span class="ident">stream</span>, <span class="ident">Future</span>, <span class="ident">FutureExt</span>, <span class="ident">Stream</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>,
@@ -1428,7 +1451,7 @@
     }
 
     <span class="doccomment">/// Get the estimated byte size of the key range based on the byte sample collected by FDB</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">630</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_estimated_range_size_bytes</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
@@ -1561,12 +1584,33 @@
     <span class="doccomment">/// ranges, and write conflict ranges.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This can be called multiple times before the transaction is committed.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_2&quot;</span>))]</span>
+    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">620</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_approximate_size</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
     ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
         <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
             <span class="ident">fdb_sys::fdb_transaction_get_approximate_size</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>())
+        })
+    }
+
+    <span class="doccomment">/// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.</span>
+    <span class="doccomment">/// Note: the returned split points contain the start key and end key of the given range.</span>
+    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">700</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_range_split_points</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">chunk_size</span>: <span class="ident">i64</span>,
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbKeys</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span><span class="ident">FdbKeys</span><span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_range_split_points</span>(
+                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
+                <span class="ident">end</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fdb_len</span>(<span class="ident">end</span>.<span class="ident">len</span>(), <span class="string">&quot;end&quot;</span>),
+                <span class="ident">chunk_size</span>,
+            )
         })
     }
 

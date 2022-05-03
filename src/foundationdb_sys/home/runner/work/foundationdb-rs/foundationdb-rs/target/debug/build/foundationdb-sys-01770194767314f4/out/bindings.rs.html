@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-32c0fc1a75cda65f/out/bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><script defer src="../../../../../../../../../../../../main.js"></script><script defer src="../../../../../../../../../../../../source-script.js"></script><script defer src="../../../../../../../../../../../../source-files.js"></script>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-01770194767314f4/out/bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><script defer src="../../../../../../../../../../../../main.js"></script><script defer src="../../../../../../../../../../../../source-script.js"></script><script defer src="../../../../../../../../../../../../source-files.js"></script>
     <noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../../../../../../../../../foundationdb_sys/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../../../../../../../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
@@ -614,9 +614,97 @@
 <span id="609">609</span>
 <span id="610">610</span>
 <span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
 </pre><pre class="rust"><code><span class="comment">/* automatically generated by rust-bindgen 0.59.2 */</span>
 
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDB_API_VERSION</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">630</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDB_API_VERSION</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">700</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_STDINT_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_FEATURES_H</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">_DEFAULT_SOURCE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>;
@@ -832,6 +920,7 @@
     <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">82</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_SECTION_FIRED_PROBABILITY</span>:
     <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">83</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBNetworkOption_FDB_NET_OPTION_DISTRIBUTED_CLIENT_TRACER</span>: <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="number">90</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBNetworkOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_LOCATION_CACHE_SIZE</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">10</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBDatabaseOption_FDB_DB_OPTION_MAX_WATCHES</span>: <span class="ident">FDBDatabaseOption</span> <span class="op">=</span> <span class="number">20</span>;
@@ -888,8 +977,13 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_USE_PROVISIONAL_PROXIES</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">711</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_REPORT_CONFLICTING_KEYS</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">712</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_SPECIAL_KEY_SPACE_RELAXED</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">713</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_SPECIAL_KEY_SPACE_ENABLE_WRITES</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span>
+    <span class="number">714</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_TAG</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">800</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_AUTO_THROTTLE_TAG</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">801</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_SPAN_PARENT</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">900</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_EXPENSIVE_CLEAR_COST_ESTIMATION_ENABLE</span>:
+    <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">1000</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBTransactionOption_FDB_TR_OPTION_BYPASS_UNREADABLE</span>: <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="number">1100</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBTransactionOption</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FDBStreamingMode_FDB_STREAMING_MODE_WANT_ALL</span>: <span class="ident">FDBStreamingMode</span> <span class="op">=</span> <span class="op">-</span><span class="number">2</span>;
@@ -976,6 +1070,13 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>, <span class="ident">packed</span>(<span class="number">4</span>))]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">key</span> {
+    <span class="kw">pub</span> <span class="ident">key</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+    <span class="kw">pub</span> <span class="ident">key_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+}
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FDBKey</span> <span class="op">=</span> <span class="ident">key</span>;
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>, <span class="ident">packed</span>(<span class="number">4</span>))]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">keyvalue</span> {
     <span class="kw">pub</span> <span class="ident">key</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
     <span class="kw">pub</span> <span class="ident">key_length</span>: <span class="ident">::std::os::raw::c_int</span>,
@@ -1015,6 +1116,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_int64</span>(<span class="ident">f</span>: <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>, <span class="ident">out</span>: <span class="kw-2">*mut</span> <span class="ident">i64</span>) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_uint64</span>(<span class="ident">f</span>: <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>, <span class="ident">out</span>: <span class="kw-2">*mut</span> <span class="ident">u64</span>) -&gt; <span class="ident">fdb_error_t</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_key</span>(
         <span class="ident">f</span>: <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>,
         <span class="ident">out_key</span>: <span class="kw-2">*mut</span> <span class="kw-2">*const</span> <span class="ident">u8</span>,
@@ -1035,6 +1139,13 @@
         <span class="ident">out_kv</span>: <span class="kw-2">*mut</span> <span class="kw-2">*const</span> <span class="ident">FDBKeyValue</span>,
         <span class="ident">out_count</span>: <span class="kw-2">*mut</span> <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">out_more</span>: <span class="kw-2">*mut</span> <span class="ident">fdb_bool_t</span>,
+    ) -&gt; <span class="ident">fdb_error_t</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_future_get_key_array</span>(
+        <span class="ident">f</span>: <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>,
+        <span class="ident">out_key_array</span>: <span class="kw-2">*mut</span> <span class="kw-2">*const</span> <span class="ident">FDBKey</span>,
+        <span class="ident">out_count</span>: <span class="kw-2">*mut</span> <span class="ident">::std::os::raw::c_int</span>,
     ) -&gt; <span class="ident">fdb_error_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
@@ -1066,6 +1177,40 @@
         <span class="ident">d</span>: <span class="kw-2">*mut</span> <span class="ident">FDBDatabase</span>,
         <span class="ident">out_transaction</span>: <span class="kw-2">*mut</span> <span class="kw-2">*mut</span> <span class="ident">FDBTransaction</span>,
     ) -&gt; <span class="ident">fdb_error_t</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_reboot_worker</span>(
+        <span class="ident">db</span>: <span class="kw-2">*mut</span> <span class="ident">FDBDatabase</span>,
+        <span class="ident">address</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">address_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">check</span>: <span class="ident">fdb_bool_t</span>,
+        <span class="ident">duration</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_force_recovery_with_data_loss</span>(
+        <span class="ident">db</span>: <span class="kw-2">*mut</span> <span class="ident">FDBDatabase</span>,
+        <span class="ident">dcid</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">dcid_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_create_snapshot</span>(
+        <span class="ident">db</span>: <span class="kw-2">*mut</span> <span class="ident">FDBDatabase</span>,
+        <span class="ident">uid</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">uid_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">snap_command</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">snap_command_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_get_main_thread_busyness</span>(<span class="ident">db</span>: <span class="kw-2">*mut</span> <span class="ident">FDBDatabase</span>) -&gt; <span class="ident">f64</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_database_get_server_protocol</span>(
+        <span class="ident">db</span>: <span class="kw-2">*mut</span> <span class="ident">FDBDatabase</span>,
+        <span class="ident">expected_version</span>: <span class="ident">u64</span>,
+    ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_destroy</span>(<span class="ident">tr</span>: <span class="kw-2">*mut</span> <span class="ident">FDBTransaction</span>);
@@ -1123,6 +1268,27 @@
         <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">end_or_equal</span>: <span class="ident">fdb_bool_t</span>,
         <span class="ident">end_offset</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">limit</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">target_bytes</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">mode</span>: <span class="ident">FDBStreamingMode</span>,
+        <span class="ident">iteration</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">snapshot</span>: <span class="ident">fdb_bool_t</span>,
+        <span class="ident">reverse</span>: <span class="ident">fdb_bool_t</span>,
+    ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_range_and_flat_map</span>(
+        <span class="ident">tr</span>: <span class="kw-2">*mut</span> <span class="ident">FDBTransaction</span>,
+        <span class="ident">begin_key_name</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">begin_or_equal</span>: <span class="ident">fdb_bool_t</span>,
+        <span class="ident">begin_offset</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">end_key_name</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">end_or_equal</span>: <span class="ident">fdb_bool_t</span>,
+        <span class="ident">end_offset</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">mapper_name</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">mapper_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">limit</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">target_bytes</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">mode</span>: <span class="ident">FDBStreamingMode</span>,
@@ -1211,6 +1377,16 @@
         <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">end_key_name</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
         <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+    ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
+}
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fdb_transaction_get_range_split_points</span>(
+        <span class="ident">tr</span>: <span class="kw-2">*mut</span> <span class="ident">FDBTransaction</span>,
+        <span class="ident">begin_key_name</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">begin_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">end_key_name</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>,
+        <span class="ident">end_key_name_length</span>: <span class="ident">::std::os::raw::c_int</span>,
+        <span class="ident">chunk_size</span>: <span class="ident">i64</span>,
     ) -&gt; <span class="kw-2">*mut</span> <span class="ident">FDBFuture</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {

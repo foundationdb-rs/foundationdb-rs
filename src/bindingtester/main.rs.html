@@ -2790,6 +2790,12 @@
 <span id="2785">2785</span>
 <span id="2786">2786</span>
 <span id="2787">2787</span>
+<span id="2788">2788</span>
+<span id="2789">2789</span>
+<span id="2790">2790</span>
+<span id="2791">2791</span>
+<span id="2792">2792</span>
+<span id="2793">2793</span>
 </pre><pre class="rust"><code><span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
 
@@ -2820,13 +2826,13 @@
 <span class="kw">static</span> <span class="ident">ERROR_NONE</span>: <span class="ident">Element</span> <span class="op">=</span> <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;ERROR: NONE&quot;</span>)));
 <span class="kw">static</span> <span class="ident">ERROR_MULTIPLE</span>: <span class="ident">Element</span> <span class="op">=</span> <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;ERROR: MULTIPLE&quot;</span>)));
 <span class="kw">static</span> <span class="ident">OK</span>: <span class="ident">Element</span> <span class="op">=</span> <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;OK&quot;</span>)));
+<span class="kw">static</span> <span class="ident">ERROR_DIRECTORY</span>: <span class="ident">Element</span> <span class="op">=</span> <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;DIRECTORY_ERROR&quot;</span>)));
 <span class="kw">static</span> <span class="ident">ESTIMATE_RANGE_RESPONSE</span>: <span class="ident">Element</span> <span class="op">=</span>
     <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;GOT_ESTIMATED_RANGE_SIZE&quot;</span>)));
-<span class="kw">static</span> <span class="ident">ERROR_DIRECTORY</span>: <span class="ident">Element</span> <span class="op">=</span> <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;DIRECTORY_ERROR&quot;</span>)));
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_2&quot;</span>))]</span>
-<span class="kw">static</span> <span class="ident">GOT_APPROXIMATE_SIZE</span>: <span class="ident">Element</span> <span class="op">=</span>
+<span class="kw">static</span> <span class="ident">GOT_APPROXIMATE_SIZE_RESPONSE</span>: <span class="ident">Element</span> <span class="op">=</span>
     <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;GOT_APPROXIMATE_SIZE&quot;</span>)));
+<span class="kw">static</span> <span class="ident">GET_RANGE_SPLIT_POINTS_RESPONSE</span>: <span class="ident">Element</span> <span class="op">=</span>
+    <span class="ident">Element::Bytes</span>(<span class="ident">Bytes</span>(<span class="ident">Cow::Borrowed</span>(<span class="string">b&quot;GOT_RANGE_SPLIT_POINTS&quot;</span>)));
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::fdb::options</span>::{<span class="ident">MutationType</span>, <span class="ident">StreamingMode</span>};
 
@@ -2983,6 +2989,7 @@
     <span class="ident">GetApproximateSize</span>,
     <span class="ident">WaitFuture</span>,
     <span class="ident">GetEstimatedRangeSize</span>,
+    <span class="ident">GetRangeSplitPoints</span>,
 
     <span class="ident">TuplePack</span>,
     <span class="ident">TuplePackWithVersionstamp</span>,
@@ -3093,6 +3100,7 @@
             <span class="string">&quot;GET_APPROXIMATE_SIZE&quot;</span> =&gt; <span class="ident">GetApproximateSize</span>,
             <span class="string">&quot;WAIT_FUTURE&quot;</span> =&gt; <span class="ident">WaitFuture</span>,
             <span class="string">&quot;GET_ESTIMATED_RANGE_SIZE&quot;</span> =&gt; <span class="ident">GetEstimatedRangeSize</span>,
+            <span class="string">&quot;GET_RANGE_SPLIT_POINTS&quot;</span> =&gt; <span class="ident">GetRangeSplitPoints</span>,
 
             <span class="string">&quot;TUPLE_PACK&quot;</span> =&gt; <span class="ident">TuplePack</span>,
             <span class="string">&quot;TUPLE_PACK_WITH_VERSIONSTAMP&quot;</span> =&gt; <span class="ident">TuplePackWithVersionstamp</span>,
@@ -4150,17 +4158,28 @@
             <span class="comment">// limits, so these bindings can obtain different sizes back.</span>
             <span class="ident">GetApproximateSize</span> =&gt; {
                 <span class="macro">debug!</span>(<span class="string">&quot;get_approximate_size&quot;</span>);
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_2&quot;</span>))]</span>
+                <span class="ident">trx</span>.<span class="ident">as_mut</span>()
+                    .<span class="ident">get_approximate_size</span>()
+                    .<span class="kw">await</span>
+                    .<span class="ident">expect</span>(<span class="string">&quot;failed to get approximate size&quot;</span>);
+                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">number</span>, <span class="ident">GOT_APPROXIMATE_SIZE_RESPONSE</span>.<span class="ident">clone</span>().<span class="ident">into_owned</span>());
+            }
+
+            <span class="ident">GetRangeSplitPoints</span> =&gt; {
+                <span class="macro">debug!</span>(<span class="string">&quot;get_range_split_points&quot;</span>);
+                <span class="kw">let</span> <span class="ident">begin</span>: <span class="ident">Bytes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_bytes</span>().<span class="kw">await</span>;
+                <span class="kw">let</span> <span class="ident">end</span>: <span class="ident">Bytes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_bytes</span>().<span class="kw">await</span>;
+                <span class="kw">let</span> <span class="ident">chunk_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_i64</span>().<span class="kw">await</span>;
+
+                <span class="kw">match</span> <span class="ident">trx</span>
+                    .<span class="ident">as_mut</span>()
+                    .<span class="ident">get_range_split_points</span>(<span class="kw-2">&amp;</span><span class="ident">begin</span>, <span class="kw-2">&amp;</span><span class="ident">end</span>, <span class="ident">chunk_size</span>)
+                    .<span class="kw">await</span>
                 {
-                    <span class="ident">trx</span>.<span class="ident">as_mut</span>()
-                        .<span class="ident">get_approximate_size</span>()
-                        .<span class="kw">await</span>
-                        .<span class="ident">expect</span>(<span class="string">&quot;failed to get approximate size&quot;</span>);
-                    <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">number</span>, <span class="ident">GOT_APPROXIMATE_SIZE</span>.<span class="ident">clone</span>().<span class="ident">into_owned</span>());
-                }
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_2&quot;</span>)))]</span>
-                {
-                    <span class="macro">unimplemented!</span>(<span class="string">&quot;get_approximate_size requires fdb620+&quot;</span>);
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                        <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">number</span>, <span class="ident">GET_RANGE_SPLIT_POINTS_RESPONSE</span>.<span class="ident">clone</span>().<span class="ident">into_owned</span>())
+                    }
+                    <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; <span class="self">self</span>.<span class="ident">push_err</span>(<span class="ident">number</span>, <span class="ident">error</span>),
                 }
             }
 
@@ -4180,29 +4199,22 @@
             <span class="comment">// push the string &quot;GOT_ESTIMATED_RANGE_SIZE&quot; onto the stack.</span>
             <span class="ident">GetEstimatedRangeSize</span> =&gt; {
                 <span class="macro">debug!</span>(<span class="string">&quot;get estimated range size&quot;</span>);
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>)]</span>
-                {
-                    <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_bytes</span>().<span class="kw">await</span>;
-                    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_bytes</span>().<span class="kw">await</span>;
+                <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_bytes</span>().<span class="kw">await</span>;
+                <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_bytes</span>().<span class="kw">await</span>;
 
-                    <span class="kw">match</span> <span class="ident">trx</span>
-                        .<span class="ident">as_mut</span>()
-                        .<span class="ident">get_estimated_range_size_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">begin</span>, <span class="kw-2">&amp;</span><span class="ident">end</span>)
-                        .<span class="kw">await</span>
-                    {
-                        <span class="prelude-val">Ok</span>(<span class="ident">estimate</span>) =&gt; {
-                            <span class="macro">debug!</span>(<span class="string">&quot;got an estimate of {} bytes&quot;</span>, <span class="ident">estimate</span>);
-                            <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">number</span>, <span class="ident">ESTIMATE_RANGE_RESPONSE</span>.<span class="ident">clone</span>().<span class="ident">into_owned</span>());
-                        }
-                        <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
-                            <span class="self">self</span>.<span class="ident">push_err</span>(<span class="ident">number</span>, <span class="ident">error</span>);
-                        }
-                    };
-                }
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_3&quot;</span>))]</span>
+                <span class="kw">match</span> <span class="ident">trx</span>
+                    .<span class="ident">as_mut</span>()
+                    .<span class="ident">get_estimated_range_size_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">begin</span>, <span class="kw-2">&amp;</span><span class="ident">end</span>)
+                    .<span class="kw">await</span>
                 {
-                    <span class="macro">unimplemented!</span>(<span class="string">&quot;get_estimated_range_size requires fdb630+&quot;</span>);
-                }
+                    <span class="prelude-val">Ok</span>(<span class="ident">estimate</span>) =&gt; {
+                        <span class="macro">debug!</span>(<span class="string">&quot;got an estimate of {} bytes&quot;</span>, <span class="ident">estimate</span>);
+                        <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">number</span>, <span class="ident">ESTIMATE_RANGE_RESPONSE</span>.<span class="ident">clone</span>().<span class="ident">into_owned</span>());
+                    }
+                    <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
+                        <span class="self">self</span>.<span class="ident">push_err</span>(<span class="ident">number</span>, <span class="ident">error</span>);
+                    }
+                };
             }
 
             <span class="comment">// Pops the top item off of the stack as N. Pops the next N items off of the</span>
