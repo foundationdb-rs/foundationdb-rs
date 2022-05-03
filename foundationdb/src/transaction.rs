@@ -824,11 +824,11 @@ impl Transaction {
                 arr.copy_from_slice(&value[0..8]);
                 let transaction_version: i64 = i64::from_be_bytes(arr);
 
-                return Ok(Some(transaction_version));
+                Ok(Some(transaction_version))
             }
             Ok(None) => Ok(None),
 
-            Err(err) => return Err(err),
+            Err(err) => Err(err),
         }
     }
 
