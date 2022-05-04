@@ -166,6 +166,66 @@ impl Database {
         }
     }
 
+    /// Runs a transactional function against this Database with retry logic.
+    /// The associated closure will be called until a non-retryable FDBException
+    /// is thrown or commit(), when called after apply(), returns success.
+    /// This call is blocking -- this method will not return until commit() has been called and returned success.
+    ///
+    /// # Warning: retry
+    ///
+    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
+    /// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction
+    /// if the task need to be guaranteed to finish. These options can be safely set on every iteration of the closure.
+    ///
+    /// # Warning: Maybe committed transactions
+    ///
+    /// As with other client/server databases, in some failure scenarios a client may be unable to determine
+    /// whether a transaction succeeded. You should make sure your closure is idempotent.
+    pub async fn run<F, Fut, T>(&self, closure: F) -> FdbResult<T>
+    where
+        F: Fn(Transaction) -> Fut,
+        Fut: Future<Output = FdbResult<T>>,
+    {
+        // we just need to create the transaction once,
+        // in case there is a error, it will be reset automatically
+        let mut transaction = self.create_trx()?;
+
+        loop {
+            // executing the closure
+            let result_closure = closure(transaction.clone()).await;
+
+            if let Err(e) = result_closure {
+                // The closure returned an Error,
+                match transaction.on_error(e).await {
+                    // we can retry the error
+                    Ok(t) => {
+                        transaction = t;
+                        continue;
+                    }
+                    Err(non_retryable_error) => return Err(non_retryable_error),
+                }
+            }
+
+            let commit_result = transaction.commit().await;
+
+            match commit_result {
+                Ok(_) => {
+                    return result_closure;
+                }
+                Err(transaction_commit_error) => {
+                    // we have an error during commit, checking if it is a retryable error
+                    match transaction_commit_error.on_error().await {
+                        Ok(t) => {
+                            transaction = t;
+                            continue;
+                        }
+                        Err(non_retryable_error) => return Err(non_retryable_error),
+                    }
+                }
+            }
+        }
+    }
+
     pub fn transact_boxed<'trx, F, D, T, E>(
         &'trx self,
         data: D,
