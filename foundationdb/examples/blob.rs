@@ -47,7 +47,7 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 
         for result in results {
             let value = result.value();
-            data.extend(value.into_iter());
+            data.extend(value.iter());
         }
 
         return Some(data);
@@ -66,10 +66,10 @@ async fn test_blob_storing(db: &Database, subspace: &Subspace, iteration: usize)
     let subspace = subspace.subspace(&(iteration));
 
     // Write data as chunk of 1024
-    write_blob(&db, &subspace, &data).await;
+    write_blob(db, &subspace, &data).await;
 
     // Read data
-    let result = read_blob(&db, &subspace)
+    let result = read_blob(db, &subspace)
         .await
         .expect("Unable to read data from database");
 

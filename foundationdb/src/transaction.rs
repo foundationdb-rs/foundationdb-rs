@@ -25,6 +25,9 @@ use futures::{
     future, future::Either, stream, Future, FutureExt, Stream, TryFutureExt, TryStreamExt,
 };
 
+#[cfg_api_versions(min = 610)]
+const METADATA_VERSION_KEY: &[u8] = b"\xff/metadataVersion";
+
 /// A committed transaction.
 #[derive(Debug)]
 #[repr(transparent)]
@@ -796,6 +799,52 @@ impl Transaction {
     /// the result is undefined.
     pub fn set_read_version(&self, version: i64) {
         unsafe { fdb_sys::fdb_transaction_set_read_version(self.inner.as_ptr(), version) }
+    }
+
+    /// The metadata version key `\xff/metadataVersion` is a key intended to help layers deal with hot keys.
+    /// The value of this key is sent to clients along with the read version from the proxy,
+    /// so a client can read its value without communicating with a storage server.
+    /// To retrieve the metadataVersion, you need to set `TransactionOption::ReadSystemKeys`
+    #[cfg_api_versions(min = 610)]
+    pub async fn get_metadata_version(&self, snapshot: bool) -> FdbResult<Option<i64>> {
+        match self.get(METADATA_VERSION_KEY, snapshot).await {
+            Ok(Some(fdb_slice)) => {
+                let value = fdb_slice.deref();
+                // as we cannot write the metadata-key directly(we must mutate with an atomic_op),
+                // can we assume that it will always be the correct size?
+                if value.len() < 8 {
+                    return Ok(None);
+                }
+
+                // The 80-bits versionstamps are 10 bytes longs, and are composed of:
+                // * 8 bytes (Transaction Version)
+                // * followed by 2 bytes (Transaction Batch Order)
+                // More details can be found here: https://forums.foundationdb.org/t/implementing-versionstamps-in-bindings/250
+                let mut arr = [0u8; 8];
+                arr.copy_from_slice(&value[0..8]);
+                let transaction_version: i64 = i64::from_be_bytes(arr);
+
+                Ok(Some(transaction_version))
+            }
+            Ok(None) => Ok(None),
+
+            Err(err) => Err(err),
+        }
+    }
+
+    #[cfg_api_versions(min = 610)]
+    pub fn update_metadata_version(&self) {
+        // The param is transformed by removing the final four bytes from ``param`` and reading
+        // those as a little-Endian 32-bit integer to get a position ``pos``.
+        // The 10 bytes of the parameter from ``pos`` to ``pos + 10`` are replaced with the
+        // versionstamp of the transaction used. The first byte of the parameter is position 0.
+        // As we only have the metadata value, we can just create an 14-bytes Vec filled with 0u8.
+        let param = vec![0u8; 14];
+        self.atomic_op(
+            METADATA_VERSION_KEY,
+            param.as_slice(),
+            options::MutationType::SetVersionstampedValue,
+        )
     }
 
     /// Reset transaction to its initial state.

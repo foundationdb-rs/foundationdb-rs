@@ -158,13 +158,13 @@ static CHUNK_SIZE: usize = 1024;
 
 /// Write slice of data to database using given subspace
 async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
-    if data.len() == 0 {
+    if data.is_empty() {
         return;
     }
 
     let transaction = db.create_trx().expect("Unable to create transaction");
 
-    transaction.set(&subspace.bytes(), data.as_slice());
+    transaction.set(subspace.bytes(), data.as_slice());
     transaction
         .commit()
         .await
@@ -176,10 +176,10 @@ async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
 async fn write_blob(
     db: &Database,
     subspace: &Subspace,
-    data: &Vec<u8>,
+    data: &[u8],
     chunk_size: Option<usize>,
 ) -> usize {
-    if data.len() == 0 {
+    if data.is_empty() {
         return 0;
     }
 
@@ -211,10 +211,8 @@ async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 
     let get_result = transaction.get(subspace.bytes(), false).await;
 
-    if let Ok(result) = get_result {
-        if let Some(data) = result {
-            return Some(data.to_vec());
-        }
+    if let Ok(Some(data)) = get_result {
+        return Some(data.to_vec());
     }
 
     None
@@ -233,7 +231,7 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 
         for result in results {
             let value = result.value();
-            data.extend(value.into_iter());
+            data.extend(value.iter());
         }
 
         return Some(data);
@@ -321,7 +319,7 @@ async fn populate_data(
             let subspace_manifest = subspace_file.subspace(&("_manifest"));
 
             println!("\twith chunk of {}", convert(*chunk_size as f64));
-            let nb_chunks = write_blob(&db, &subspace_data, &data, Some(*chunk_size)).await;
+            let nb_chunks = write_blob(db, &subspace_data, &data, Some(*chunk_size)).await;
 
             let manifest = FileManifest {
                 name: file_name.to_string(),
@@ -332,7 +330,7 @@ async fn populate_data(
                 uuid,
             }
             .serialize();
-            write_data(&db, &subspace_manifest, &manifest).await;
+            write_data(db, &subspace_manifest, &manifest).await;
 
             files_subspace.push(subspace_file);
         }
@@ -342,7 +340,7 @@ async fn populate_data(
         let subspace_data = subspace_file.subspace(&("_data"));
         let subspace_manifest = subspace_file.subspace(&("_manifest"));
 
-        let nb_chunks = write_blob(&db, &subspace_data, &data, None).await;
+        let nb_chunks = write_blob(db, &subspace_data, &data, None).await;
         let manifest = FileManifest {
             name: file_name.to_string(),
             chunk_size: None,
@@ -352,7 +350,7 @@ async fn populate_data(
             uuid,
         }
         .serialize();
-        write_data(&db, &subspace_manifest, &manifest).await;
+        write_data(db, &subspace_manifest, &manifest).await;
     }
 
     files_subspace
@@ -363,13 +361,13 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
     for file_subspace in files_subspaces {
         let manifest_subspace = file_subspace.subspace(&("_manifest"));
         let data_subspace = file_subspace.subspace(&("_data"));
-        let manifest_data = read_data(&db, &manifest_subspace)
+        let manifest_data = read_data(db, &manifest_subspace)
             .await
             .expect("Unable to get manifest");
         let manifest = FileManifest::try_deserialize(&manifest_data)
             .expect("Unable to deserialize manifest data");
 
-        let data_from_database = read_blob(&db, &data_subspace).await;
+        let data_from_database = read_blob(db, &data_subspace).await;
 
         let data_from_database = Cursor::new(data_from_database.unwrap());
         let digest_data_from_database = sha256_hex_digest(data_from_database);
