@@ -83,7 +83,6 @@ We are going to use the Tokio runtime for this example:
 
 ```rust
 use futures::prelude::*;
-use std::ops::Deref;
 
 #[tokio::main]
 async fn main() {
@@ -100,27 +99,17 @@ async fn main() {
 async fn hello_world() -> foundationdb::FdbResult<()> {
     let db = foundationdb::Database::default()?;
 
-    // create a single transaction
+    // write a value
     let trx = db.create_trx()?;
-    trx.set(b"hello", b"world");
+    trx.set(b"hello", b"world"); // errors will be returned in the future result
     trx.commit().await?;
 
-    // reading data with another transaction
+    // read a value
     let trx = db.create_trx()?;
-    let value = trx.get(b"hello", false).await?.unwrap();
-    assert_eq!(value.deref(), b"world");
+    let maybe_value = trx.get(b"hello", false).await?;
+    let value = maybe_value.unwrap(); // unwrap the option
 
-    // clearing the data
-    trx.clear(b"hello");
-    trx.commit().await?;
-
-    // run a transaction within a retry loop
-    db.run(|trx| async move {
-        assert!(trx.get(b"hello", false).await?.is_none());
-        Ok(())
-    })
-        .await.unwrap();
-
+    assert_eq!(b"world", &value.as_ref());
     Ok(())
 }
 ```

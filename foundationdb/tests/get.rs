@@ -50,11 +50,8 @@ async fn test_set_get_async() -> FdbResult<()> {
     trx.clear(b"hello");
     trx.commit().await?;
 
-    db.run(|trx| async move {
-        assert!(trx.get(b"hello", false).await?.is_none());
-        Ok(())
-    })
-    .await?;
+    let trx = db.create_trx()?;
+    assert!(trx.get(b"hello", false).await?.is_none());
 
     Ok(())
 }
