@@ -62,7 +62,6 @@ futures = &quot;0.3&quot;</code></pre></div>
 <p>We are going to use the Tokio runtime for this example:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
 
 <span class="attribute">#[<span class="ident">tokio::main</span>]</span>
 <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">main</span>() {
@@ -79,27 +78,17 @@ futures = &quot;0.3&quot;</code></pre></div>
 <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">hello_world</span>() -&gt; <span class="ident">foundationdb::FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">db</span> <span class="op">=</span> <span class="ident">foundationdb::Database::default</span>()<span class="question-mark">?</span>;
 
-    <span class="comment">// create a single transaction</span>
+    <span class="comment">// write a value</span>
     <span class="kw">let</span> <span class="ident">trx</span> <span class="op">=</span> <span class="ident">db</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
-    <span class="ident">trx</span>.<span class="ident">set</span>(<span class="string">b&quot;hello&quot;</span>, <span class="string">b&quot;world&quot;</span>);
+    <span class="ident">trx</span>.<span class="ident">set</span>(<span class="string">b&quot;hello&quot;</span>, <span class="string">b&quot;world&quot;</span>); <span class="comment">// errors will be returned in the future result</span>
     <span class="ident">trx</span>.<span class="ident">commit</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
-    <span class="comment">// reading data with another transaction</span>
+    <span class="comment">// read a value</span>
     <span class="kw">let</span> <span class="ident">trx</span> <span class="op">=</span> <span class="ident">db</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">trx</span>.<span class="ident">get</span>(<span class="string">b&quot;hello&quot;</span>, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>.<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(<span class="ident">value</span>.<span class="ident">deref</span>(), <span class="string">b&quot;world&quot;</span>);
+    <span class="kw">let</span> <span class="ident">maybe_value</span> <span class="op">=</span> <span class="ident">trx</span>.<span class="ident">get</span>(<span class="string">b&quot;hello&quot;</span>, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">maybe_value</span>.<span class="ident">unwrap</span>(); <span class="comment">// unwrap the option</span>
 
-    <span class="comment">// clearing the data</span>
-    <span class="ident">trx</span>.<span class="ident">clear</span>(<span class="string">b&quot;hello&quot;</span>);
-    <span class="ident">trx</span>.<span class="ident">commit</span>().<span class="kw">await</span><span class="question-mark">?</span>;
-
-    <span class="comment">// run a transaction within a retry loop</span>
-    <span class="ident">db</span>.<span class="ident">run</span>(<span class="op">|</span><span class="ident">trx</span><span class="op">|</span> <span class="kw">async</span> <span class="kw">move</span> {
-        <span class="macro">assert!</span>(<span class="ident">trx</span>.<span class="ident">get</span>(<span class="string">b&quot;hello&quot;</span>, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>.<span class="ident">is_none</span>());
-        <span class="prelude-val">Ok</span>(())
-    })
-        .<span class="kw">await</span>.<span class="ident">unwrap</span>();
-
+    <span class="macro">assert_eq!</span>(<span class="string">b&quot;world&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">value</span>.<span class="ident">as_ref</span>());
     <span class="prelude-val">Ok</span>(())
 }</code></pre></div>
 <h3 id="additional-notes"><a href="#additional-notes">Additional notes</a></h3><h4 id="the-class-scheduling-tutorial"><a href="#the-class-scheduling-tutorial">The class-scheduling tutorial</a></h4>
@@ -154,6 +143,5 @@ may return to the caller before actually delivering their Fdbresult.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.default_config_path.html" title="foundationdb::default_config_path fn">default_config_path</a></div><div class="item-right docblock-short"><p>Returns the default Fdb cluster configuration file path</p>
 </div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2>
 <div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.FdbResult.html" title="foundationdb::FdbResult type">FdbResult</a></div><div class="item-right docblock-short"><p>Alias for <code>Result&lt;..., FdbError&gt;</code></p>
-</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.TransactionResult.html" title="foundationdb::TransactionResult type">TransactionResult</a></div><div class="item-right docblock-short"><p>The result of <code>Transaction::Commit</code></p>
 </div></div></div></section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>
