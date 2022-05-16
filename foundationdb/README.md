@@ -73,6 +73,8 @@ This Rust crate is not tied to any Async Runtime.
 | `fdb-6_1` | Support for FoundationDB 6.1.X |
 | `fdb-6_2` | Support for FoundationDB 6.2.X |
 | `fdb-6_3` | Support for FoundationDB 6.3.X |
+| `fdb-7_0` | Support for FoundationDB 7.0.X |
+| `fdb-7_1` | Support for FoundationDB 7.1.X |
 | `embedded-fdb-include` | Use the locally embedded FoundationDB fdb_c.h and fdb.options files to compile |
 | `uuid` | Support for the uuid crate for Tuples |
 | `num-bigint` | Support for the bigint crate for Tuples |

@@ -28,6 +28,8 @@ const INCLUDE_PATH: &str = "-I./include/620";
 const INCLUDE_PATH: &str = "-I./include/630";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_0"))]
 const INCLUDE_PATH: &str = "-I./include/700";
+#[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_1"))]
+const INCLUDE_PATH: &str = "-I./include/710";
 
 fn main() {
     // Link against fdb_c.
@@ -74,6 +76,10 @@ fn main() {
     #[cfg(feature = "fdb-7_0")]
     {
         api_version = 700;
+    }
+    #[cfg(feature = "fdb-7_1")]
+    {
+        api_version = 710;
     }
 
     // Sigh, bindgen only takes a String for its header path, but that's UTF-8 while
