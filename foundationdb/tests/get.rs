@@ -5,6 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use foundationdb::tuple::{pack, Subspace};
 use foundationdb::*;
 use foundationdb_macros::cfg_api_versions;
 use futures::future::*;
@@ -35,6 +36,8 @@ fn test_get() {
         feature = "fdb-6_1"
     ))]
     futures::executor::block_on(test_metadata_version()).expect("failed to run");
+    #[cfg(any(feature = "fdb-7_1",))]
+    futures::executor::block_on(test_mapped_values()).expect("failed to run");
 }
 
 async fn test_set_get_async() -> FdbResult<()> {
@@ -333,6 +336,64 @@ async fn test_metadata_version() -> FdbResult<()> {
         commit_version, metadata_version
     );
     assert_eq!(commit_version, metadata_version);
+
+    Ok(())
+}
+
+#[cfg_api_versions(min = 710)]
+async fn test_mapped_values() -> FdbResult<()> {
+    let db = common::database().await?;
+
+    let data_subspace = Subspace::all().subspace(&("data"));
+    let index_subspace = Subspace::all().subspace(&("index"));
+    let number_of_records: i32 = 20;
+
+    // setup
+    let setup_transaction = db.create_trx()?;
+    let mut blue_counter = 0;
+    for primary_key in 0_i32..number_of_records {
+        let eye_color = match primary_key % 3 {
+            0 => {
+                blue_counter += 1;
+                "blue"
+            }
+            1 => "brown",
+            2 => "green",
+            _ => unreachable!(),
+        };
+
+        // write into the data subspace
+        setup_transaction.set(
+            &data_subspace.pack(&(primary_key, "eye_color", eye_color)),
+            eye_color.as_bytes(),
+        );
+        // write into the index subspace
+        setup_transaction.set(&index_subspace.pack(&(eye_color, primary_key)), &[]);
+    }
+    setup_transaction.commit().await.expect("could not commit");
+
+    let t = db.create_trx()?;
+    let range_option = RangeOption::from(&index_subspace.subspace(&("blue")));
+    let mapper = pack(&("data", "{K[2]}"));
+
+    let result = t
+        .get_mapped_range(&range_option, &mapper, 1024, false)
+        .await?;
+
+    assert_eq!(
+        result.len() as i32,
+        blue_counter,
+        "found {} elements instead of {}",
+        result.len(),
+        blue_counter
+    );
+
+    // for key_value in result {
+    //
+    //       let key: Vec<Element> = unpack(key_value.key()).expect("could not unpack");
+    //       dbg!(&key);
+    //       println!("{:?}={:?}", key_value.key(), key_value.value());
+    // }
 
     Ok(())
 }

@@ -15,6 +15,7 @@ use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
 
+
 use crate::future::*;
 use crate::keyselector::*;
 use crate::options;
@@ -585,6 +586,43 @@ impl Transaction {
             )
         })
     }
+
+    #[cfg_api_versions(min = 710)]
+    pub fn get_mapped_range<'a>(
+        &'a self,
+        opt: &RangeOption,
+        mapper: &[u8],
+        iteration: usize,
+        snapshot: bool,
+    ) -> impl Future<Output = FdbResult<MappedKeyValues>> + Send + Sync + Unpin {
+        let begin = &opt.begin;
+        let end = &opt.end;
+        let key_begin = begin.key();
+        let key_end = end.key();
+
+        FdbFuture::new(unsafe {
+            fdb_sys::fdb_transaction_get_mapped_range(
+                self.inner.as_ptr(),
+                key_begin.as_ptr(),
+                fdb_len(key_begin.len(), "key_begin"),
+                fdb_bool(begin.or_equal()),
+                begin.offset(),
+                key_end.as_ptr(),
+                fdb_len(key_end.len(), "key_end"),
+                fdb_bool(end.or_equal()),
+                end.offset(),
+                mapper.as_ptr(),
+                fdb_len(mapper.len(), "mapper_length"),
+                fdb_limit(opt.limit.unwrap_or(0)),
+                fdb_limit(opt.target_bytes),
+                opt.mode.code(),
+                fdb_iteration(iteration),
+                fdb_bool(snapshot),
+                fdb_bool(opt.reverse),
+            )
+        })
+    }
+
     /// Modify the database snapshot represented by transaction to remove all keys (if any) which
     /// are lexicographically greater than or equal to the given begin key and lexicographically
     /// less than the given end_key.
