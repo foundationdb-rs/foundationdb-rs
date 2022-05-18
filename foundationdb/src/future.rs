@@ -702,17 +702,18 @@ impl fmt::Debug for FdbKey {
 #[cfg_api_versions(min = 710)]
 mod fdb710 {
     use crate::error;
-    use crate::future::{FdbFutureHandle};
+    use crate::future::{FdbFutureHandle, FdbKeyValue};
     use crate::{FdbError, FdbResult};
     use foundationdb_sys as fdb_sys;
-    
+    use std::fmt;
+
     use std::ops::Deref;
     use std::sync::Arc;
 
     /// An slice of keyvalues owned by a foundationDB future produced by the `get_mapped` method.
     pub struct MappedKeyValues {
         _f: FdbFutureHandle,
-        keyvalues: *const fdb_sys::FDBMappedKeyValue,
+        mapped_keyvalues: *const fdb_sys::FDBMappedKeyValue,
         len: i32,
         more: bool,
     }
@@ -744,7 +745,7 @@ mod fdb710 {
 
             Ok(MappedKeyValues {
                 _f: f,
-                keyvalues,
+                mapped_keyvalues: keyvalues,
                 len,
                 more: more != 0,
             })
@@ -754,8 +755,25 @@ mod fdb710 {
     #[repr(transparent)]
     pub struct FdbMappedKeyValue(fdb_sys::FDBMappedKeyValue);
 
+    impl PartialEq for FdbMappedKeyValue {
+        fn eq(&self, other: &Self) -> bool {
+            (self.parent_key(), self.parent_value()) == (other.parent_key(), other.parent_value())
+        }
+    }
+    impl Eq for FdbMappedKeyValue {}
+    impl fmt::Debug for FdbMappedKeyValue {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(
+                f,
+                "({:?}, {:?})",
+                crate::tuple::Bytes::from(self.parent_key()),
+                crate::tuple::Bytes::from(self.parent_value())
+            )
+        }
+    }
+
     impl FdbMappedKeyValue {
-        pub fn key(&self) -> &[u8] {
+        pub fn parent_key(&self) -> &[u8] {
             unsafe {
                 std::slice::from_raw_parts(
                     self.0.key.key as *const u8,
@@ -764,13 +782,37 @@ mod fdb710 {
             }
         }
 
-        /// value
-        pub fn value(&self) -> &[u8] {
+        pub fn parent_value(&self) -> &[u8] {
             unsafe {
                 std::slice::from_raw_parts(
                     self.0.value.key as *const u8,
                     self.0.value.key_length as usize,
                 )
+            }
+        }
+
+        pub fn begin_range(&self) -> &[u8] {
+            unsafe {
+                std::slice::from_raw_parts(
+                    self.0.getRange.begin.key.key as *const u8,
+                    self.0.getRange.begin.key.key_length as usize,
+                )
+            }
+        }
+
+        pub fn end_range(&self) -> &[u8] {
+            unsafe {
+                std::slice::from_raw_parts(
+                    self.0.getRange.end.key.key as *const u8,
+                    self.0.getRange.end.key.key_length as usize,
+                )
+            }
+        }
+
+        pub fn key_values(&self) -> &[FdbKeyValue] {
+            unsafe {
+                &*(std::slice::from_raw_parts(self.0.getRange.data, self.0.getRange.m_size as usize)
+                    as *const [fdb_sys::FDBKeyValue] as *const [FdbKeyValue])
             }
         }
     }
@@ -782,7 +824,7 @@ mod fdb710 {
             assert_eq_size!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
             assert_eq_align!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
             unsafe {
-                &*(std::slice::from_raw_parts(self.keyvalues, self.len as usize)
+                &*(std::slice::from_raw_parts(self.mapped_keyvalues, self.len as usize)
                     as *const [fdb_sys::FDBMappedKeyValue]
                     as *const [FdbMappedKeyValue])
             }
@@ -811,12 +853,34 @@ mod fdb710 {
         fn into_iter(self) -> Self::IntoIter {
             FdbMappedValuesIter {
                 f: Arc::new(self._f),
-                keyvalues: self.keyvalues,
+                keyvalues: self.mapped_keyvalues,
                 len: self.len,
                 pos: 0,
             }
         }
     }
+
+    unsafe impl Send for FdbMappedValue {}
+
+    impl Deref for FdbMappedValue {
+        type Target = FdbMappedKeyValue;
+        fn deref(&self) -> &Self::Target {
+            assert_eq_size!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
+            assert_eq_align!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
+            unsafe { &*(self.mapped_keyvalue as *const FdbMappedKeyValue) }
+        }
+    }
+    impl AsRef<FdbMappedKeyValue> for FdbMappedValue {
+        fn as_ref(&self) -> &FdbMappedKeyValue {
+            self.deref()
+        }
+    }
+    impl PartialEq for FdbMappedValue {
+        fn eq(&self, other: &Self) -> bool {
+            self.deref() == other.deref()
+        }
+    }
+    impl Eq for FdbMappedValue {}
 
     pub struct FdbMappedValue {
         _f: Arc<FdbFutureHandle>,

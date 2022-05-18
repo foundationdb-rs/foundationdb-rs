@@ -5,7 +5,6 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use foundationdb::tuple::{pack, Subspace};
 use foundationdb::*;
 use foundationdb_macros::cfg_api_versions;
 use futures::future::*;
@@ -342,6 +341,9 @@ async fn test_metadata_version() -> FdbResult<()> {
 
 #[cfg_api_versions(min = 710)]
 async fn test_mapped_values() -> FdbResult<()> {
+    use foundationdb::tuple::{pack, unpack, Element, Subspace};
+    use std::borrow::Cow;
+
     let db = common::database().await?;
 
     let data_subspace = Subspace::all().subspace(&("data"));
@@ -367,6 +369,11 @@ async fn test_mapped_values() -> FdbResult<()> {
             &data_subspace.pack(&(primary_key, "eye_color", eye_color)),
             eye_color.as_bytes(),
         );
+        // write another key next to it
+        setup_transaction.set(
+            &data_subspace.pack(&(primary_key, "some_data")),
+            &pack(&("fdb-rs")),
+        );
         // write into the index subspace
         setup_transaction.set(&index_subspace.pack(&(eye_color, primary_key)), &[]);
     }
@@ -374,26 +381,47 @@ async fn test_mapped_values() -> FdbResult<()> {
 
     let t = db.create_trx()?;
     let range_option = RangeOption::from(&index_subspace.subspace(&("blue")));
-    let mapper = pack(&("data", "{K[2]}"));
 
-    let result = t
+    // The mapper is a Tuple that allow to transform keys.
+    // This one is allowing fdb to convert a key like `("index", "blue", PRIMARY_KEY)`
+    // to generate a scan in the range `("data", PRIMARY_KEY, ...)`
+    // More info can be found here: https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange
+    let mapper = pack(&("data", "{K[2]}", "{...}"));
+
+    let mapped_key_values = t
         .get_mapped_range(&range_option, &mapper, 1024, false)
         .await?;
 
     assert_eq!(
-        result.len() as i32,
+        mapped_key_values.len() as i32,
         blue_counter,
         "found {} elements instead of {}",
-        result.len(),
+        mapped_key_values.len(),
         blue_counter
     );
 
-    // for key_value in result {
-    //
-    //       let key: Vec<Element> = unpack(key_value.key()).expect("could not unpack");
-    //       dbg!(&key);
-    //       println!("{:?}={:?}", key_value.key(), key_value.value());
-    // }
+    for mapped_key_value in mapped_key_values {
+        // checking the parent key that generated the scan
+        let parent_key: Vec<Element> =
+            unpack(mapped_key_value.parent_key()).expect("could not unpack index key");
+        assert!(parent_key.starts_with(&[
+            Element::String(Cow::from("index")),
+            Element::String(Cow::from("blue"))
+        ]));
+
+        let mapped_values = mapped_key_value.key_values();
+        assert_eq!(
+            mapped_values.len(),
+            2,
+            "bad length, expecting 2, got {}",
+            mapped_values.len()
+        );
+
+        for kv in mapped_values {
+            let key: Vec<Element> = unpack(kv.key()).expect("could not unpack key");
+            assert!(key.starts_with(&[Element::String(Cow::from("data"))]))
+        }
+    }
 
     Ok(())
 }

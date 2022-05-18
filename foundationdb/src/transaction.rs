@@ -15,7 +15,6 @@ use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
 
-
 use crate::future::*;
 use crate::keyselector::*;
 use crate::options;

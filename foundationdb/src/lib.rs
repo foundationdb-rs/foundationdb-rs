@@ -17,7 +17,6 @@ pub mod directory;
 mod error;
 pub mod future;
 mod keyselector;
-#[cfg(any(feature = "fdb-7_1"))]
 /// Generated configuration types for use with the various `set_option` functions
 #[allow(clippy::all)]
 pub mod options;
