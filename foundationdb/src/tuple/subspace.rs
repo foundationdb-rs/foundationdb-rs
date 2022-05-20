@@ -9,6 +9,7 @@
 use super::*;
 use crate::{KeySelector, RangeOption, Transaction};
 use std::borrow::Cow;
+use std::hash::Hash;
 
 /// Represents a well-defined region of keyspace in a FoundationDB database
 ///
@@ -21,7 +22,7 @@ use std::borrow::Cow;
 /// general guidance on subspace usage, see the Subspaces section of the [Developer Guide].
 ///
 /// [Developer Guide]: https://apple.github.io/foundationdb/developer-guide.html#subspaces
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Subspace {
     prefix: Vec<u8>,
 }
@@ -123,6 +124,7 @@ impl Transaction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn sub() {
@@ -172,5 +174,25 @@ mod tests {
 
         let (begin, end) = ss.range();
         assert!(packed >= begin && packed <= end);
+    }
+
+    #[test]
+    fn equality() {
+        let sub1 = Subspace::all().subspace(&"test");
+        let sub2 = Subspace::all().subspace(&"test");
+        let sub3 = Subspace::all().subspace(&"test2");
+        assert_eq!(sub1, sub2);
+        assert_ne!(sub1, sub3);
+    }
+
+    #[test]
+    fn hash() {
+        let sub1 = Subspace::all().subspace(&"test");
+        let sub2 = Subspace::all().subspace(&"test2");
+
+        let map: HashMap<Subspace, u8> = HashMap::from([(sub1, 1), (sub2, 2)]);
+
+        assert_eq!(map.get(&Subspace::all().subspace(&"test")).unwrap(), &1);
+        assert_eq!(map.get(&Subspace::all().subspace(&"test2")).unwrap(), &2);
     }
 }
