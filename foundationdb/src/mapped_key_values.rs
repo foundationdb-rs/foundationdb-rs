@@ -6,7 +6,13 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-/// Definitions of MappedKeyValues, used in api version 710 and more.
+//! Definitions of MappedKeyValues, used in api version 710 and more.
+//!
+//! GetMappedRange is an experimental feature introduced in FDB 7.1. It is intended to improve the
+//! client throughput and reduce latency for a commonly used traffic pattern.
+//! An experiment with Record Layer shows that this optimization can get 4x client throughput on a certain workload.
+//!
+//! More info can be found in the [relevant documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange).
 
 use crate::error;
 use crate::future::{FdbFutureHandle, FdbKeyValue};
@@ -17,7 +23,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// An slice of keyvalues owned by a foundationDB future produced by the `get_mapped` method.
+/// An slice of mapped keyvalues owned by a foundationDB future produced by the `get_mapped` method.
 pub struct MappedKeyValues {
     _f: FdbFutureHandle,
     mapped_keyvalues: *const fdb_sys::FDBMappedKeyValue,
@@ -60,6 +66,7 @@ impl TryFrom<FdbFutureHandle> for MappedKeyValues {
 }
 
 #[repr(transparent)]
+/// A KeyValue produced by a mapped operation, ownder by a Foundation Future.
 pub struct FdbMappedKeyValue(fdb_sys::FDBMappedKeyValue);
 
 impl PartialEq for FdbMappedKeyValue {
@@ -80,12 +87,14 @@ impl fmt::Debug for FdbMappedKeyValue {
 }
 
 impl FdbMappedKeyValue {
+    /// Retrieves the "parent" key that generated the secondary scan.
     pub fn parent_key(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(self.0.key.key as *const u8, self.0.key.key_length as usize)
         }
     }
 
+    /// Retrieves the "parent" value that generated the secondary scan.
     pub fn parent_value(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
@@ -95,6 +104,7 @@ impl FdbMappedKeyValue {
         }
     }
 
+    /// Retrieves the beginning of the range
     pub fn begin_range(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
@@ -104,6 +114,7 @@ impl FdbMappedKeyValue {
         }
     }
 
+    /// Retrieves the end of the range
     pub fn end_range(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
@@ -113,6 +124,7 @@ impl FdbMappedKeyValue {
         }
     }
 
+    /// retrieves the associated slice of [`FdbKeyValue`]
     pub fn key_values(&self) -> &[FdbKeyValue] {
         unsafe {
             &*(std::slice::from_raw_parts(self.0.getRange.data, self.0.getRange.m_size as usize)
@@ -186,12 +198,13 @@ impl PartialEq for FdbMappedValue {
 }
 impl Eq for FdbMappedValue {}
 
+/// An FdbMappedValue that you can own
 pub struct FdbMappedValue {
     _f: Arc<FdbFutureHandle>,
     mapped_keyvalue: *const fdb_sys::FDBMappedKeyValue,
 }
 
-/// An iterator of keyvalues owned by a foundationDB future
+/// An iterator of mapped keyvalues owned by a foundationDB future
 pub struct FdbMappedValuesIter {
     f: Arc<FdbFutureHandle>,
     keyvalues: *const fdb_sys::FDBMappedKeyValue,

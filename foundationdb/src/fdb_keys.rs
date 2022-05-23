@@ -6,7 +6,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-/// Definitions of FDBKeys, used in api version 700 and more.
+//! Definitions of FDBKeys, used in api version 700 and more.
 
 use crate::error;
 use crate::future::FdbFutureHandle;
@@ -154,10 +154,11 @@ impl fmt::Debug for FdbRowKey {
 }
 
 #[repr(transparent)]
+/// An FdbKey, owned by a FoundationDB Future
 pub struct FdbKey(fdb_sys::FDBKey);
 
 impl FdbKey {
-    /// key
+    /// retrieves the associated key
     pub fn key(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
     }

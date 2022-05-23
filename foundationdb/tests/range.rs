@@ -28,10 +28,9 @@ fn test_range() {
         futures::executor::block_on(test_get_range_split_points()).expect("failed to run");
     }
     #[cfg(any(feature = "fdb-7_1",))]
-        {
-
-            futures::executor::block_on(test_mapped_values()).expect("failed to run");
-        }
+    {
+        futures::executor::block_on(test_mapped_values()).expect("failed to run");
+    }
 }
 
 async fn test_get_range_async() -> FdbResult<()> {
