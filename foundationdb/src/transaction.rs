@@ -586,6 +586,25 @@ impl Transaction {
         })
     }
 
+    /// GetMappedRange is an experimental feature introduced in FDB 7.1.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
+    /// In such a case, querying records by scanning an index in relational databases can be
+    /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
+    ///
+    /// This method is allowing FoundationDB "follow up" a GetRange request with GetValue requests,
+    /// this can happen in one request without additional back and forth. Considering the overhead
+    /// of each request, this saves time and resources on serialization, deserialization, and network.
+    ///
+    /// A `Transaction.get_mapped_range` request will:
+    ///
+    /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
+    /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
+    /// * Put all results in a nested structure and return them.
+    ///
+    /// **WARNING** : This feature is considered experimental at this time. It is only allowed when
+    /// using snapshot isolation AND disabling read-your-writes.
+    ///
+    /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
     #[cfg_api_versions(min = 710)]
     pub fn get_mapped_range<'a>(
         &'a self,
