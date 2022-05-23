@@ -14,10 +14,11 @@
 //!
 //! More info can be found in the [relevant documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange).
 
-use crate::error;
 use crate::future::{FdbFutureHandle, FdbKeyValue};
+use crate::{error, KeySelector};
 use crate::{FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
+use std::borrow::Cow;
 use std::fmt;
 
 use std::ops::Deref;
@@ -124,6 +125,16 @@ impl FdbMappedKeyValue {
         }
     }
 
+    /// Retrieves the beginning of the range as a [`KeySelector`]
+    pub fn begin_selector(&self) -> KeySelector {
+        KeySelector::new(Cow::from(self.begin_range()), false, 0)
+    }
+
+    /// Retrieves the end of the range as a [`KeySelector`]
+    pub fn end_selector(&self) -> KeySelector {
+        KeySelector::new(Cow::from(self.end_range()), false, 0)
+    }
+
     /// retrieves the associated slice of [`FdbKeyValue`]
     pub fn key_values(&self) -> &[FdbKeyValue] {
         unsafe {
@@ -162,6 +173,12 @@ impl<'a> IntoIterator for &'a MappedKeyValues {
     }
 }
 
+/// An FdbMappedValue that you can own.
+pub struct FdbMappedValue {
+    _f: Arc<FdbFutureHandle>,
+    mapped_keyvalue: *const fdb_sys::FDBMappedKeyValue,
+}
+
 impl IntoIterator for MappedKeyValues {
     type Item = FdbMappedValue;
     type IntoIter = FdbMappedValuesIter;
@@ -197,12 +214,6 @@ impl PartialEq for FdbMappedValue {
     }
 }
 impl Eq for FdbMappedValue {}
-
-/// An FdbMappedValue that you can own
-pub struct FdbMappedValue {
-    _f: Arc<FdbFutureHandle>,
-    mapped_keyvalue: *const fdb_sys::FDBMappedKeyValue,
-}
 
 /// An iterator of mapped keyvalues owned by a foundationDB future
 pub struct FdbMappedValuesIter {
