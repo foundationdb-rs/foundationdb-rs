@@ -128,6 +128,12 @@ jobs:
           command: run
           args: --example blob-with-manifest
 
+      - name: Example blob-with-manifest
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example atomic_op_counter
+
   bindingtester:
     name: Binding Tester
     runs-on: ubuntu-latest
