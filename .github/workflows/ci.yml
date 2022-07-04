@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        toolchain: ["1.56.0", "stable", "beta", "nightly"]
+        toolchain: ["1.56.1", "stable", "beta", "nightly"]
 
     runs-on: ${{ matrix.os }}
 
