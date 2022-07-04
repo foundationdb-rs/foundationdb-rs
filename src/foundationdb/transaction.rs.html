@@ -897,6 +897,62 @@
 <span id="892">892</span>
 <span id="893">893</span>
 <span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
@@ -1484,6 +1540,62 @@
             )
         })
     }
+
+    <span class="doccomment">/// GetMappedRange is an experimental feature introduced in FDB 7.1.</span>
+    <span class="doccomment">/// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.</span>
+    <span class="doccomment">/// In such a case, querying records by scanning an index in relational databases can be</span>
+    <span class="doccomment">/// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,</span>
+    <span class="doccomment">/// this can happen in one request without additional back and forth. Considering the overhead</span>
+    <span class="doccomment">/// of each request, this saves time and resources on serialization, deserialization, and network.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A `Transaction.get_mapped_range` request will:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.</span>
+    <span class="doccomment">/// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.</span>
+    <span class="doccomment">/// * Put all results in a nested structure and return them.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// **WARNING** : This feature is considered experimental at this time. It is only allowed when</span>
+    <span class="doccomment">/// using snapshot isolation AND disabling read-your-writes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).</span>
+    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">710</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_mapped_range</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
+        <span class="ident">opt</span>: <span class="kw-2">&amp;</span><span class="ident">RangeOption</span>,
+        <span class="ident">mapper</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">iteration</span>: <span class="ident">usize</span>,
+        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
+    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">MappedKeyValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
+        <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">begin</span>;
+        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">end</span>;
+        <span class="kw">let</span> <span class="ident">key_begin</span> <span class="op">=</span> <span class="ident">begin</span>.<span class="ident">key</span>();
+        <span class="kw">let</span> <span class="ident">key_end</span> <span class="op">=</span> <span class="ident">end</span>.<span class="ident">key</span>();
+
+        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
+            <span class="ident">fdb_sys::fdb_transaction_get_mapped_range</span>(
+                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">key_begin</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fdb_len</span>(<span class="ident">key_begin</span>.<span class="ident">len</span>(), <span class="string">&quot;key_begin&quot;</span>),
+                <span class="ident">fdb_bool</span>(<span class="ident">begin</span>.<span class="ident">or_equal</span>()),
+                <span class="ident">begin</span>.<span class="ident">offset</span>(),
+                <span class="ident">key_end</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fdb_len</span>(<span class="ident">key_end</span>.<span class="ident">len</span>(), <span class="string">&quot;key_end&quot;</span>),
+                <span class="ident">fdb_bool</span>(<span class="ident">end</span>.<span class="ident">or_equal</span>()),
+                <span class="ident">end</span>.<span class="ident">offset</span>(),
+                <span class="ident">mapper</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fdb_len</span>(<span class="ident">mapper</span>.<span class="ident">len</span>(), <span class="string">&quot;mapper_length&quot;</span>),
+                <span class="ident">fdb_limit</span>(<span class="ident">opt</span>.<span class="ident">limit</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>)),
+                <span class="ident">fdb_limit</span>(<span class="ident">opt</span>.<span class="ident">target_bytes</span>),
+                <span class="ident">opt</span>.<span class="ident">mode</span>.<span class="ident">code</span>(),
+                <span class="ident">fdb_iteration</span>(<span class="ident">iteration</span>),
+                <span class="ident">fdb_bool</span>(<span class="ident">snapshot</span>),
+                <span class="ident">fdb_bool</span>(<span class="ident">opt</span>.<span class="ident">reverse</span>),
+            )
+        })
+    }
+
     <span class="doccomment">/// Modify the database snapshot represented by transaction to remove all keys (if any) which</span>
     <span class="doccomment">/// are lexicographically greater than or equal to the given begin key and lexicographically</span>
     <span class="doccomment">/// less than the given end_key.</span>
@@ -1792,5 +1904,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>
