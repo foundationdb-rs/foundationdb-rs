@@ -4,7 +4,7 @@ This is a wrapper library around the FoundationDB (Fdb) C API. It implements fut
 
 ## Prerequisites
 
-* Rust 1.56 or more,
+* Rust 1.56.1 or more,
 * FoundationDB's client installed.
 
 ## Platform Support

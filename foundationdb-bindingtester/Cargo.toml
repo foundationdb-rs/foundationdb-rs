@@ -26,7 +26,7 @@ env_logger = "0.9.0"
 foundationdb = { path = "../foundationdb", features = ["uuid", "num-bigint", "fdb-7_1"], default-features = false }
 foundationdb-sys = { version = "0.6.0", path = "../foundationdb-sys", default-features = false }
 futures = "0.3.21"
-log = "0.4.16"
+log = "0.4.17"
 num-bigint = "0.4.3"
 structopt = "0.3.26"
-async-trait = "0.1.53"
+async-trait = "0.1.56"
