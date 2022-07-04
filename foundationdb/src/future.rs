@@ -31,6 +31,10 @@ use std::pin::Pin;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
+#[cfg_api_versions(min = 700)]
+pub use crate::fdb_keys::FdbKeys;
+#[cfg_api_versions(min = 710)]
+pub use crate::mapped_key_values::MappedKeyValues;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 use futures::prelude::*;
@@ -252,158 +256,6 @@ impl AsRef<CStr> for FdbAddress {
         self.deref()
     }
 }
-
-#[cfg_api_versions(min = 700)]
-mod fdb700 {
-    use crate::error;
-    use crate::future::{FdbFutureHandle, FdbKey};
-    use crate::{FdbError, FdbResult};
-    use foundationdb_sys as fdb_sys;
-    use std::fmt;
-    use std::ops::Deref;
-
-    /// An slice of keys owned by a FoundationDB future
-    pub struct FdbKeys {
-        _f: FdbFutureHandle,
-        keys: *const fdb_sys::FDBKey,
-        len: i32,
-    }
-    unsafe impl Sync for FdbKeys {}
-    unsafe impl Send for FdbKeys {}
-    impl TryFrom<FdbFutureHandle> for FdbKeys {
-        type Error = FdbError;
-
-        fn try_from(f: FdbFutureHandle) -> FdbResult<Self> {
-            let mut keys = std::ptr::null();
-            let mut len = 0;
-
-            error::eval(unsafe {
-                fdb_sys::fdb_future_get_key_array(f.as_ptr(), &mut keys, &mut len)
-            })?;
-
-            Ok(FdbKeys { _f: f, keys, len })
-        }
-    }
-
-    impl Deref for FdbKeys {
-        type Target = [FdbKey];
-        fn deref(&self) -> &Self::Target {
-            assert_eq_size!(FdbKey, fdb_sys::FDBKey);
-            assert_eq_align!(FdbKey, fdb_sys::FDBKey);
-            unsafe {
-                &*(std::slice::from_raw_parts(self.keys, self.len as usize)
-                    as *const [fdb_sys::FDBKey] as *const [FdbKey])
-            }
-        }
-    }
-
-    impl AsRef<[FdbKey]> for FdbKeys {
-        fn as_ref(&self) -> &[FdbKey] {
-            self.deref()
-        }
-    }
-
-    impl<'a> IntoIterator for &'a FdbKeys {
-        type Item = &'a FdbKey;
-        type IntoIter = std::slice::Iter<'a, FdbKey>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.deref().iter()
-        }
-    }
-
-    /// An iterator of keyvalues owned by a foundationDB future
-    pub struct FdbKeysIter {
-        f: std::rc::Rc<FdbFutureHandle>,
-        keys: *const fdb_sys::FDBKey,
-        len: i32,
-        pos: i32,
-    }
-
-    impl Iterator for FdbKeysIter {
-        type Item = FdbRowKey;
-        fn next(&mut self) -> Option<Self::Item> {
-            #[allow(clippy::iter_nth_zero)]
-            self.nth(0)
-        }
-
-        fn size_hint(&self) -> (usize, Option<usize>) {
-            let rem = (self.len - self.pos) as usize;
-            (rem, Some(rem))
-        }
-
-        fn nth(&mut self, n: usize) -> Option<Self::Item> {
-            let pos = (self.pos as usize).checked_add(n);
-            match pos {
-                Some(pos) if pos < self.len as usize => {
-                    // safe because pos < self.len
-                    let row_key = unsafe { self.keys.add(pos) };
-                    self.pos = pos as i32 + 1;
-
-                    Some(FdbRowKey {
-                        _f: self.f.clone(),
-                        row_key,
-                    })
-                }
-                _ => {
-                    self.pos = self.len;
-                    None
-                }
-            }
-        }
-    }
-
-    impl IntoIterator for FdbKeys {
-        type Item = FdbRowKey;
-        type IntoIter = FdbKeysIter;
-
-        fn into_iter(self) -> Self::IntoIter {
-            FdbKeysIter {
-                f: std::rc::Rc::new(self._f),
-                keys: self.keys,
-                len: self.len,
-                pos: 0,
-            }
-        }
-    }
-    /// A row key you can own
-    ///
-    /// Until dropped, this might prevent multiple key/values from beeing freed.
-    /// (i.e. the future that own the data is dropped once all data it provided is dropped)
-    pub struct FdbRowKey {
-        _f: std::rc::Rc<FdbFutureHandle>,
-        row_key: *const fdb_sys::FDBKey,
-    }
-
-    impl Deref for FdbRowKey {
-        type Target = FdbKey;
-        fn deref(&self) -> &Self::Target {
-            assert_eq_size!(FdbKey, fdb_sys::FDBKey);
-            assert_eq_align!(FdbKey, fdb_sys::FDBKey);
-            unsafe { &*(self.row_key as *const FdbKey) }
-        }
-    }
-    impl AsRef<FdbKey> for FdbRowKey {
-        fn as_ref(&self) -> &FdbKey {
-            self.deref()
-        }
-    }
-    impl PartialEq for FdbRowKey {
-        fn eq(&self, other: &Self) -> bool {
-            self.deref() == other.deref()
-        }
-    }
-
-    impl Eq for FdbRowKey {}
-    impl fmt::Debug for FdbRowKey {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            self.deref().fmt(f)
-        }
-    }
-}
-
-#[cfg_api_versions(min = 700)]
-pub use fdb700::FdbKeys;
 
 /// An slice of keyvalues owned by a foundationDB future
 pub struct FdbValues {
@@ -637,11 +489,21 @@ impl TryFrom<FdbFutureHandle> for i64 {
     fn try_from(f: FdbFutureHandle) -> FdbResult<Self> {
         let mut version: i64 = 0;
         error::eval(unsafe {
-            #[cfg(any(feature = "fdb-6_2", feature = "fdb-6_3", feature = "fdb-7_0"))]
+            #[cfg(any(
+                feature = "fdb-6_2",
+                feature = "fdb-6_3",
+                feature = "fdb-7_0",
+                feature = "fdb-7_1"
+            ))]
             {
                 fdb_sys::fdb_future_get_int64(f.as_ptr(), &mut version)
             }
-            #[cfg(not(any(feature = "fdb-6_2", feature = "fdb-6_3", feature = "fdb-7_0")))]
+            #[cfg(not(any(
+                feature = "fdb-6_2",
+                feature = "fdb-6_3",
+                feature = "fdb-7_0",
+                feature = "fdb-7_1"
+            )))]
             {
                 fdb_sys::fdb_future_get_version(f.as_ptr(), &mut version)
             }
@@ -654,34 +516,5 @@ impl TryFrom<FdbFutureHandle> for () {
     type Error = FdbError;
     fn try_from(_f: FdbFutureHandle) -> FdbResult<Self> {
         Ok(())
-    }
-}
-
-#[cfg_api_versions(min = 700)]
-#[repr(transparent)]
-pub struct FdbKey(fdb_sys::FDBKey);
-
-#[cfg_api_versions(min = 700)]
-impl FdbKey {
-    /// key
-    pub fn key(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
-    }
-}
-
-#[cfg_api_versions(min = 700)]
-impl PartialEq for FdbKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.key() == other.key()
-    }
-}
-
-#[cfg_api_versions(min = 700)]
-impl Eq for FdbKey {}
-
-#[cfg_api_versions(min = 700)]
-impl fmt::Debug for FdbKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({:?})", crate::tuple::Bytes::from(self.key()),)
     }
 }

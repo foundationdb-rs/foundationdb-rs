@@ -585,6 +585,62 @@ impl Transaction {
             )
         })
     }
+
+    /// GetMappedRange is an experimental feature introduced in FDB 7.1.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
+    /// In such a case, querying records by scanning an index in relational databases can be
+    /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
+    ///
+    /// This method is allowing FoundationDB "follow up" a GetRange request with GetValue requests,
+    /// this can happen in one request without additional back and forth. Considering the overhead
+    /// of each request, this saves time and resources on serialization, deserialization, and network.
+    ///
+    /// A `Transaction.get_mapped_range` request will:
+    ///
+    /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
+    /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
+    /// * Put all results in a nested structure and return them.
+    ///
+    /// **WARNING** : This feature is considered experimental at this time. It is only allowed when
+    /// using snapshot isolation AND disabling read-your-writes.
+    ///
+    /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
+    #[cfg_api_versions(min = 710)]
+    pub fn get_mapped_range<'a>(
+        &'a self,
+        opt: &RangeOption,
+        mapper: &[u8],
+        iteration: usize,
+        snapshot: bool,
+    ) -> impl Future<Output = FdbResult<MappedKeyValues>> + Send + Sync + Unpin {
+        let begin = &opt.begin;
+        let end = &opt.end;
+        let key_begin = begin.key();
+        let key_end = end.key();
+
+        FdbFuture::new(unsafe {
+            fdb_sys::fdb_transaction_get_mapped_range(
+                self.inner.as_ptr(),
+                key_begin.as_ptr(),
+                fdb_len(key_begin.len(), "key_begin"),
+                fdb_bool(begin.or_equal()),
+                begin.offset(),
+                key_end.as_ptr(),
+                fdb_len(key_end.len(), "key_end"),
+                fdb_bool(end.or_equal()),
+                end.offset(),
+                mapper.as_ptr(),
+                fdb_len(mapper.len(), "mapper_length"),
+                fdb_limit(opt.limit.unwrap_or(0)),
+                fdb_limit(opt.target_bytes),
+                opt.mode.code(),
+                fdb_iteration(iteration),
+                fdb_bool(snapshot),
+                fdb_bool(opt.reverse),
+            )
+        })
+    }
+
     /// Modify the database snapshot represented by transaction to remove all keys (if any) which
     /// are lexicographically greater than or equal to the given begin key and lexicographically
     /// less than the given end_key.

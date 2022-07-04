@@ -370,6 +370,8 @@ const OPTIONS_DATA: &[u8] = include_bytes!("../include/620/fdb.options");
 const OPTIONS_DATA: &[u8] = include_bytes!("../include/630/fdb.options");
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_0"))]
 const OPTIONS_DATA: &[u8] = include_bytes!("../include/700/fdb.options");
+#[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_1"))]
+const OPTIONS_DATA: &[u8] = include_bytes!("../include/710/fdb.options");
 
 pub fn emit(w: &mut impl fmt::Write) -> fmt::Result {
     let mut reader = OPTIONS_DATA;
