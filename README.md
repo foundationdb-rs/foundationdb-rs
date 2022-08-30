@@ -14,7 +14,7 @@ The repo consists of multiple crates
 | [**foundationdb-sys**](foundationdb-sys/README.md) | [![Crates.io](https://img.shields.io/crates/v/foundationdb-sys)](https://crates.io/crates/foundationdb-sys) [![foundationdb-sys](https://docs.rs/foundationdb-sys/badge.svg)](https://docs.rs/foundationdb-sys) | C API bindings for FoundationDB                             |
 | **foundationdb-gen**                               | n/a                                                                                                                                                                                                             | Code generator for common options and types of FoundationDB |
 
-The current version requires rustc 1.56+ to work.
+The current version requires rustc 1.57+ to work.
 The previous version (0.3) is still maintained and is available within the 0.3 branch.
 
 You can access the `main` branch documentation [here](https://foundationdb-rs.github.io/foundationdb-rs/foundationdb/index.html).

@@ -35,6 +35,10 @@ fn main() {
     // Link against fdb_c.
     println!("cargo:rustc-link-lib=fdb_c");
 
+    if let Ok(lib_path) = env::var("FDB_CLIENT_LIB_PATH") {
+        println!("cargo:rustc-link-search=native={}", lib_path);
+    }
+
     // Include the link directory for the .lib file on windows (which will resolve to
     // the shared library, at runtime)
     #[cfg(target_os = "windows")]
