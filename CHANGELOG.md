@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.7.0
+
+- #62: Add Hash, Eq and PartialEq to Subspace
+- #61: Add and defaults to FoundationDB 7.1.X API version
+- #55: Add metadataVersion on transaction
+- #48: Add and defaults to FoundationDB 7.0.X API version
+- #37: Bump dependencies
+
 ## 0.6.0
 
 - #34: Bump dependencies
