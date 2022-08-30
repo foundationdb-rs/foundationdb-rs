@@ -6,7 +6,7 @@ pub struct Versionstamp {
     bytes: [u8; 12],
 }
 
-impl<'a> fmt::Debug for Versionstamp {
+impl fmt::Debug for Versionstamp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Bytes::from(&self.bytes[..]).fmt(f)
     }
