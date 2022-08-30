@@ -29,6 +29,7 @@
 
           # Rust part
           cargo-expand
+          cargo-edit
           rust-analyzer
           (rust-bin.stable.latest.default.override {
             extensions = [ "rust-src" ];
