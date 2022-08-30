@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["HcaError",""]],"struct":[["HighContentionAllocator","Represents a High Contention Allocator for a given subspace"]]});
+window.SIDEBAR_ITEMS = {"enum":[["HcaError",""]],"struct":[["HighContentionAllocator","Represents a High Contention Allocator for a given subspace"]]};
