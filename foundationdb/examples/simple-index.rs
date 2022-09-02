@@ -62,7 +62,7 @@ async fn get_user(
         .await?
         .expect("Could not found a row");
 
-    let name: String = unpack(&user.to_vec()).expect("Could not unpack");
+    let name: String = unpack(&user).expect("Could not unpack");
     Ok(User {
         id: user_id.to_string(),
         zipcode: zipcode.to_string(),

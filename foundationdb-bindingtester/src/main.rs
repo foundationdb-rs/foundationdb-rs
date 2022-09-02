@@ -2360,12 +2360,10 @@ impl StackMachine {
                 let raw_prefix = self.pop_bytes().await;
                 let maybe_contains = match self.get_current_directory_item() {
                     None => None,
-                    Some(DirectoryStackItem::Subspace(s)) => {
-                        Some(s.is_start_of(&raw_prefix.to_vec()))
-                    }
+                    Some(DirectoryStackItem::Subspace(s)) => Some(s.is_start_of(&raw_prefix)),
                     Some(DirectoryStackItem::DirectoryOutput(
                         DirectoryOutput::DirectorySubspace(s),
-                    )) => Some(s.is_start_of(&raw_prefix.to_vec())),
+                    )) => Some(s.is_start_of(&raw_prefix)),
                     _ => None,
                 };
                 match maybe_contains {
