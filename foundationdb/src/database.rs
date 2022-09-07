@@ -217,6 +217,23 @@ impl Database {
             options,
         )
     }
+
+    /// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data
+    /// in any way, nor will it perform any I/O against the FDB cluster. However, it will schedule some amount of work
+    /// onto the FDB client and wait for it to complete. The FoundationDB client operates by scheduling onto an event
+    /// queue that is then processed by a single thread (the "network thread"). This method can be used to determine if
+    /// the network thread has entered a state where it is no longer processing requests or if its time to process
+    /// requests has increased. If the network thread is busy, this operation may take some amount of time to complete,
+    /// which is why this operation returns a future.
+    pub async fn perform_no_op(&self) -> FdbResult<()> {
+        let trx = self.create_trx()?;
+
+        // Set the read version of the transaction, then read it back. This requires no I/O, but it does
+        // require the network thread be running. The exact value used for the read version is unimportant.
+        trx.set_read_version(42);
+        trx.get_read_version().await?;
+        Ok(())
+    }
 }
 pub trait DatabaseTransact: Sized {
     type Item;
