@@ -270,6 +270,30 @@ impl<'a> RangeOption<'a> {
         }
         Some(self)
     }
+
+    #[cfg_api_versions(min = 710)]
+    pub(crate) fn next_mapped_range(mut self, kvs: &MappedKeyValues) -> Option<Self> {
+        if !kvs.more() {
+            return None;
+        }
+
+        let last = kvs.last()?;
+        let last_key = last.parent_key();
+
+        if let Some(limit) = self.limit.as_mut() {
+            *limit = limit.saturating_sub(kvs.len());
+            if *limit == 0 {
+                return None;
+            }
+        }
+
+        if self.reverse {
+            self.end.make_first_greater_or_equal(last_key);
+        } else {
+            self.begin.make_first_greater_than(last_key);
+        }
+        Some(self)
+    }
 }
 
 impl<'a> Default for RangeOption<'a> {
@@ -586,7 +610,7 @@ impl Transaction {
         })
     }
 
-    /// GetMappedRange is an experimental feature introduced in FDB 7.1.
+    /// Mapped Range is an experimental feature introduced in FDB 7.1.
     /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
     /// In such a case, querying records by scanning an index in relational databases can be
     /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
@@ -595,7 +619,7 @@ impl Transaction {
     /// this can happen in one request without additional back and forth. Considering the overhead
     /// of each request, this saves time and resources on serialization, deserialization, and network.
     ///
-    /// A `Transaction.get_mapped_range` request will:
+    /// A mapped request will:
     ///
     /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
     /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
@@ -605,6 +629,8 @@ impl Transaction {
     /// using snapshot isolation AND disabling read-your-writes.
     ///
     /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
+    ///
+    /// This is the "raw" version, users are expected to use [Transaction::get_mapped_ranges]
     #[cfg_api_versions(min = 710)]
     pub fn get_mapped_range<'a>(
         &'a self,
@@ -638,6 +664,50 @@ impl Transaction {
                 fdb_bool(snapshot),
                 fdb_bool(opt.reverse),
             )
+        })
+    }
+
+    /// Mapped Range is an experimental feature introduced in FDB 7.1.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
+    /// In such a case, querying records by scanning an index in relational databases can be
+    /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
+    ///
+    /// This method is allowing FoundationDB "follow up" a GetRange request with GetValue requests,
+    /// this can happen in one request without additional back and forth. Considering the overhead
+    /// of each request, this saves time and resources on serialization, deserialization, and network.
+    ///
+    /// A mapped request will:
+    ///
+    /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
+    /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
+    /// * Put all results in a nested structure and return them.
+    ///
+    /// **WARNING** : This feature is considered experimental at this time. It is only allowed when
+    /// using snapshot isolation AND disabling read-your-writes.
+    ///
+    /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
+    #[cfg_api_versions(min = 710)]
+    pub fn get_mapped_ranges<'a>(
+        &'a self,
+        opt: RangeOption<'a>,
+        mapper: &'a [u8],
+        snapshot: bool,
+    ) -> impl Stream<Item = FdbResult<MappedKeyValues>> + Send + Sync + Unpin + 'a {
+        stream::unfold((1, Some(opt)), move |(iteration, maybe_opt)| {
+            if let Some(opt) = maybe_opt {
+                Either::Left(
+                    self.get_mapped_range(&opt, mapper, iteration as usize, snapshot)
+                        .map(move |maybe_values| {
+                            let next_opt = match &maybe_values {
+                                Ok(values) => opt.next_mapped_range(values),
+                                Err(..) => None,
+                            };
+                            Some((maybe_values, (iteration + 1, next_opt)))
+                        }),
+                )
+            } else {
+                Either::Right(future::ready(None))
+            }
         })
     }
 
