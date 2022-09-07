@@ -1,7 +1,9 @@
 use foundationdb::*;
 use futures::prelude::*;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::runtime::Runtime;
+use tokio::time::timeout;
 
 mod common;
 
@@ -21,6 +23,10 @@ async fn do_transact() {
             .await
             .expect("failed to open fdb"),
     );
+
+    if (timeout(Duration::from_secs(1), db.perform_no_op()).await).is_err() {
+        panic!("database is unavailable");
+    }
 
     let adb = db;
     tokio::spawn(async move {
