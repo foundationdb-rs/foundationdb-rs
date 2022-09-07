@@ -368,6 +368,23 @@
 <span id="362">362</span>
 <span id="363">363</span>
 <span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
@@ -586,6 +603,23 @@
             },
             <span class="ident">options</span>,
         )
+    }
+
+    <span class="doccomment">/// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data</span>
+    <span class="doccomment">/// in any way, nor will it perform any I/O against the FDB cluster. However, it will schedule some amount of work</span>
+    <span class="doccomment">/// onto the FDB client and wait for it to complete. The FoundationDB client operates by scheduling onto an event</span>
+    <span class="doccomment">/// queue that is then processed by a single thread (the &quot;network thread&quot;). This method can be used to determine if</span>
+    <span class="doccomment">/// the network thread has entered a state where it is no longer processing requests or if its time to process</span>
+    <span class="doccomment">/// requests has increased. If the network thread is busy, this operation may take some amount of time to complete,</span>
+    <span class="doccomment">/// which is why this operation returns a future.</span>
+    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">perform_no_op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">trx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
+
+        <span class="comment">// Set the read version of the transaction, then read it back. This requires no I/O, but it does</span>
+        <span class="comment">// require the network thread be running. The exact value used for the read version is unimportant.</span>
+        <span class="ident">trx</span>.<span class="ident">set_read_version</span>(<span class="number">42</span>);
+        <span class="ident">trx</span>.<span class="ident">get_read_version</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 }
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">DatabaseTransact</span>: <span class="ident">Sized</span> {
