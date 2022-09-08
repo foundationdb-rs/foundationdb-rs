@@ -26,6 +26,9 @@ use crate::{error, FdbError, FdbResult};
 use crate::error::FdbBindingError;
 use futures::prelude::*;
 
+#[cfg(feature = "fdb-7_1")]
+use crate::tenant::FdbTenant;
+
 /// Represents a FoundationDB database
 ///
 /// A mutable, lexicographically ordered mapping from binary keys to binary values.
@@ -76,6 +79,27 @@ impl Database {
     /// Create a database for the default configuration path
     pub fn default() -> FdbResult<Database> {
         Self::new(None)
+    }
+}
+
+#[cfg_api_versions(min = 710)]
+impl Database {
+    pub fn open_tenant(&self, tenant_name: &[u8]) -> FdbResult<FdbTenant> {
+        let mut ptr: *mut fdb_sys::FDB_tenant = std::ptr::null_mut();
+        let err = unsafe {
+            fdb_sys::fdb_database_open_tenant(
+                self.inner.as_ptr(),
+                tenant_name.as_ptr(),
+                tenant_name.len().try_into().unwrap(),
+                &mut ptr,
+            )
+        };
+        error::eval(err)?;
+        Ok(FdbTenant {
+            inner: NonNull::new(ptr)
+                .expect("fdb_database_open_tenant to not return null if there is no error"),
+            name: tenant_name.to_owned(),
+        })
     }
 }
 

@@ -26,6 +26,8 @@ pub mod mapped_key_values;
 /// Generated configuration types for use with the various `set_option` functions
 #[allow(clippy::all)]
 pub mod options;
+#[cfg(any(feature = "fdb-7_1"))]
+pub mod tenant;
 mod transaction;
 pub mod tuple;
 
