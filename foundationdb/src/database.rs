@@ -109,6 +109,17 @@ impl Database {
         )))
     }
 
+    fn create_retryable_trx(&self) -> FdbResult<RetryableTransaction> {
+        let mut trx: *mut fdb_sys::FDBTransaction = std::ptr::null_mut();
+        let err =
+            unsafe { fdb_sys::fdb_database_create_transaction(self.inner.as_ptr(), &mut trx) };
+        error::eval(err)?;
+        Ok(RetryableTransaction::new(Transaction::new(
+            NonNull::new(trx)
+                .expect("fdb_database_create_transaction to not return null if there is no error"),
+        )))
+    }
+
     /// `transact` returns a future which retries on error. It tries to resolve a future created by
     /// caller-provided function `f` inside a retry loop, providing it with a newly created
     /// transaction. After caller-provided future resolves, the transaction will be committed
@@ -216,6 +227,76 @@ impl Database {
             },
             options,
         )
+    }
+
+    /// Runs a transactional function against this Database with retry logic.
+    /// The associated closure will be called until a non-retryable FDBError
+    /// is thrown or commit(), returns success.
+    /// This call is blocking -- this method will not return until commit() has been called and returned success.
+    ///
+    /// # Warning: retry
+    ///
+    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
+    /// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction
+    /// if the task need to be guaranteed to finish. These options can be safely set on every iteration of the closure.
+    ///
+    /// # Warning: Maybe committed transactions
+    ///
+    /// As with other client/server databases, in some failure scenarios a client may be unable to determine
+    /// whether a transaction succeeded. You should make sure your closure is idempotent.
+    ///
+    /// The closure will notify the user in case of a maybe_committed transaction in a previous run
+    ///  with the boolean provided in the closure.
+
+    /// # Warning: Safety
+    ///
+    /// This method will **panic** if you keep a reference of the RetryableTransaction outside the closure.
+    pub async fn run<F, Fut, T>(&self, closure: F) -> FdbResult<T>
+    where
+        F: Fn(RetryableTransaction, bool) -> Fut,
+        Fut: Future<Output = FdbResult<T>>,
+    {
+        let mut maybe_committed_transaction = false;
+        // we just need to create the transaction once,
+        // in case there is a error, it will be reset automatically
+        let mut transaction = self.create_retryable_trx()?;
+
+        loop {
+            // executing the closure
+            let result_closure = closure(transaction.clone(), maybe_committed_transaction).await;
+
+            if let Err(e) = result_closure {
+                maybe_committed_transaction = e.is_maybe_committed();
+                // The closure returned an Error,
+                match transaction.on_error(e).await {
+                    // we can retry the error
+                    Ok(t) => {
+                        transaction = t;
+                        continue;
+                    }
+                    Err(non_retryable_error) => return Err(non_retryable_error),
+                }
+            }
+
+            let commit_result = transaction.commit().await;
+
+            match commit_result {
+                Ok(_) => {
+                    return result_closure;
+                }
+                Err(transaction_commit_error) => {
+                    maybe_committed_transaction = transaction_commit_error.is_maybe_committed();
+                    // we have an error during commit, checking if it is a retryable error
+                    match transaction_commit_error.on_error().await {
+                        Ok(t) => {
+                            transaction = RetryableTransaction::new(t);
+                            continue;
+                        }
+                        Err(non_retryable_error) => return Err(non_retryable_error),
+                    }
+                }
+            }
+        }
     }
 
     /// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data
