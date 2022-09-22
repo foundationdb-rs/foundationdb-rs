@@ -10,8 +10,12 @@
 
 use std::ffi::CStr;
 use std::fmt;
+use std::fmt::{Debug, Display, Formatter};
 
+use crate::directory::DirectoryError;
 use crate::options;
+use crate::tuple::hca::HcaError;
+use crate::tuple::PackError;
 use foundationdb_sys as fdb_sys;
 
 pub(crate) fn eval(error_code: fdb_sys::fdb_error_t) -> FdbResult<()> {
@@ -74,7 +78,7 @@ impl FdbError {
 
 impl fmt::Display for FdbError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.message().fmt(f)
+        std::fmt::Display::fmt(&self.message(), f)
     }
 }
 
@@ -82,3 +86,79 @@ impl std::error::Error for FdbError {}
 
 /// Alias for `Result<..., FdbError>`
 pub type FdbResult<T> = Result<T, FdbError>;
+
+/// This error represent all errors that can be throwed by `db.run`.
+/// Layer developers may use the `CustomError`.
+pub enum FdbBindingError {
+    NonRetryableFdbError(FdbError),
+    HcaError(HcaError),
+    DirectoryError(DirectoryError),
+    PackError(PackError),
+    /// A reference to the `RetryableTransaction` has been kept
+    ReferenceToTransactionKept,
+    /// A custom error that layer developers can use
+    CustomError(Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl FdbBindingError {
+    /// Return if the RunError is an FdbError
+    pub(crate) fn get_fdb_error(&self) -> Option<FdbError> {
+        match self {
+            FdbBindingError::NonRetryableFdbError(e) => Some(*e),
+            FdbBindingError::DirectoryError(directory_error) => {
+                if let DirectoryError::FdbError(e) = directory_error {
+                    Some(*e)
+                } else {
+                    None
+                }
+            }
+            FdbBindingError::HcaError(hca_error) => {
+                if let HcaError::FdbError(e) = hca_error {
+                    Some(*e)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+impl From<FdbError> for FdbBindingError {
+    fn from(e: FdbError) -> Self {
+        Self::NonRetryableFdbError(e)
+    }
+}
+
+impl From<HcaError> for FdbBindingError {
+    fn from(e: HcaError) -> Self {
+        Self::HcaError(e)
+    }
+}
+
+impl From<DirectoryError> for FdbBindingError {
+    fn from(e: DirectoryError) -> Self {
+        Self::DirectoryError(e)
+    }
+}
+
+impl FdbBindingError {
+    /// create a new custom error
+    pub fn new_custom_error(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        Self::CustomError(e)
+    }
+}
+
+impl Debug for FdbBindingError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        std::fmt::Debug::fmt(&self, f)
+    }
+}
+
+impl Display for FdbBindingError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl std::error::Error for FdbBindingError {}

@@ -1,8 +1,11 @@
+extern crate core;
+
 use foundationdb::future::FdbValue;
 use foundationdb::options::ConflictRangeType;
 use foundationdb::tuple::{pack, Subspace};
 use foundationdb::*;
 use futures::prelude::*;
+use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicI16, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,7 +23,50 @@ fn test_tokio_send() {
         do_run().await;
         do_run_with_transaction_limits().await;
         do_trx().await;
+        do_run_with_custom_error().await;
     });
+}
+
+#[derive(Debug)]
+enum CustomError {
+    MyError1,
+}
+
+impl Display for CustomError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MyError1")
+    }
+}
+
+impl std::error::Error for CustomError {}
+
+async fn do_run_with_custom_error() {
+    let db = Arc::new(
+        foundationdb::Database::new_compat(None)
+            .await
+            .expect("failed to open fdb"),
+    );
+
+    db.perform_no_op().await.expect("could not perform no_op");
+
+    let result: Result<(), FdbBindingError> = db
+        .run(|_trx, _maybe_committed| async move {
+            let toto: Box<CustomError> = Box::new(CustomError::MyError1);
+            Err(FdbBindingError::new_custom_error(toto))
+        })
+        .await;
+
+    match result {
+        Ok(_) => panic!("expecting an error, got an Ok from db.run"),
+        Err(err) => match err {
+            FdbBindingError::CustomError(e) => match e.downcast_ref::<CustomError>().unwrap() {
+                // no-op
+                CustomError::MyError1 => {}
+            },
+            FdbBindingError::ReferenceToTransactionKept => {}
+            _ => panic!("expecting an Custom Error"),
+        },
+    }
 }
 
 async fn do_transact() {
@@ -104,7 +150,10 @@ async fn do_run() {
             if local_counter < limit_retry {
                 // writing with another transaction in the subspace "do_run"
                 conflict_transaction.set(&read_subspace.pack(&(2)), &pack(&("42")));
-                conflict_transaction.commit().await?;
+                conflict_transaction
+                    .commit()
+                    .await
+                    .expect("cannot commit the conflict transaction");
             }
 
             // trying to commit
@@ -147,7 +196,10 @@ async fn do_run_with_transaction_limits() {
 
             // writing with another transaction in the subspace "do_run"
             conflict_transaction.set(&Subspace::all().pack(&("do_run", "2")), &pack(&("42")));
-            conflict_transaction.commit().await?;
+            conflict_transaction
+                .commit()
+                .await
+                .expect("cannot commit the conflict transaction");
 
             Ok(())
         })

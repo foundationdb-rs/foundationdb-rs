@@ -23,6 +23,7 @@ use crate::options;
 use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
 
+use crate::error::FdbBindingError;
 use futures::prelude::*;
 
 /// Represents a FoundationDB database
@@ -110,14 +111,7 @@ impl Database {
     }
 
     fn create_retryable_trx(&self) -> FdbResult<RetryableTransaction> {
-        let mut trx: *mut fdb_sys::FDBTransaction = std::ptr::null_mut();
-        let err =
-            unsafe { fdb_sys::fdb_database_create_transaction(self.inner.as_ptr(), &mut trx) };
-        error::eval(err)?;
-        Ok(RetryableTransaction::new(Transaction::new(
-            NonNull::new(trx)
-                .expect("fdb_database_create_transaction to not return null if there is no error"),
-        )))
+        Ok(RetryableTransaction::new(self.create_trx()?))
     }
 
     /// `transact` returns a future which retries on error. It tries to resolve a future created by
@@ -232,7 +226,8 @@ impl Database {
     /// Runs a transactional function against this Database with retry logic.
     /// The associated closure will be called until a non-retryable FDBError
     /// is thrown or commit(), returns success.
-    /// This call is blocking -- this method will not return until commit() has been called and returned success.
+    ///
+    /// Users are not expected to keep reference to the `RetryableTransaction`.
     ///
     /// # Warning: retry
     ///
@@ -247,14 +242,11 @@ impl Database {
     ///
     /// The closure will notify the user in case of a maybe_committed transaction in a previous run
     ///  with the boolean provided in the closure.
-
-    /// # Warning: Safety
     ///
-    /// This method will **panic** if you keep a reference of the RetryableTransaction outside the closure.
-    pub async fn run<F, Fut, T>(&self, closure: F) -> FdbResult<T>
+    pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
     where
         F: Fn(RetryableTransaction, bool) -> Fut,
-        Fut: Future<Output = FdbResult<T>>,
+        Fut: Future<Output = Result<T, FdbBindingError>>,
     {
         let mut maybe_committed_transaction = false;
         // we just need to create the transaction once,
@@ -266,16 +258,24 @@ impl Database {
             let result_closure = closure(transaction.clone(), maybe_committed_transaction).await;
 
             if let Err(e) = result_closure {
-                maybe_committed_transaction = e.is_maybe_committed();
-                // The closure returned an Error,
-                match transaction.on_error(e).await {
-                    // we can retry the error
-                    Ok(t) => {
-                        transaction = t;
-                        continue;
+                // checks if it is an FdbError
+                if let Some(e) = e.get_fdb_error() {
+                    maybe_committed_transaction = e.is_maybe_committed();
+                    // The closure returned an Error,
+                    match transaction.on_error(e).await {
+                        // we can retry the error
+                        Ok(Ok(t)) => {
+                            transaction = t;
+                            continue;
+                        }
+                        Ok(Err(non_retryable_error)) => {
+                            return Err(FdbBindingError::from(non_retryable_error))
+                        }
+                        Err(non_retryable_error) => return Err(non_retryable_error),
                     }
-                    Err(non_retryable_error) => return Err(non_retryable_error),
                 }
+                // Otherwise, it cannot be retried
+                return Err(e);
             }
 
             let commit_result = transaction.commit().await;
@@ -292,7 +292,9 @@ impl Database {
                             transaction = RetryableTransaction::new(t);
                             continue;
                         }
-                        Err(non_retryable_error) => return Err(non_retryable_error),
+                        Err(non_retryable_error) => {
+                            return Err(FdbBindingError::from(non_retryable_error))
+                        }
                     }
                 }
             }
