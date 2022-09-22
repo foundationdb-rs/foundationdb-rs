@@ -1,5 +1,3 @@
-use futures::prelude::*;
-
 #[tokio::main]
 async fn main() {
     // Safe because drop is called before the program exits
