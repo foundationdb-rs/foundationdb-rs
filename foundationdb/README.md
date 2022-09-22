@@ -101,17 +101,27 @@ async fn main() {
 async fn hello_world() -> foundationdb::FdbResult<()> {
     let db = foundationdb::Database::default()?;
 
-    // write a value
-    let trx = db.create_trx()?;
-    trx.set(b"hello", b"world"); // errors will be returned in the future result
-    trx.commit().await?;
+    // write a value in a retryable closure
+    match db
+        .run(|trx, _maybe_committed| async move {
+            trx.set(b"hello", b"world");
+            Ok(())
+        })
+        .await
+    {
+        Ok(_) => println!("transaction committed"),
+        Err(_) => eprintln!("cannot commit transaction"),
+    };
 
     // read a value
-    let trx = db.create_trx()?;
-    let maybe_value = trx.get(b"hello", false).await?;
-    let value = maybe_value.unwrap(); // unwrap the option
+    match db
+        .run(|trx, _maybe_committed| async move { Ok(trx.get(b"hello", false).await.unwrap()) })
+        .await
+    {
+        Ok(slice) => assert_eq!(b"world", slice.unwrap().as_ref()),
+        Err(_) => eprintln!("cannot commit transaction"),
+    }
 
-    assert_eq!(b"world", &value.as_ref());
     Ok(())
 }
 ```
@@ -130,7 +140,6 @@ A Rust implementation can be found [here](https://github.com/foundationdb-rs/fou
 
 Another [example](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob-with-manifest.rs), 
 explores how to use subspaces to attach metadata to our blob.
-
 
 ### Must-read documentations
 

@@ -121,7 +121,7 @@ jobs:
         with:
           command: run
           args: --example simple-index
-      
+
       - name: Example blob
         uses: actions-rs/cargo@v1
         with:
@@ -139,6 +139,12 @@ jobs:
         with:
           command: run
           args: --example atomic_op_counter
+
+      - name: Example hello_world
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example hello_world
 
   bindingtester:
     name: Binding Tester
