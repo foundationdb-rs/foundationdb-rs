@@ -134,17 +134,17 @@ jobs:
           command: run
           args: --example blob-with-manifest
 
-      - name: Example blob-with-manifest
+      - name: Example atomic-op-counter
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --example atomic_op_counter
+          args: --example atomic-op-counter
 
-      - name: Example hello_world
+      - name: Example hello world
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --example hello_world
+          args: --example hello-world
 
   bindingtester:
     name: Binding Tester
