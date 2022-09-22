@@ -11,12 +11,12 @@ This is a wrapper library around the FoundationDB (Fdb) C API. It implements fut
 
 Support for different platforms ("targets") are organized into three tiers, each with a different set of guarantees. For more information on the policies for targets at each tier, see the [Target Tier Policy](#target-tier-policy).
 
-| Platform | Tier | Notes |
-| --- | --- | --- |
-| linux x86_64 | 1 | |
-|osx x86_64 | 2 | |
-| Windows x86_64 | 3     | [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135)  |
-| osx Silicon 	| 3    	| [Waiting for official dylib support](https://forums.foundationdb.org/t/arm-client-library/3072)        |
+| Platform       | Tier   | Notes                                                                                                                               |
+|----------------|--------|-------------------------------------------------------------------------------------------------------------------------------------|
+| linux x86_64   | 1      |                                                                                                                                     |
+| osx x86_64     | 2      |                                                                                                                                     |
+| Windows x86_64 | 3      | [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135) |
+| osx Silicon 	  | 3    	 | [Waiting for official dylib support](https://forums.foundationdb.org/t/arm-client-library/3072)                                     |
 
 For more information on the policies for targets at each tier, see the
 
@@ -65,19 +65,19 @@ This Rust crate is not tied to any Async Runtime.
 
 ### Exposed features
 
-| Features | Notes |
-| --- | --- |
-| `fdb-5_1` | Support for FoundationDB 5.1.X |
-| `fdb-5_2` | Support for FoundationDB 5.2.X |
-| `fdb-6_0` | Support for FoundationDB 6.0.X |
-| `fdb-6_1` | Support for FoundationDB 6.1.X |
-| `fdb-6_2` | Support for FoundationDB 6.2.X |
-| `fdb-6_3` | Support for FoundationDB 6.3.X |
-| `fdb-7_0` | Support for FoundationDB 7.0.X |
-| `fdb-7_1` | Support for FoundationDB 7.1.X |
+| Features               | Notes                                                                          |
+|------------------------|--------------------------------------------------------------------------------|
+| `fdb-5_1`              | Support for FoundationDB 5.1.X                                                 |
+| `fdb-5_2`              | Support for FoundationDB 5.2.X                                                 |
+| `fdb-6_0`              | Support for FoundationDB 6.0.X                                                 |
+| `fdb-6_1`              | Support for FoundationDB 6.1.X                                                 |
+| `fdb-6_2`              | Support for FoundationDB 6.2.X                                                 |
+| `fdb-6_3`              | Support for FoundationDB 6.3.X                                                 |
+| `fdb-7_0`              | Support for FoundationDB 7.0.X                                                 |
+| `fdb-7_1`              | Support for FoundationDB 7.1.X                                                 |
 | `embedded-fdb-include` | Use the locally embedded FoundationDB fdb_c.h and fdb.options files to compile |
-| `uuid` | Support for the uuid crate for Tuples |
-| `num-bigint` | Support for the bigint crate for Tuples |
+| `uuid`                 | Support for the uuid crate for Tuples                                          |
+| `num-bigint`           | Support for the bigint crate for Tuples                                        |
 
 ### Hello, World using the crate
 
