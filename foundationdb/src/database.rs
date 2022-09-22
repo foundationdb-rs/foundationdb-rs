@@ -227,7 +227,8 @@ impl Database {
     /// The associated closure will be called until a non-retryable FDBError
     /// is thrown or commit(), returns success.
     ///
-    /// Users are not expected to keep reference to the `RetryableTransaction`.
+    /// Users are **not** expected to keep reference to the `RetryableTransaction`. If a weak or strong
+    /// reference is kept by the user, the binding will throw an error.
     ///
     /// # Warning: retry
     ///
@@ -271,6 +272,7 @@ impl Database {
                         Ok(Err(non_retryable_error)) => {
                             return Err(FdbBindingError::from(non_retryable_error))
                         }
+                        // The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
                         Err(non_retryable_error) => return Err(non_retryable_error),
                     }
                 }
@@ -281,10 +283,10 @@ impl Database {
             let commit_result = transaction.commit().await;
 
             match commit_result {
-                Ok(_) => {
-                    return result_closure;
-                }
-                Err(transaction_commit_error) => {
+                // The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
+                Err(err) => return Err(err),
+                Ok(Ok(_)) => return result_closure,
+                Ok(Err(transaction_commit_error)) => {
                     maybe_committed_transaction = transaction_commit_error.is_maybe_committed();
                     // we have an error during commit, checking if it is a retryable error
                     match transaction_commit_error.on_error().await {

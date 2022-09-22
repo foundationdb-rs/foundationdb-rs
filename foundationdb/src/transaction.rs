@@ -1067,7 +1067,7 @@ impl RetryableTransaction {
         self,
         err: FdbError,
     ) -> Result<Result<RetryableTransaction, FdbError>, FdbBindingError> {
-        // check weak references
+        // checking weak references
         if Arc::weak_count(&self.inner) != 0 {
             return Err(FdbBindingError::ReferenceToTransactionKept);
         }
@@ -1097,21 +1097,16 @@ impl RetryableTransaction {
         self.inner.clear(key)
     }
 
-    /// Attempts to commit the sets and clears previously applied to the database snapshot
-    /// represented by transaction to the actual database.
-    ///
-    /// The commit may or may not succeed – in particular, if a conflicting transaction previously
-    /// committed, then the commit must fail in order to preserve transactional isolation. If the
-    /// commit does succeed, the transaction is durably committed to the database and all
-    /// subsequently started transactions will observe its effects.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if kept any reference to the `RetryableTransaction`.
-    pub(crate) async fn commit(self) -> Result<TransactionCommitted, TransactionCommitError> {
+    pub(crate) async fn commit(
+        self,
+    ) -> Result<Result<TransactionCommitted, TransactionCommitError>, FdbBindingError> {
+        // check weak references
+        if Arc::weak_count(&self.inner) != 0 {
+            return Err(FdbBindingError::ReferenceToTransactionKept);
+        }
         match Arc::try_unwrap(self.inner) {
-            Ok(inner) => inner.commit().await,
-            Err(_) => panic!("Keeping a reference to the RetryableTransaction is not allowed"),
+            Ok(inner) => Ok(inner.commit().await),
+            Err(_) => Err(FdbBindingError::ReferenceToTransactionKept),
         }
     }
 
