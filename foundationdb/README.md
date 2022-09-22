@@ -55,10 +55,9 @@ You first need to install FoundationDB. You can follow the official documentatio
 
 ### Add dependencies on foundationdb-rs
 
-```toml
-[dependencies]
-foundationdb = "0.6"
-futures = "0.3"
+```shell
+cargo add foundationdb -F embedded-fdb-include
+cargo add futures
 ```
 
 This Rust crate is not tied to any Async Runtime.
