@@ -33,6 +33,7 @@ pub mod tuple;
 pub use crate::cluster::Cluster;
 
 pub use crate::database::*;
+pub use crate::error::FdbBindingError;
 pub use crate::error::FdbError;
 pub use crate::error::FdbResult;
 pub use crate::keyselector::*;
