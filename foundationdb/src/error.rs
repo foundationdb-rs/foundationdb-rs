@@ -40,6 +40,10 @@ impl FdbError {
         Self { error_code }
     }
 
+    pub(crate) fn new(error_code: i32) -> Self {
+        Self { error_code }
+    }
+
     pub fn message(self) -> &'static str {
         let error_str =
             unsafe { CStr::from_ptr::<'static>(fdb_sys::fdb_get_error(self.error_code)) };

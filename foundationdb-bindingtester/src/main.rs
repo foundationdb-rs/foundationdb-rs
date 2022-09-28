@@ -41,7 +41,7 @@ use crate::fdb::options::{MutationType, StreamingMode};
 use foundationdb::directory::DirectoryError;
 use foundationdb::directory::DirectoryLayer;
 use foundationdb::directory::{Directory, DirectoryOutput};
-use foundationdb::tenant::FdbTenant;
+use foundationdb::tenant::{FdbTenant, TenantManagement};
 use foundationdb::tuple::{PackResult, TupleUnpack};
 
 use tuple::VersionstampOffset;
@@ -2622,14 +2622,35 @@ impl StackMachine {
             // Pops the top item off of the stack as TENANT_NAME. Creates a new tenant
             // in the database with the name TENANT_NAME. May optionally push a future
             // onto the stack.
-            TenantCreate => unimplemented!(),
+            TenantCreate => {
+                let tenant_name = self.pop_bytes().await;
+                debug!("creating tenant {}", tenant_name);
+                match TenantManagement::create_tenant(&db, &tenant_name.0).await {
+                    Ok(()) => self.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
+                    Err(err) => self.push_err(number, err),
+                }
+            }
             // Pops the top item off of the stack as TENANT_NAME. Deletes the tenant with
             // the name TENANT_NAME from the database. May optionally push a future onto
             // the stack.
-            TenantDelete => unimplemented!(),
+            TenantDelete => {
+                let tenant_name = self.pop_bytes().await;
+                debug!("deleting tenant {}", tenant_name);
+                match TenantManagement::delete_tenant(&db, &tenant_name.0).await {
+                    Ok(()) => self.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
+                    Err(err) => self.push_err(number, err),
+                }
+            }
             // Pops the top item off of the stack as TENANT_NAME. Opens the tenant with
             // name TENANT_NAME and stores it as the active tenant.
-            TenantSetActive => unimplemented!(),
+            TenantSetActive => {
+                let tenant_name = self.pop_bytes().await;
+                debug!("set active tenant {}", tenant_name);
+                match db.open_tenant(&tenant_name.0) {
+                    Ok(tenant) => self.tenant = Some(tenant),
+                    Err(err) => self.push_err(number, err),
+                }
+            }
             // Unsets the active tenant.
             TenantClearActive => self.tenant = None,
             // Pops the top 3 items off of the stack as BEGIN, END, & LIMIT.
