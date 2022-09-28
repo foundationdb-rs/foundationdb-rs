@@ -1,10 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/database.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>database.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
-        </a><h2 class="location"></h2>
-    </nav>
-    <nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
-        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><div id="settings-menu" tabindex="-1">
-                                <a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div>
-                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/database.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>database.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -385,6 +379,91 @@
 <span id="379">379</span>
 <span id="380">380</span>
 <span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
 <span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
 <span class="comment">//</span>
@@ -410,6 +489,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::transaction</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
 
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::FdbBindingError</span>;
 <span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// Represents a FoundationDB database</span>
@@ -494,6 +574,10 @@
         <span class="prelude-val">Ok</span>(<span class="ident">Transaction::new</span>(<span class="ident">NonNull::new</span>(<span class="ident">trx</span>).<span class="ident">expect</span>(
             <span class="string">&quot;fdb_database_create_transaction to not return null if there is no error&quot;</span>,
         )))
+    }
+
+    <span class="kw">fn</span> <span class="ident">create_retryable_trx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">RetryableTransaction</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">RetryableTransaction::new</span>(<span class="self">self</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>))
     }
 
     <span class="doccomment">/// `transact` returns a future which retries on error. It tries to resolve a future created by</span>
@@ -603,6 +687,86 @@
             },
             <span class="ident">options</span>,
         )
+    }
+
+    <span class="doccomment">/// Runs a transactional function against this Database with retry logic.</span>
+    <span class="doccomment">/// The associated closure will be called until a non-retryable FDBError</span>
+    <span class="doccomment">/// is thrown or commit(), returns success.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Users are **not** expected to keep reference to the `RetryableTransaction`. If a weak or strong</span>
+    <span class="doccomment">/// reference is kept by the user, the binding will throw an error.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Warning: retry</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// It might retry indefinitely if the transaction is highly contentious. It is recommended to</span>
+    <span class="doccomment">/// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction</span>
+    <span class="doccomment">/// if the task need to be guaranteed to finish. These options can be safely set on every iteration of the closure.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Warning: Maybe committed transactions</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// As with other client/server databases, in some failure scenarios a client may be unable to determine</span>
+    <span class="doccomment">/// whether a transaction succeeded. You should make sure your closure is idempotent.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The closure will notify the user in case of a maybe_committed transaction in a previous run</span>
+    <span class="doccomment">///  with the boolean provided in the closure.</span>
+    <span class="doccomment">///</span>
+    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">Fut</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">closure</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="ident">RetryableTransaction</span>, <span class="ident">bool</span>) -&gt; <span class="ident">Fut</span>,
+        <span class="ident">Fut</span>: <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">maybe_committed_transaction</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="comment">// we just need to create the transaction once,</span>
+        <span class="comment">// in case there is a error, it will be reset automatically</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transaction</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">create_retryable_trx</span>()<span class="question-mark">?</span>;
+
+        <span class="kw">loop</span> {
+            <span class="comment">// executing the closure</span>
+            <span class="kw">let</span> <span class="ident">result_closure</span> <span class="op">=</span> <span class="ident">closure</span>(<span class="ident">transaction</span>.<span class="ident">clone</span>(), <span class="ident">maybe_committed_transaction</span>).<span class="kw">await</span>;
+
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">result_closure</span> {
+                <span class="comment">// checks if it is an FdbError</span>
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">e</span>.<span class="ident">get_fdb_error</span>() {
+                    <span class="ident">maybe_committed_transaction</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">is_maybe_committed</span>();
+                    <span class="comment">// The closure returned an Error,</span>
+                    <span class="kw">match</span> <span class="ident">transaction</span>.<span class="ident">on_error</span>(<span class="ident">e</span>).<span class="kw">await</span> {
+                        <span class="comment">// we can retry the error</span>
+                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="ident">t</span>)) =&gt; {
+                            <span class="ident">transaction</span> <span class="op">=</span> <span class="ident">t</span>;
+                            <span class="kw">continue</span>;
+                        }
+                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>)) =&gt; {
+                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FdbBindingError::from</span>(<span class="ident">non_retryable_error</span>))
+                        }
+                        <span class="comment">// The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`</span>
+                        <span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>),
+                    }
+                }
+                <span class="comment">// Otherwise, it cannot be retried</span>
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>);
+            }
+
+            <span class="kw">let</span> <span class="ident">commit_result</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">commit</span>().<span class="kw">await</span>;
+
+            <span class="kw">match</span> <span class="ident">commit_result</span> {
+                <span class="comment">// The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`</span>
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="kw">_</span>)) =&gt; <span class="kw">return</span> <span class="ident">result_closure</span>,
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">transaction_commit_error</span>)) =&gt; {
+                    <span class="ident">maybe_committed_transaction</span> <span class="op">=</span> <span class="ident">transaction_commit_error</span>.<span class="ident">is_maybe_committed</span>();
+                    <span class="comment">// we have an error during commit, checking if it is a retryable error</span>
+                    <span class="kw">match</span> <span class="ident">transaction_commit_error</span>.<span class="ident">on_error</span>().<span class="kw">await</span> {
+                        <span class="prelude-val">Ok</span>(<span class="ident">t</span>) =&gt; {
+                            <span class="ident">transaction</span> <span class="op">=</span> <span class="ident">RetryableTransaction::new</span>(<span class="ident">t</span>);
+                            <span class="kw">continue</span>;
+                        }
+                        <span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>) =&gt; {
+                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FdbBindingError::from</span>(<span class="ident">non_retryable_error</span>))
+                        }
+                    }
+                }
+            }
+        }
     }
 
     <span class="doccomment">/// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data</span>
@@ -767,5 +931,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>
-</body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
