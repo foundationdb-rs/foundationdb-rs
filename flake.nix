@@ -25,7 +25,7 @@
           clang
           llvmPackages.libclang
           llvmPackages.libcxxClang
-          pkgconfig
+          pkg-config
 
           # Rust part
           cargo-expand
