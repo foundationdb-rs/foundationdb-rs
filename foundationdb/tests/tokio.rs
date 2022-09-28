@@ -1,6 +1,6 @@
 extern crate core;
 
-use foundationdb::future::FdbValue;
+use foundationdb::future::FdbValues;
 use foundationdb::options::ConflictRangeType;
 use foundationdb::tuple::{pack, Subspace};
 use foundationdb::*;
@@ -139,9 +139,8 @@ async fn do_run() {
                 ConflictRangeType::Write,
             )?;
 
-            let _keys: Vec<FdbValue> = trx
-                .get_range(read_subspace.range().into(), false)
-                .await
+            let _keys: Vec<FdbValues> = trx
+                .get_ranges(read_subspace.range().into(), false)
                 .try_collect()
                 .await?;
 
@@ -186,9 +185,8 @@ async fn do_run_with_transaction_limits() {
             counter_ref.fetch_add(1, Ordering::SeqCst);
 
             // virtually reading some random data in the subspace "do_run"
-            let _keys: Vec<FdbValue> = trx
-                .get_range(read_subspace.range().into(), false)
-                .await
+            let _keys: Vec<FdbValues> = trx
+                .get_ranges(read_subspace.range().into(), false)
                 .try_collect()
                 .await?;
 

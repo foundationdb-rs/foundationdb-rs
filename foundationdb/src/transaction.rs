@@ -19,12 +19,12 @@ use std::sync::Arc;
 use crate::future::*;
 use crate::keyselector::*;
 use crate::options;
-use crate::options::TransactionOption;
+
 use crate::{error, FdbError, FdbResult};
 use foundationdb_macros::cfg_api_versions;
 
 use crate::error::FdbBindingError;
-use crate::tuple::Subspace;
+
 use futures::{
     future, future::Either, stream, Future, FutureExt, Stream, TryFutureExt, TryStreamExt,
 };
@@ -1029,221 +1029,40 @@ pub struct RetryableTransaction {
     inner: Arc<Transaction>,
 }
 
-impl RetryableTransaction {
-    pub(crate) fn new(t: Transaction) -> RetryableTransaction {
-        RetryableTransaction { inner: Arc::new(t) }
+impl Deref for RetryableTransaction {
+    type Target = Transaction;
+    fn deref(&self) -> &Transaction {
+        self.inner.deref()
     }
 }
 
 impl RetryableTransaction {
-    /// Set an [`TransactionOption`] to the transaction
-    pub fn set_option(&self, opt: TransactionOption) -> FdbResult<()> {
-        self.inner.set_option(opt)
+    pub(crate) fn new(t: Transaction) -> RetryableTransaction {
+        RetryableTransaction { inner: Arc::new(t) }
     }
 
-    /// Sets the value for a given key. This will not affect the database until commit is called.
-    pub fn set(&self, key: &[u8], value: &[u8]) {
-        self.inner.set(key, value)
-    }
-
-    /// Gets a value from the database.
-    pub async fn get(&self, key: &[u8], snapshot: bool) -> FdbResult<Option<FdbSlice>> {
-        self.inner.get(key, snapshot).await
-    }
-
-    /// Reads all key-value pairs in the database snapshot represented by transaction (potentially
-    /// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or
-    /// equal to the key resolved by the begin key selector and lexicographically less than the key
-    /// resolved by the end key selector.
-    pub async fn get_range<'a>(
-        &'a self,
-        opt: RangeOption<'a>,
-        snapshot: bool,
-    ) -> impl Stream<Item = FdbResult<FdbValue>> + Unpin + 'a {
-        self.inner.get_ranges_keyvalues(opt, snapshot)
+    pub(crate) fn take(self) -> Result<Transaction, FdbBindingError> {
+        // checking weak references
+        if Arc::weak_count(&self.inner) != 0 {
+            return Err(FdbBindingError::ReferenceToTransactionKept);
+        }
+        Arc::try_unwrap(self.inner).map_err(|_| FdbBindingError::ReferenceToTransactionKept)
     }
 
     pub(crate) async fn on_error(
         self,
         err: FdbError,
     ) -> Result<Result<RetryableTransaction, FdbError>, FdbBindingError> {
-        // checking weak references
-        if Arc::weak_count(&self.inner) != 0 {
-            return Err(FdbBindingError::ReferenceToTransactionKept);
-        }
-
-        // checking strong references
-        match Arc::try_unwrap(self.inner) {
-            Ok(trx) => match trx.on_error(err).await {
-                Ok(trx) => Ok(Ok(RetryableTransaction::new(trx))),
-                Err(err) => Ok(Err(err)),
-            },
-            Err(_) => Err(FdbBindingError::ReferenceToTransactionKept),
-        }
-    }
-
-    /// Clear a range of keys
-    pub fn clear_range(&self, begin: &[u8], end: &[u8]) {
-        self.inner.clear_range(begin, end)
-    }
-
-    /// Clear a Subspace of keys
-    pub fn clear_subspace(&self, subspace: &Subspace) {
-        self.inner.clear_subspace_range(subspace)
-    }
-
-    /// Clear a key
-    pub fn clear(&self, key: &[u8]) {
-        self.inner.clear(key)
+        Ok(self
+            .take()?
+            .on_error(err)
+            .await
+            .map(RetryableTransaction::new))
     }
 
     pub(crate) async fn commit(
         self,
     ) -> Result<Result<TransactionCommitted, TransactionCommitError>, FdbBindingError> {
-        // check weak references
-        if Arc::weak_count(&self.inner) != 0 {
-            return Err(FdbBindingError::ReferenceToTransactionKept);
-        }
-        match Arc::try_unwrap(self.inner) {
-            Ok(inner) => Ok(inner.commit().await),
-            Err(_) => Err(FdbBindingError::ReferenceToTransactionKept),
-        }
-    }
-
-    /// Directly sets the version of the database at which to execute reads.
-    ///
-    pub fn set_read_version(&self, read_version: i64) {
-        self.inner.set_read_version(read_version)
-    }
-
-    /// Gets the version at which the reads for this Transaction will access the database.
-    pub async fn get_read_version(&self) -> Result<i64, FdbError> {
-        self.inner.get_read_version().await
-    }
-
-    /// Modify the database snapshot represented by transaction to perform the operation indicated
-    /// by operationType with operand param to the value stored by the given key.
-    ///
-    /// An atomic operation is a single database command that carries out several logical steps:
-    /// reading the value of a key, performing a transformation on that value, and writing the
-    /// result. Different atomic operations perform different transformations. Like other database
-    /// operations, an atomic operation is used within a transaction; however, its use within a
-    /// transaction will not cause the transaction to conflict.
-    ///
-    /// Atomic operations do not expose the current value of the key to the client but simply send
-    /// the database the transformation to apply. In regard to conflict checking, an atomic
-    /// operation is equivalent to a write without a read. It can only cause other transactions
-    /// performing reads of the key to conflict.
-    ///
-    /// By combining these logical steps into a single, read-free operation, FoundationDB can
-    /// guarantee that the transaction will not conflict due to the operation. This makes atomic
-    /// operations ideal for operating on keys that are frequently modified. A common example is
-    /// the use of a key-value pair as a counter.
-    ///
-    /// # Warning
-    ///
-    /// If a transaction uses both an atomic operation and a strictly serializable read on the same
-    /// key, the benefits of using the atomic operation (for both conflict checking and performance)
-    /// are lost.
-    pub fn atomic_operation(&self, key: &[u8], param: &[u8], op_type: options::MutationType) {
-        self.inner.atomic_op(key, param, op_type)
-    }
-
-    /// Adds a conflict range to a transaction without performing the associated read or write.
-    ///
-    /// # Note
-    ///
-    /// Most applications will use the serializable isolation that transactions provide by default
-    /// and will not need to manipulate conflict ranges.
-    pub fn add_conflict_range(
-        &self,
-        begin: &[u8],
-        end: &[u8],
-        ty: options::ConflictRangeType,
-    ) -> FdbResult<()> {
-        self.inner.add_conflict_range(begin, end, ty)
-    }
-
-    /// Retrieves the metadata version key.
-    /// The metadata version key `\xff/metadataVersion` is a key intended to help layers deal with hot keys.
-    /// The value of this key is sent to clients along with the read version from the proxy,
-    /// so a client can read its value without communicating with a storage server.
-    /// To retrieve the metadataVersion, you need to set `TransactionOption::ReadSystemKeys`
-    #[cfg_api_versions(min = 610)]
-    pub async fn get_metadata_version(&self, snapshot: bool) -> FdbResult<Option<i64>> {
-        self.inner.get_metadata_version(snapshot).await
-    }
-
-    /// Sets the metadata version key.
-    /// The metadata version key `\xff/metadataVersion` is a key intended to help layers deal with hot keys.
-    /// The value of this key is sent to clients along with the read version from the proxy,
-    /// so a client can read its value without communicating with a storage server.
-    /// To retrieve the metadataVersion, you need to set `TransactionOption::ReadSystemKeys`
-    #[cfg_api_versions(min = 610)]
-    pub fn update_metadata_version(&self) {
-        self.inner.update_metadata_version()
-    }
-
-    /// Returns an FDBFuture which will be set to the approximate transaction size so far in the
-    /// returned future, which is the summation of the estimated size of mutations, read conflict
-    /// ranges, and write conflict ranges.
-    ///
-    /// This can be called multiple times before the transaction is committed.
-    #[cfg_api_versions(min = 620)]
-    pub fn get_approximate_size(
-        &self,
-    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
-        self.inner.get_approximate_size()
-    }
-
-    /// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.
-    /// Note: the returned split points contain the start key and end key of the given range.
-    #[cfg_api_versions(min = 700)]
-    pub fn get_range_split_points(
-        &self,
-        begin: &[u8],
-        end: &[u8],
-        chunk_size: i64,
-    ) -> impl Future<Output = FdbResult<FdbKeys>> + Send + Sync + Unpin {
-        self.inner.get_range_split_points(begin, end, chunk_size)
-    }
-
-    /// Get the estimated byte size of the key range based on the byte sample collected by FDB
-    #[cfg_api_versions(min = 630)]
-    pub fn get_estimated_range_size_bytes(
-        &self,
-        begin: &[u8],
-        end: &[u8],
-    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
-        self.inner.get_estimated_range_size_bytes(begin, end)
-    }
-
-    /// Mapped Range is an experimental feature introduced in FDB 7.1.
-    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
-    /// In such a case, querying records by scanning an index in relational databases can be
-    /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
-    ///
-    /// This method is allowing FoundationDB "follow up" a GetRange request with GetValue requests,
-    /// this can happen in one request without additional back and forth. Considering the overhead
-    /// of each request, this saves time and resources on serialization, deserialization, and network.
-    ///
-    /// A mapped request will:
-    ///
-    /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
-    /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
-    /// * Put all results in a nested structure and return them.
-    ///
-    /// **WARNING** : This feature is considered experimental at this time. It is only allowed when
-    /// using snapshot isolation AND disabling read-your-writes.
-    ///
-    /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
-    #[cfg_api_versions(min = 710)]
-    pub fn get_mapped_ranges<'a>(
-        &'a self,
-        opt: RangeOption<'a>,
-        mapper: &'a [u8],
-        snapshot: bool,
-    ) -> impl Stream<Item = FdbResult<MappedKeyValues>> + Send + Sync + Unpin + 'a {
-        self.inner.get_mapped_ranges(opt, mapper, snapshot)
+        Ok(self.take()?.commit().await)
     }
 }
