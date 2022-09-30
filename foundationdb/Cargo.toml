@@ -41,7 +41,7 @@ fdb-6_1 = ["foundationdb-sys/fdb-6_1", "foundationdb-gen/fdb-6_1"]
 fdb-6_2 = ["foundationdb-sys/fdb-6_2", "foundationdb-gen/fdb-6_2"]
 fdb-6_3 = ["foundationdb-sys/fdb-6_3", "foundationdb-gen/fdb-6_3"]
 fdb-7_0 = ["foundationdb-sys/fdb-7_0", "foundationdb-gen/fdb-7_0"]
-fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1"]
+fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1", "serde", "serde_json"]
 
 [build-dependencies]
 foundationdb-gen = { version = "0.7.0", path = "../foundationdb-gen", default-features = false }
@@ -57,6 +57,10 @@ uuid = { version = "1.1.2", optional = true }
 num-bigint = { version = "0.4.3", optional = true }
 async-trait = "0.1.56"
 async-recursion = "1.0.0"
+# Required to deserialize tenant info
+serde = { version = "1.0.144", features = ["derive"], optional = true}
+serde_json = { version = "1.0.85", optional = true}
+
 
 [dev-dependencies]
 byteorder = "1.4.3"

@@ -2675,7 +2675,28 @@ impl StackMachine {
             // way using these parameters. The resulting range of n tenant names are
             // packed into a tuple as [t1,t2,t3,...,tn], and this single packed value
             // is pushed onto the stack.
-            TenantList => unimplemented!(),
+            // Note: as of 30 of September, this is NOT used in branch release-7.1
+            TenantList => {
+                debug!("list tenants");
+                let begin = self.pop_bytes().await;
+                let end = self.pop_bytes().await;
+                let limit: usize = self.pop_usize().await;
+                let mut results = Vec::with_capacity(limit);
+                match TenantManagement::list_tenant(&db, &begin.0, &end.0, Some(limit)).await {
+                    Ok(tenants) => {
+                        for tenant in tenants {
+                            match tenant {
+                                None => {
+                                    unimplemented!("received an tenant that cannot be deserialized")
+                                }
+                                Some(tenant) => results.push(Element::Bytes(tenant.id.into())),
+                            }
+                        }
+                        self.push(number, Element::Tuple(results));
+                    }
+                    Err(err) => self.push_err(number, err),
+                }
+            }
         }
 
         if is_db && pending {

@@ -46,7 +46,7 @@
 //!         None, None,
 //!     ).await;
 //!     assert_eq!(true, content_subspace.is_ok());
-//!     
+//!
 //!     // Don't forget to commit your transaction to persist the subspace
 //!     trx.commit().await?;
 //!
@@ -376,6 +376,6 @@ mod tests {
         assert_eq!(strinc(vec![61u8, 62u8, 255u8]), vec![61u8, 63u8]);
         assert_eq!(strinc(vec![253u8, 255u8]), vec![254u8]);
         assert_eq!(strinc(vec![253u8, 255u8, 255u8]), vec![254u8]);
-        assert_eq!(strinc(vec![255u8, 255u8, 255u8]), vec![]);
+        assert_eq!(strinc(vec![255u8, 255u8, 255u8]), Vec::<u8>::new());
     }
 }
