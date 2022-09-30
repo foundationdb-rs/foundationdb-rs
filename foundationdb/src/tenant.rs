@@ -2,8 +2,13 @@
 
 use crate::options::TransactionOption;
 
-use crate::{error, Database, FdbBindingError, FdbError, FdbResult, Transaction};
+use crate::{
+    error, Database, FdbBindingError, FdbError, FdbResult, KeySelector, RangeOption, Transaction,
+};
 use foundationdb_sys as fdb_sys;
+
+use futures::TryStreamExt;
+use serde::{Deserialize, Serialize};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -40,6 +45,13 @@ impl FdbTenant {
             "fdb_tenant_create_transaction to not return null if there is no error",
         )))
     }
+}
+
+/// Holds the information about a tenant
+#[derive(Serialize, Deserialize)]
+pub struct TenantInfo {
+    pub id: Vec<u8>,
+    pub prefix: Vec<u8>,
 }
 
 /// The FoundationDB API includes function to manage the set of tenants in a cluster.
@@ -130,5 +142,43 @@ impl TenantManagement {
         .await
         // error can only be an fdb_error
         .map_err(|e| e.get_fdb_error().unwrap())
+    }
+
+    /// Lists all tenants in between the range specified. The number of tenants listed can be restricted.
+    /// This is a convenience method that generates the begin and end ranges by packing two Tuples.
+    pub async fn list_tenant(
+        db: &Database,
+        begin: &[u8],
+        end: &[u8],
+        limit: Option<usize>,
+    ) -> Result<Vec<Option<TenantInfo>>, FdbError> {
+        let trx = db.create_trx()?;
+        trx.set_option(TransactionOption::ReadSystemKeys)?;
+        trx.set_option(TransactionOption::ReadLockAware)?;
+
+        let mut begin_range: Vec<u8> = Vec::with_capacity(TENANT_MAP_PREFIX.len() + begin.len());
+        begin_range.extend_from_slice(TENANT_MAP_PREFIX);
+        begin_range.extend_from_slice(begin);
+
+        let mut end_range: Vec<u8> = Vec::with_capacity(TENANT_MAP_PREFIX.len() + end.len());
+        end_range.extend_from_slice(TENANT_MAP_PREFIX);
+        end_range.extend_from_slice(end);
+
+        let range_option = RangeOption {
+            begin: KeySelector::first_greater_than(begin_range),
+            end: KeySelector::last_less_than(end_range),
+            limit,
+            ..Default::default()
+        };
+
+        trx.get_ranges_keyvalues(range_option, false)
+            .map_ok(
+                |fdb_value| match serde_json::from_slice::<TenantInfo>(fdb_value.value()) {
+                    Ok(tenant_info) => Some(tenant_info),
+                    Err(_) => None,
+                },
+            )
+            .try_collect::<Vec<Option<TenantInfo>>>()
+            .await
     }
 }
