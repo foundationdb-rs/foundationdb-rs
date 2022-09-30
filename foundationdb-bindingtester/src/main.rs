@@ -95,6 +95,9 @@ impl std::fmt::Debug for Instr {
         if self.database {
             write!(fmt, " db")?;
         }
+        if self.tenant {
+            write!(fmt, " tenant")?;
+        }
         if self.snapshot {
             write!(fmt, " snapshot")?;
         }
@@ -150,8 +153,17 @@ impl Instr {
         }
     }
 
+    fn pop_tenant(&mut self) -> bool {
+        if self.tenant {
+            self.tenant = false;
+            true
+        } else {
+            false
+        }
+    }
+
     fn has_flags(&self) -> bool {
-        self.database || self.snapshot || self.starts_with || self.selector
+        self.database || self.snapshot || self.starts_with || self.selector || self.tenant
     }
 }
 
@@ -800,6 +812,11 @@ impl StackMachine {
         use crate::InstrCode::*;
 
         let is_db = instr.pop_database();
+        let is_tenant = instr.pop_tenant();
+        if is_tenant {
+            unimplemented!("{}", is_tenant);
+        }
+
         let mut mutation = false;
         let mut pending = false;
 

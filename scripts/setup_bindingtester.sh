@@ -1,19 +1,12 @@
-#! /bin/bash -e
+#!/usr/bin/env bash
 
-set -x
+set -ex;
 
 fdb_rs_dir=$(pwd)
 bindingtester="${fdb_rs_dir:?}/$1"
-case $(uname) in
-  Darwin)
-    brew install mono
-  ;;
-  Linux)
-    sudo apt update
-    sudo apt install mono-devel ninja-build liblz4-dev -y
-  ;;
-  *) echo "only macOS or Ubuntu is supported"
-esac
+
+pip install foundationdb==7.1.5
+fdboption_file="$(pip show foundationdb | grep Loca | awk '{print $2}')/fdb/fdboptions.py"
 
 ## build the python bindings
 (
@@ -26,14 +19,10 @@ esac
   cd foundationdb
   git checkout release-7.1
 
-  ## build python api bindings
-  mkdir cmake_build && cd cmake_build
-  cmake -G Ninja ../
-  ninja python_binding
-  cp ./bindings/python/fdb/fdboptions.py ../bindings/python/fdb/fdboptions.py
-  cd ..
+  # Instead of building fdb-python with ninja/cmake, patching it with pip install
+  cp ${fdboption_file} ./bindings/python/fdb/fdboptions.py
 
-  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 710, types=ALL_TYPES)
+  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 710, types=ALL_TYPES, tenants_enabled=True)
 " >> ./bindings/bindingtester/known_testers.py
 )
 

@@ -1,6 +1,6 @@
-#! /bin/bash -e
+#!/usr/bin/env bash
 
-set -x
+set -ex;
 
 fdb_api_version=710
 
