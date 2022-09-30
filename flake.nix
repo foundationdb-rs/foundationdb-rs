@@ -39,6 +39,10 @@
 
           # FDB part
           libfdb
+
+          # bindingTester part
+          python3
+          virtualenv
         ];
 
         # https://github.com/NixOS/nixpkgs/issues/52447#issuecomment-853429315
