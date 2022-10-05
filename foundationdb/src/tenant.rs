@@ -4,7 +4,6 @@ use crate::options::TransactionOption;
 use std::future::Future;
 
 use crate::database::TransactError;
-use crate::options::StreamingMode;
 use crate::{
     error, Database, DatabaseTransact, FdbBindingError, FdbError, FdbResult, KeySelector,
     RangeOption, RetryableTransaction, TransactOption, Transaction,
@@ -374,7 +373,6 @@ impl TenantManagement {
             begin: KeySelector::first_greater_than(begin_range),
             end: KeySelector::first_greater_than(end_range),
             limit,
-            mode: StreamingMode::WantAll,
             ..Default::default()
         };
 
