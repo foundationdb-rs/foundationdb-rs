@@ -2,13 +2,14 @@
 
 use crate::options::TransactionOption;
 
+use crate::options::StreamingMode;
 use crate::{
     error, Database, FdbBindingError, FdbError, FdbResult, KeySelector, RangeOption, Transaction,
 };
 use foundationdb_sys as fdb_sys;
-
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
+use serde_json::Error;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -48,10 +49,37 @@ impl FdbTenant {
 }
 
 /// Holds the information about a tenant
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TenantInfo {
-    pub id: Vec<u8>,
+    pub name: Vec<u8>,
+    pub id: i64,
     pub prefix: Vec<u8>,
+}
+
+impl TryFrom<(&[u8], &[u8])> for TenantInfo {
+    type Error = Error;
+
+    fn try_from(k_v: (&[u8], &[u8])) -> Result<Self, Self::Error> {
+        let key = k_v.0;
+        let value = k_v.1;
+        let tenant_name = key.split_at(TENANT_MAP_PREFIX.len()).1;
+        match serde_json::from_slice::<FDBTenantInfo>(value) {
+            Ok(tenant_info) => Ok(TenantInfo {
+                name: tenant_name.to_vec(),
+                id: tenant_info.id,
+                prefix: tenant_info.prefix,
+            }),
+            Err(err) => Err(err),
+        }
+    }
+}
+
+/// Holds the information about a tenant. This is the struct that is stored in FDB
+#[derive(Serialize, Deserialize, Debug)]
+struct FDBTenantInfo {
+    id: i64,
+    #[serde(with = "serde_bytes")]
+    prefix: Vec<u8>,
 }
 
 /// The FoundationDB API includes function to manage the set of tenants in a cluster.
@@ -100,6 +128,32 @@ impl TenantManagement {
         .await
         // error can only be an fdb_error
         .map_err(|e| e.get_fdb_error().unwrap())
+    }
+
+    /// Get a tenant in the cluster using a transaction created on the specified Database.
+    pub async fn get_tenant(
+        db: &Database,
+        tenant_name: &[u8],
+    ) -> Result<Option<Result<TenantInfo, serde_json::Error>>, FdbError> {
+        let mut key: Vec<u8> = Vec::with_capacity(TENANT_MAP_PREFIX.len() + tenant_name.len());
+        key.extend_from_slice(TENANT_MAP_PREFIX);
+        key.extend_from_slice(tenant_name);
+
+        let key_ref = &key;
+        match db
+            .run(|trx, _maybe_committed| async move {
+                trx.set_option(TransactionOption::ReadSystemKeys)?;
+                trx.set_option(TransactionOption::ReadLockAware)?;
+
+                Ok(trx.get(key_ref, false).await?)
+            })
+            .await
+        {
+            Ok(None) => Ok(None),
+            Ok(Some(kv)) => Ok(Some(TenantInfo::try_from((key.as_slice(), kv.as_ref())))),
+            // error can only be an fdb_error
+            Err(err) => Err(err.get_fdb_error().unwrap()),
+        }
     }
 
     /// Deletes a tenant from the cluster using a transaction created on the specified `Database`.
@@ -151,7 +205,7 @@ impl TenantManagement {
         begin: &[u8],
         end: &[u8],
         limit: Option<usize>,
-    ) -> Result<Vec<Option<TenantInfo>>, FdbError> {
+    ) -> Result<Vec<Result<TenantInfo, serde_json::Error>>, FdbError> {
         let trx = db.create_trx()?;
         trx.set_option(TransactionOption::ReadSystemKeys)?;
         trx.set_option(TransactionOption::ReadLockAware)?;
@@ -166,19 +220,15 @@ impl TenantManagement {
 
         let range_option = RangeOption {
             begin: KeySelector::first_greater_than(begin_range),
-            end: KeySelector::last_less_than(end_range),
+            end: KeySelector::first_greater_than(end_range),
             limit,
+            mode: StreamingMode::WantAll,
             ..Default::default()
         };
 
         trx.get_ranges_keyvalues(range_option, false)
-            .map_ok(
-                |fdb_value| match serde_json::from_slice::<TenantInfo>(fdb_value.value()) {
-                    Ok(tenant_info) => Some(tenant_info),
-                    Err(_) => None,
-                },
-            )
-            .try_collect::<Vec<Option<TenantInfo>>>()
+            .map_ok(|fdb_value| TenantInfo::try_from((fdb_value.key(), fdb_value.value())))
+            .try_collect::<Vec<Result<TenantInfo, serde_json::Error>>>()
             .await
     }
 }

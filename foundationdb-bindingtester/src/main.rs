@@ -2686,10 +2686,10 @@ impl StackMachine {
                     Ok(tenants) => {
                         for tenant in tenants {
                             match tenant {
-                                None => {
+                                Err(_err) => {
                                     unimplemented!("received an tenant that cannot be deserialized")
                                 }
-                                Some(tenant) => results.push(Element::Bytes(tenant.id.into())),
+                                Ok(tenant) => results.push(Element::Int(tenant.id)),
                             }
                         }
                         self.push(number, Element::Tuple(results));
