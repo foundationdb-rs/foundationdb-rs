@@ -8,6 +8,8 @@ fdb_rs_dir=$(pwd)
 fdb_builddir=${fdb_rs_dir:?}/target/foundationdb_build
 cd "${fdb_builddir:?}/foundationdb"
 
+fdbcli --exec "listtenants"
+
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --compare python rust --seed 3181802154
 exit 0;
 
