@@ -7,11 +7,13 @@ use foundationdb_sys as fdb_sys;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::env::{var, var_os};
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::thread;
 
+use fdb::options::NetworkOption;
 use fdb::options::{ConflictRangeType, DatabaseOption, TransactionOption};
 use fdb::tuple::{pack, pack_into, unpack, Bytes, Element, Subspace, TuplePack};
 use fdb::*;
@@ -2872,10 +2874,20 @@ fn main() {
         "Starting rust bindingtester with api_version {}",
         api_version
     );
-    let builder = api::FdbApiBuilder::default()
+    let mut builder = api::FdbApiBuilder::default()
         .set_runtime_version(api_version)
         .build()
         .expect("failed to initialize FoundationDB API");
+
+    if let Some(path) = var_os("BINDINGTESTER_TRACE_PATH") {
+        info!("enabling traces on path {:?}", &path);
+        builder = builder
+            .set_option(NetworkOption::TraceEnable(path.into_string().unwrap()))
+            .expect("could not set option 'TraceEnable'")
+            .set_option(NetworkOption::TraceFormat("json".to_string()))
+            .expect("could not set option 'TraceFormat'")
+    }
+
     let _network = unsafe { builder.boot() };
 
     let db = Arc::new(

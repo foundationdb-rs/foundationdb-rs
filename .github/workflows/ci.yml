@@ -7,222 +7,6 @@ on:
   pull_request:
 
 jobs:
-  rust:
-    name: Rust
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        toolchain: ["1.57.0", "stable", "beta", "nightly"]
-
-    runs-on: ${{ matrix.os }}
-
-    env:
-      CARGO_INCREMENTAL: 0
-      RUST_BACKTRACE: 1
-      RUST_LOG: debug
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v1
-
-      - name: Setup FoundationDB
-        uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
-        with:
-          version: "7.1.23"
-
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.toolchain }}
-          profile: minimal
-          default: true
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-
-      - name: FoundationDB status
-        run: fdbcli --exec status
-
-      - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-
-      - name: Test locally embedded include
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --features embedded-fdb-include --tests
-
-      - name: Test bigint
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --features num-bigint --tests
-
-      - name: Test 7.1
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-7_1 --tests
-
-      - name: Test 7.0
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-7_0 --tests
-
-      - name: Test 6.3
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-6_3 --tests
-
-      - name: Test 6.2
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-6_2 --tests
-
-      - name: Test 6.1
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-6_1 --tests
-
-      - name: Test 6.0
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-6_0 --tests
-
-      - name: Test 5.2
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-5_2 --tests
-
-      - name: Test 5.1
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path foundationdb/Cargo.toml --no-default-features --features fdb-5_1 --tests
-
-      - name: Example class-scheduling
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example class-scheduling
-
-      - name: Example simple-index
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example simple-index
-
-      - name: Example blob
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example blob
-
-      - name: Example blob-with-manifest
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example blob-with-manifest
-
-      - name: Example atomic-op-counter
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example atomic-op-counter
-
-      - name: Example hello world
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example hello-world
-
-  bindingtester:
-    name: Binding Tester
-    runs-on: ubuntu-latest
-
-    env:
-      CARGO_INCREMENTAL: 0
-      RUST_BACKTRACE: 1
-      RUST_LOG: debug
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-
-      - name: Install FoundationDB
-        uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
-        with:
-          version: "7.1.23"
-
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p bindingtester --release
-
-      - name: Setup bindingtester
-        run: scripts/setup_bindingtester.sh target/release/bindingtester
-
-      - name: Run bindingtester
-        run: scripts/run_bindingtester.sh 10
-
-  lint:
-    name: Rustfmt / Clippy
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-
-      - name: Install FoundationDB
-        uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
-        with:
-          version: "7.1.23"
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          components: rustfmt, clippy
-
-      - name: Fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-      - name: Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
@@ -231,6 +15,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       RUST_BACKTRACE: 1
       RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
+      BINDINGTESTER_TRACE_PATH: "/tmp/traces"
 
     steps:
       - uses: actions/checkout@v1
@@ -239,6 +24,9 @@ jobs:
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
           version: "7.1.23"
+
+      - name: create traces directory
+        run: mkdir -p $BINDINGTESTER_TRACE_PATH
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -266,6 +54,13 @@ jobs:
 
       - name: Run bindingtester
         run: scripts/run_bindingtester.sh 50
+
+      - name: Archive Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: traces.json
+          path: /tmp/traces
 
       - id: coverage
         uses: actions-rs/grcov@v0.1
