@@ -8,6 +8,9 @@ fdb_rs_dir=$(pwd)
 fdb_builddir=${fdb_rs_dir:?}/target/foundationdb_build
 cd "${fdb_builddir:?}/foundationdb"
 
+./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --compare python rust --seed 3181802154
+exit 0;
+
 # These are faulty seeds, for now, it is good to check them all the time to avoid regression.
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --compare python rust --seed 3534790651
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --compare python rust --seed 3864917676
