@@ -25,6 +25,9 @@ fdboption_file="$(pip show foundationdb | grep Loca | awk '{print $2}')/fdb/fdbo
   sed -i 's/# if op !=/if op != /g' ./bindings/python/tests/tester.py
   sed -i 's/#     print/    print/g' ./bindings/python/tests/tester.py
   sed -i 's/                # print/                print/g' ./bindings/python/tests/tester.py
+  sed -i 's/key, or_equal, offset, prefix = inst.pop(4)/key, or_equal, offset, prefix = inst.pop(4)\n                    print(self.tenant)/' ./bindings/python/tests/tester.py
+
+  cat ./bindings/python/tests/tester.py
 
   echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 710, types=ALL_TYPES, tenants_enabled=True)
 " >> ./bindings/bindingtester/known_testers.py
