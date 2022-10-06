@@ -183,10 +183,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p bindingtester
+          args: -p bindingtester --release
 
       - name: Setup bindingtester
-        run: scripts/setup_bindingtester.sh target/debug/bindingtester
+        run: scripts/setup_bindingtester.sh target/release/bindingtester
 
       - name: Run bindingtester
         run: scripts/run_bindingtester.sh 10
@@ -252,7 +252,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p bindingtester --target x86_64-unknown-linux-gnu
+          args: -p bindingtester --target x86_64-unknown-linux-gnu --release
 
       - name: Test
         uses: actions-rs/cargo@v1
@@ -262,7 +262,7 @@ jobs:
           args: --tests --no-fail-fast --target x86_64-unknown-linux-gnu
 
       - name: Setup bindingtester
-        run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/debug/bindingtester
+        run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
 
       - name: Run bindingtester
         run: scripts/run_bindingtester.sh 50
