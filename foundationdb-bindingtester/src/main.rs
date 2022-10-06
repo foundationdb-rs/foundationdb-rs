@@ -786,6 +786,7 @@ impl StackMachine {
     }
 
     fn push_err(&mut self, number: usize, err: FdbError) {
+        println!("pushing error {:?} at number {}", err, number);
         trace!("ERROR {:?}", err);
         let packed = pack(&Element::Tuple(vec![
             Element::Bytes(Bytes::from(b"ERROR".as_ref())),
@@ -846,6 +847,7 @@ impl StackMachine {
             }
             (trx, Some(&self.cur_transaction))
         };
+
 
         match instr.code {
             // Pushes the provided item onto the stack.
@@ -982,7 +984,7 @@ impl StackMachine {
                     Some(tenant) => self.check(number, tenant.create_trx())?,
                 };
                 trx.set_option(fdb::options::TransactionOption::DebugTransactionIdentifier(
-                    "RUST".to_string(),
+                    format!("{}", number),
                 ))
                 .unwrap();
                 trx.set_option(fdb::options::TransactionOption::LogTransaction)
@@ -1372,6 +1374,11 @@ impl StackMachine {
             Reset => {
                 debug!("reset");
                 trx.as_mut().reset();
+                trx.as_mut()
+                    .set_option(fdb::options::TransactionOption::DebugTransactionIdentifier(
+                        format!("{}", number),
+                    ))
+                    .unwrap();
             }
             // Cancels the current transaction.
             Cancel => {
@@ -2727,7 +2734,7 @@ impl StackMachine {
         info!("{} instructions found", instrs.len());
 
         for (i, instr) in instrs.into_iter().enumerate() {
-            trace!("{}/{}, {:?}", i, self.stack.len(), instr);
+            println!("number={}/len(stack)={}, op={:?}", i, self.stack.len(), instr);
             let _ = self.run_step(db.clone(), i, instr).await;
         }
 
