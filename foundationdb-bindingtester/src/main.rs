@@ -11,7 +11,7 @@ use std::env::{var, var_os};
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::thread;
+use std::{thread, time};
 
 use fdb::options::NetworkOption;
 use fdb::options::{ConflictRangeType, DatabaseOption, TransactionOption};
@@ -351,7 +351,6 @@ impl Instr {
 
             "DIRECTORY_CHANGE" => DirectoryChange,
             "DIRECTORY_SET_ERROR_INDEX" => DirectorySetErrorIndex,
-
             "DIRECTORY_MOVE" => DirectoryMove,
             "DIRECTORY_MOVE_TO" => DirectoryMoveTo,
             "DIRECTORY_REMOVE" => DirectoryRemove,
@@ -848,7 +847,6 @@ impl StackMachine {
             (trx, Some(&self.cur_transaction))
         };
 
-
         match instr.code {
             // Pushes the provided item onto the stack.
             Push(ref element) => {
@@ -1062,8 +1060,12 @@ impl StackMachine {
                 let selector = self.pop_selector().await;
                 let prefix: Bytes = self.pop_bytes().await;
                 debug!("get_key {:?}, prefix = {:?}", selector, prefix);
-                println!("get_key {:?}, prefix = {:?}, tenant={}", selector, prefix, self.tenant.is_some());
-
+                println!(
+                    "get_key {:?}, prefix = {:?}, tenant={}",
+                    selector,
+                    prefix,
+                    self.tenant.is_some()
+                );
 
                 let f = trx
                     .as_mut()
@@ -2735,9 +2737,17 @@ impl StackMachine {
         let instrs = self.fetch_instr(&db.create_trx()?).await?;
         info!("{} instructions found", instrs.len());
 
+        let millis = time::Duration::from_millis(50);
+
         for (i, instr) in instrs.into_iter().enumerate() {
-            println!("number={}/len(stack)={}, op={:?}", i, self.stack.len(), instr);
+            println!(
+                "number={}/len(stack)={}, op={:?}",
+                i,
+                self.stack.len(),
+                instr
+            );
             let _ = self.run_step(db.clone(), i, instr).await;
+            thread::sleep(millis);
         }
 
         Ok(())
