@@ -2737,6 +2737,9 @@ impl StackMachine {
         let instrs = self.fetch_instr(&db.create_trx()?).await?;
         info!("{} instructions found", instrs.len());
 
+        let enable_sleep = var_os("ENABLE_SLEEP").is_some();
+        println!("enable_sleep: {}", enable_sleep);
+
         let millis = time::Duration::from_millis(4);
 
         for (i, instr) in instrs.into_iter().enumerate() {
@@ -2747,8 +2750,10 @@ impl StackMachine {
                 instr
             );
             let _ = self.run_step(db.clone(), i, instr).await;
-            if 18900 < i && i < 19500 {
+            if 18900 < i && i < 19500 && enable_sleep {
+                println!("sleeping {:?} on iteration {}", millis, i);
                 thread::sleep(millis);
+                println!("sleeping {:?} on iteration {} done", millis, i);
             }
         }
 

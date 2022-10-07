@@ -7,19 +7,70 @@ on:
   pull_request:
 
 jobs:
-  coverage:
-    name: Code coverage
+  should-fail:
+    name: Test that should fail
     runs-on: ubuntu-latest
 
     env:
-      CARGO_INCREMENTAL: "0"
-      RUST_BACKTRACE: 1
-      RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
       BINDINGTESTER_TRACE_PATH: "/tmp/traces"
 
     steps:
       - uses: actions/checkout@v1
 
+      - name: Install FoundationDB
+        uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
+        with:
+          version: "7.1.23"
+      
+      - name: create traces directory
+        run: mkdir -p $BINDINGTESTER_TRACE_PATH
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - name: Build bindingtester
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p bindingtester --target x86_64-unknown-linux-gnu --release
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          # doc tests are disabled fow now as they do not compile with -Cpanic=abort
+          args: --tests --no-fail-fast --target x86_64-unknown-linux-gnu
+
+      - name: Setup bindingtester
+        run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
+
+      - name: Run bindingtester
+        run: scripts/run_bindingtester.sh 50
+      
+      - name: Archive Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: traces.json
+          path: /tmp/traces
+
+
+  should-work:
+    name: Tenant test that should work because of sleep
+    runs-on: ubuntu-latest
+
+    env:
+      BINDINGTESTER_TRACE_PATH: "/tmp/traces"
+      ENABLE_SLEEP: "true"
+
+    steps:
+      - uses: actions/checkout@v1
+      
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
@@ -61,18 +112,3 @@ jobs:
         with:
           name: traces.json
           path: /tmp/traces
-
-      - id: coverage
-        uses: actions-rs/grcov@v0.1
-
-      - name: Coveralls upload
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ${{ steps.coverage.outputs.report }}
-
-      - name: Codecov upload
-        uses: codecov/codecov-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ${{ steps.coverage.outputs.report }}
