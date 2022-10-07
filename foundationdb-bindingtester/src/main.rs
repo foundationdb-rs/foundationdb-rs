@@ -2747,7 +2747,9 @@ impl StackMachine {
                 instr
             );
             let _ = self.run_step(db.clone(), i, instr).await;
-            thread::sleep(millis);
+            if 18900 < i && i < 19500 {
+                thread::sleep(millis);
+            }
         }
 
         Ok(())
