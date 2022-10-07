@@ -2737,7 +2737,7 @@ impl StackMachine {
         let instrs = self.fetch_instr(&db.create_trx()?).await?;
         info!("{} instructions found", instrs.len());
 
-        let millis = time::Duration::from_millis(50);
+        let millis = time::Duration::from_millis(4);
 
         for (i, instr) in instrs.into_iter().enumerate() {
             println!(
