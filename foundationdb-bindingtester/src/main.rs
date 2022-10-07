@@ -1062,7 +1062,7 @@ impl StackMachine {
                 let selector = self.pop_selector().await;
                 let prefix: Bytes = self.pop_bytes().await;
                 debug!("get_key {:?}, prefix = {:?}", selector, prefix);
-                info!("get_key {:?}, prefix = {:?}, tenant={}", selector, prefix, self.tenant.is_some());
+                println!("get_key {:?}, prefix = {:?}, tenant={}", selector, prefix, self.tenant.is_some());
 
 
                 let f = trx
