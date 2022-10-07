@@ -39,13 +39,6 @@ jobs:
           command: build
           args: -p bindingtester --target x86_64-unknown-linux-gnu --release
 
-      - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-          args: --tests --no-fail-fast --target x86_64-unknown-linux-gnu
-
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
 
@@ -92,13 +85,6 @@ jobs:
         with:
           command: build
           args: -p bindingtester --target x86_64-unknown-linux-gnu --release
-
-      - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-          args: --tests --no-fail-fast --target x86_64-unknown-linux-gnu
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
