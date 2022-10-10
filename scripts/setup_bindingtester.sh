@@ -22,10 +22,10 @@ fdboption_file="$(pip show foundationdb | grep Loca | awk '{print $2}')/fdb/fdbo
   # Instead of building fdb-python with ninja/cmake, patching it with pip install
   cp ${fdboption_file} ./bindings/python/fdb/fdboptions.py
 
-  sed -i 's/# if op !=/if op != /g' ./bindings/python/tests/tester.py
-  sed -i 's/#     print/    print/g' ./bindings/python/tests/tester.py
+  # sed -i 's/# if op !=/if op != /g' ./bindings/python/tests/tester.py
+  # sed -i 's/#     print/    print/g' ./bindings/python/tests/tester.py
   sed -i 's/                # print/                print/g' ./bindings/python/tests/tester.py
-  sed -i 's/key, or_equal, offset, prefix = inst.pop(4)/key, or_equal, offset, prefix = inst.pop(4)\n                    print(self.tenant)/' ./bindings/python/tests/tester.py
+  # sed -i 's/key, or_equal, offset, prefix = inst.pop(4)/key, or_equal, offset, prefix = inst.pop(4)\n                    print(self.tenant)/' ./bindings/python/tests/tester.py
 
   cat ./bindings/python/tests/tester.py
 
