@@ -80,12 +80,8 @@ jobs:
       - name: status
         run: fdbcli --exec "status"
 
-      - name: "wait to be healthy"
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 10
-          command: fdbcli --exec "status json" | jq -e '.cluster.data.state.name == "healthy"'
+      - name: sleep
+        run: sleep 3m
 
       - name: Run bindingtester
         run: scripts/run_bindingtester.sh 200
