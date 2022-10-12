@@ -8,7 +8,7 @@ on:
 
 jobs:
   additional-info:
-    name: additional info 
+    name: additional info
     runs-on: ubuntu-latest
 
     steps:
@@ -18,7 +18,7 @@ jobs:
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
           version: "7.1.23"
-      
+
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
@@ -38,10 +38,10 @@ jobs:
 
       - name: print bindingtester
         run: ./target/foundationdb_build/foundationdb/bindings/bindingtester/bindingtester.py --compare python rust --num-ops 1000 --api-version 710 --test-name api --seed 3181802154 --print-test --all
-      
+
       - name: bisect bindingtester
-        run: ./target/foundationdb_build/foundationdb/bindings/bindingtester/bindingtester.py --compare python rust --api-version 710 --test-name api --seed 3181802154 --bisect --num-ops 1000 
-      
+        run: ./target/foundationdb_build/foundationdb/bindings/bindingtester/bindingtester.py --compare python rust --api-version 710 --test-name api --seed 3181802154 --bisect --num-ops 1000
+
   should-fail:
     name: Test that should fail
     runs-on: ubuntu-latest
@@ -56,7 +56,7 @@ jobs:
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
           version: "7.1.23"
-      
+
       - name: create traces directory
         run: mkdir -p $BINDINGTESTER_TRACE_PATH
 
@@ -77,16 +77,22 @@ jobs:
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
 
+      - name: "wait to be healthy"
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 10
+          command: fdbcli --exec "status json" | jq -e '.cluster.data.state.name == "healthy"'
+
       - name: Run bindingtester
         run: scripts/run_bindingtester.sh 200
-      
+
       - name: Archive Test Results
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: traces.json
           path: /tmp/traces
-
 
   should-work:
     name: Tenant test that should work because of sleep
@@ -98,7 +104,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      
+
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
