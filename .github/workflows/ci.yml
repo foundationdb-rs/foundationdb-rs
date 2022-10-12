@@ -35,6 +35,9 @@ jobs:
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
+      
+      - name: sleep
+        run: sleep 8m
 
       - name: print bindingtester
         run: ./target/foundationdb_build/foundationdb/bindings/bindingtester/bindingtester.py --compare python rust --num-ops 1000 --api-version 710 --test-name api --seed 3181802154 --print-test --all
