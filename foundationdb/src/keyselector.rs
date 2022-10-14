@@ -63,12 +63,12 @@ impl<'a> KeySelector<'a> {
 
     /// Creates a `KeySelector` that picks the last key less than the parameter
     pub fn last_less_than<K: Into<Cow<'a, [u8]>>>(key: K) -> Self {
-        Self::new(key.into(), false, 0)
+        Self::new(key.into(), false, 1)
     }
 
     /// Creates a `KeySelector` that picks the last key less than or equal to the parameter
     pub fn last_less_or_equal<K: Into<Cow<'a, [u8]>>>(key: K) -> Self {
-        Self::new(key.into(), true, 0)
+        Self::new(key.into(), true, 1)
     }
 
     /// Creates a `KeySelector` that picks the first key greater than the parameter
