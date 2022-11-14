@@ -17,7 +17,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.23"
+          version: "7.1.25"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -35,9 +35,6 @@ jobs:
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
-      
-      - name: sleep
-        run: sleep 8m
 
       - name: print bindingtester
         run: ./target/foundationdb_build/foundationdb/bindings/bindingtester/bindingtester.py --compare python rust --num-ops 1000 --api-version 710 --test-name api --seed 3181802154 --print-test --all
@@ -58,7 +55,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.23"
+          version: "7.1.25"
 
       - name: create traces directory
         run: mkdir -p $BINDINGTESTER_TRACE_PATH
@@ -82,9 +79,6 @@ jobs:
 
       - name: status
         run: fdbcli --exec "status"
-
-      - name: sleep
-        run: sleep 3m
 
       - name: Run bindingtester
         run: scripts/run_bindingtester.sh 200
@@ -110,7 +104,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.23"
+          version: "7.1.25"
 
       - name: create traces directory
         run: mkdir -p $BINDINGTESTER_TRACE_PATH
