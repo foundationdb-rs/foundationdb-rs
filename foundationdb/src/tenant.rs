@@ -247,7 +247,12 @@ impl TenantManagement {
 
         let key_ref = &key;
 
+        println!("starting create tenant");
+        let mut i = 0;
         db.run(|trx, _maybe_committed| async move {
+            println!("iteration create tenant {}", i);
+            i += 1;
+
             trx.set_option(TransactionOption::SpecialKeySpaceEnableWrites)?;
 
             if checked_existence_ref.load(Ordering::SeqCst) {
@@ -261,6 +266,7 @@ impl TenantManagement {
                 match maybe_key {
                     None => {
                         trx.set(key_ref, &[]);
+                        println!("create tenant done");
                         Ok(())
                     }
                     Some(_) => {
@@ -315,11 +321,16 @@ impl TenantManagement {
 
         let key_ref = &key;
 
+        let mut i = 0;
+        println!("start delete tenant");
         db.run(|trx, _maybe_committed| async move {
+            println!("iteration delete tenant {}", i);
+            i += 1;
             trx.set_option(TransactionOption::SpecialKeySpaceEnableWrites)?;
 
             if checked_existence_ref.load(Ordering::SeqCst) {
                 trx.clear(key_ref);
+                println!("delete done, committing");
                 Ok(())
             } else {
                 let maybe_key = trx.get(key_ref, false).await?;

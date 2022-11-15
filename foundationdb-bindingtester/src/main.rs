@@ -2754,7 +2754,7 @@ impl StackMachine {
         let millis = time::Duration::from_millis(4);
 
         for (i, instr) in instrs.into_iter().enumerate() {
-            println!(
+            debug!(
                 "number={}/len(stack)={}, op={:?}",
                 i,
                 self.stack.len(),
