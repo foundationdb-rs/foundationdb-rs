@@ -2761,10 +2761,14 @@ impl StackMachine {
                 instr
             );
             let _ = self.run_step(db.clone(), i, instr).await;
-            if 18900 < i && i < 19500 && enable_sleep {
-                println!("sleeping {:?} on iteration {}", millis, i);
-                thread::sleep(millis);
-                println!("sleeping {:?} on iteration {} done", millis, i);
+            if 18900 < i && i < 19500 {
+                if enable_sleep {
+                    println!("sleeping {:?} on iteration {}", millis, i);
+                    thread::sleep(millis);
+                    println!("sleeping {:?} on iteration {} done", millis, i);
+                } else {
+                    println!("iteration {}", i);
+                }
             }
         }
 
