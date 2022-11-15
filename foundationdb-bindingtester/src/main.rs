@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::env::{var, var_os};
+use std::ffi::OsString;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -2737,7 +2738,17 @@ impl StackMachine {
         let instrs = self.fetch_instr(&db.create_trx()?).await?;
         info!("{} instructions found", instrs.len());
 
-        let enable_sleep = var_os("ENABLE_SLEEP").is_some();
+        let enable_sleep = match var_os("ENABLE_SLEEP") {
+            None => false,
+            Some(val) => {
+                if val.eq("true") {
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+
         println!("enable_sleep: {}", enable_sleep);
 
         let millis = time::Duration::from_millis(4);
