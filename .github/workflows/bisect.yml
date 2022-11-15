@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+jobs:
+  bisect:
+    name: run --bisect
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    env:
+      RUST_LOG: "off"
+
+    strategy:
+      matrix:
+        version: ["7.1.21", "7.1.22", "7.1.23", "7.1.24", "7.1.25"]
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Install FoundationDB
+        uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
+        with:
+          version: ${{ matrix.version }}
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - name: Build bindingtester
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p bindingtester --target x86_64-unknown-linux-gnu --release
+
+      - name: Setup bindingtester
+        run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/release/bindingtester
+
+      - name: bisect bindingtester
+        run: ./target/foundationdb_build/foundationdb/bindings/bindingtester/bindingtester.py --compare python rust --api-version 710 --test-name api --seed 3181802154 --bisect --num-ops 1000
