@@ -10,13 +10,14 @@
 extern crate lazy_static;
 
 use std::borrow::Cow;
-use std::ops::Deref;
-use std::thread;
 
+use futures::pin_mut;
 use futures::prelude::*;
-use rand::{rngs::ThreadRng, seq::SliceRandom};
+
+use rand::seq::{IteratorRandom, SliceRandom};
 
 use foundationdb as fdb;
+use foundationdb::future::FdbValue;
 use foundationdb::tuple::{pack, unpack, Subspace};
 use foundationdb::{Database, FdbError, RangeOption, TransactError, TransactOption, Transaction};
 
@@ -25,28 +26,45 @@ enum Error {
     Internal(FdbError),
     NoRemainingSeats,
     TooManyClasses,
+    NotInClass,
+    AlreadyInClass,
 }
 
 impl From<FdbError> for Error {
     fn from(err: FdbError) -> Self {
-        Error::Internal(err)
+        Self::Internal(err)
     }
 }
 
 impl TransactError for Error {
     fn try_into_fdb_error(self) -> std::result::Result<FdbError, Self> {
         match self {
-            Error::Internal(err) => Ok(err),
+            Self::Internal(err) => Ok(err),
             _ => Err(self),
         }
     }
 }
 
+// NOTE: This example does not use a directory.
+// It will create keys with prefixes "\u{2}attends\0" and "\u{2}class\0" in your database,
+//      and remove any existing keys with those prefixes.
+
 // Data model:
 // ("attends", student, class) = ""
 // ("class", class_name) = seatsLeft
 
-// Generate 1,620 classes like '9:00 chem for dummies'
+// Constants controlling the size of the simulation
+const NUMBER_OF_STUDENTS: usize = 10;
+const OPERATIONS_PER_STUDENT: usize = 10;
+
+// Try changing these to lower values to produce more contention in the transactions.
+// For example, if you set both values to 2 and then change the "snapshot" parameter
+//   of the first get() method call in signup_trx to true, you can see how the lack of
+//   serializable isolation causes the classes to end up with more than 2 students.
+const CLASS_COUNT: usize = 10;
+const INITIAL_SEATS_PER_CLASS: u32 = 5;
+
+// Generate 1,620 possible class names like '9:00 chem for dummies'
 const LEVELS: &[&str] = &[
     "intro",
     "for dummies",
@@ -72,52 +90,62 @@ lazy_static! {
     static ref ALL_CLASSES: Vec<String> = all_classes();
 }
 
-// TODO: make these tuples?
 fn all_classes() -> Vec<String> {
     let mut class_names: Vec<String> = Vec::new();
     for level in LEVELS {
-        for _type in TYPES {
+        for class_type in TYPES {
             for time in TIMES {
-                class_names.push(format!("{} {} {}", time, _type, level));
+                class_names.push(format!("{} {} {}", time, class_type, level));
             }
         }
     }
 
     class_names
+        .into_iter()
+        .choose_multiple(&mut rand::thread_rng(), CLASS_COUNT)
 }
 
 fn init_classes(trx: &Transaction, all_classes: &[String]) {
     let class_subspace = Subspace::from("class");
     for class in all_classes {
-        trx.set(&class_subspace.pack(class), &pack(&100_i64));
+        trx.set(&class_subspace.pack(class), &pack(&INITIAL_SEATS_PER_CLASS));
     }
 }
 
 async fn init(db: &Database, all_classes: &[String]) {
+    let class_subspace = Subspace::from("class");
+    let attends_subspace = Subspace::from("attends");
+
     let trx = db.create_trx().expect("could not create transaction");
-    trx.clear_subspace_range(&"attends".into());
-    trx.clear_subspace_range(&"class".into());
+    trx.clear_subspace_range(&attends_subspace);
+    trx.clear_subspace_range(&class_subspace);
     init_classes(&trx, all_classes);
 
     trx.commit().await.expect("failed to initialize data");
 }
 
 async fn get_available_classes(db: &Database) -> Vec<String> {
+    let class_subspace = Subspace::from("class");
+
     let trx = db.create_trx().expect("could not create transaction");
 
-    let range = RangeOption::from(&Subspace::from("class"));
+    let range = RangeOption::from(&class_subspace);
 
     let got_range = trx
-        .get_range(&range, 1_024, false)
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        .get_ranges_keyvalues(range, false)
+        .try_collect::<Vec<FdbValue>>()
         .await
         .expect("failed to get classes");
     let mut available_classes = Vec::<String>::new();
 
-    for key_value in got_range.iter() {
+    for key_value in got_range {
         let count: i64 = unpack(key_value.value()).expect("failed to decode count");
 
         if count > 0 {
-            let class: String = unpack(key_value.key()).expect("failed to decode class");
+            let class: String = class_subspace
+                .unpack(key_value.key())
+                .expect("failed to decode class");
             available_classes.push(class);
         }
     }
@@ -125,57 +153,69 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
     available_classes
 }
 
-async fn ditch_trx(trx: &Transaction, student: &str, class: &str) {
-    let attends_key = pack(&("attends", student, class));
+async fn ditch_trx(trx: &Transaction, student: &str, class: &str) -> Result<bool> {
+    let class_subspace = Subspace::from("class");
+    let attends_subspace = Subspace::from("attends");
 
-    // TODO: should get take an &Encode? current impl does encourage &[u8] reuse...
+    let attends_key = attends_subspace.pack(&(student, class));
+
     if trx
-        .get(&attends_key, true)
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        .get(&attends_key, false)
         .await
         .expect("get failed")
         .is_none()
     {
-        return;
+        return Ok(false); // student is not in this class
     }
 
-    let class_key = pack(&("class", class));
+    let class_key = class_subspace.pack(&class);
+
     let available_seats = trx
-        .get(&class_key, true)
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        .get(&class_key, false)
         .await
         .expect("get failed")
         .expect("class seats were not initialized");
-    let available_seats: i64 =
-        unpack::<i64>(available_seats.deref()).expect("failed to decode i64") + 1;
+    let available_seats: i64 = unpack::<i64>(&available_seats).expect("failed to decode i64") + 1;
 
     //println!("{} ditching class: {}", student, class);
     trx.set(&class_key, &pack(&available_seats));
     trx.clear(&attends_key);
+
+    Ok(true)
 }
 
-async fn ditch(db: &Database, student: String, class: String) -> Result<()> {
-    db.transact_boxed_local(
+async fn ditch(db: &Database, student: String, class: String) -> Result<bool> {
+    db.transact_boxed(
         (student, class),
-        move |trx, (student, class)| ditch_trx(trx, student, class).map(|_| Ok(())).boxed_local(),
+        move |trx, (student, class)| ditch_trx(trx, student, class).boxed(),
         fdb::TransactOption::default(),
     )
     .await
 }
 
-async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()> {
-    let attends_key = pack(&("attends", student, class));
+async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<bool> {
+    let class_subspace = Subspace::from("class");
+    let attends_subspace = Subspace::from("attends");
+
+    let attends_key = attends_subspace.pack(&(student, class));
     if trx
-        .get(&attends_key, true)
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        .get(&attends_key, false)
         .await
         .expect("get failed")
         .is_some()
     {
         //println!("{} already taking class: {}", student, class);
-        return Ok(());
+        return Ok(false);
     }
 
-    let class_key = pack(&("class", class));
+    let class_key = class_subspace.pack(&class);
     let available_seats: i64 = unpack(
-        &trx.get(&class_key, true)
+        &trx
+            // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+            .get(&class_key, false)
             .await
             .expect("get failed")
             .expect("class seats were not initialized"),
@@ -186,11 +226,20 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
         return Err(Error::NoRemainingSeats);
     }
 
-    let attends_range = RangeOption::from(&("attends", &student).into());
+    // Use the subspace method to get a new Subspace struct representing the key prefix.
+    //    (equivalent to subspace.range(tuple) in the Python API)
+    // Although this method is intended for getting nested subspaces, it can be used to generate
+    //     a representation of an arbitrary key prefix, whether or not the prefix is semantically
+    //     used as a subspace.
+    let key_prefix = attends_subspace.subspace(&student);
+
+    let attends_range = RangeOption::from(&key_prefix);
     if trx
-        .get_range(&attends_range, 1_024, false)
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        .get_ranges_keyvalues(attends_range, false)
+        .try_collect::<Vec<FdbValue>>()
         .await
-        .expect("get_range failed")
+        .expect("get_ranges_keyvalues failed")
         .len()
         >= 5
     {
@@ -201,13 +250,13 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
     trx.set(&class_key, &pack(&(available_seats - 1)));
     trx.set(&attends_key, &pack(&""));
 
-    Ok(())
+    Ok(true)
 }
 
-async fn signup(db: &Database, student: String, class: String) -> Result<()> {
-    db.transact_boxed_local(
+async fn signup(db: &Database, student: String, class: String) -> Result<bool> {
+    db.transact_boxed(
         (student, class),
-        |trx, (student, class)| signup_trx(trx, student, class).boxed_local(),
+        |trx, (student, class)| signup_trx(trx, student, class).boxed(),
         TransactOption::default(),
     )
     .await
@@ -225,15 +274,21 @@ async fn switch_classes(
         old_class: &str,
         new_class: &str,
     ) -> Result<()> {
-        ditch_trx(trx, student_id, old_class).await;
-        signup_trx(trx, student_id, new_class).await?;
-        Ok(())
+        if !ditch_trx(trx, student_id, old_class).await? {
+            return Err(Error::NotInClass); // cancel the transaction by returning an error
+        }
+
+        if signup_trx(trx, student_id, new_class).await? {
+            Ok(())
+        } else {
+            Err(Error::AlreadyInClass) // cancel the transaction by returning an error
+        }
     }
 
-    db.transact_boxed_local(
+    db.transact_boxed(
         (student_id, old_class, new_class),
         move |trx, (student_id, old_class, new_class)| {
-            switch_classes_body(trx, student_id, old_class, new_class).boxed_local()
+            switch_classes_body(trx, student_id, old_class, new_class).boxed()
         },
         TransactOption::default(),
     )
@@ -249,7 +304,6 @@ enum Mood {
 
 async fn perform_op(
     db: &Database,
-    rng: &mut ThreadRng,
     mood: Mood,
     student_id: &str,
     all_classes: &[String],
@@ -257,27 +311,49 @@ async fn perform_op(
 ) -> Result<()> {
     match mood {
         Mood::Add => {
-            let class = all_classes.choose(rng).unwrap();
-            signup(db, student_id.to_string(), class.to_string()).await?;
-            my_classes.push(class.to_string());
+            if !all_classes.is_empty() {
+                let class = all_classes.choose(&mut rand::thread_rng()).unwrap();
+
+                if signup(db, student_id.to_string(), class.to_string()).await? {
+                    println!("{} signed up for {}", student_id, class);
+                    my_classes.push(class.to_string());
+                }
+            }
         }
         Mood::Ditch => {
-            let class = all_classes.choose(rng).unwrap();
-            ditch(db, student_id.to_string(), class.to_string()).await?;
-            my_classes.retain(|s| s != class);
+            if !my_classes.is_empty() {
+                let class = my_classes.choose(&mut rand::thread_rng()).unwrap().clone();
+
+                if ditch(db, student_id.to_string(), class.to_string()).await? {
+                    println!("{} dropped {}", student_id, class);
+                    my_classes.retain(|s| s != &class);
+                }
+            }
         }
         Mood::Switch => {
-            let old_class = my_classes.choose(rng).unwrap().to_string();
-            let new_class = all_classes.choose(rng).unwrap();
-            switch_classes(
-                db,
-                student_id.to_string(),
-                old_class.to_string(),
-                new_class.to_string(),
-            )
-            .await?;
-            my_classes.retain(|s| s != &old_class);
-            my_classes.push(new_class.to_string());
+            if !my_classes.is_empty() && !all_classes.is_empty() {
+                let old_class = my_classes
+                    .choose(&mut rand::thread_rng())
+                    .unwrap()
+                    .to_string();
+                let new_class = all_classes.choose(&mut rand::thread_rng()).unwrap();
+
+                switch_classes(
+                    db,
+                    student_id.to_string(),
+                    old_class.to_string(),
+                    new_class.to_string(),
+                )
+                .await?;
+
+                println!(
+                    "{} switched from {} to {}",
+                    student_id, old_class, new_class
+                );
+
+                my_classes.retain(|s| s != &old_class);
+                my_classes.push(new_class.to_string());
+            }
         }
     }
     Ok(())
@@ -289,7 +365,6 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
         .expect("failed to get database");
 
     let student_id = format!("s{}", student_id);
-    let mut rng = rand::thread_rng();
 
     let mut available_classes = Cow::Borrowed(&*ALL_CLASSES);
     let mut my_classes = Vec::<String>::new();
@@ -306,20 +381,15 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
             moods.push(Mood::Add);
         }
 
-        let mood = moods.choose(&mut rng).copied().unwrap();
+        let mood = moods.choose(&mut rand::thread_rng()).copied().unwrap();
 
         // on errors we recheck for available classes
-        if perform_op(
-            &db,
-            &mut rng,
-            mood,
-            &student_id,
-            &available_classes,
-            &mut my_classes,
-        )
-        .await
-        .is_err()
+        if perform_op(&db, mood, &student_id, &available_classes, &mut my_classes)
+            .await
+            .is_err()
         {
+            // Transaction failed, likely because available_classes list is incorrect.
+            // Update available_classes by querying the database.
             println!("getting available classes");
             available_classes = Cow::Owned(get_available_classes(&db).await);
         }
@@ -327,36 +397,61 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
 }
 
 async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
-    let mut threads: Vec<(usize, thread::JoinHandle<()>)> = Vec::with_capacity(students);
+    let mut threads: Vec<(usize, tokio::task::JoinHandle<()>)> = Vec::with_capacity(students);
     for i in 0..students {
-        // TODO: ClusterInner has a mutable pointer reference, if thread-safe, mark that trait as Sync, then we can clone DB here...
-        threads.push((
-            i,
-            thread::spawn(move || {
-                futures::executor::block_on(simulate_students(i, ops_per_student));
-            }),
-        ));
+        threads.push((i, tokio::task::spawn(simulate_students(i, ops_per_student))));
     }
 
-    // explicitly join...
+    let attends_subspace = Subspace::from("attends");
+
+    // explicitly join the threads by awaiting their JoinHandles...
     for (id, thread) in threads {
-        thread.join().expect("failed to join thread");
+        thread.await.expect("failed to join thread");
 
         let student_id = format!("s{}", id);
-        let attends_range = RangeOption::from(&("attends", &student_id).into());
 
-        for key_value in db
-            .create_trx()
-            .unwrap()
-            .get_range(&attends_range, 1_024, false)
-            .await
-            .expect("get_range failed")
-            .iter()
-        {
-            let (_, s, class) = unpack::<(String, String, String)>(key_value.key()).unwrap();
+        let key_prefix = attends_subspace.subspace(&student_id);
+
+        let attends_range = RangeOption::from(&key_prefix);
+
+        /*
+        // Example of using the Stream from get_ranges_keyvalues() directly instead of calling try_collect()...
+
+        let trx = db.create_trx().unwrap();
+
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        let stream = trx.get_ranges_keyvalues(attends_range, false);
+
+        pin_mut!(stream);
+
+        while let Some(key_value) = stream.next().await {
+            let key_value = key_value.expect("get_ranges_keyvalues failed");
+
+            let (s, class) = attends_subspace.unpack::<(String, String)>(key_value.key()).unwrap();
             assert_eq!(student_id, s);
 
             println!("{} is taking: {}", student_id, class);
+        }
+        */
+
+        // Example of using get_ranges(), which returns a Stream of slices of key-value pairs...
+
+        let trx = db.create_trx().unwrap();
+
+        // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
+        let stream = trx.get_ranges(attends_range, false);
+
+        pin_mut!(stream);
+
+        while let Some(next_keyvalues) = stream.next().await {
+            for key_value in next_keyvalues.expect("get_ranges failed") {
+                let (s, class) = attends_subspace
+                    .unpack::<(String, String)>(key_value.key())
+                    .unwrap();
+                assert_eq!(student_id, s);
+
+                println!("{} is taking: {}", student_id, class);
+            }
         }
     }
 
@@ -369,7 +464,7 @@ async fn main() {
     let db = fdb::Database::new_compat(None)
         .await
         .expect("failed to get database");
-    init(&db, &*ALL_CLASSES).await;
+    init(&db, &ALL_CLASSES).await;
     println!("Initialized");
-    run_sim(&db, 10, 10).await;
+    run_sim(&db, NUMBER_OF_STUDENTS, OPERATIONS_PER_STUDENT).await;
 }
