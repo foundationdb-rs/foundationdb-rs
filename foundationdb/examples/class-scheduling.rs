@@ -10,6 +10,7 @@
 extern crate lazy_static;
 
 use std::borrow::Cow;
+use std::fmt::{self, Debug, Display, Formatter};
 
 use futures::pin_mut;
 use futures::prelude::*;
@@ -19,30 +20,43 @@ use rand::seq::{IteratorRandom, SliceRandom};
 use foundationdb as fdb;
 use foundationdb::future::FdbValue;
 use foundationdb::tuple::{pack, unpack, Subspace};
-use foundationdb::{Database, FdbError, RangeOption, TransactError, TransactOption, Transaction};
+use foundationdb::{Database, FdbBindingError, RangeOption, RetryableTransaction, Transaction};
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = std::result::Result<T, FdbBindingError>;
+
+#[derive(Debug)]
 enum Error {
-    Internal(FdbError),
     NoRemainingSeats,
     TooManyClasses,
     NotInClass,
     AlreadyInClass,
 }
 
-impl From<FdbError> for Error {
-    fn from(err: FdbError) -> Self {
-        Self::Internal(err)
+impl Error {
+    fn as_str(&self) -> &'static str {
+        match *self {
+            Self::NoRemainingSeats => "there are no seats available for the class",
+            Self::TooManyClasses => {
+                "the student is already signed up for more than the maximum number of classes"
+            }
+            Self::NotInClass => {
+                "the student is not signed up for the class and therefore cannot drop it"
+            }
+            Self::AlreadyInClass => "the student is already signed up for the class",
+        }
     }
 }
 
-impl TransactError for Error {
-    fn try_into_fdb_error(self) -> std::result::Result<FdbError, Self> {
-        match self {
-            Self::Internal(err) => Ok(err),
-            _ => Err(self),
-        }
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(self.as_str(), f)
     }
+}
+
+impl std::error::Error for Error {}
+
+fn wrap_custom_error<T>(e: Error) -> Result<T> {
+    Err(FdbBindingError::new_custom_error(Box::new(e)))
 }
 
 // NOTE: This example does not use a directory.
@@ -153,11 +167,11 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
     available_classes
 }
 
-async fn ditch_trx(trx: &Transaction, student: &str, class: &str) -> Result<bool> {
+async fn ditch_trx(trx: RetryableTransaction, student: String, class: String) -> Result<bool> {
     let class_subspace = Subspace::from("class");
     let attends_subspace = Subspace::from("attends");
 
-    let attends_key = attends_subspace.pack(&(student, class));
+    let attends_key = attends_subspace.pack(&(&student, &class));
 
     if trx
         // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
@@ -187,19 +201,15 @@ async fn ditch_trx(trx: &Transaction, student: &str, class: &str) -> Result<bool
 }
 
 async fn ditch(db: &Database, student: String, class: String) -> Result<bool> {
-    db.transact_boxed(
-        (student, class),
-        move |trx, (student, class)| ditch_trx(trx, student, class).boxed(),
-        fdb::TransactOption::default(),
-    )
-    .await
+    db.run(move |trx, _maybe_committed_transaction| ditch_trx(trx, student.clone(), class.clone()))
+        .await
 }
 
-async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<bool> {
+async fn signup_trx(trx: RetryableTransaction, student: String, class: String) -> Result<bool> {
     let class_subspace = Subspace::from("class");
     let attends_subspace = Subspace::from("attends");
 
-    let attends_key = attends_subspace.pack(&(student, class));
+    let attends_key = attends_subspace.pack(&(&student, &class));
     if trx
         // pass false for the snapshot parameter (otherwise it will not use serializable isolation!)
         .get(&attends_key, false)
@@ -223,7 +233,7 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<boo
     .expect("failed to decode i64");
 
     if available_seats <= 0 {
-        return Err(Error::NoRemainingSeats);
+        return wrap_custom_error(Error::NoRemainingSeats);
     }
 
     // Use the subspace method to get a new Subspace struct representing the key prefix.
@@ -243,7 +253,7 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<boo
         .len()
         >= 5
     {
-        return Err(Error::TooManyClasses);
+        return wrap_custom_error(Error::TooManyClasses);
     }
 
     //println!("{} taking class: {}", student, class);
@@ -254,12 +264,8 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<boo
 }
 
 async fn signup(db: &Database, student: String, class: String) -> Result<bool> {
-    db.transact_boxed(
-        (student, class),
-        |trx, (student, class)| signup_trx(trx, student, class).boxed(),
-        TransactOption::default(),
-    )
-    .await
+    db.run(move |trx, _maybe_committed_transaction| signup_trx(trx, student.clone(), class.clone()))
+        .await
 }
 
 async fn switch_classes(
@@ -269,29 +275,30 @@ async fn switch_classes(
     new_class: String,
 ) -> Result<()> {
     async fn switch_classes_body(
-        trx: &Transaction,
-        student_id: &str,
-        old_class: &str,
-        new_class: &str,
+        trx: RetryableTransaction,
+        student_id: String,
+        old_class: String,
+        new_class: String,
     ) -> Result<()> {
-        if !ditch_trx(trx, student_id, old_class).await? {
-            return Err(Error::NotInClass); // cancel the transaction by returning an error
+        if !ditch_trx(trx.clone(), student_id.clone(), old_class.clone()).await? {
+            return wrap_custom_error(Error::NotInClass); // cancel the transaction by returning an error
         }
 
         if signup_trx(trx, student_id, new_class).await? {
             Ok(())
         } else {
-            Err(Error::AlreadyInClass) // cancel the transaction by returning an error
+            wrap_custom_error(Error::AlreadyInClass) // cancel the transaction by returning an error
         }
     }
 
-    db.transact_boxed(
-        (student_id, old_class, new_class),
-        move |trx, (student_id, old_class, new_class)| {
-            switch_classes_body(trx, student_id, old_class, new_class).boxed()
-        },
-        TransactOption::default(),
-    )
+    db.run(move |trx, _maybe_committed_transaction| {
+        switch_classes_body(
+            trx,
+            student_id.clone(),
+            old_class.clone(),
+            new_class.clone(),
+        )
+    })
     .await
 }
 
@@ -383,15 +390,17 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
 
         let mood = moods.choose(&mut rand::thread_rng()).copied().unwrap();
 
-        // on errors we recheck for available classes
-        if perform_op(&db, mood, &student_id, &available_classes, &mut my_classes)
-            .await
-            .is_err()
+        if let Err(e) =
+            perform_op(&db, mood, &student_id, &available_classes, &mut my_classes).await
         {
-            // Transaction failed, likely because available_classes list is incorrect.
-            // Update available_classes by querying the database.
-            println!("getting available classes");
-            available_classes = Cow::Owned(get_available_classes(&db).await);
+            if let FdbBindingError::CustomError(_) = e {
+                // Transaction failed, likely because available_classes list is incorrect.
+                // Update available_classes by querying the database.
+                println!("getting available classes");
+                available_classes = Cow::Owned(get_available_classes(&db).await);
+            } else {
+                panic!("Error while trying to perform database operation: {:?}", e);
+            }
         }
     }
 }
