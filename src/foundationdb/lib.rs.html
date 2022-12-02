@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -93,100 +93,100 @@
 <span id="93">93</span>
 <span id="94">94</span>
 <span id="95">95</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
-<span class="attribute">#![<span class="ident">doc</span> <span class="op">=</span> <span class="macro">include_str!</span>(<span class="string">&quot;../README.md&quot;</span>)]</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
+</span><span class="attribute">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../README.md&quot;</span>)]
 
-<span class="attribute">#[<span class="ident">macro_use</span>]</span>
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">static_assertions</span>;
+#[macro_use]
+</span><span class="kw">extern crate </span>static_assertions;
 
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">api</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cluster</span>;
-<span class="kw">mod</span> <span class="ident">database</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">directory</span>;
-<span class="kw">mod</span> <span class="ident">error</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-7_0&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-7_1&quot;</span>))]</span>
-<span class="attribute">#[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">fdb_keys</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">future</span>;
-<span class="kw">mod</span> <span class="ident">keyselector</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-7_1&quot;</span>))]</span>
-<span class="attribute">#[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mapped_key_values</span>;
-<span class="doccomment">/// Generated configuration types for use with the various `set_option` functions</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::all</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">options</span>;
-<span class="kw">mod</span> <span class="ident">transaction</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tuple</span>;
+<span class="kw">pub mod </span>api;
+<span class="attribute">#[cfg(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
+</span><span class="kw">pub mod </span>cluster;
+<span class="kw">mod </span>database;
+<span class="kw">pub mod </span>directory;
+<span class="kw">mod </span>error;
+<span class="attribute">#[cfg(any(feature = <span class="string">&quot;fdb-7_0&quot;</span>, feature = <span class="string">&quot;fdb-7_1&quot;</span>))]
+#[deny(missing_docs)]
+</span><span class="kw">pub mod </span>fdb_keys;
+<span class="kw">pub mod </span>future;
+<span class="kw">mod </span>keyselector;
+<span class="attribute">#[cfg(any(feature = <span class="string">&quot;fdb-7_1&quot;</span>))]
+#[deny(missing_docs)]
+</span><span class="kw">pub mod </span>mapped_key_values;
+<span class="doccomment">/// Generated configuration types for use with the various `set_option` functions
+</span><span class="attribute">#[allow(clippy::all)]
+</span><span class="kw">pub mod </span>options;
+<span class="kw">mod </span>transaction;
+<span class="kw">pub mod </span>tuple;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::cluster::Cluster</span>;
+<span class="attribute">#[cfg(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
+</span><span class="kw">pub use </span><span class="kw">crate</span>::cluster::Cluster;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::database</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::FdbBindingError</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::FdbError</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::FdbResult</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::keyselector</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::transaction</span>::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::database::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::error::FdbBindingError;
+<span class="kw">pub use </span><span class="kw">crate</span>::error::FdbError;
+<span class="kw">pub use </span><span class="kw">crate</span>::error::FdbResult;
+<span class="kw">pub use </span><span class="kw">crate</span>::keyselector::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::transaction::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Initialize the FoundationDB Client API, this can only be called once per process.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Returns</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// A `NetworkAutoStop` handle which must be dropped before the program exits.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Safety</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// You *MUST* ensure drop is called on the returned object before the program exits.</span>
-<span class="doccomment">/// This is not required if the program is aborted.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This method used to be safe in version `0.4`. But because `drop` on the returned object</span>
-<span class="doccomment">/// might not be called before the program exits, it was found unsafe.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Examples</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// let network = unsafe { foundationdb::boot() };</span>
-<span class="doccomment">/// // do some interesting things with the API...</span>
-<span class="doccomment">/// drop(network);</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// #[tokio::main]</span>
-<span class="doccomment">/// async fn main() {</span>
-<span class="doccomment">///     let network = unsafe { foundationdb::boot() };</span>
-<span class="doccomment">///     // do some interesting things with the API...</span>
-<span class="doccomment">///     drop(network);</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">boot</span>() -&gt; <span class="ident">api::NetworkAutoStop</span> {
-    <span class="kw">let</span> <span class="ident">network_builder</span> <span class="op">=</span> <span class="ident">api::FdbApiBuilder::default</span>()
-        .<span class="ident">build</span>()
-        .<span class="ident">expect</span>(<span class="string">&quot;foundationdb API to be initialized&quot;</span>);
-    <span class="ident">network_builder</span>.<span class="ident">boot</span>().<span class="ident">expect</span>(<span class="string">&quot;fdb network running&quot;</span>)
+<span class="doccomment">/// Initialize the FoundationDB Client API, this can only be called once per process.
+///
+/// # Returns
+///
+/// A `NetworkAutoStop` handle which must be dropped before the program exits.
+///
+/// # Safety
+///
+/// You *MUST* ensure drop is called on the returned object before the program exits.
+/// This is not required if the program is aborted.
+///
+/// This method used to be safe in version `0.4`. But because `drop` on the returned object
+/// might not be called before the program exits, it was found unsafe.
+///
+/// # Examples
+///
+/// ```rust
+/// let network = unsafe { foundationdb::boot() };
+/// // do some interesting things with the API...
+/// drop(network);
+/// ```
+///
+/// ```rust
+/// #[tokio::main]
+/// async fn main() {
+///     let network = unsafe { foundationdb::boot() };
+///     // do some interesting things with the API...
+///     drop(network);
+/// }
+/// ```
+</span><span class="kw">pub unsafe fn </span>boot() -&gt; api::NetworkAutoStop {
+    <span class="kw">let </span>network_builder = api::FdbApiBuilder::default()
+        .build()
+        .expect(<span class="string">&quot;foundationdb API to be initialized&quot;</span>);
+    network_builder.boot().expect(<span class="string">&quot;fdb network running&quot;</span>)
 }
 
-<span class="doccomment">/// Returns the default Fdb cluster configuration file path</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_config_path</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-    <span class="string">&quot;/etc/foundationdb/fdb.cluster&quot;</span>
-}
+<span class="doccomment">/// Returns the default Fdb cluster configuration file path
+</span><span class="attribute">#[cfg(target_os = <span class="string">&quot;linux&quot;</span>)]
+</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="string">&quot;/etc/foundationdb/fdb.cluster&quot;
+</span>}
 
-<span class="doccomment">/// Returns the default Fdb cluster configuration file path</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_config_path</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-    <span class="string">&quot;/usr/local/etc/foundationdb/fdb.cluster&quot;</span>
-}
+<span class="doccomment">/// Returns the default Fdb cluster configuration file path
+</span><span class="attribute">#[cfg(target_os = <span class="string">&quot;macos&quot;</span>)]
+</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="string">&quot;/usr/local/etc/foundationdb/fdb.cluster&quot;
+</span>}
 
-<span class="doccomment">/// Returns the default Fdb cluster configuration file path</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_config_path</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-    <span class="string">&quot;C:/ProgramData/foundationdb/fdb.cluster&quot;</span>
-}
+<span class="doccomment">/// Returns the default Fdb cluster configuration file path
+</span><span class="attribute">#[cfg(target_os = <span class="string">&quot;windows&quot;</span>)]
+</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="string">&quot;C:/ProgramData/foundationdb/fdb.cluster&quot;
+</span>}
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

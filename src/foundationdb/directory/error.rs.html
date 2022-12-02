@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/directory/error.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>error.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/directory/error.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>error.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -83,90 +83,90 @@
 <span id="83">83</span>
 <span id="84">84</span>
 <span id="85">85</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! Errors that can be thrown by Directory.</span>
+</span><span class="doccomment">//! Errors that can be thrown by Directory.
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tuple::hca::HcaError</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tuple::PackError</span>;
-<span class="kw">use</span> <span class="ident">std::io</span>;
+</span><span class="kw">use </span><span class="kw">crate</span>::error;
+<span class="kw">use </span><span class="kw">crate</span>::tuple::hca::HcaError;
+<span class="kw">use </span><span class="kw">crate</span>::tuple::PackError;
+<span class="kw">use </span>std::io;
 
-<span class="doccomment">/// The enumeration holding all possible errors from a Directory.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DirectoryError</span> {
-    <span class="doccomment">/// cannot modify the root directory</span>
-    <span class="ident">CannotModifyRootDirectory</span>,
-    <span class="doccomment">/// prefix is already used</span>
-    <span class="ident">DirectoryPrefixInUse</span>,
-    <span class="doccomment">/// Directory does not exists</span>
-    <span class="ident">DirectoryDoesNotExists</span>,
-    <span class="doccomment">/// missing path.</span>
-    <span class="ident">NoPathProvided</span>,
-    <span class="doccomment">/// tried to create an already existing path.</span>
-    <span class="ident">DirAlreadyExists</span>,
-    <span class="doccomment">/// missing directory.</span>
-    <span class="ident">PathDoesNotExists</span>,
-    <span class="doccomment">/// Parent does not exists</span>
-    <span class="ident">ParentDirDoesNotExists</span>,
-    <span class="doccomment">/// the layer is incompatible.</span>
-    <span class="ident">IncompatibleLayer</span>,
-    <span class="doccomment">/// the destination directory cannot be a subdirectory of the source directory.</span>
-    <span class="ident">BadDestinationDirectory</span>,
-    <span class="doccomment">/// Bad directory version.</span>
-    <span class="ident">Version</span>(<span class="ident">String</span>),
-    <span class="doccomment">/// cannot specify a prefix unless manual prefixes are enabled</span>
-    <span class="ident">PrefixNotAllowed</span>,
-    <span class="doccomment">/// cannot specify a prefix in a partition.</span>
-    <span class="ident">CannotPrefixInPartition</span>,
-    <span class="doccomment">/// the root directory cannot be moved</span>
-    <span class="ident">CannotMoveRootDirectory</span>,
-    <span class="ident">CannotMoveBetweenPartition</span>,
-    <span class="doccomment">/// the destination directory cannot be a subdirectory of the source directory</span>
-    <span class="ident">CannotMoveBetweenSubdirectory</span>,
-    <span class="doccomment">/// Prefix is not empty</span>
-    <span class="ident">PrefixNotEmpty</span>,
-    <span class="doccomment">/// Thrown when the subpath cannot be computed due to length errors</span>
-    <span class="ident">CannotCreateSubpath</span>,
-    <span class="doccomment">/// cannot open subspace in the root of a directory partition</span>
-    <span class="ident">CannotOpenDirectoryPartition</span>,
-    <span class="doccomment">/// cannot get key for the root of a directory partition</span>
-    <span class="ident">CannotGetKeyDirectoryPartition</span>,
-    <span class="doccomment">/// cannot pack for the root of a directory partition</span>
-    <span class="ident">CannotPackDirectoryPartition</span>,
-    <span class="doccomment">/// cannot unpack keys using the root of a directory partition</span>
-    <span class="ident">CannotUnpackDirectoryPartition</span>,
-    <span class="doccomment">/// cannot get range for the root of a directory partition</span>
-    <span class="ident">CannotRangeDirectoryPartition</span>,
-    <span class="ident">IoError</span>(<span class="ident">io::Error</span>),
-    <span class="ident">FdbError</span>(<span class="ident">error::FdbError</span>),
-    <span class="ident">HcaError</span>(<span class="ident">HcaError</span>),
-    <span class="ident">PackError</span>(<span class="ident">PackError</span>),
-    <span class="ident">Other</span>(<span class="ident">String</span>),
+<span class="doccomment">/// The enumeration holding all possible errors from a Directory.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub enum </span>DirectoryError {
+    <span class="doccomment">/// cannot modify the root directory
+    </span>CannotModifyRootDirectory,
+    <span class="doccomment">/// prefix is already used
+    </span>DirectoryPrefixInUse,
+    <span class="doccomment">/// Directory does not exists
+    </span>DirectoryDoesNotExists,
+    <span class="doccomment">/// missing path.
+    </span>NoPathProvided,
+    <span class="doccomment">/// tried to create an already existing path.
+    </span>DirAlreadyExists,
+    <span class="doccomment">/// missing directory.
+    </span>PathDoesNotExists,
+    <span class="doccomment">/// Parent does not exists
+    </span>ParentDirDoesNotExists,
+    <span class="doccomment">/// the layer is incompatible.
+    </span>IncompatibleLayer,
+    <span class="doccomment">/// the destination directory cannot be a subdirectory of the source directory.
+    </span>BadDestinationDirectory,
+    <span class="doccomment">/// Bad directory version.
+    </span>Version(String),
+    <span class="doccomment">/// cannot specify a prefix unless manual prefixes are enabled
+    </span>PrefixNotAllowed,
+    <span class="doccomment">/// cannot specify a prefix in a partition.
+    </span>CannotPrefixInPartition,
+    <span class="doccomment">/// the root directory cannot be moved
+    </span>CannotMoveRootDirectory,
+    CannotMoveBetweenPartition,
+    <span class="doccomment">/// the destination directory cannot be a subdirectory of the source directory
+    </span>CannotMoveBetweenSubdirectory,
+    <span class="doccomment">/// Prefix is not empty
+    </span>PrefixNotEmpty,
+    <span class="doccomment">/// Thrown when the subpath cannot be computed due to length errors
+    </span>CannotCreateSubpath,
+    <span class="doccomment">/// cannot open subspace in the root of a directory partition
+    </span>CannotOpenDirectoryPartition,
+    <span class="doccomment">/// cannot get key for the root of a directory partition
+    </span>CannotGetKeyDirectoryPartition,
+    <span class="doccomment">/// cannot pack for the root of a directory partition
+    </span>CannotPackDirectoryPartition,
+    <span class="doccomment">/// cannot unpack keys using the root of a directory partition
+    </span>CannotUnpackDirectoryPartition,
+    <span class="doccomment">/// cannot get range for the root of a directory partition
+    </span>CannotRangeDirectoryPartition,
+    IoError(io::Error),
+    FdbError(error::FdbError),
+    HcaError(HcaError),
+    PackError(PackError),
+    Other(String),
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">error::FdbError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DirectoryError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">error::FdbError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">DirectoryError::FdbError</span>(<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;error::FdbError&gt; <span class="kw">for </span>DirectoryError {
+    <span class="kw">fn </span>from(err: error::FdbError) -&gt; <span class="self">Self </span>{
+        DirectoryError::FdbError(err)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">HcaError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DirectoryError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">HcaError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">DirectoryError::HcaError</span>(<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;HcaError&gt; <span class="kw">for </span>DirectoryError {
+    <span class="kw">fn </span>from(err: HcaError) -&gt; <span class="self">Self </span>{
+        DirectoryError::HcaError(err)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">PackError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DirectoryError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">PackError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">DirectoryError::PackError</span>(<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;PackError&gt; <span class="kw">for </span>DirectoryError {
+    <span class="kw">fn </span>from(err: PackError) -&gt; <span class="self">Self </span>{
+        DirectoryError::PackError(err)
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/api.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/api.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -324,331 +324,331 @@
 <span id="324">324</span>
 <span id="325">325</span>
 <span id="326">326</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! Configuration of foundationDB API and Network</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Provides a safe wrapper around the following C API calls:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! - [API versioning](https://apple.github.io/foundationdb/api-c.html#api-versioning)</span>
-<span class="doccomment">//! - [Network](https://apple.github.io/foundationdb/api-c.html#network)</span>
+</span><span class="doccomment">//! Configuration of foundationDB API and Network
+//!
+//! Provides a safe wrapper around the following C API calls:
+//!
+//! - [API versioning](https://apple.github.io/foundationdb/api-c.html#api-versioning)
+//! - [Network](https://apple.github.io/foundationdb/api-c.html#network)
 
-<span class="kw">use</span> <span class="ident">std::panic</span>;
-<span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
-<span class="kw">use</span> <span class="ident">std::sync</span>::{<span class="ident">Arc</span>, <span class="ident">Condvar</span>, <span class="ident">Mutex</span>};
-<span class="kw">use</span> <span class="ident">std::thread</span>;
+</span><span class="kw">use </span>std::panic;
+<span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<span class="kw">use </span>std::sync::{Arc, Condvar, Mutex};
+<span class="kw">use </span>std::thread;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options::NetworkOption</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbResult</span>};
-<span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
+<span class="kw">use </span><span class="kw">crate</span>::options::NetworkOption;
+<span class="kw">use crate</span>::{error, FdbResult};
+<span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
 
-<span class="doccomment">/// Returns the max api version of the underlying Fdb C API Client</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_max_api_version</span>() -&gt; <span class="ident">i32</span> {
-    <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_get_max_api_version</span>() }
+<span class="doccomment">/// Returns the max api version of the underlying Fdb C API Client
+</span><span class="kw">pub fn </span>get_max_api_version() -&gt; i32 {
+    <span class="kw">unsafe </span>{ fdb_sys::fdb_get_max_api_version() }
 }
 
-<span class="kw">static</span> <span class="ident">VERSION_SELECTED</span>: <span class="ident">AtomicBool</span> <span class="op">=</span> <span class="ident">AtomicBool::new</span>(<span class="bool-val">false</span>);
+<span class="kw">static </span>VERSION_SELECTED: AtomicBool = AtomicBool::new(<span class="bool-val">false</span>);
 
-<span class="doccomment">/// A Builder with which different versions of the Fdb C API can be initialized</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The foundationDB C API can only be initialized once.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// foundationdb::api::FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdbApiBuilder</span> {
-    <span class="ident">runtime_version</span>: <span class="ident">i32</span>,
+<span class="doccomment">/// A Builder with which different versions of the Fdb C API can be initialized
+///
+/// The foundationDB C API can only be initialized once.
+///
+/// ```
+/// foundationdb::api::FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);
+/// ```
+</span><span class="kw">pub struct </span>FdbApiBuilder {
+    runtime_version: i32,
 }
 
-<span class="kw">impl</span> <span class="ident">FdbApiBuilder</span> {
-    <span class="doccomment">/// The version of run-time behavior the API is requested to provide.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">runtime_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i32</span> {
-        <span class="self">self</span>.<span class="ident">runtime_version</span>
+<span class="kw">impl </span>FdbApiBuilder {
+    <span class="doccomment">/// The version of run-time behavior the API is requested to provide.
+    </span><span class="kw">pub fn </span>runtime_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i32 {
+        <span class="self">self</span>.runtime_version
     }
 
-    <span class="doccomment">/// Set the version of run-time behavior the API is requested to provide.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Must be less than or equal to header_version, `foundationdb_sys::FDB_API_VERSION`, and should almost always be equal.</span>
-    <span class="doccomment">/// Language bindings which themselves expose API versioning will usually pass the version requested by the application.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_runtime_version</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">version</span>: <span class="ident">i32</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">runtime_version</span> <span class="op">=</span> <span class="ident">version</span>;
-        <span class="self">self</span>
-    }
+    <span class="doccomment">/// Set the version of run-time behavior the API is requested to provide.
+    ///
+    /// Must be less than or equal to header_version, `foundationdb_sys::FDB_API_VERSION`, and should almost always be equal.
+    /// Language bindings which themselves expose API versioning will usually pass the version requested by the application.
+    </span><span class="kw">pub fn </span>set_runtime_version(<span class="kw-2">mut </span><span class="self">self</span>, version: i32) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.runtime_version = version;
+        <span class="self">self
+    </span>}
 
-    <span class="doccomment">/// Initialize the foundationDB API and returns a `NetworkBuilder`</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Panics</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This function will panic if called more than once</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkBuilder</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">VERSION_SELECTED</span>
-            .<span class="ident">compare_exchange</span>(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="ident">Ordering::AcqRel</span>, <span class="ident">Ordering::Acquire</span>)
-            .<span class="ident">is_err</span>()
+    <span class="doccomment">/// Initialize the foundationDB API and returns a `NetworkBuilder`
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if called more than once
+    </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; FdbResult&lt;NetworkBuilder&gt; {
+        <span class="kw">if </span>VERSION_SELECTED
+            .compare_exchange(<span class="bool-val">false</span>, <span class="bool-val">true</span>, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
         {
             <span class="macro">panic!</span>(<span class="string">&quot;the fdb select api version can only be run once per process&quot;</span>);
         }
-        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_select_api_version_impl</span>(
-                <span class="self">self</span>.<span class="ident">runtime_version</span>,
-                <span class="ident">fdb_sys::FDB_API_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>,
+        error::eval(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_select_api_version_impl(
+                <span class="self">self</span>.runtime_version,
+                fdb_sys::FDB_API_VERSION <span class="kw">as </span>i32,
             )
         })<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">NetworkBuilder</span> { <span class="ident">_private</span>: () })
+        <span class="prelude-val">Ok</span>(NetworkBuilder { _private: () })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">FdbApiBuilder</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">FdbApiBuilder</span> {
-            <span class="ident">runtime_version</span>: <span class="ident">fdb_sys::FDB_API_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>,
+<span class="kw">impl </span>Default <span class="kw">for </span>FdbApiBuilder {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        FdbApiBuilder {
+            runtime_version: fdb_sys::FDB_API_VERSION <span class="kw">as </span>i32,
         }
     }
 }
 
-<span class="doccomment">/// A Builder with which the foundationDB network event loop can be created</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The foundationDB Network event loop can only be run once.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use foundationdb::api::FdbApiBuilder;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);</span>
-<span class="doccomment">/// let guard = unsafe { network_builder.boot() };</span>
-<span class="doccomment">/// // do some work with foundationDB</span>
-<span class="doccomment">/// drop(guard);</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetworkBuilder</span> {
-    <span class="ident">_private</span>: (),
+<span class="doccomment">/// A Builder with which the foundationDB network event loop can be created
+///
+/// The foundationDB Network event loop can only be run once.
+///
+/// ```
+/// use foundationdb::api::FdbApiBuilder;
+///
+/// let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);
+/// let guard = unsafe { network_builder.boot() };
+/// // do some work with foundationDB
+/// drop(guard);
+/// ```
+</span><span class="kw">pub struct </span>NetworkBuilder {
+    _private: (),
 }
 
-<span class="kw">impl</span> <span class="ident">NetworkBuilder</span> {
-    <span class="doccomment">/// Set network options.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="self">self</span>, <span class="ident">option</span>: <span class="ident">NetworkOption</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">unsafe</span> { <span class="ident">option</span>.<span class="ident">apply</span>()<span class="question-mark">?</span> };
+<span class="kw">impl </span>NetworkBuilder {
+    <span class="doccomment">/// Set network options.
+    </span><span class="kw">pub fn </span>set_option(<span class="self">self</span>, option: NetworkOption) -&gt; FdbResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">unsafe </span>{ option.apply()<span class="question-mark">? </span>};
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
 
-    <span class="doccomment">/// Finalizes the initialization of the Network and returns a way to run/wait/stop the</span>
-    <span class="doccomment">/// FoundationDB run loop.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It&#39;s not recommended to use this method directly, you probably want the `boot()` method.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In order to start the network you have to:</span>
-    <span class="doccomment">///  - call the unsafe `NetworkRunner::run()` method, most likely in a dedicated thread</span>
-    <span class="doccomment">///  - wait for the thread to start `NetworkWait::wait`</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In order for the sequence to be safe, you **MUST** as stated in the `NetworkRunner::run()` method</span>
-    <span class="doccomment">/// ensure that `NetworkStop::stop()` is called before the process exit.</span>
-    <span class="doccomment">/// Aborting the process is still safe.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Example</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">/// use foundationdb::api::FdbApiBuilder;</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);</span>
-    <span class="doccomment">/// let (runner, cond) = network_builder.build().expect(&quot;fdb network runners&quot;);</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let net_thread = std::thread::spawn(move || {</span>
-    <span class="doccomment">///     unsafe { runner.run() }.expect(&quot;failed to run&quot;);</span>
-    <span class="doccomment">/// });</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// // Wait for the foundationDB network thread to start</span>
-    <span class="doccomment">/// let fdb_network = cond.wait();</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// // do some work with foundationDB, if a panic occur you still **MUST** catch it and call</span>
-    <span class="doccomment">/// // fdb_network.stop();</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// // You **MUST** call fdb_network.stop() before the process exit</span>
-    <span class="doccomment">/// fdb_network.stop().expect(&quot;failed to stop network&quot;);</span>
-    <span class="doccomment">/// net_thread.join().expect(&quot;failed to join fdb thread&quot;);</span>
-    <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::mutex_atomic</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>(<span class="ident">NetworkRunner</span>, <span class="ident">NetworkWait</span>)<span class="op">&gt;</span> {
-        <span class="kw">unsafe</span> { <span class="ident">error::eval</span>(<span class="ident">fdb_sys::fdb_setup_network</span>())<span class="question-mark">?</span> }
+    <span class="doccomment">/// Finalizes the initialization of the Network and returns a way to run/wait/stop the
+    /// FoundationDB run loop.
+    ///
+    /// It&#39;s not recommended to use this method directly, you probably want the `boot()` method.
+    ///
+    /// In order to start the network you have to:
+    ///  - call the unsafe `NetworkRunner::run()` method, most likely in a dedicated thread
+    ///  - wait for the thread to start `NetworkWait::wait`
+    ///
+    /// In order for the sequence to be safe, you **MUST** as stated in the `NetworkRunner::run()` method
+    /// ensure that `NetworkStop::stop()` is called before the process exit.
+    /// Aborting the process is still safe.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use foundationdb::api::FdbApiBuilder;
+    ///
+    /// let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);
+    /// let (runner, cond) = network_builder.build().expect(&quot;fdb network runners&quot;);
+    ///
+    /// let net_thread = std::thread::spawn(move || {
+    ///     unsafe { runner.run() }.expect(&quot;failed to run&quot;);
+    /// });
+    ///
+    /// // Wait for the foundationDB network thread to start
+    /// let fdb_network = cond.wait();
+    ///
+    /// // do some work with foundationDB, if a panic occur you still **MUST** catch it and call
+    /// // fdb_network.stop();
+    ///
+    /// // You **MUST** call fdb_network.stop() before the process exit
+    /// fdb_network.stop().expect(&quot;failed to stop network&quot;);
+    /// net_thread.join().expect(&quot;failed to join fdb thread&quot;);
+    /// ```
+    </span><span class="attribute">#[allow(clippy::mutex_atomic)]
+    </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; FdbResult&lt;(NetworkRunner, NetworkWait)&gt; {
+        <span class="kw">unsafe </span>{ error::eval(fdb_sys::fdb_setup_network())<span class="question-mark">? </span>}
 
-        <span class="kw">let</span> <span class="ident">cond</span> <span class="op">=</span> <span class="ident">Arc::new</span>((<span class="ident">Mutex::new</span>(<span class="bool-val">false</span>), <span class="ident">Condvar::new</span>()));
-        <span class="prelude-val">Ok</span>((<span class="ident">NetworkRunner</span> { <span class="ident">cond</span>: <span class="ident">cond</span>.<span class="ident">clone</span>() }, <span class="ident">NetworkWait</span> { <span class="ident">cond</span> }))
+        <span class="kw">let </span>cond = Arc::new((Mutex::new(<span class="bool-val">false</span>), Condvar::new()));
+        <span class="prelude-val">Ok</span>((NetworkRunner { cond: cond.clone() }, NetworkWait { cond }))
     }
 
-    <span class="doccomment">/// Starts the FoundationDB run loop in a dedicated thread.</span>
-    <span class="doccomment">/// This finish initializing the FoundationDB Client API and can only be called once per process.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Returns</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A `NetworkAutoStop` handle which must be dropped before the program exits.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Safety</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// You *MUST* ensure `drop` is called on the returned object before the program exits.</span>
-    <span class="doccomment">/// This is not required if the program is aborted.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method used to be safe in version `0.4`. But because `drop` on the returned object</span>
-    <span class="doccomment">/// might not be called before the program exits, it was found unsafe.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Panics</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Panics if the dedicated thread cannot be spawned or the internal condition primitive is</span>
-    <span class="doccomment">/// poisonned.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Examples</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use foundationdb::api::FdbApiBuilder;</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);</span>
-    <span class="doccomment">/// let network = unsafe { network_builder.boot() };</span>
-    <span class="doccomment">/// // do some interesting things with the API...</span>
-    <span class="doccomment">/// drop(network);</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use foundationdb::api::FdbApiBuilder;</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// #[tokio::main]</span>
-    <span class="doccomment">/// async fn main() {</span>
-    <span class="doccomment">///     let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);</span>
-    <span class="doccomment">///     let network = unsafe { network_builder.boot() };</span>
-    <span class="doccomment">///     // do some interesting things with the API...</span>
-    <span class="doccomment">///     drop(network);</span>
-    <span class="doccomment">/// }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">boot</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">NetworkAutoStop</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">runner</span>, <span class="ident">cond</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">build</span>()<span class="question-mark">?</span>;
+    <span class="doccomment">/// Starts the FoundationDB run loop in a dedicated thread.
+    /// This finish initializing the FoundationDB Client API and can only be called once per process.
+    ///
+    /// # Returns
+    ///
+    /// A `NetworkAutoStop` handle which must be dropped before the program exits.
+    ///
+    /// # Safety
+    ///
+    /// You *MUST* ensure `drop` is called on the returned object before the program exits.
+    /// This is not required if the program is aborted.
+    ///
+    /// This method used to be safe in version `0.4`. But because `drop` on the returned object
+    /// might not be called before the program exits, it was found unsafe.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the dedicated thread cannot be spawned or the internal condition primitive is
+    /// poisonned.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use foundationdb::api::FdbApiBuilder;
+    ///
+    /// let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);
+    /// let network = unsafe { network_builder.boot() };
+    /// // do some interesting things with the API...
+    /// drop(network);
+    /// ```
+    ///
+    /// ```rust
+    /// use foundationdb::api::FdbApiBuilder;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let network_builder = FdbApiBuilder::default().build().expect(&quot;fdb api initialized&quot;);
+    ///     let network = unsafe { network_builder.boot() };
+    ///     // do some interesting things with the API...
+    ///     drop(network);
+    /// }
+    /// ```
+    </span><span class="kw">pub unsafe fn </span>boot(<span class="self">self</span>) -&gt; FdbResult&lt;NetworkAutoStop&gt; {
+        <span class="kw">let </span>(runner, cond) = <span class="self">self</span>.build()<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">net_thread</span> <span class="op">=</span> <span class="ident">runner</span>.<span class="ident">spawn</span>();
+        <span class="kw">let </span>net_thread = runner.spawn();
 
-        <span class="kw">let</span> <span class="ident">network</span> <span class="op">=</span> <span class="ident">cond</span>.<span class="ident">wait</span>();
+        <span class="kw">let </span>network = cond.wait();
 
-        <span class="prelude-val">Ok</span>(<span class="ident">NetworkAutoStop</span> {
-            <span class="ident">handle</span>: <span class="prelude-val">Some</span>(<span class="ident">net_thread</span>),
-            <span class="ident">network</span>: <span class="prelude-val">Some</span>(<span class="ident">network</span>),
+        <span class="prelude-val">Ok</span>(NetworkAutoStop {
+            handle: <span class="prelude-val">Some</span>(net_thread),
+            network: <span class="prelude-val">Some</span>(network),
         })
     }
 }
 
-<span class="doccomment">/// A foundationDB network event loop runner</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Most of the time you should never need to use this directly and use `boot()`.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetworkRunner</span> {
-    <span class="ident">cond</span>: <span class="ident">Arc</span><span class="op">&lt;</span>(<span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>, <span class="ident">Condvar</span>)<span class="op">&gt;</span>,
+<span class="doccomment">/// A foundationDB network event loop runner
+///
+/// Most of the time you should never need to use this directly and use `boot()`.
+</span><span class="kw">pub struct </span>NetworkRunner {
+    cond: Arc&lt;(Mutex&lt;bool&gt;, Condvar)&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">NetworkRunner</span> {
-    <span class="doccomment">/// Start the foundationDB network event loop in the current thread.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Safety</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method is unsafe because you **MUST** call the `stop` method on the</span>
-    <span class="doccomment">/// associated `NetworkStop` before the program exit.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This will only returns once the `stop` method on the associated `NetworkStop`</span>
-    <span class="doccomment">/// object is called or if the foundationDB event loop return an error.</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">_run</span>()
+<span class="kw">impl </span>NetworkRunner {
+    <span class="doccomment">/// Start the foundationDB network event loop in the current thread.
+    ///
+    /// # Safety
+    ///
+    /// This method is unsafe because you **MUST** call the `stop` method on the
+    /// associated `NetworkStop` before the program exit.
+    ///
+    /// This will only returns once the `stop` method on the associated `NetworkStop`
+    /// object is called or if the foundationDB event loop return an error.
+    </span><span class="kw">pub unsafe fn </span>run(<span class="self">self</span>) -&gt; FdbResult&lt;()&gt; {
+        <span class="self">self</span>._run()
     }
 
-    <span class="kw">fn</span> <span class="ident">_run</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn </span>_run(<span class="self">self</span>) -&gt; FdbResult&lt;()&gt; {
         {
-            <span class="kw">let</span> (<span class="ident">lock</span>, <span class="ident">cvar</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">cond</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">started</span> <span class="op">=</span> <span class="ident">lock</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
-            <span class="kw-2">*</span><span class="ident">started</span> <span class="op">=</span> <span class="bool-val">true</span>;
-            <span class="comment">// We notify the condvar that the value has changed.</span>
-            <span class="ident">cvar</span>.<span class="ident">notify_one</span>();
+            <span class="kw">let </span>(lock, cvar) = <span class="kw-2">&amp;*</span><span class="self">self</span>.cond;
+            <span class="kw">let </span><span class="kw-2">mut </span>started = lock.lock().unwrap();
+            <span class="kw-2">*</span>started = <span class="bool-val">true</span>;
+            <span class="comment">// We notify the condvar that the value has changed.
+            </span>cvar.notify_one();
         }
 
-        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_run_network</span>() })
+        error::eval(<span class="kw">unsafe </span>{ fdb_sys::fdb_run_network() })
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="self">self</span>) -&gt; <span class="ident">thread::JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">thread::spawn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
-            <span class="self">self</span>.<span class="ident">run</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to run network thread&quot;</span>);
+    <span class="kw">unsafe fn </span>spawn(<span class="self">self</span>) -&gt; thread::JoinHandle&lt;()&gt; {
+        thread::spawn(<span class="kw">move </span>|| {
+            <span class="self">self</span>.run().expect(<span class="string">&quot;failed to run network thread&quot;</span>);
         })
     }
 }
 
-<span class="doccomment">/// A condition object that can wait for the associated `NetworkRunner` to actually run.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Most of the time you should never need to use this directly and use `boot()`.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetworkWait</span> {
-    <span class="ident">cond</span>: <span class="ident">Arc</span><span class="op">&lt;</span>(<span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>, <span class="ident">Condvar</span>)<span class="op">&gt;</span>,
+<span class="doccomment">/// A condition object that can wait for the associated `NetworkRunner` to actually run.
+///
+/// Most of the time you should never need to use this directly and use `boot()`.
+</span><span class="kw">pub struct </span>NetworkWait {
+    cond: Arc&lt;(Mutex&lt;bool&gt;, Condvar)&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">NetworkWait</span> {
-    <span class="doccomment">/// Wait for the associated `NetworkRunner` to actually run.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Panics</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Panics if the internal lock cannot is poisoned</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wait</span>(<span class="self">self</span>) -&gt; <span class="ident">NetworkStop</span> {
-        <span class="comment">// Wait for the thread to start up.</span>
-        {
-            <span class="kw">let</span> (<span class="ident">lock</span>, <span class="ident">cvar</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">cond</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">started</span> <span class="op">=</span> <span class="ident">lock</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
-            <span class="kw">while</span> <span class="op">!</span><span class="kw-2">*</span><span class="ident">started</span> {
-                <span class="ident">started</span> <span class="op">=</span> <span class="ident">cvar</span>.<span class="ident">wait</span>(<span class="ident">started</span>).<span class="ident">unwrap</span>();
+<span class="kw">impl </span>NetworkWait {
+    <span class="doccomment">/// Wait for the associated `NetworkRunner` to actually run.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal lock cannot is poisoned
+    </span><span class="kw">pub fn </span>wait(<span class="self">self</span>) -&gt; NetworkStop {
+        <span class="comment">// Wait for the thread to start up.
+        </span>{
+            <span class="kw">let </span>(lock, cvar) = <span class="kw-2">&amp;*</span><span class="self">self</span>.cond;
+            <span class="kw">let </span><span class="kw-2">mut </span>started = lock.lock().unwrap();
+            <span class="kw">while </span>!<span class="kw-2">*</span>started {
+                started = cvar.wait(started).unwrap();
             }
         }
 
-        <span class="ident">NetworkStop</span> { <span class="ident">_private</span>: () }
+        NetworkStop { _private: () }
     }
 }
 
-<span class="doccomment">/// Allow to stop the associated and running `NetworkRunner`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Most of the time you should never need to use this directly and use `boot()`.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetworkStop</span> {
-    <span class="ident">_private</span>: (),
+<span class="doccomment">/// Allow to stop the associated and running `NetworkRunner`.
+///
+/// Most of the time you should never need to use this directly and use `boot()`.
+</span><span class="kw">pub struct </span>NetworkStop {
+    _private: (),
 }
 
-<span class="kw">impl</span> <span class="ident">NetworkStop</span> {
-    <span class="doccomment">/// Signals the event loop invoked by `Network::run` to terminate.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stop</span>(<span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_stop_network</span>() })
+<span class="kw">impl </span>NetworkStop {
+    <span class="doccomment">/// Signals the event loop invoked by `Network::run` to terminate.
+    </span><span class="kw">pub fn </span>stop(<span class="self">self</span>) -&gt; FdbResult&lt;()&gt; {
+        error::eval(<span class="kw">unsafe </span>{ fdb_sys::fdb_stop_network() })
     }
 }
 
-<span class="doccomment">/// Stop the associated `NetworkRunner` and thread if dropped</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If trying to stop the FoundationDB run loop results in an error.</span>
-<span class="doccomment">/// The error is printed in `stderr` and the process aborts.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Panics</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Panics if the network thread cannot be joined.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetworkAutoStop</span> {
-    <span class="ident">network</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">NetworkStop</span><span class="op">&gt;</span>,
-    <span class="ident">handle</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">std::thread::JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Stop the associated `NetworkRunner` and thread if dropped
+///
+/// If trying to stop the FoundationDB run loop results in an error.
+/// The error is printed in `stderr` and the process aborts.
+///
+/// # Panics
+///
+/// Panics if the network thread cannot be joined.
+</span><span class="kw">pub struct </span>NetworkAutoStop {
+    network: <span class="prelude-ty">Option</span>&lt;NetworkStop&gt;,
+    handle: <span class="prelude-ty">Option</span>&lt;std::thread::JoinHandle&lt;()&gt;&gt;,
 }
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">NetworkAutoStop</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">network</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">stop</span>() {
-            <span class="macro">eprintln!</span>(<span class="string">&quot;failed to stop network: {}&quot;</span>, <span class="ident">err</span>);
-            <span class="comment">// Not aborting can probably cause undefined behavior</span>
-            <span class="ident">std::process::abort</span>();
+<span class="kw">impl </span>Drop <span class="kw">for </span>NetworkAutoStop {
+    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.network.take().unwrap().stop() {
+            <span class="macro">eprintln!</span>(<span class="string">&quot;failed to stop network: {}&quot;</span>, err);
+            <span class="comment">// Not aborting can probably cause undefined behavior
+            </span>std::process::abort();
         }
-        <span class="self">self</span>.<span class="ident">handle</span>
-            .<span class="ident">take</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">join</span>()
-            .<span class="ident">expect</span>(<span class="string">&quot;failed to join fdb thread&quot;</span>);
+        <span class="self">self</span>.handle
+            .take()
+            .unwrap()
+            .join()
+            .expect(<span class="string">&quot;failed to join fdb thread&quot;</span>);
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_max_api</span>() {
-        <span class="macro">assert!</span>(<span class="ident">get_max_api_version</span>() <span class="op">&gt;</span> <span class="number">0</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_max_api() {
+        <span class="macro">assert!</span>(get_max_api_version() &gt; <span class="number">0</span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

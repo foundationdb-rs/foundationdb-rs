@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-macros/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb_macros/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb_macros/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb_macros/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-macros/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb_macros/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb_macros/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb_macros/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -149,156 +149,156 @@
 <span id="149">149</span>
 <span id="150">150</span>
 <span id="151">151</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Macro definitions used to maintain the crate</span>
-<span class="kw">use</span> <span class="ident">proc_macro::TokenStream</span>;
-<span class="kw">use</span> <span class="ident">quote::quote</span>;
-<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
-<span class="kw">use</span> <span class="ident">syn::__private::TokenStream2</span>;
-<span class="kw">use</span> <span class="ident">syn</span>::{<span class="ident">AttributeArgs</span>, <span class="ident">Item</span>, <span class="ident">Lit</span>, <span class="ident">Meta</span>, <span class="ident">NestedMeta</span>};
+</pre><pre class="rust"><code><span class="doccomment">//! Macro definitions used to maintain the crate
+</span><span class="kw">use </span>proc_macro::TokenStream;
+<span class="kw">use </span>quote::quote;
+<span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>syn::__private::TokenStream2;
+<span class="kw">use </span>syn::{AttributeArgs, Item, Lit, Meta, NestedMeta};
 
-<span class="doccomment">/// Allow to compute the range of supported api versions for a functionality.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This macro came out from the frustration of bumping fdb&#39;s version, where</span>
-<span class="doccomment">/// we are spending most of our time searching for things like:</span>
-<span class="doccomment">/// `#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;, feature = &quot;fdb-6_0&quot;))]`</span>
-<span class="doccomment">/// and adding the new version manually.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Thanks to the macro, we can now specify a `minimum` and an optional `max` version, and</span>
-<span class="doccomment">/// generate the right list of any. Not specifying a `max` allow easy bump to a new version.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// `#[cfg_api_versions(min = 510, max = 600)]` will be translated to:</span>
-<span class="doccomment">/// `#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;, feature = &quot;fdb-6_0&quot;))]`</span>
-<span class="attribute">#[<span class="ident">proc_macro_attribute</span>]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cfg_api_versions</span>(<span class="ident">attr</span>: <span class="ident">TokenStream</span>, <span class="ident">item</span>: <span class="ident">TokenStream</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="macro">syn::parse_macro_input!</span>(<span class="ident">item</span> <span class="kw">as</span> <span class="ident">Item</span>);
-    <span class="kw">let</span> <span class="ident">attributes</span> <span class="op">=</span> <span class="macro">syn::parse_macro_input!</span>(<span class="ident">attr</span> <span class="kw">as</span> <span class="ident">AttributeArgs</span>);
+<span class="doccomment">/// Allow to compute the range of supported api versions for a functionality.
+///
+/// This macro came out from the frustration of bumping fdb&#39;s version, where
+/// we are spending most of our time searching for things like:
+/// `#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;, feature = &quot;fdb-6_0&quot;))]`
+/// and adding the new version manually.
+///
+/// Thanks to the macro, we can now specify a `minimum` and an optional `max` version, and
+/// generate the right list of any. Not specifying a `max` allow easy bump to a new version.
+///
+/// `#[cfg_api_versions(min = 510, max = 600)]` will be translated to:
+/// `#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;, feature = &quot;fdb-6_0&quot;))]`
+</span><span class="attribute">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>cfg_api_versions(attr: TokenStream, item: TokenStream) -&gt; TokenStream {
+    <span class="kw">let </span>input = <span class="macro">syn::parse_macro_input!</span>(item <span class="kw">as </span>Item);
+    <span class="kw">let </span>attributes = <span class="macro">syn::parse_macro_input!</span>(attr <span class="kw">as </span>AttributeArgs);
 
-    <span class="kw">let</span> (<span class="ident">minimum_version</span>, <span class="ident">maximum_version</span>) <span class="op">=</span> <span class="ident">parse_version_arguments</span>(<span class="kw-2">&amp;</span><span class="ident">attributes</span>);
-    <span class="ident">generate_feature_range</span>(<span class="kw-2">&amp;</span><span class="ident">input</span>, <span class="ident">minimum_version</span>, <span class="ident">maximum_version</span>)
+    <span class="kw">let </span>(minimum_version, maximum_version) = parse_version_arguments(<span class="kw-2">&amp;</span>attributes);
+    generate_feature_range(<span class="kw-2">&amp;</span>input, minimum_version, maximum_version)
 }
 
-<span class="doccomment">/// Search for a required min and an optional max in the attributes</span>
-<span class="kw">fn</span> <span class="ident">parse_version_arguments</span>(<span class="ident">attributes_args</span>: <span class="kw-2">&amp;</span><span class="ident">AttributeArgs</span>) -&gt; (<span class="ident">i32</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>) {
-    <span class="kw">let</span> <span class="ident">min</span> <span class="op">=</span> <span class="ident">attributes_args</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">find_map</span>(<span class="op">|</span><span class="ident">attribute</span><span class="op">|</span> <span class="ident">find_attribute</span>(<span class="ident">attribute</span>, <span class="string">&quot;min&quot;</span>))
-        .<span class="ident">expect</span>(<span class="string">&quot;Macro is expecting at least a &#39;min&#39; argument&quot;</span>);
-    <span class="kw">let</span> <span class="ident">max</span> <span class="op">=</span> <span class="ident">attributes_args</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">find_map</span>(<span class="op">|</span><span class="ident">attribute</span><span class="op">|</span> <span class="ident">find_attribute</span>(<span class="ident">attribute</span>, <span class="string">&quot;max&quot;</span>));
+<span class="doccomment">/// Search for a required min and an optional max in the attributes
+</span><span class="kw">fn </span>parse_version_arguments(attributes_args: <span class="kw-2">&amp;</span>AttributeArgs) -&gt; (i32, <span class="prelude-ty">Option</span>&lt;i32&gt;) {
+    <span class="kw">let </span>min = attributes_args
+        .iter()
+        .find_map(|attribute| find_attribute(attribute, <span class="string">&quot;min&quot;</span>))
+        .expect(<span class="string">&quot;Macro is expecting at least a &#39;min&#39; argument&quot;</span>);
+    <span class="kw">let </span>max = attributes_args
+        .iter()
+        .find_map(|attribute| find_attribute(attribute, <span class="string">&quot;max&quot;</span>));
 
-    (<span class="ident">min</span>, <span class="ident">max</span>)
+    (min, max)
 }
 
-<span class="doccomment">/// given an attribute&#39;s key, returns the associated i32, or None.</span>
-<span class="kw">fn</span> <span class="ident">find_attribute</span>(<span class="ident">attribute</span>: <span class="kw-2">&amp;</span><span class="ident">NestedMeta</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> {
-    <span class="kw">match</span> <span class="ident">attribute</span> {
-        <span class="ident">NestedMeta::Meta</span>(<span class="ident">Meta::NameValue</span>(<span class="ident">name_value</span>)) =&gt; {
-            <span class="kw">if</span> <span class="ident">name_value</span>.<span class="ident">path</span>.<span class="ident">is_ident</span>(<span class="ident">key</span>) {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Lit::Int</span>(<span class="ident">attribute_value</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">name_value</span>.<span class="ident">lit</span> {
+<span class="doccomment">/// given an attribute&#39;s key, returns the associated i32, or None.
+</span><span class="kw">fn </span>find_attribute(attribute: <span class="kw-2">&amp;</span>NestedMeta, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;i32&gt; {
+    <span class="kw">match </span>attribute {
+        NestedMeta::Meta(Meta::NameValue(name_value)) =&gt; {
+            <span class="kw">if </span>name_value.path.is_ident(key) {
+                <span class="kw">if let </span>Lit::Int(attribute_value) = <span class="kw-2">&amp;</span>name_value.lit {
                     <span class="prelude-val">Some</span>(
-                        <span class="ident">attribute_value</span>
-                            .<span class="ident">base10_parse</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>()
-                            .<span class="ident">expect</span>(<span class="string">&quot;could not cast attribute to i32&quot;</span>),
+                        attribute_value
+                            .base10_parse::&lt;i32&gt;()
+                            .expect(<span class="string">&quot;could not cast attribute to i32&quot;</span>),
                     )
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">None</span>
-                }
-            } <span class="kw">else</span> {
-                <span class="prelude-val">None</span>
-            }
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>}
         }
-        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
 }
 
-<span class="kw">fn</span> <span class="ident">generate_feature_range</span>(
-    <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    <span class="ident">minimum_version</span>: <span class="ident">i32</span>,
-    <span class="ident">maximum_version</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>,
-) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">let</span> <span class="ident">allowed_fdb_versions</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TokenStream2</span><span class="op">&gt;</span> <span class="op">=</span>
-        <span class="ident">get_supported_feature_range</span>(<span class="ident">minimum_version</span>, <span class="ident">maximum_version</span>)
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">fdb_version</span><span class="op">|</span> <span class="macro">quote!</span>(<span class="ident">feature</span> <span class="op">=</span> #<span class="ident">fdb_version</span>))
-            .<span class="ident">collect</span>();
+<span class="kw">fn </span>generate_feature_range(
+    input: <span class="kw-2">&amp;</span>Item,
+    minimum_version: i32,
+    maximum_version: <span class="prelude-ty">Option</span>&lt;i32&gt;,
+) -&gt; TokenStream {
+    <span class="kw">let </span>allowed_fdb_versions: Vec&lt;TokenStream2&gt; =
+        get_supported_feature_range(minimum_version, maximum_version)
+            .iter()
+            .map(|fdb_version| <span class="macro">quote!</span>(feature = #fdb_version))
+            .collect();
 
     <span class="macro">quote!</span>(
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(#(#<span class="ident">allowed_fdb_versions</span>),<span class="kw-2">*</span>))]</span>
-        #<span class="ident">input</span>
+        <span class="attribute">#[cfg(any(#(#allowed_fdb_versions),<span class="kw-2">*</span>))]
+        </span>#input
     )
-    .<span class="ident">into</span>()
+    .into()
 }
 
-<span class="doccomment">/// Given a range of version, this function will generate the appropriate macro text.</span>
-<span class="kw">fn</span> <span class="ident">get_supported_feature_range</span>(<span class="ident">minimum_version</span>: <span class="ident">i32</span>, <span class="ident">maximum_version</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">get_version_mapping</span>()
-        .<span class="ident">iter</span>()
-        .<span class="ident">filter</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">version</span>)<span class="op">|</span> <span class="kw">match</span> <span class="ident">maximum_version</span> {
-            <span class="prelude-val">None</span> =&gt; <span class="ident">minimum_version</span> <span class="op">&lt;</span><span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">version</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">maximum</span>) =&gt; <span class="ident">minimum_version</span> <span class="op">&lt;</span><span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">version</span> <span class="op">&amp;&amp;</span> <span class="ident">version</span> <span class="op">&lt;</span><span class="op">=</span> <span class="op">&amp;&amp;</span><span class="ident">maximum</span>,
+<span class="doccomment">/// Given a range of version, this function will generate the appropriate macro text.
+</span><span class="kw">fn </span>get_supported_feature_range(minimum_version: i32, maximum_version: <span class="prelude-ty">Option</span>&lt;i32&gt;) -&gt; Vec&lt;String&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>values: Vec&lt;String&gt; = get_version_mapping()
+        .iter()
+        .filter(|(<span class="kw">_</span>, version)| <span class="kw">match </span>maximum_version {
+            <span class="prelude-val">None </span>=&gt; minimum_version &lt;= <span class="kw-2">**</span>version,
+            <span class="prelude-val">Some</span>(maximum) =&gt; minimum_version &lt;= <span class="kw-2">**</span>version &amp;&amp; version &lt;= &amp;&amp;maximum,
         })
-        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">feature</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">feature</span>.<span class="ident">to_owned</span>())
-        .<span class="ident">collect</span>();
-    <span class="ident">values</span>.<span class="ident">sort</span>();
+        .map(|(feature, <span class="kw">_</span>)| feature.to_owned())
+        .collect();
+    values.sort();
 
-    <span class="ident">values</span>
+    values
 }
 
-<span class="comment">// TODO: Should we import something like lazy_static?</span>
-<span class="kw">fn</span> <span class="ident">get_version_mapping</span>() -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">i32</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">version_mapping</span> <span class="op">=</span> <span class="ident">HashMap::with_capacity</span>(<span class="number">8</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-7_1&quot;</span>.<span class="ident">into</span>(), <span class="number">710</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-7_0&quot;</span>.<span class="ident">into</span>(), <span class="number">700</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-6_3&quot;</span>.<span class="ident">into</span>(), <span class="number">630</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-6_2&quot;</span>.<span class="ident">into</span>(), <span class="number">620</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-6_1&quot;</span>.<span class="ident">into</span>(), <span class="number">610</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-6_0&quot;</span>.<span class="ident">into</span>(), <span class="number">600</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-5_2&quot;</span>.<span class="ident">into</span>(), <span class="number">520</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-5_1&quot;</span>.<span class="ident">into</span>(), <span class="number">510</span>);
-    <span class="ident">version_mapping</span>.<span class="ident">insert</span>(<span class="string">&quot;fdb-5_0&quot;</span>.<span class="ident">into</span>(), <span class="number">500</span>);
-    <span class="ident">version_mapping</span>
+<span class="comment">// TODO: Should we import something like lazy_static?
+</span><span class="kw">fn </span>get_version_mapping() -&gt; HashMap&lt;String, i32&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>version_mapping = HashMap::with_capacity(<span class="number">8</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-7_1&quot;</span>.into(), <span class="number">710</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-7_0&quot;</span>.into(), <span class="number">700</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-6_3&quot;</span>.into(), <span class="number">630</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-6_2&quot;</span>.into(), <span class="number">620</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-6_1&quot;</span>.into(), <span class="number">610</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-6_0&quot;</span>.into(), <span class="number">600</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-5_2&quot;</span>.into(), <span class="number">520</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-5_1&quot;</span>.into(), <span class="number">510</span>);
+    version_mapping.insert(<span class="string">&quot;fdb-5_0&quot;</span>.into(), <span class="number">500</span>);
+    version_mapping
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::get_supported_feature_range</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::get_supported_feature_range;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_create_supported_list</span>() {
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">get_supported_feature_range</span>(<span class="number">700</span>, <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">v</span>.<span class="ident">len</span>(), <span class="number">2</span>);
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-7_0&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-7_1&quot;</span>)));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_create_supported_list() {
+        <span class="kw">let </span>v = get_supported_feature_range(<span class="number">700</span>, <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(v.len(), <span class="number">2</span>);
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-7_0&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-7_1&quot;</span>)));
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">get_supported_feature_range</span>(<span class="number">600</span>, <span class="prelude-val">Some</span>(<span class="number">700</span>));
-        <span class="macro">assert_eq!</span>(<span class="ident">v</span>.<span class="ident">len</span>(), <span class="number">5</span>);
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-7_0&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_3&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_2&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_1&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_0&quot;</span>)));
+        <span class="kw">let </span>v = get_supported_feature_range(<span class="number">600</span>, <span class="prelude-val">Some</span>(<span class="number">700</span>));
+        <span class="macro">assert_eq!</span>(v.len(), <span class="number">5</span>);
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-7_0&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_3&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_2&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_1&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_0&quot;</span>)));
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">get_supported_feature_range</span>(<span class="number">500</span>, <span class="prelude-val">Some</span>(<span class="number">610</span>));
-        <span class="macro">assert_eq!</span>(<span class="ident">v</span>.<span class="ident">len</span>(), <span class="number">5</span>);
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_1&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_0&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-5_2&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-5_1&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-5_0&quot;</span>)));
+        <span class="kw">let </span>v = get_supported_feature_range(<span class="number">500</span>, <span class="prelude-val">Some</span>(<span class="number">610</span>));
+        <span class="macro">assert_eq!</span>(v.len(), <span class="number">5</span>);
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_1&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_0&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-5_2&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-5_1&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-5_0&quot;</span>)));
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">get_supported_feature_range</span>(<span class="number">500</span>, <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">v</span>.<span class="ident">len</span>(), <span class="number">9</span>);
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-7_1&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-7_0&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_3&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_2&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_1&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-6_0&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-5_2&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-5_1&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">v</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">String::from</span>(<span class="string">&quot;fdb-5_0&quot;</span>)));
+        <span class="kw">let </span>v = get_supported_feature_range(<span class="number">500</span>, <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(v.len(), <span class="number">9</span>);
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-7_1&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-7_0&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_3&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_2&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_1&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-6_0&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-5_2&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-5_1&quot;</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">&quot;fdb-5_0&quot;</span>)));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb_macros" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb_macros" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

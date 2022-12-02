@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/database.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>database.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/database.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>database.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -464,304 +464,312 @@
 <span id="464">464</span>
 <span id="465">465</span>
 <span id="466">466</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! Implementations of the FDBDatabase C API</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! &lt;https://apple.github.io/foundationdb/api-c.html#database&gt;</span>
+</span><span class="doccomment">//! Implementations of the FDBDatabase C API
+//!
+//! &lt;https://apple.github.io/foundationdb/api-c.html#database&gt;
 
-<span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
-<span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
-<span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
-<span class="kw">use</span> <span class="ident">std::ptr::NonNull</span>;
-<span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+</span><span class="kw">use </span>std::convert::TryInto;
+<span class="kw">use </span>std::marker::PhantomData;
+<span class="kw">use </span>std::pin::Pin;
+<span class="kw">use </span>std::ptr::NonNull;
+<span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use</span> <span class="ident">foundationdb_macros::cfg_api_versions</span>;
-<span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
+<span class="kw">use </span>foundationdb_macros::cfg_api_versions;
+<span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::transaction</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
+<span class="kw">use </span><span class="kw">crate</span>::options;
+<span class="kw">use </span><span class="kw">crate</span>::transaction::<span class="kw-2">*</span>;
+<span class="kw">use crate</span>::{error, FdbError, FdbResult};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::FdbBindingError</span>;
-<span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::error::FdbBindingError;
+<span class="kw">use </span>futures::prelude::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Represents a FoundationDB database</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// A mutable, lexicographically ordered mapping from binary keys to binary values.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Modifications to a database are performed via transactions.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Database</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys::FDBDatabase</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Represents a FoundationDB database
+///
+/// A mutable, lexicographically ordered mapping from binary keys to binary values.
+///
+/// Modifications to a database are performed via transactions.
+</span><span class="kw">pub struct </span>Database {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) inner: NonNull&lt;fdb_sys::FDBDatabase&gt;,
 }
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Database</span> {}
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">Database</span> {}
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Database</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_database_destroy</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>());
+<span class="kw">unsafe impl </span>Send <span class="kw">for </span>Database {}
+<span class="kw">unsafe impl </span>Sync <span class="kw">for </span>Database {}
+<span class="kw">impl </span>Drop <span class="kw">for </span>Database {
+    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">unsafe </span>{
+            fdb_sys::fdb_database_destroy(<span class="self">self</span>.inner.as_ptr());
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">610</span>)]</span>
-<span class="kw">impl</span> <span class="ident">Database</span> {
-    <span class="doccomment">/// Create a database for the given configuration path if any, or the default one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">path_str</span> <span class="op">=</span>
-            <span class="ident">path</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span> <span class="ident">std::ffi::CString::new</span>(<span class="ident">path</span>).<span class="ident">expect</span>(<span class="string">&quot;path to be convertible to CStr&quot;</span>));
-        <span class="kw">let</span> <span class="ident">path_ptr</span> <span class="op">=</span> <span class="ident">path_str</span>
-            .<span class="ident">as_ref</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span> <span class="ident">path</span>.<span class="ident">as_ptr</span>())
-            .<span class="ident">unwrap_or</span>(<span class="ident">std::ptr::null</span>());
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span>: <span class="kw-2">*mut</span> <span class="ident">fdb_sys::FDBDatabase</span> <span class="op">=</span> <span class="ident">std::ptr::null_mut</span>();
-        <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_create_database</span>(<span class="ident">path_ptr</span>, <span class="kw-2">&amp;mut</span> <span class="ident">v</span>) };
-        <span class="ident">drop</span>(<span class="ident">path_str</span>); <span class="comment">// path_str own the CString that we are getting the ptr from</span>
-        <span class="ident">error::eval</span>(<span class="ident">err</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">Database</span> {
-            <span class="ident">inner</span>: <span class="ident">NonNull::new</span>(<span class="ident">v</span>)
-                .<span class="ident">expect</span>(<span class="string">&quot;fdb_create_database to not return null if there is no error&quot;</span>),
-        })
+<span class="attribute">#[cfg_api_versions(min = <span class="number">610</span>)]
+</span><span class="kw">impl </span>Database {
+    <span class="doccomment">/// Create a database for the given configuration path if any, or the default one.
+    </span><span class="kw">pub fn </span>new(path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; FdbResult&lt;Database&gt; {
+        <span class="kw">let </span>path_str =
+            path.map(|path| std::ffi::CString::new(path).expect(<span class="string">&quot;path to be convertible to CStr&quot;</span>));
+        <span class="kw">let </span>path_ptr = path_str
+            .as_ref()
+            .map(|path| path.as_ptr())
+            .unwrap_or(std::ptr::null());
+        <span class="kw">let </span><span class="kw-2">mut </span>v: <span class="kw-2">*mut </span>fdb_sys::FDBDatabase = std::ptr::null_mut();
+        <span class="kw">let </span>err = <span class="kw">unsafe </span>{ fdb_sys::fdb_create_database(path_ptr, <span class="kw-2">&amp;mut </span>v) };
+        drop(path_str); <span class="comment">// path_str own the CString that we are getting the ptr from
+        </span>error::eval(err)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ptr =
+            NonNull::new(v).expect(<span class="string">&quot;fdb_create_database to not return null if there is no error&quot;</span>);
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::new_from_pointer(ptr))
     }
 
-    <span class="doccomment">/// Create a database for the given configuration path</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
-        <span class="ident"><span class="self">Self</span>::new</span>(<span class="prelude-val">Some</span>(<span class="ident">path</span>))
+    <span class="doccomment">/// Create a new FDBDatabase from a raw pointer. Users are expected to use the `new` method.
+    </span><span class="kw">pub fn </span>new_from_pointer(ptr: NonNull&lt;fdb_sys::FDBDatabase&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ inner: ptr }
     }
 
-    <span class="doccomment">/// Create a database for the default configuration path</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
-        <span class="ident"><span class="self">Self</span>::new</span>(<span class="prelude-val">None</span>)
+    <span class="doccomment">/// Create a database for the given configuration path
+    </span><span class="kw">pub fn </span>from_path(path: <span class="kw-2">&amp;</span>str) -&gt; FdbResult&lt;Database&gt; {
+        <span class="self">Self</span>::new(<span class="prelude-val">Some</span>(path))
+    }
+
+    <span class="doccomment">/// Create a database for the default configuration path
+    </span><span class="kw">pub fn </span>default() -&gt; FdbResult&lt;Database&gt; {
+        <span class="self">Self</span>::new(<span class="prelude-val">None</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Database</span> {
-    <span class="doccomment">/// Create a database for the given configuration path</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a compatibility api. If you only use API version ≥ 610 you should</span>
-    <span class="doccomment">/// use `Database::new`, `Database::from_path` or  `Database::default`.</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">new_compat</span>(<span class="ident">path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span> {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>))]</span>
-        {
-            <span class="kw">let</span> <span class="ident">cluster</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::cluster::Cluster::new</span>(<span class="ident">path</span>).<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">database</span> <span class="op">=</span> <span class="ident">cluster</span>.<span class="ident">create_database</span>().<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(<span class="ident">database</span>)
+<span class="kw">impl </span>Database {
+    <span class="doccomment">/// Create a database for the given configuration path
+    ///
+    /// This is a compatibility api. If you only use API version ≥ 610 you should
+    /// use `Database::new`, `Database::from_path` or  `Database::default`.
+    </span><span class="kw">pub async fn </span>new_compat(path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; FdbResult&lt;Database&gt; {
+        <span class="attribute">#[cfg(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
+        </span>{
+            <span class="kw">let </span>cluster = <span class="kw">crate</span>::cluster::Cluster::new(path).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span>database = cluster.create_database().<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(database)
         }
 
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_1&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-5_2&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fdb-6_0&quot;</span>)))]</span>
-        {
-            <span class="ident">Database::new</span>(<span class="ident">path</span>)
+        <span class="attribute">#[cfg(not(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>)))]
+        </span>{
+            Database::new(path)
         }
     }
 
-    <span class="doccomment">/// Called to set an option an on `Database`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">opt</span>: <span class="ident">options::DatabaseOption</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">unsafe</span> { <span class="ident">opt</span>.<span class="ident">apply</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
+    <span class="doccomment">/// Called to set an option an on `Database`.
+    </span><span class="kw">pub fn </span>set_option(<span class="kw-2">&amp;</span><span class="self">self</span>, opt: options::DatabaseOption) -&gt; FdbResult&lt;()&gt; {
+        <span class="kw">unsafe </span>{ opt.apply(<span class="self">self</span>.inner.as_ptr()) }
     }
 
-    <span class="doccomment">/// Creates a new transaction on the given database.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_trx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trx</span>: <span class="kw-2">*mut</span> <span class="ident">fdb_sys::FDBTransaction</span> <span class="op">=</span> <span class="ident">std::ptr::null_mut</span>();
-        <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span>
-            <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_database_create_transaction</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">trx</span>) };
-        <span class="ident">error::eval</span>(<span class="ident">err</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">Transaction::new</span>(<span class="ident">NonNull::new</span>(<span class="ident">trx</span>).<span class="ident">expect</span>(
+    <span class="doccomment">/// Creates a new transaction on the given database.
+    </span><span class="kw">pub fn </span>create_trx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FdbResult&lt;Transaction&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>trx: <span class="kw-2">*mut </span>fdb_sys::FDBTransaction = std::ptr::null_mut();
+        <span class="kw">let </span>err =
+            <span class="kw">unsafe </span>{ fdb_sys::fdb_database_create_transaction(<span class="self">self</span>.inner.as_ptr(), <span class="kw-2">&amp;mut </span>trx) };
+        error::eval(err)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(Transaction::new(NonNull::new(trx).expect(
             <span class="string">&quot;fdb_database_create_transaction to not return null if there is no error&quot;</span>,
         )))
     }
 
-    <span class="kw">fn</span> <span class="ident">create_retryable_trx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">RetryableTransaction</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">RetryableTransaction::new</span>(<span class="self">self</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>))
+    <span class="kw">fn </span>create_retryable_trx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FdbResult&lt;RetryableTransaction&gt; {
+        <span class="prelude-val">Ok</span>(RetryableTransaction::new(<span class="self">self</span>.create_trx()<span class="question-mark">?</span>))
     }
 
-    <span class="doccomment">/// `transact` returns a future which retries on error. It tries to resolve a future created by</span>
-    <span class="doccomment">/// caller-provided function `f` inside a retry loop, providing it with a newly created</span>
-    <span class="doccomment">/// transaction. After caller-provided future resolves, the transaction will be committed</span>
-    <span class="doccomment">/// automatically.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Warning</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It might retry indefinitely if the transaction is highly contentious. It is recommended to</span>
-    <span class="doccomment">/// set `TransactionOption::RetryLimit` or `TransactionOption::SetTimeout` on the transaction</span>
-    <span class="doccomment">/// if the task need to be guaranteed to finish.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Once [Generic Associated Types](https://github.com/rust-lang/rfcs/blob/master/text/1598-generic_associated_types.md)</span>
-    <span class="doccomment">/// lands in stable rust, the returned future of f won&#39;t need to be boxed anymore, also the</span>
-    <span class="doccomment">/// lifetime limitations around f might be lowered.</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">transact</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>, <span class="ident">options</span>: <span class="ident">TransactOption</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">F::Item</span>, <span class="ident">F::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">DatabaseTransact</span>,
+    <span class="doccomment">/// `transact` returns a future which retries on error. It tries to resolve a future created by
+    /// caller-provided function `f` inside a retry loop, providing it with a newly created
+    /// transaction. After caller-provided future resolves, the transaction will be committed
+    /// automatically.
+    ///
+    /// # Warning
+    ///
+    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
+    /// set `TransactionOption::RetryLimit` or `TransactionOption::SetTimeout` on the transaction
+    /// if the task need to be guaranteed to finish.
+    ///
+    /// Once [Generic Associated Types](https://github.com/rust-lang/rfcs/blob/master/text/1598-generic_associated_types.md)
+    /// lands in stable rust, the returned future of f won&#39;t need to be boxed anymore, also the
+    /// lifetime limitations around f might be lowered.
+    </span><span class="kw">pub async fn </span>transact&lt;F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>f: F, options: TransactOption) -&gt; <span class="prelude-ty">Result</span>&lt;F::Item, F::Error&gt;
+    <span class="kw">where
+        </span>F: DatabaseTransact,
     {
-        <span class="kw">let</span> <span class="ident">is_idempotent</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">is_idempotent</span>;
-        <span class="kw">let</span> <span class="ident">time_out</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">time_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">Instant::now</span>() <span class="op">+</span> <span class="ident">d</span>);
-        <span class="kw">let</span> <span class="ident">retry_limit</span> <span class="op">=</span> <span class="ident">options</span>.<span class="ident">retry_limit</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tries</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">can_retry</span> <span class="op">=</span> <span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
-            <span class="ident">tries</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
-            <span class="ident">retry_limit</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">limit</span><span class="op">|</span> <span class="ident">tries</span> <span class="op">&lt;</span> <span class="ident">limit</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)
-                <span class="op">&amp;&amp;</span> <span class="ident">time_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">Instant::now</span>() <span class="op">&lt;</span> <span class="ident">t</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)
+        <span class="kw">let </span>is_idempotent = options.is_idempotent;
+        <span class="kw">let </span>time_out = options.time_out.map(|d| Instant::now() + d);
+        <span class="kw">let </span>retry_limit = options.retry_limit;
+        <span class="kw">let </span><span class="kw-2">mut </span>tries: u32 = <span class="number">0</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>trx = <span class="self">self</span>.create_trx()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>can_retry = <span class="kw">move </span>|| {
+            tries += <span class="number">1</span>;
+            retry_limit.map(|limit| tries &lt; limit).unwrap_or(<span class="bool-val">true</span>)
+                &amp;&amp; time_out.map(|t| Instant::now() &lt; t).unwrap_or(<span class="bool-val">true</span>)
         };
-        <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">transact</span>(<span class="ident">trx</span>).<span class="kw">await</span>;
-            <span class="ident">f</span> <span class="op">=</span> <span class="ident">r</span>.<span class="number">0</span>;
-            <span class="ident">trx</span> <span class="op">=</span> <span class="ident">r</span>.<span class="number">1</span>;
-            <span class="ident">trx</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">r</span>.<span class="number">2</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">item</span>) =&gt; <span class="kw">match</span> <span class="ident">trx</span>.<span class="ident">commit</span>().<span class="kw">await</span> {
-                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="kw">break</span> <span class="prelude-val">Ok</span>(<span class="ident">item</span>),
-                    <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                        <span class="kw">if</span> (<span class="ident">is_idempotent</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_maybe_committed</span>()) <span class="op">&amp;&amp;</span> <span class="ident">can_retry</span>() {
-                            <span class="ident">e</span>.<span class="ident">on_error</span>().<span class="kw">await</span><span class="question-mark">?</span>
-                        } <span class="kw">else</span> {
-                            <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">F::Error::from</span>(<span class="ident">e</span>.<span class="ident">into</span>()));
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>r = f.transact(trx).<span class="kw">await</span>;
+            f = r.<span class="number">0</span>;
+            trx = r.<span class="number">1</span>;
+            trx = <span class="kw">match </span>r.<span class="number">2 </span>{
+                <span class="prelude-val">Ok</span>(item) =&gt; <span class="kw">match </span>trx.commit().<span class="kw">await </span>{
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="kw">break </span><span class="prelude-val">Ok</span>(item),
+                    <span class="prelude-val">Err</span>(e) =&gt; {
+                        <span class="kw">if </span>(is_idempotent || !e.is_maybe_committed()) &amp;&amp; can_retry() {
+                            e.on_error().<span class="kw">await</span><span class="question-mark">?
+                        </span>} <span class="kw">else </span>{
+                            <span class="kw">break </span><span class="prelude-val">Err</span>(F::Error::from(e.into()));
                         }
                     }
                 },
-                <span class="prelude-val">Err</span>(<span class="ident">user_err</span>) =&gt; <span class="kw">match</span> <span class="ident">user_err</span>.<span class="ident">try_into_fdb_error</span>() {
-                    <span class="prelude-val">Ok</span>(<span class="ident">e</span>) =&gt; {
-                        <span class="kw">if</span> (<span class="ident">is_idempotent</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_maybe_committed</span>()) <span class="op">&amp;&amp;</span> <span class="ident">can_retry</span>() {
-                            <span class="ident">trx</span>.<span class="ident">on_error</span>(<span class="ident">e</span>).<span class="kw">await</span><span class="question-mark">?</span>
-                        } <span class="kw">else</span> {
-                            <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">F::Error::from</span>(<span class="ident">e</span>));
+                <span class="prelude-val">Err</span>(user_err) =&gt; <span class="kw">match </span>user_err.try_into_fdb_error() {
+                    <span class="prelude-val">Ok</span>(e) =&gt; {
+                        <span class="kw">if </span>(is_idempotent || !e.is_maybe_committed()) &amp;&amp; can_retry() {
+                            trx.on_error(e).<span class="kw">await</span><span class="question-mark">?
+                        </span>} <span class="kw">else </span>{
+                            <span class="kw">break </span><span class="prelude-val">Err</span>(F::Error::from(e));
                         }
                     }
-                    <span class="prelude-val">Err</span>(<span class="ident">user_err</span>) =&gt; <span class="kw">break</span> <span class="prelude-val">Err</span>(<span class="ident">user_err</span>),
+                    <span class="prelude-val">Err</span>(user_err) =&gt; <span class="kw">break </span><span class="prelude-val">Err</span>(user_err),
                 },
             };
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transact_boxed</span><span class="op">&lt;</span><span class="lifetime">&#39;trx</span>, <span class="ident">F</span>, <span class="ident">D</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;trx</span> <span class="self">self</span>,
-        <span class="ident">data</span>: <span class="ident">D</span>,
-        <span class="ident">f</span>: <span class="ident">F</span>,
-        <span class="ident">options</span>: <span class="ident">TransactOption</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>
-    <span class="kw">where</span>
-        <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">E</span>: <span class="ident">TransactError</span>,
-        <span class="ident">F</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
-        <span class="ident">T</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
-        <span class="ident">E</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
-        <span class="ident">D</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>,
+    <span class="kw">pub fn </span>transact_boxed&lt;<span class="lifetime">&#39;trx</span>, F, D, T, E&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;trx </span><span class="self">self</span>,
+        data: D,
+        f: F,
+        options: TransactOption,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;trx
+    </span><span class="kw">where
+        for</span>&lt;<span class="lifetime">&#39;a</span>&gt; F: FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        E: TransactError,
+        F: Send + <span class="lifetime">&#39;trx</span>,
+        T: Send + <span class="lifetime">&#39;trx</span>,
+        E: Send + <span class="lifetime">&#39;trx</span>,
+        D: Send + <span class="lifetime">&#39;trx</span>,
     {
-        <span class="self">self</span>.<span class="ident">transact</span>(
-            <span class="ident">boxed::FnMutBoxed</span> {
-                <span class="ident">f</span>,
-                <span class="ident">d</span>: <span class="ident">data</span>,
-                <span class="ident">m</span>: <span class="ident">PhantomData</span>,
+        <span class="self">self</span>.transact(
+            boxed::FnMutBoxed {
+                f,
+                d: data,
+                m: PhantomData,
             },
-            <span class="ident">options</span>,
+            options,
         )
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transact_boxed_local</span><span class="op">&lt;</span><span class="lifetime">&#39;trx</span>, <span class="ident">F</span>, <span class="ident">D</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;trx</span> <span class="self">self</span>,
-        <span class="ident">data</span>: <span class="ident">D</span>,
-        <span class="ident">f</span>: <span class="ident">F</span>,
-        <span class="ident">options</span>: <span class="ident">TransactOption</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;trx</span>
-    <span class="kw">where</span>
-        <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">F</span>:
-            <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">E</span>: <span class="ident">TransactError</span>,
-        <span class="ident">F</span>: <span class="lifetime">&#39;trx</span>,
-        <span class="ident">T</span>: <span class="lifetime">&#39;trx</span>,
-        <span class="ident">E</span>: <span class="lifetime">&#39;trx</span>,
-        <span class="ident">D</span>: <span class="lifetime">&#39;trx</span>,
+    <span class="kw">pub fn </span>transact_boxed_local&lt;<span class="lifetime">&#39;trx</span>, F, D, T, E&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;trx </span><span class="self">self</span>,
+        data: D,
+        f: F,
+        options: TransactOption,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;trx
+    </span><span class="kw">where
+        for</span>&lt;<span class="lifetime">&#39;a</span>&gt; F:
+            FnMut(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        E: TransactError,
+        F: <span class="lifetime">&#39;trx</span>,
+        T: <span class="lifetime">&#39;trx</span>,
+        E: <span class="lifetime">&#39;trx</span>,
+        D: <span class="lifetime">&#39;trx</span>,
     {
-        <span class="self">self</span>.<span class="ident">transact</span>(
-            <span class="ident">boxed_local::FnMutBoxedLocal</span> {
-                <span class="ident">f</span>,
-                <span class="ident">d</span>: <span class="ident">data</span>,
-                <span class="ident">m</span>: <span class="ident">PhantomData</span>,
+        <span class="self">self</span>.transact(
+            boxed_local::FnMutBoxedLocal {
+                f,
+                d: data,
+                m: PhantomData,
             },
-            <span class="ident">options</span>,
+            options,
         )
     }
 
-    <span class="doccomment">/// Runs a transactional function against this Database with retry logic.</span>
-    <span class="doccomment">/// The associated closure will be called until a non-retryable FDBError</span>
-    <span class="doccomment">/// is thrown or commit(), returns success.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Users are **not** expected to keep reference to the `RetryableTransaction`. If a weak or strong</span>
-    <span class="doccomment">/// reference is kept by the user, the binding will throw an error.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Warning: retry</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It might retry indefinitely if the transaction is highly contentious. It is recommended to</span>
-    <span class="doccomment">/// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction</span>
-    <span class="doccomment">/// if the task need to be guaranteed to finish. These options can be safely set on every iteration of the closure.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Warning: Maybe committed transactions</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// As with other client/server databases, in some failure scenarios a client may be unable to determine</span>
-    <span class="doccomment">/// whether a transaction succeeded. You should make sure your closure is idempotent.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The closure will notify the user in case of a maybe_committed transaction in a previous run</span>
-    <span class="doccomment">///  with the boolean provided in the closure.</span>
-    <span class="doccomment">///</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">Fut</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">closure</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="ident">RetryableTransaction</span>, <span class="ident">bool</span>) -&gt; <span class="ident">Fut</span>,
-        <span class="ident">Fut</span>: <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Runs a transactional function against this Database with retry logic.
+    /// The associated closure will be called until a non-retryable FDBError
+    /// is thrown or commit(), returns success.
+    ///
+    /// Users are **not** expected to keep reference to the `RetryableTransaction`. If a weak or strong
+    /// reference is kept by the user, the binding will throw an error.
+    ///
+    /// # Warning: retry
+    ///
+    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
+    /// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction
+    /// if the task need to be guaranteed to finish. These options can be safely set on every iteration of the closure.
+    ///
+    /// # Warning: Maybe committed transactions
+    ///
+    /// As with other client/server databases, in some failure scenarios a client may be unable to determine
+    /// whether a transaction succeeded. You should make sure your closure is idempotent.
+    ///
+    /// The closure will notify the user in case of a maybe_committed transaction in a previous run
+    ///  with the boolean provided in the closure.
+    ///
+    </span><span class="kw">pub async fn </span>run&lt;F, Fut, T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, closure: F) -&gt; <span class="prelude-ty">Result</span>&lt;T, FdbBindingError&gt;
+    <span class="kw">where
+        </span>F: Fn(RetryableTransaction, bool) -&gt; Fut,
+        Fut: Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, FdbBindingError&gt;&gt;,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">maybe_committed_transaction</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        <span class="comment">// we just need to create the transaction once,</span>
-        <span class="comment">// in case there is a error, it will be reset automatically</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transaction</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">create_retryable_trx</span>()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>maybe_committed_transaction = <span class="bool-val">false</span>;
+        <span class="comment">// we just need to create the transaction once,
+        // in case there is a error, it will be reset automatically
+        </span><span class="kw">let </span><span class="kw-2">mut </span>transaction = <span class="self">self</span>.create_retryable_trx()<span class="question-mark">?</span>;
 
-        <span class="kw">loop</span> {
-            <span class="comment">// executing the closure</span>
-            <span class="kw">let</span> <span class="ident">result_closure</span> <span class="op">=</span> <span class="ident">closure</span>(<span class="ident">transaction</span>.<span class="ident">clone</span>(), <span class="ident">maybe_committed_transaction</span>).<span class="kw">await</span>;
+        <span class="kw">loop </span>{
+            <span class="comment">// executing the closure
+            </span><span class="kw">let </span>result_closure = closure(transaction.clone(), maybe_committed_transaction).<span class="kw">await</span>;
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">result_closure</span> {
-                <span class="comment">// checks if it is an FdbError</span>
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">e</span>.<span class="ident">get_fdb_error</span>() {
-                    <span class="ident">maybe_committed_transaction</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">is_maybe_committed</span>();
-                    <span class="comment">// The closure returned an Error,</span>
-                    <span class="kw">match</span> <span class="ident">transaction</span>.<span class="ident">on_error</span>(<span class="ident">e</span>).<span class="kw">await</span> {
-                        <span class="comment">// we can retry the error</span>
-                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="ident">t</span>)) =&gt; {
-                            <span class="ident">transaction</span> <span class="op">=</span> <span class="ident">t</span>;
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = result_closure {
+                <span class="comment">// checks if it is an FdbError
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(e) = e.get_fdb_error() {
+                    maybe_committed_transaction = e.is_maybe_committed();
+                    <span class="comment">// The closure returned an Error,
+                    </span><span class="kw">match </span>transaction.on_error(e).<span class="kw">await </span>{
+                        <span class="comment">// we can retry the error
+                        </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(t)) =&gt; {
+                            transaction = t;
                             <span class="kw">continue</span>;
                         }
-                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>)) =&gt; {
-                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FdbBindingError::from</span>(<span class="ident">non_retryable_error</span>))
+                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(non_retryable_error)) =&gt; {
+                            <span class="kw">return </span><span class="prelude-val">Err</span>(FdbBindingError::from(non_retryable_error))
                         }
-                        <span class="comment">// The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`</span>
-                        <span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>),
+                        <span class="comment">// The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
+                        </span><span class="prelude-val">Err</span>(non_retryable_error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(non_retryable_error),
                     }
                 }
-                <span class="comment">// Otherwise, it cannot be retried</span>
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>);
+                <span class="comment">// Otherwise, it cannot be retried
+                </span><span class="kw">return </span><span class="prelude-val">Err</span>(e);
             }
 
-            <span class="kw">let</span> <span class="ident">commit_result</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">commit</span>().<span class="kw">await</span>;
+            <span class="kw">let </span>commit_result = transaction.commit().<span class="kw">await</span>;
 
-            <span class="kw">match</span> <span class="ident">commit_result</span> {
-                <span class="comment">// The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`</span>
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="kw">_</span>)) =&gt; <span class="kw">return</span> <span class="ident">result_closure</span>,
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">transaction_commit_error</span>)) =&gt; {
-                    <span class="ident">maybe_committed_transaction</span> <span class="op">=</span> <span class="ident">transaction_commit_error</span>.<span class="ident">is_maybe_committed</span>();
-                    <span class="comment">// we have an error during commit, checking if it is a retryable error</span>
-                    <span class="kw">match</span> <span class="ident">transaction_commit_error</span>.<span class="ident">on_error</span>().<span class="kw">await</span> {
-                        <span class="prelude-val">Ok</span>(<span class="ident">t</span>) =&gt; {
-                            <span class="ident">transaction</span> <span class="op">=</span> <span class="ident">RetryableTransaction::new</span>(<span class="ident">t</span>);
+            <span class="kw">match </span>commit_result {
+                <span class="comment">// The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
+                </span><span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(err),
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="kw">_</span>)) =&gt; <span class="kw">return </span>result_closure,
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(transaction_commit_error)) =&gt; {
+                    maybe_committed_transaction = transaction_commit_error.is_maybe_committed();
+                    <span class="comment">// we have an error during commit, checking if it is a retryable error
+                    </span><span class="kw">match </span>transaction_commit_error.on_error().<span class="kw">await </span>{
+                        <span class="prelude-val">Ok</span>(t) =&gt; {
+                            transaction = RetryableTransaction::new(t);
                             <span class="kw">continue</span>;
                         }
-                        <span class="prelude-val">Err</span>(<span class="ident">non_retryable_error</span>) =&gt; {
-                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FdbBindingError::from</span>(<span class="ident">non_retryable_error</span>))
+                        <span class="prelude-val">Err</span>(non_retryable_error) =&gt; {
+                            <span class="kw">return </span><span class="prelude-val">Err</span>(FdbBindingError::from(non_retryable_error))
                         }
                     }
                 }
@@ -769,166 +777,166 @@
         }
     }
 
-    <span class="doccomment">/// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data</span>
-    <span class="doccomment">/// in any way, nor will it perform any I/O against the FDB cluster. However, it will schedule some amount of work</span>
-    <span class="doccomment">/// onto the FDB client and wait for it to complete. The FoundationDB client operates by scheduling onto an event</span>
-    <span class="doccomment">/// queue that is then processed by a single thread (the &quot;network thread&quot;). This method can be used to determine if</span>
-    <span class="doccomment">/// the network thread has entered a state where it is no longer processing requests or if its time to process</span>
-    <span class="doccomment">/// requests has increased. If the network thread is busy, this operation may take some amount of time to complete,</span>
-    <span class="doccomment">/// which is why this operation returns a future.</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">perform_no_op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">trx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
+    <span class="doccomment">/// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data
+    /// in any way, nor will it perform any I/O against the FDB cluster. However, it will schedule some amount of work
+    /// onto the FDB client and wait for it to complete. The FoundationDB client operates by scheduling onto an event
+    /// queue that is then processed by a single thread (the &quot;network thread&quot;). This method can be used to determine if
+    /// the network thread has entered a state where it is no longer processing requests or if its time to process
+    /// requests has increased. If the network thread is busy, this operation may take some amount of time to complete,
+    /// which is why this operation returns a future.
+    </span><span class="kw">pub async fn </span>perform_no_op(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FdbResult&lt;()&gt; {
+        <span class="kw">let </span>trx = <span class="self">self</span>.create_trx()<span class="question-mark">?</span>;
 
-        <span class="comment">// Set the read version of the transaction, then read it back. This requires no I/O, but it does</span>
-        <span class="comment">// require the network thread be running. The exact value used for the read version is unimportant.</span>
-        <span class="ident">trx</span>.<span class="ident">set_read_version</span>(<span class="number">42</span>);
-        <span class="ident">trx</span>.<span class="ident">get_read_version</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="comment">// Set the read version of the transaction, then read it back. This requires no I/O, but it does
+        // require the network thread be running. The exact value used for the read version is unimportant.
+        </span>trx.set_read_version(<span class="number">42</span>);
+        trx.get_read_version().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 }
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">DatabaseTransact</span>: <span class="ident">Sized</span> {
-    <span class="kw">type</span> <span class="ident">Item</span>;
-    <span class="kw">type</span> <span class="ident">Error</span>: <span class="ident">TransactError</span>;
-    <span class="kw">type</span> <span class="ident">Future</span>: <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident"><span class="self">Self</span>::Future</span>;
+<span class="kw">pub trait </span>DatabaseTransact: Sized {
+    <span class="kw">type </span>Item;
+    <span class="kw">type </span>Error: TransactError;
+    <span class="kw">type </span>Future: Future&lt;Output = (<span class="self">Self</span>, Transaction, <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt;)&gt;;
+    <span class="kw">fn </span>transact(<span class="self">self</span>, trx: Transaction) -&gt; <span class="self">Self</span>::Future;
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::needless_lifetimes</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::type_complexity</span>)]</span>
-<span class="kw">mod</span> <span class="ident">boxed</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[allow(clippy::needless_lifetimes)]
+#[allow(clippy::type_complexity)]
+</span><span class="kw">mod </span>boxed {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">boxed_data_fut</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span>(
-        <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>,
-        <span class="ident">trx</span>: <span class="ident">Transaction</span>,
-    ) -&gt; (<span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>)
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">E</span>: <span class="ident">TransactError</span>,
+    <span class="kw">async fn </span>boxed_data_fut&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt;(
+        <span class="kw-2">mut </span>f: FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt;,
+        trx: Transaction,
+    ) -&gt; (FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt;, Transaction, <span class="prelude-ty">Result</span>&lt;T, E&gt;)
+    <span class="kw">where
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        E: TransactError,
     {
-        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> (<span class="ident">f</span>.<span class="ident">f</span>)(<span class="kw-2">&amp;</span><span class="ident">trx</span>, <span class="kw-2">&amp;mut</span> <span class="ident">f</span>.<span class="ident">d</span>).<span class="kw">await</span>;
-        (<span class="ident">f</span>, <span class="ident">trx</span>, <span class="ident">r</span>)
+        <span class="kw">let </span>r = (f.f)(<span class="kw-2">&amp;</span>trx, <span class="kw-2">&amp;mut </span>f.d).<span class="kw">await</span>;
+        (f, trx, r)
     }
 
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span> {
-        <span class="kw">pub</span> <span class="ident">f</span>: <span class="ident">F</span>,
-        <span class="kw">pub</span> <span class="ident">d</span>: <span class="ident">D</span>,
-        <span class="kw">pub</span> <span class="ident">m</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> ()<span class="op">&gt;</span>,
+    <span class="kw">pub struct </span>FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt; {
+        <span class="kw">pub </span>f: F,
+        <span class="kw">pub </span>d: D,
+        <span class="kw">pub </span>m: PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;t </span>()&gt;,
     }
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span> <span class="ident">DatabaseTransact</span> <span class="kw">for</span> <span class="ident">FnMutBoxed</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">F</span>: <span class="lifetime">&#39;t</span> <span class="op">+</span> <span class="ident">Send</span>,
-        <span class="ident">T</span>: <span class="lifetime">&#39;t</span>,
-        <span class="ident">E</span>: <span class="lifetime">&#39;t</span>,
-        <span class="ident">D</span>: <span class="lifetime">&#39;t</span> <span class="op">+</span> <span class="ident">Send</span>,
-        <span class="ident">E</span>: <span class="ident">TransactError</span>,
+    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt; DatabaseTransact <span class="kw">for </span>FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt;
+    <span class="kw">where
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        F: <span class="lifetime">&#39;t </span>+ Send,
+        T: <span class="lifetime">&#39;t</span>,
+        E: <span class="lifetime">&#39;t</span>,
+        D: <span class="lifetime">&#39;t </span>+ Send,
+        E: TransactError,
     {
-        <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>;
-        <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span>;
-        <span class="kw">type</span> <span class="ident">Future</span> <span class="op">=</span> <span class="ident">Pin</span><span class="op">&lt;</span>
-            <span class="ident">Box</span><span class="op">&lt;</span>
-                <span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span>
-                    <span class="op">+</span> <span class="ident">Send</span>
-                    <span class="op">+</span> <span class="lifetime">&#39;t</span>,
-            <span class="op">&gt;</span>,
-        <span class="op">&gt;</span>;
+        <span class="kw">type </span>Item = T;
+        <span class="kw">type </span>Error = E;
+        <span class="kw">type </span>Future = Pin&lt;
+            Box&lt;
+                <span class="kw">dyn </span>Future&lt;Output = (<span class="self">Self</span>, Transaction, <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt;)&gt;
+                    + Send
+                    + <span class="lifetime">&#39;t</span>,
+            &gt;,
+        &gt;;
 
-        <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident"><span class="self">Self</span>::Future</span> {
-            <span class="ident">boxed_data_fut</span>(<span class="self">self</span>, <span class="ident">trx</span>).<span class="ident">boxed</span>()
+        <span class="kw">fn </span>transact(<span class="self">self</span>, trx: Transaction) -&gt; <span class="self">Self</span>::Future {
+            boxed_data_fut(<span class="self">self</span>, trx).boxed()
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::needless_lifetimes</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::type_complexity</span>)]</span>
-<span class="kw">mod</span> <span class="ident">boxed_local</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[allow(clippy::needless_lifetimes)]
+#[allow(clippy::type_complexity)]
+</span><span class="kw">mod </span>boxed_local {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">boxed_local_data_fut</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span>(
-        <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>,
-        <span class="ident">trx</span>: <span class="ident">Transaction</span>,
-    ) -&gt; (<span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>)
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">E</span>: <span class="ident">TransactError</span>,
+    <span class="kw">async fn </span>boxed_local_data_fut&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt;(
+        <span class="kw-2">mut </span>f: FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt;,
+        trx: Transaction,
+    ) -&gt; (FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt;, Transaction, <span class="prelude-ty">Result</span>&lt;T, E&gt;)
+    <span class="kw">where
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        E: TransactError,
     {
-        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> (<span class="ident">f</span>.<span class="ident">f</span>)(<span class="kw-2">&amp;</span><span class="ident">trx</span>, <span class="kw-2">&amp;mut</span> <span class="ident">f</span>.<span class="ident">d</span>).<span class="kw">await</span>;
-        (<span class="ident">f</span>, <span class="ident">trx</span>, <span class="ident">r</span>)
+        <span class="kw">let </span>r = (f.f)(<span class="kw-2">&amp;</span>trx, <span class="kw-2">&amp;mut </span>f.d).<span class="kw">await</span>;
+        (f, trx, r)
     }
 
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span> {
-        <span class="kw">pub</span> <span class="ident">f</span>: <span class="ident">F</span>,
-        <span class="kw">pub</span> <span class="ident">d</span>: <span class="ident">D</span>,
-        <span class="kw">pub</span> <span class="ident">m</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> ()<span class="op">&gt;</span>,
+    <span class="kw">pub struct </span>FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt; {
+        <span class="kw">pub </span>f: F,
+        <span class="kw">pub </span>d: D,
+        <span class="kw">pub </span>m: PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;t </span>()&gt;,
     }
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span>, <span class="ident">D</span><span class="op">&gt;</span> <span class="ident">DatabaseTransact</span> <span class="kw">for</span> <span class="ident">FnMutBoxedLocal</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">F</span>, <span class="ident">D</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">FnMut</span>(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Transaction</span>,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">D</span>,
-        ) -&gt; <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">F</span>: <span class="lifetime">&#39;t</span>,
-        <span class="ident">T</span>: <span class="lifetime">&#39;t</span>,
-        <span class="ident">E</span>: <span class="lifetime">&#39;t</span>,
-        <span class="ident">D</span>: <span class="lifetime">&#39;t</span>,
-        <span class="ident">E</span>: <span class="ident">TransactError</span>,
+    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt; DatabaseTransact <span class="kw">for </span>FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt;
+    <span class="kw">where
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        F: <span class="lifetime">&#39;t</span>,
+        T: <span class="lifetime">&#39;t</span>,
+        E: <span class="lifetime">&#39;t</span>,
+        D: <span class="lifetime">&#39;t</span>,
+        E: TransactError,
     {
-        <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>;
-        <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span>;
-        <span class="kw">type</span> <span class="ident">Future</span> <span class="op">=</span> <span class="ident">Pin</span><span class="op">&lt;</span>
-            <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> (<span class="self">Self</span>, <span class="ident">Transaction</span>, <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
-        <span class="op">&gt;</span>;
+        <span class="kw">type </span>Item = T;
+        <span class="kw">type </span>Error = E;
+        <span class="kw">type </span>Future = Pin&lt;
+            Box&lt;<span class="kw">dyn </span>Future&lt;Output = (<span class="self">Self</span>, Transaction, <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt;)&gt; + <span class="lifetime">&#39;t</span>&gt;,
+        &gt;;
 
-        <span class="kw">fn</span> <span class="ident">transact</span>(<span class="self">self</span>, <span class="ident">trx</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident"><span class="self">Self</span>::Future</span> {
-            <span class="ident">boxed_local_data_fut</span>(<span class="self">self</span>, <span class="ident">trx</span>).<span class="ident">boxed_local</span>()
+        <span class="kw">fn </span>transact(<span class="self">self</span>, trx: Transaction) -&gt; <span class="self">Self</span>::Future {
+            boxed_local_data_fut(<span class="self">self</span>, trx).boxed_local()
         }
     }
 }
 
-<span class="doccomment">/// A trait that must be implemented to use `Database::transact` this application error types.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">TransactError</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span>;
+<span class="doccomment">/// A trait that must be implemented to use `Database::transact` this application error types.
+</span><span class="kw">pub trait </span>TransactError: From&lt;FdbError&gt; {
+    <span class="kw">fn </span>try_into_fdb_error(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;FdbError, <span class="self">Self</span>&gt;;
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">TransactError</span> <span class="kw">for</span> <span class="ident">T</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">TryInto</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">T</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;T&gt; TransactError <span class="kw">for </span>T
+<span class="kw">where
+    </span>T: From&lt;FdbError&gt; + TryInto&lt;FdbError, Error = T&gt;,
 {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">try_into</span>()
+    <span class="kw">fn </span>try_into_fdb_error(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;FdbError, <span class="self">Self</span>&gt; {
+        <span class="self">self</span>.try_into()
     }
 }
-<span class="kw">impl</span> <span class="ident">TransactError</span> <span class="kw">for</span> <span class="ident">FdbError</span> {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
+<span class="kw">impl </span>TransactError <span class="kw">for </span>FdbError {
+    <span class="kw">fn </span>try_into_fdb_error(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;FdbError, <span class="self">Self</span>&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
 }
 
-<span class="doccomment">/// A set of options that controls the behavior of `Database::transact`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactOption</span> {
-    <span class="kw">pub</span> <span class="ident">retry_limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">time_out</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">is_idempotent</span>: <span class="ident">bool</span>,
+<span class="doccomment">/// A set of options that controls the behavior of `Database::transact`.
+</span><span class="attribute">#[derive(Default, Clone)]
+</span><span class="kw">pub struct </span>TransactOption {
+    <span class="kw">pub </span>retry_limit: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+    <span class="kw">pub </span>time_out: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="kw">pub </span>is_idempotent: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">TransactOption</span> {
-    <span class="doccomment">/// An idempotent TransactOption</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">idempotent</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">is_idempotent</span>: <span class="bool-val">true</span>,
-            ..<span class="ident">TransactOption::default</span>()
+<span class="kw">impl </span>TransactOption {
+    <span class="doccomment">/// An idempotent TransactOption
+    </span><span class="kw">pub fn </span>idempotent() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            is_idempotent: <span class="bool-val">true</span>,
+            ..TransactOption::default()
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

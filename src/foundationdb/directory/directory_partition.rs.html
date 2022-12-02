@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/directory/directory_partition.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>directory_partition.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/directory/directory_partition.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>directory_partition.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -245,252 +245,252 @@
 <span id="245">245</span>
 <span id="246">246</span>
 <span id="247">247</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! A resulting Subspace whose prefix is preprended to all of its descendant directories&#39;s prefixes.</span>
+</span><span class="doccomment">//! A resulting Subspace whose prefix is preprended to all of its descendant directories&#39;s prefixes.
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::directory::directory_layer</span>::{<span class="ident">DirectoryLayer</span>, <span class="ident">DEFAULT_NODE_PREFIX</span>, <span class="ident">PARTITION_LAYER</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::directory::directory_subspace::DirectorySubspace</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::directory::error::DirectoryError</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::directory</span>::{<span class="ident">Directory</span>, <span class="ident">DirectoryOutput</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tuple::Subspace</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::Transaction</span>;
-<span class="kw">use</span> <span class="ident">async_trait::async_trait</span>;
-<span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</span><span class="kw">use </span><span class="kw">crate</span>::directory::directory_layer::{DirectoryLayer, DEFAULT_NODE_PREFIX, PARTITION_LAYER};
+<span class="kw">use </span><span class="kw">crate</span>::directory::directory_subspace::DirectorySubspace;
+<span class="kw">use </span><span class="kw">crate</span>::directory::error::DirectoryError;
+<span class="kw">use </span><span class="kw">crate</span>::directory::{Directory, DirectoryOutput};
+<span class="kw">use </span><span class="kw">crate</span>::tuple::Subspace;
+<span class="kw">use </span><span class="kw">crate</span>::Transaction;
+<span class="kw">use </span>async_trait::async_trait;
+<span class="kw">use </span>std::ops::Deref;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="doccomment">/// A `DirectoryPartition` is a DirectorySubspace whose prefix is preprended to all of its descendant</span>
-<span class="doccomment">/// directories&#39;s prefixes. It cannot be used as a Subspace. Instead, you must create at</span>
-<span class="doccomment">/// least one subdirectory to store content.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DirectoryPartition</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">inner</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">DirectoryPartitionInner</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A `DirectoryPartition` is a DirectorySubspace whose prefix is preprended to all of its descendant
+/// directories&#39;s prefixes. It cannot be used as a Subspace. Instead, you must create at
+/// least one subdirectory to store content.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>DirectoryPartition {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) inner: Arc&lt;DirectoryPartitionInner&gt;,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DirectoryPartitionInner</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">directory_subspace</span>: <span class="ident">DirectorySubspace</span>,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">parent_directory_layer</span>: <span class="ident">DirectoryLayer</span>,
+<span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>DirectoryPartitionInner {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) directory_subspace: DirectorySubspace,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) parent_directory_layer: DirectoryLayer,
 }
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">DirectoryPartition</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">DirectoryPartitionInner</span>;
+<span class="kw">impl </span>Deref <span class="kw">for </span>DirectoryPartition {
+    <span class="kw">type </span>Target = DirectoryPartitionInner;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::fmt::Debug</span> <span class="kw">for</span> <span class="ident">DirectoryPartition</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">std::fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">std::fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>std::fmt::Debug <span class="kw">for </span>DirectoryPartition {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="self">self</span>.inner.fmt(f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">DirectoryPartition</span> {
-    <span class="comment">// https://github.com/apple/foundationdb/blob/master/bindings/flow/DirectoryPartition.h#L34-L43</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-        <span class="ident">prefix</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-        <span class="ident">parent_directory_layer</span>: <span class="ident">DirectoryLayer</span>,
-    ) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node_subspace_bytes</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">node_subspace_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">prefix</span>);
-        <span class="ident">node_subspace_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="ident">DEFAULT_NODE_PREFIX</span>);
+<span class="kw">impl </span>DirectoryPartition {
+    <span class="comment">// https://github.com/apple/foundationdb/blob/master/bindings/flow/DirectoryPartition.h#L34-L43
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
+        path: <span class="kw-2">&amp;</span>[String],
+        prefix: Vec&lt;u8&gt;,
+        parent_directory_layer: DirectoryLayer,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>node_subspace_bytes = <span class="macro">vec!</span>[];
+        node_subspace_bytes.extend_from_slice(<span class="kw-2">&amp;</span>prefix);
+        node_subspace_bytes.extend_from_slice(DEFAULT_NODE_PREFIX);
 
-        <span class="kw">let</span> <span class="ident">new_directory_layer</span> <span class="op">=</span> <span class="ident">DirectoryLayer::new_with_path</span>(
-            <span class="ident">Subspace::from_bytes</span>(<span class="ident">node_subspace_bytes</span>),
-            <span class="ident">Subspace::from_bytes</span>(<span class="ident">prefix</span>.<span class="ident">as_slice</span>()),
+        <span class="kw">let </span>new_directory_layer = DirectoryLayer::new_with_path(
+            Subspace::from_bytes(node_subspace_bytes),
+            Subspace::from_bytes(prefix.as_slice()),
             <span class="bool-val">false</span>,
-            <span class="ident">path</span>,
+            path,
         );
 
-        <span class="ident">DirectoryPartition</span> {
-            <span class="ident">inner</span>: <span class="ident">Arc::new</span>(<span class="ident">DirectoryPartitionInner</span> {
-                <span class="ident">directory_subspace</span>: <span class="ident">DirectorySubspace::new</span>(
-                    <span class="ident">path</span>,
-                    <span class="ident">prefix</span>,
-                    <span class="kw-2">&amp;</span><span class="ident">new_directory_layer</span>,
-                    <span class="ident">Vec::from</span>(<span class="ident">PARTITION_LAYER</span>),
+        DirectoryPartition {
+            inner: Arc::new(DirectoryPartitionInner {
+                directory_subspace: DirectorySubspace::new(
+                    path,
+                    prefix,
+                    <span class="kw-2">&amp;</span>new_directory_layer,
+                    Vec::from(PARTITION_LAYER),
                 ),
-                <span class="ident">parent_directory_layer</span>,
+                parent_directory_layer,
             }),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">DirectoryPartition</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">String</span>] {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">directory_subspace</span>.<span class="ident">get_path</span>()
+<span class="kw">impl </span>DirectoryPartition {
+    <span class="kw">pub fn </span>get_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[String] {
+        <span class="self">self</span>.inner.directory_subspace.get_path()
     }
 
-    <span class="kw">fn</span> <span class="ident">get_directory_layer_for_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>]) -&gt; <span class="ident">DirectoryLayer</span> {
-        <span class="kw">if</span> <span class="ident">path</span>.<span class="ident">is_empty</span>() {
-            <span class="self">self</span>.<span class="ident">parent_directory_layer</span>.<span class="ident">clone</span>()
-        } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">directory_subspace</span>.<span class="ident">directory_layer</span>.<span class="ident">clone</span>()
+    <span class="kw">fn </span>get_directory_layer_for_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>[String]) -&gt; DirectoryLayer {
+        <span class="kw">if </span>path.is_empty() {
+            <span class="self">self</span>.parent_directory_layer.clone()
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.directory_subspace.directory_layer.clone()
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_partition_subpath</span>(
+    <span class="kw">fn </span>get_partition_subpath(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-        <span class="ident">directory_layer</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DirectoryLayer</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">directory_layer</span> {
-            <span class="prelude-val">None</span> =&gt; <span class="self">self</span>.<span class="ident">directory_subspace</span>.<span class="ident">directory_layer</span>.<span class="ident">clone</span>(),
-            <span class="prelude-val">Some</span>(<span class="ident">d</span>) =&gt; <span class="ident">d</span>,
+        path: <span class="kw-2">&amp;</span>[String],
+        directory_layer: <span class="prelude-ty">Option</span>&lt;DirectoryLayer&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, DirectoryError&gt; {
+        <span class="kw">let </span>directory = <span class="kw">match </span>directory_layer {
+            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.directory_subspace.directory_layer.clone(),
+            <span class="prelude-val">Some</span>(d) =&gt; d,
         };
 
-        <span class="kw">if</span> <span class="ident">directory</span>.<span class="ident">path</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">directory_subspace</span>.<span class="ident">get_path</span>().<span class="ident">len</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DirectoryError::CannotCreateSubpath</span>);
+        <span class="kw">if </span>directory.path.len() &gt; <span class="self">self</span>.directory_subspace.get_path().len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::CannotCreateSubpath);
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_path</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>new_path = <span class="macro">vec!</span>[];
 
-        <span class="ident">new_path</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">directory_subspace</span>.<span class="ident">get_path</span>()[<span class="ident">directory</span>.<span class="ident">path</span>.<span class="ident">len</span>()..]);
-        <span class="ident">new_path</span>.<span class="ident">extend_from_slice</span>(<span class="ident">path</span>);
+        new_path.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.directory_subspace.get_path()[directory.path.len()..]);
+        new_path.extend_from_slice(path);
 
-        <span class="prelude-val">Ok</span>(<span class="ident">new_path</span>)
+        <span class="prelude-val">Ok</span>(new_path)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_layer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="string">b&quot;partition&quot;</span>
-    }
+    <span class="kw">pub fn </span>get_layer(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="string">b&quot;partition&quot;
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">async_trait</span>]</span>
-<span class="kw">impl</span> <span class="ident">Directory</span> <span class="kw">for</span> <span class="ident">DirectoryPartition</span> {
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">create_or_open</span>(
+<span class="attribute">#[async_trait]
+</span><span class="kw">impl </span>Directory <span class="kw">for </span>DirectoryPartition {
+    <span class="kw">async fn </span>create_or_open(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">txn</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-        <span class="ident">prefix</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
-        <span class="ident">layer</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">DirectoryOutput</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">directory_subspace</span>
-            .<span class="ident">create_or_open</span>(<span class="ident">txn</span>, <span class="ident">path</span>, <span class="ident">prefix</span>, <span class="ident">layer</span>)
-            .<span class="kw">await</span>
-    }
+        txn: <span class="kw-2">&amp;</span>Transaction,
+        path: <span class="kw-2">&amp;</span>[String],
+        prefix: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
+        layer: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;DirectoryOutput, DirectoryError&gt; {
+        <span class="self">self</span>.inner
+            .directory_subspace
+            .create_or_open(txn, path, prefix, layer)
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">create</span>(
+    <span class="kw">async fn </span>create(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">txn</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-        <span class="ident">prefix</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
-        <span class="ident">layer</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">DirectoryOutput</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">directory_subspace</span>
-            .<span class="ident">create</span>(<span class="ident">txn</span>, <span class="ident">path</span>, <span class="ident">prefix</span>, <span class="ident">layer</span>)
-            .<span class="kw">await</span>
-    }
+        txn: <span class="kw-2">&amp;</span>Transaction,
+        path: <span class="kw-2">&amp;</span>[String],
+        prefix: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
+        layer: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;DirectoryOutput, DirectoryError&gt; {
+        <span class="self">self</span>.inner
+            .directory_subspace
+            .create(txn, path, prefix, layer)
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">open</span>(
+    <span class="kw">async fn </span>open(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">txn</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-        <span class="ident">layer</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">DirectoryOutput</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">directory_subspace</span>.<span class="ident">open</span>(<span class="ident">txn</span>, <span class="ident">path</span>, <span class="ident">layer</span>).<span class="kw">await</span>
-    }
+        txn: <span class="kw-2">&amp;</span>Transaction,
+        path: <span class="kw-2">&amp;</span>[String],
+        layer: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;DirectoryOutput, DirectoryError&gt; {
+        <span class="self">self</span>.inner.directory_subspace.open(txn, path, layer).<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">exists</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">directory_layer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_directory_layer_for_path</span>(<span class="ident">path</span>);
+    <span class="kw">async fn </span>exists(<span class="kw-2">&amp;</span><span class="self">self</span>, trx: <span class="kw-2">&amp;</span>Transaction, path: <span class="kw-2">&amp;</span>[String]) -&gt; <span class="prelude-ty">Result</span>&lt;bool, DirectoryError&gt; {
+        <span class="kw">let </span>directory_layer = <span class="self">self</span>.get_directory_layer_for_path(path);
 
-        <span class="ident">directory_layer</span>
-            .<span class="ident">exists</span>(
-                <span class="ident">trx</span>,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">get_partition_subpath</span>(<span class="ident">path</span>, <span class="prelude-val">Some</span>(<span class="ident">directory_layer</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>,
+        directory_layer
+            .exists(
+                trx,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.get_partition_subpath(path, <span class="prelude-val">Some</span>(directory_layer.clone()))<span class="question-mark">?</span>,
             )
-            .<span class="kw">await</span>
-    }
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">move_directory</span>(
+    <span class="kw">async fn </span>move_directory(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">new_path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">DirectoryOutput</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">directory_layer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_directory_layer_for_path</span>(<span class="kw-2">&amp;</span>[]);
-        <span class="kw">let</span> <span class="ident">directory_layer_path</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">directory_layer</span>.<span class="ident">path</span>;
+        trx: <span class="kw-2">&amp;</span>Transaction,
+        new_path: <span class="kw-2">&amp;</span>[String],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;DirectoryOutput, DirectoryError&gt; {
+        <span class="kw">let </span>directory_layer = <span class="self">self</span>.get_directory_layer_for_path(<span class="kw-2">&amp;</span>[]);
+        <span class="kw">let </span>directory_layer_path = <span class="kw-2">&amp;</span>directory_layer.path;
 
-        <span class="kw">if</span> <span class="ident">directory_layer_path</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">new_path</span>.<span class="ident">len</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DirectoryError::CannotMoveBetweenPartition</span>);
+        <span class="kw">if </span>directory_layer_path.len() &gt; new_path.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::CannotMoveBetweenPartition);
         }
 
-        <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">path</span>) <span class="kw">in</span> <span class="ident">directory_layer_path</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">match</span> <span class="ident">new_path</span>.<span class="ident">get</span>(<span class="ident">i</span>) {
-                <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DirectoryError::CannotMoveBetweenPartition</span>),
-                <span class="prelude-val">Some</span>(<span class="ident">new_path_item</span>) =&gt; {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">new_path_item</span>.<span class="ident">eq</span>(<span class="ident">path</span>) {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DirectoryError::CannotMoveBetweenPartition</span>);
+        <span class="kw">for </span>(i, path) <span class="kw">in </span>directory_layer_path.iter().enumerate() {
+            <span class="kw">match </span>new_path.get(i) {
+                <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::CannotMoveBetweenPartition),
+                <span class="prelude-val">Some</span>(new_path_item) =&gt; {
+                    <span class="kw">if </span>!new_path_item.eq(path) {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::CannotMoveBetweenPartition);
                     }
                 }
             }
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_relative_path</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">new_relative_path</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">new_path</span>[<span class="ident">directory_layer_path</span>.<span class="ident">len</span>()..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>new_relative_path = <span class="macro">vec!</span>[];
+        new_relative_path.extend_from_slice(<span class="kw-2">&amp;</span>new_path[directory_layer_path.len()..]);
 
-        <span class="ident">directory_layer</span>
-            .<span class="ident">move_to</span>(
-                <span class="ident">trx</span>,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">get_partition_subpath</span>(<span class="kw-2">&amp;</span>[], <span class="prelude-val">Some</span>(<span class="ident">directory_layer</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>,
-                <span class="kw-2">&amp;</span><span class="ident">new_relative_path</span>,
+        directory_layer
+            .move_to(
+                trx,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.get_partition_subpath(<span class="kw-2">&amp;</span>[], <span class="prelude-val">Some</span>(directory_layer.clone()))<span class="question-mark">?</span>,
+                <span class="kw-2">&amp;</span>new_relative_path,
             )
-            .<span class="kw">await</span>
-    }
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">move_to</span>(
+    <span class="kw">async fn </span>move_to(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">old_path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-        <span class="ident">new_path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">DirectoryOutput</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">directory_subspace</span>
-            .<span class="ident">move_to</span>(<span class="ident">trx</span>, <span class="ident">old_path</span>, <span class="ident">new_path</span>)
-            .<span class="kw">await</span>
-    }
+        trx: <span class="kw-2">&amp;</span>Transaction,
+        old_path: <span class="kw-2">&amp;</span>[String],
+        new_path: <span class="kw-2">&amp;</span>[String],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;DirectoryOutput, DirectoryError&gt; {
+        <span class="self">self</span>.inner
+            .directory_subspace
+            .move_to(trx, old_path, new_path)
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">directory_layer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_directory_layer_for_path</span>(<span class="ident">path</span>);
-        <span class="ident">directory_layer</span>
-            .<span class="ident">remove</span>(
-                <span class="ident">trx</span>,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">get_partition_subpath</span>(<span class="ident">path</span>, <span class="prelude-val">Some</span>(<span class="ident">directory_layer</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>,
+    <span class="kw">async fn </span>remove(<span class="kw-2">&amp;</span><span class="self">self</span>, trx: <span class="kw-2">&amp;</span>Transaction, path: <span class="kw-2">&amp;</span>[String]) -&gt; <span class="prelude-ty">Result</span>&lt;bool, DirectoryError&gt; {
+        <span class="kw">let </span>directory_layer = <span class="self">self</span>.get_directory_layer_for_path(path);
+        directory_layer
+            .remove(
+                trx,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.get_partition_subpath(path, <span class="prelude-val">Some</span>(directory_layer.clone()))<span class="question-mark">?</span>,
             )
-            .<span class="kw">await</span>
-    }
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">remove_if_exists</span>(
+    <span class="kw">async fn </span>remove_if_exists(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">directory_layer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_directory_layer_for_path</span>(<span class="ident">path</span>);
-        <span class="ident">directory_layer</span>
-            .<span class="ident">remove_if_exists</span>(
-                <span class="ident">trx</span>,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">get_partition_subpath</span>(<span class="ident">path</span>, <span class="prelude-val">Some</span>(<span class="ident">directory_layer</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>,
+        trx: <span class="kw-2">&amp;</span>Transaction,
+        path: <span class="kw-2">&amp;</span>[String],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, DirectoryError&gt; {
+        <span class="kw">let </span>directory_layer = <span class="self">self</span>.get_directory_layer_for_path(path);
+        directory_layer
+            .remove_if_exists(
+                trx,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.get_partition_subpath(path, <span class="prelude-val">Some</span>(directory_layer.clone()))<span class="question-mark">?</span>,
             )
-            .<span class="kw">await</span>
-    }
+            .<span class="kw">await
+    </span>}
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">list</span>(
+    <span class="kw">async fn </span>list(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>,
-        <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>],
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="ident">DirectoryError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">directory_subspace</span>.<span class="ident">list</span>(<span class="ident">trx</span>, <span class="ident">path</span>).<span class="kw">await</span>
-    }
+        trx: <span class="kw-2">&amp;</span>Transaction,
+        path: <span class="kw-2">&amp;</span>[String],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, DirectoryError&gt; {
+        <span class="self">self</span>.inner.directory_subspace.list(trx, path).<span class="kw">await
+    </span>}
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

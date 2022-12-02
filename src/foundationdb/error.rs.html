@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/error.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>error.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/error.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>error.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -162,169 +162,169 @@
 <span id="162">162</span>
 <span id="163">163</span>
 <span id="164">164</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! Error types for the Fdb crate</span>
+</span><span class="doccomment">//! Error types for the Fdb crate
 
-<span class="kw">use</span> <span class="ident">std::ffi::CStr</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="ident">Debug</span>, <span class="ident">Display</span>, <span class="ident">Formatter</span>};
+</span><span class="kw">use </span>std::ffi::CStr;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::fmt::{Debug, Display, Formatter};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::directory::DirectoryError</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tuple::hca::HcaError</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tuple::PackError</span>;
-<span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
+<span class="kw">use </span><span class="kw">crate</span>::directory::DirectoryError;
+<span class="kw">use </span><span class="kw">crate</span>::options;
+<span class="kw">use </span><span class="kw">crate</span>::tuple::hca::HcaError;
+<span class="kw">use </span><span class="kw">crate</span>::tuple::PackError;
+<span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">eval</span>(<span class="ident">error_code</span>: <span class="ident">fdb_sys::fdb_error_t</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">rust_code</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="ident">error_code</span>;
-    <span class="kw">if</span> <span class="ident">rust_code</span> <span class="op">==</span> <span class="number">0</span> {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>eval(error_code: fdb_sys::fdb_error_t) -&gt; FdbResult&lt;()&gt; {
+    <span class="kw">let </span>rust_code: i32 = error_code;
+    <span class="kw">if </span>rust_code == <span class="number">0 </span>{
         <span class="prelude-val">Ok</span>(())
-    } <span class="kw">else</span> {
-        <span class="prelude-val">Err</span>(<span class="ident">FdbError::from_code</span>(<span class="ident">error_code</span>))
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Err</span>(FdbError::from_code(error_code))
     }
 }
 
-<span class="doccomment">/// The Standard Error type of FoundationDB</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdbError</span> {
-    <span class="doccomment">/// The FoundationDB error code</span>
-    <span class="ident">error_code</span>: <span class="ident">i32</span>,
+<span class="doccomment">/// The Standard Error type of FoundationDB
+</span><span class="attribute">#[derive(Debug, Copy, Clone)]
+</span><span class="kw">pub struct </span>FdbError {
+    <span class="doccomment">/// The FoundationDB error code
+    </span>error_code: i32,
 }
 
-<span class="kw">impl</span> <span class="ident">FdbError</span> {
-    <span class="doccomment">/// Converts from a raw foundationDB error code</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_code</span>(<span class="ident">error_code</span>: <span class="ident">fdb_sys::fdb_error_t</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">error_code</span> }
+<span class="kw">impl </span>FdbError {
+    <span class="doccomment">/// Converts from a raw foundationDB error code
+    </span><span class="kw">pub fn </span>from_code(error_code: fdb_sys::fdb_error_t) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ error_code }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">message</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">let</span> <span class="ident">error_str</span> <span class="op">=</span>
-            <span class="kw">unsafe</span> { <span class="ident">CStr::from_ptr</span>::<span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="ident">fdb_sys::fdb_get_error</span>(<span class="self">self</span>.<span class="ident">error_code</span>)) };
-        <span class="ident">error_str</span>
-            .<span class="ident">to_str</span>()
-            .<span class="ident">expect</span>(<span class="string">&quot;bad error string from FoundationDB&quot;</span>)
+    <span class="kw">pub fn </span>message(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">let </span>error_str =
+            <span class="kw">unsafe </span>{ CStr::from_ptr::&lt;<span class="lifetime">&#39;static</span>&gt;(fdb_sys::fdb_get_error(<span class="self">self</span>.error_code)) };
+        error_str
+            .to_str()
+            .expect(<span class="string">&quot;bad error string from FoundationDB&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">is_error_predicate</span>(<span class="self">self</span>, <span class="ident">predicate</span>: <span class="ident">options::ErrorPredicate</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="ident">check</span> <span class="op">=</span>
-            <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_error_predicate</span>(<span class="ident">predicate</span>.<span class="ident">code</span>() <span class="kw">as</span> <span class="ident">i32</span>, <span class="self">self</span>.<span class="ident">error_code</span>) };
+    <span class="kw">fn </span>is_error_predicate(<span class="self">self</span>, predicate: options::ErrorPredicate) -&gt; bool {
+        <span class="kw">let </span>check =
+            <span class="kw">unsafe </span>{ fdb_sys::fdb_error_predicate(predicate.code() <span class="kw">as </span>i32, <span class="self">self</span>.error_code) };
 
-        <span class="ident">check</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span>
+        check != <span class="number">0
+    </span>}
+
+    <span class="doccomment">/// Indicates the transaction may have succeeded, though not in a way the system can verify.
+    </span><span class="kw">pub fn </span>is_maybe_committed(<span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.is_error_predicate(options::ErrorPredicate::MaybeCommitted)
     }
 
-    <span class="doccomment">/// Indicates the transaction may have succeeded, though not in a way the system can verify.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_maybe_committed</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_error_predicate</span>(<span class="ident">options::ErrorPredicate::MaybeCommitted</span>)
+    <span class="doccomment">/// Indicates the operations in the transactions should be retried because of transient error.
+    </span><span class="kw">pub fn </span>is_retryable(<span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.is_error_predicate(options::ErrorPredicate::Retryable)
     }
 
-    <span class="doccomment">/// Indicates the operations in the transactions should be retried because of transient error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_retryable</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_error_predicate</span>(<span class="ident">options::ErrorPredicate::Retryable</span>)
+    <span class="doccomment">/// Indicates the transaction has not committed, though in a way that can be retried.
+    </span><span class="kw">pub fn </span>is_retryable_not_committed(<span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.is_error_predicate(options::ErrorPredicate::RetryableNotCommitted)
     }
 
-    <span class="doccomment">/// Indicates the transaction has not committed, though in a way that can be retried.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_retryable_not_committed</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_error_predicate</span>(<span class="ident">options::ErrorPredicate::RetryableNotCommitted</span>)
-    }
-
-    <span class="doccomment">/// Raw foundationdb error code</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">code</span>(<span class="self">self</span>) -&gt; <span class="ident">i32</span> {
-        <span class="self">self</span>.<span class="ident">error_code</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">FdbError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">std::fmt::Display::fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">message</span>(), <span class="ident">f</span>)
+    <span class="doccomment">/// Raw foundationdb error code
+    </span><span class="kw">pub fn </span>code(<span class="self">self</span>) -&gt; i32 {
+        <span class="self">self</span>.error_code
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">FdbError</span> {}
-
-<span class="doccomment">/// Alias for `Result&lt;..., FdbError&gt;`</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">FdbError</span><span class="op">&gt;</span>;
-
-<span class="doccomment">/// This error represent all errors that can be throwed by `db.run`.</span>
-<span class="doccomment">/// Layer developers may use the `CustomError`.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">FdbBindingError</span> {
-    <span class="ident">NonRetryableFdbError</span>(<span class="ident">FdbError</span>),
-    <span class="ident">HcaError</span>(<span class="ident">HcaError</span>),
-    <span class="ident">DirectoryError</span>(<span class="ident">DirectoryError</span>),
-    <span class="ident">PackError</span>(<span class="ident">PackError</span>),
-    <span class="doccomment">/// A reference to the `RetryableTransaction` has been kept</span>
-    <span class="ident">ReferenceToTransactionKept</span>,
-    <span class="doccomment">/// A custom error that layer developers can use</span>
-    <span class="ident">CustomError</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">std::error::Error</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span><span class="op">&gt;</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>FdbError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        std::fmt::Display::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.message(), f)
+    }
 }
 
-<span class="kw">impl</span> <span class="ident">FdbBindingError</span> {
-    <span class="doccomment">/// Return if the RunError is an FdbError</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">get_fdb_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">FdbBindingError::NonRetryableFdbError</span>(<span class="ident">e</span>) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">e</span>),
-            <span class="ident">FdbBindingError::DirectoryError</span>(<span class="ident">directory_error</span>) =&gt; {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">DirectoryError::FdbError</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">directory_error</span> {
-                    <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">e</span>)
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">None</span>
-                }
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>FdbError {}
+
+<span class="doccomment">/// Alias for `Result&lt;..., FdbError&gt;`
+</span><span class="kw">pub type </span>FdbResult&lt;T&gt; = <span class="prelude-ty">Result</span>&lt;T, FdbError&gt;;
+
+<span class="doccomment">/// This error represent all errors that can be throwed by `db.run`.
+/// Layer developers may use the `CustomError`.
+</span><span class="kw">pub enum </span>FdbBindingError {
+    NonRetryableFdbError(FdbError),
+    HcaError(HcaError),
+    DirectoryError(DirectoryError),
+    PackError(PackError),
+    <span class="doccomment">/// A reference to the `RetryableTransaction` has been kept
+    </span>ReferenceToTransactionKept,
+    <span class="doccomment">/// A custom error that layer developers can use
+    </span>CustomError(Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync&gt;),
+}
+
+<span class="kw">impl </span>FdbBindingError {
+    <span class="doccomment">/// Return if the RunError is an FdbError
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_fdb_error(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;FdbError&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            FdbBindingError::NonRetryableFdbError(e) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>e),
+            FdbBindingError::DirectoryError(directory_error) =&gt; {
+                <span class="kw">if let </span>DirectoryError::FdbError(e) = directory_error {
+                    <span class="prelude-val">Some</span>(<span class="kw-2">*</span>e)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
             }
-            <span class="ident">FdbBindingError::HcaError</span>(<span class="ident">hca_error</span>) =&gt; {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">HcaError::FdbError</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">hca_error</span> {
-                    <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">e</span>)
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">None</span>
-                }
+            FdbBindingError::HcaError(hca_error) =&gt; {
+                <span class="kw">if let </span>HcaError::FdbError(e) = hca_error {
+                    <span class="prelude-val">Some</span>(<span class="kw-2">*</span>e)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
             }
-            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbBindingError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">FdbError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::NonRetryableFdbError</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;FdbError&gt; <span class="kw">for </span>FdbBindingError {
+    <span class="kw">fn </span>from(e: FdbError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::NonRetryableFdbError(e)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">HcaError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbBindingError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">HcaError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::HcaError</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;HcaError&gt; <span class="kw">for </span>FdbBindingError {
+    <span class="kw">fn </span>from(e: HcaError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::HcaError(e)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">DirectoryError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbBindingError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">DirectoryError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::DirectoryError</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;DirectoryError&gt; <span class="kw">for </span>FdbBindingError {
+    <span class="kw">fn </span>from(e: DirectoryError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::DirectoryError(e)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FdbBindingError</span> {
-    <span class="doccomment">/// create a new custom error</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_custom_error</span>(<span class="ident">e</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">std::error::Error</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::CustomError</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>FdbBindingError {
+    <span class="doccomment">/// create a new custom error
+    </span><span class="kw">pub fn </span>new_custom_error(e: Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::CustomError(e)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">FdbBindingError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">std::fmt::Debug::fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>)
+<span class="kw">impl </span>Debug <span class="kw">for </span>FdbBindingError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        std::fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Display</span> <span class="kw">for</span> <span class="ident">FdbBindingError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">std::fmt::Display::fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>)
+<span class="kw">impl </span>Display <span class="kw">for </span>FdbBindingError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        std::fmt::Display::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">FdbBindingError</span> {}
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>FdbBindingError {}
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

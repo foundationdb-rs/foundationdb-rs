@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/hca.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>hca.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/hca.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>hca.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -228,235 +228,235 @@
 <span id="228">228</span>
 <span id="229">229</span>
 <span id="230">230</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! The directory layer offers subspace indirection, where logical application subspaces are mapped to short, auto-generated key prefixes. This prefix assignment is done by the High Contention Allocator, which allows many clients to allocate short directory prefixes efficiently.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The allocation process works over candidate value windows. It uses two subspaces to operate, the &quot;counters&quot; subspace and &quot;recents&quot; subspace (derived from the subspace used to create the HCA).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! &quot;counters&quot; contains a single key : &quot;counters : window_start&quot;, whose value is the number of allocations in the current window. &quot;window_start&quot; is an integer that marks the lower bound of values that can be assigned from the current window.</span>
-<span class="doccomment">//! &quot;recents&quot; can contain many keys : &quot;recents : &lt;candidate&gt;&quot;, where each &quot;candidate&quot; is an integer that has been assigned to some client</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Assignment has two stages that are executed in a loop until they both succeed.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1. Find the current window. The client scans &quot;counters : *&quot; to get the current &quot;window_start&quot; and how many allocations have been made in the current window.</span>
-<span class="doccomment">//!      If the window is more than half-full (using pre-defined window sizes), the window is advanced: &quot;counters : *&quot; and &quot;recents : *&quot; are both cleared, and a new &quot;counters : window_start + window_size&quot; key is created with a value of 0. (1) is retried</span>
-<span class="doccomment">//!      If the window still has space, it moves to (2).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 2. Find a candidate value inside that window. The client picks a candidate number between &quot;[window_start, window_start + window_size)&quot; and tries to set the key &quot;recents : &lt;candidate&gt;&quot;.</span>
-<span class="doccomment">//!      If the write succeeds, the candidate is returned as the allocated value. Success!</span>
-<span class="doccomment">//!      If the write fails because the window has been advanced, it repeats (1).</span>
-<span class="doccomment">//!      If the write fails because the value was already set, it repeats (2).</span>
+</span><span class="doccomment">//! The directory layer offers subspace indirection, where logical application subspaces are mapped to short, auto-generated key prefixes. This prefix assignment is done by the High Contention Allocator, which allows many clients to allocate short directory prefixes efficiently.
+//!
+//! The allocation process works over candidate value windows. It uses two subspaces to operate, the &quot;counters&quot; subspace and &quot;recents&quot; subspace (derived from the subspace used to create the HCA).
+//!
+//! &quot;counters&quot; contains a single key : &quot;counters : window_start&quot;, whose value is the number of allocations in the current window. &quot;window_start&quot; is an integer that marks the lower bound of values that can be assigned from the current window.
+//! &quot;recents&quot; can contain many keys : &quot;recents : &lt;candidate&gt;&quot;, where each &quot;candidate&quot; is an integer that has been assigned to some client
+//!
+//! Assignment has two stages that are executed in a loop until they both succeed.
+//!
+//! 1. Find the current window. The client scans &quot;counters : *&quot; to get the current &quot;window_start&quot; and how many allocations have been made in the current window.
+//!      If the window is more than half-full (using pre-defined window sizes), the window is advanced: &quot;counters : *&quot; and &quot;recents : *&quot; are both cleared, and a new &quot;counters : window_start + window_size&quot; key is created with a value of 0. (1) is retried
+//!      If the window still has space, it moves to (2).
+//!
+//! 2. Find a candidate value inside that window. The client picks a candidate number between &quot;[window_start, window_start + window_size)&quot; and tries to set the key &quot;recents : &lt;candidate&gt;&quot;.
+//!      If the write succeeds, the candidate is returned as the allocated value. Success!
+//!      If the write fails because the window has been advanced, it repeats (1).
+//!      If the write fails because the value was already set, it repeats (2).
 
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::sync</span>::{<span class="ident">Mutex</span>, <span class="ident">PoisonError</span>};
+</span><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::sync::{Mutex, PoisonError};
 
-<span class="kw">use</span> <span class="ident">futures::future</span>;
-<span class="kw">use</span> <span class="ident">rand</span>::{<span class="self">self</span>, <span class="ident">rngs::SmallRng</span>, <span class="ident">Error</span> <span class="kw">as</span> <span class="ident">RandError</span>, <span class="ident">Rng</span>, <span class="ident">SeedableRng</span>};
+<span class="kw">use </span>futures::future;
+<span class="kw">use </span>rand::{<span class="self">self</span>, rngs::SmallRng, Error <span class="kw">as </span>RandError, Rng, SeedableRng};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>::{<span class="ident">ConflictRangeType</span>, <span class="ident">MutationType</span>, <span class="ident">TransactionOption</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tuple</span>::{<span class="ident">PackError</span>, <span class="ident">Subspace</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::options::{ConflictRangeType, MutationType, TransactionOption};
+<span class="kw">use </span><span class="kw">crate</span>::tuple::{PackError, Subspace};
+<span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
-<span class="kw">const</span> <span class="ident">ONE_BYTES</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0x01</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>];
+<span class="kw">const </span>ONE_BYTES: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[<span class="number">0x01</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>];
 
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HcaError</span> {
-    <span class="ident">FdbError</span>(<span class="ident">FdbError</span>),
-    <span class="ident">PackError</span>(<span class="ident">PackError</span>),
-    <span class="ident">InvalidDirectoryLayerMetadata</span>,
-    <span class="ident">PoisonError</span>,
-    <span class="ident">RandError</span>(<span class="ident">RandError</span>),
+<span class="kw">pub enum </span>HcaError {
+    FdbError(FdbError),
+    PackError(PackError),
+    InvalidDirectoryLayerMetadata,
+    PoisonError,
+    RandError(RandError),
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">HcaError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">HcaError::FdbError</span>(<span class="ident">err</span>) =&gt; <span class="ident">err</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">HcaError::PackError</span>(<span class="ident">err</span>) =&gt; <span class="ident">err</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">HcaError::InvalidDirectoryLayerMetadata</span> =&gt; {
-                <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid directory layer metadata&quot;</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>HcaError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            HcaError::FdbError(err) =&gt; err.fmt(f),
+            HcaError::PackError(err) =&gt; err.fmt(f),
+            HcaError::InvalidDirectoryLayerMetadata =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;invalid directory layer metadata&quot;</span>)
             }
-            <span class="ident">HcaError::PoisonError</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;mutex poisoned&quot;</span>),
-            <span class="ident">HcaError::RandError</span>(<span class="ident">err</span>) =&gt; <span class="ident">err</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            HcaError::PoisonError =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;mutex poisoned&quot;</span>),
+            HcaError::RandError(err) =&gt; err.fmt(f),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">FdbError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HcaError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">FdbError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::FdbError</span>(<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;FdbError&gt; <span class="kw">for </span>HcaError {
+    <span class="kw">fn </span>from(err: FdbError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::FdbError(err)
     }
 }
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">PackError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HcaError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">PackError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::PackError</span>(<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;PackError&gt; <span class="kw">for </span>HcaError {
+    <span class="kw">fn </span>from(err: PackError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::PackError(err)
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">PoisonError</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HcaError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">_err</span>: <span class="ident">PoisonError</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::PoisonError</span>
+<span class="kw">impl</span>&lt;T&gt; From&lt;PoisonError&lt;T&gt;&gt; <span class="kw">for </span>HcaError {
+    <span class="kw">fn </span>from(_err: PoisonError&lt;T&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::PoisonError
     }
 }
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">RandError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HcaError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">RandError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::RandError</span>(<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;RandError&gt; <span class="kw">for </span>HcaError {
+    <span class="kw">fn </span>from(err: RandError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::RandError(err)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">TransactError</span> <span class="kw">for</span> <span class="ident">HcaError</span> {
-    <span class="kw">fn</span> <span class="ident">try_into_fdb_error</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FdbError</span>, <span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">HcaError::FdbError</span>(<span class="ident">err</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">err</span>),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>),
+<span class="kw">impl </span>TransactError <span class="kw">for </span>HcaError {
+    <span class="kw">fn </span>try_into_fdb_error(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;FdbError, <span class="self">Self</span>&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            HcaError::FdbError(err) =&gt; <span class="prelude-val">Ok</span>(err),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>),
         }
     }
 }
 
-<span class="doccomment">/// Represents a High Contention Allocator for a given subspace</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HighContentionAllocator</span> {
-    <span class="ident">counters</span>: <span class="ident">Subspace</span>,
-    <span class="ident">recent</span>: <span class="ident">Subspace</span>,
-    <span class="ident">allocation_mutex</span>: <span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
+<span class="doccomment">/// Represents a High Contention Allocator for a given subspace
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>HighContentionAllocator {
+    counters: Subspace,
+    recent: Subspace,
+    allocation_mutex: Mutex&lt;()&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">HighContentionAllocator</span> {
-    <span class="doccomment">/// Constructs an allocator that will use the input subspace for assigning values.</span>
-    <span class="doccomment">/// The given subspace should not be used by anything other than the allocator</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">subspace</span>: <span class="ident">Subspace</span>) -&gt; <span class="ident">HighContentionAllocator</span> {
-        <span class="ident">HighContentionAllocator</span> {
-            <span class="ident">counters</span>: <span class="ident">subspace</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="number">0i64</span>),
-            <span class="ident">recent</span>: <span class="ident">subspace</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="number">1i64</span>),
-            <span class="ident">allocation_mutex</span>: <span class="ident">Mutex::new</span>(()),
+<span class="kw">impl </span>HighContentionAllocator {
+    <span class="doccomment">/// Constructs an allocator that will use the input subspace for assigning values.
+    /// The given subspace should not be used by anything other than the allocator
+    </span><span class="kw">pub fn </span>new(subspace: Subspace) -&gt; HighContentionAllocator {
+        HighContentionAllocator {
+            counters: subspace.subspace(<span class="kw-2">&amp;</span><span class="number">0i64</span>),
+            recent: subspace.subspace(<span class="kw-2">&amp;</span><span class="number">1i64</span>),
+            allocation_mutex: Mutex::new(()),
         }
     }
 
-    <span class="doccomment">/// Returns a byte string that</span>
-    <span class="doccomment">///   1) has never and will never be returned by another call to this method on the same subspace</span>
-    <span class="doccomment">///   2) is nearly as short as possible given the above</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">allocate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trx</span>: <span class="kw-2">&amp;</span><span class="ident">Transaction</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">i64</span>, <span class="ident">HcaError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">begin</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">counters</span>.<span class="ident">range</span>();
-        <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">begin</span>);
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">KeySelector::first_greater_than</span>(<span class="ident">end</span>);
-        <span class="kw">let</span> <span class="ident">counters_range</span> <span class="op">=</span> <span class="ident">RangeOption</span> {
-            <span class="ident">begin</span>,
-            <span class="ident">end</span>,
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
-            <span class="ident">reverse</span>: <span class="bool-val">true</span>,
-            ..<span class="ident">RangeOption::default</span>()
+    <span class="doccomment">/// Returns a byte string that
+    ///   1) has never and will never be returned by another call to this method on the same subspace
+    ///   2) is nearly as short as possible given the above
+    </span><span class="kw">pub async fn </span>allocate(<span class="kw-2">&amp;</span><span class="self">self</span>, trx: <span class="kw-2">&amp;</span>Transaction) -&gt; <span class="prelude-ty">Result</span>&lt;i64, HcaError&gt; {
+        <span class="kw">let </span>(begin, end) = <span class="self">self</span>.counters.range();
+        <span class="kw">let </span>begin = KeySelector::first_greater_or_equal(begin);
+        <span class="kw">let </span>end = KeySelector::first_greater_than(end);
+        <span class="kw">let </span>counters_range = RangeOption {
+            begin,
+            end,
+            limit: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+            reverse: <span class="bool-val">true</span>,
+            ..RangeOption::default()
         };
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">SmallRng::from_rng</span>(<span class="kw-2">&amp;mut</span> <span class="ident">rand::thread_rng</span>())<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>rng = SmallRng::from_rng(<span class="kw-2">&amp;mut </span>rand::thread_rng())<span class="question-mark">?</span>;
 
-        <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">kvs</span> <span class="op">=</span> <span class="ident">trx</span>.<span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="ident">counters_range</span>, <span class="number">1</span>, <span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>kvs = trx.get_range(<span class="kw-2">&amp;</span>counters_range, <span class="number">1</span>, <span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">first</span>) <span class="op">=</span> <span class="ident">kvs</span>.<span class="ident">first</span>() {
-                <span class="self">self</span>.<span class="ident">counters</span>.<span class="ident">unpack</span>(<span class="ident">first</span>.<span class="ident">key</span>())<span class="question-mark">?</span>
-            } <span class="kw">else</span> {
-                <span class="number">0</span>
-            };
+            <span class="kw">let </span><span class="kw-2">mut </span>start: i64 = <span class="kw">if let </span><span class="prelude-val">Some</span>(first) = kvs.first() {
+                <span class="self">self</span>.counters.unpack(first.key())<span class="question-mark">?
+            </span>} <span class="kw">else </span>{
+                <span class="number">0
+            </span>};
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">window_advanced</span> <span class="op">=</span> <span class="bool-val">false</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>window_advanced = <span class="bool-val">false</span>;
 
-            <span class="kw">let</span> <span class="ident">window</span> <span class="op">=</span> <span class="kw">loop</span> {
-                <span class="kw">let</span> <span class="ident">counters_start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">counters</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="ident">start</span>);
+            <span class="kw">let </span>window = <span class="kw">loop </span>{
+                <span class="kw">let </span>counters_start = <span class="self">self</span>.counters.subspace(<span class="kw-2">&amp;</span>start);
 
-                <span class="kw">let</span> <span class="ident">count_future</span> <span class="op">=</span> {
-                    <span class="kw">let</span> <span class="ident">_mutex_guard</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">allocation_mutex</span>.<span class="ident">lock</span>()<span class="question-mark">?</span>;
-                    <span class="kw">if</span> <span class="ident">window_advanced</span> {
-                        <span class="ident">trx</span>.<span class="ident">clear_range</span>(<span class="self">self</span>.<span class="ident">counters</span>.<span class="ident">bytes</span>(), <span class="ident">counters_start</span>.<span class="ident">bytes</span>());
-                        <span class="ident">trx</span>.<span class="ident">set_option</span>(<span class="ident">TransactionOption::NextWriteNoWriteConflictRange</span>)<span class="question-mark">?</span>;
-                        <span class="ident">trx</span>.<span class="ident">clear_range</span>(<span class="self">self</span>.<span class="ident">recent</span>.<span class="ident">bytes</span>(), <span class="self">self</span>.<span class="ident">recent</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="ident">start</span>).<span class="ident">bytes</span>());
+                <span class="kw">let </span>count_future = {
+                    <span class="kw">let </span>_mutex_guard = <span class="self">self</span>.allocation_mutex.lock()<span class="question-mark">?</span>;
+                    <span class="kw">if </span>window_advanced {
+                        trx.clear_range(<span class="self">self</span>.counters.bytes(), counters_start.bytes());
+                        trx.set_option(TransactionOption::NextWriteNoWriteConflictRange)<span class="question-mark">?</span>;
+                        trx.clear_range(<span class="self">self</span>.recent.bytes(), <span class="self">self</span>.recent.subspace(<span class="kw-2">&amp;</span>start).bytes());
                     };
 
-                    <span class="comment">// Increment the allocation count for the current window</span>
-                    <span class="ident">trx</span>.<span class="ident">atomic_op</span>(<span class="ident">counters_start</span>.<span class="ident">bytes</span>(), <span class="ident">ONE_BYTES</span>, <span class="ident">MutationType::Add</span>);
-                    <span class="ident">trx</span>.<span class="ident">get</span>(<span class="ident">counters_start</span>.<span class="ident">bytes</span>(), <span class="bool-val">true</span>)
+                    <span class="comment">// Increment the allocation count for the current window
+                    </span>trx.atomic_op(counters_start.bytes(), ONE_BYTES, MutationType::Add);
+                    trx.get(counters_start.bytes(), <span class="bool-val">true</span>)
                 };
 
-                <span class="kw">let</span> <span class="ident">count_value</span> <span class="op">=</span> <span class="ident">count_future</span>.<span class="kw">await</span><span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">count</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">count_value</span>) <span class="op">=</span> <span class="ident">count_value</span> {
-                    <span class="kw">if</span> <span class="ident">count_value</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">8</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">HcaError::InvalidDirectoryLayerMetadata</span>);
+                <span class="kw">let </span>count_value = count_future.<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="kw">let </span>count = <span class="kw">if let </span><span class="prelude-val">Some</span>(count_value) = count_value {
+                    <span class="kw">if </span>count_value.len() != <span class="number">8 </span>{
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(HcaError::InvalidDirectoryLayerMetadata);
                     }
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
-                    <span class="ident">bytes</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">count_value</span>);
-                    <span class="ident">i64::from_le_bytes</span>(<span class="ident">bytes</span>)
-                } <span class="kw">else</span> {
-                    <span class="number">0</span>
-                };
+                    <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; <span class="number">8</span>];
+                    bytes.copy_from_slice(<span class="kw-2">&amp;</span>count_value);
+                    i64::from_le_bytes(bytes)
+                } <span class="kw">else </span>{
+                    <span class="number">0
+                </span>};
 
-                <span class="kw">let</span> <span class="ident">window</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::window_size</span>(<span class="ident">start</span>);
-                <span class="kw">if</span> <span class="ident">count</span> <span class="op">*</span> <span class="number">2</span> <span class="op">&lt;</span> <span class="ident">window</span> {
-                    <span class="kw">break</span> <span class="ident">window</span>;
+                <span class="kw">let </span>window = <span class="self">Self</span>::window_size(start);
+                <span class="kw">if </span>count * <span class="number">2 </span>&lt; window {
+                    <span class="kw">break </span>window;
                 }
 
-                <span class="ident">start</span> <span class="op">+</span><span class="op">=</span> <span class="ident">window</span>;
-                <span class="ident">window_advanced</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                start += window;
+                window_advanced = <span class="bool-val">true</span>;
             };
 
-            <span class="kw">loop</span> {
-                <span class="comment">// As of the snapshot being read from, the window is less than half</span>
-                <span class="comment">// full, so this should be expected to take 2 tries.  Under high</span>
-                <span class="comment">// contention (and when the window advances), there is an additional</span>
-                <span class="comment">// subsequent risk of conflict for this transaction.</span>
-                <span class="kw">let</span> <span class="ident">candidate</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="ident">start</span>..<span class="ident">start</span> <span class="op">+</span> <span class="ident">window</span>);
-                <span class="kw">let</span> <span class="ident">recent_candidate</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">recent</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="ident">candidate</span>);
+            <span class="kw">loop </span>{
+                <span class="comment">// As of the snapshot being read from, the window is less than half
+                // full, so this should be expected to take 2 tries.  Under high
+                // contention (and when the window advances), there is an additional
+                // subsequent risk of conflict for this transaction.
+                </span><span class="kw">let </span>candidate: i64 = rng.gen_range(start..start + window);
+                <span class="kw">let </span>recent_candidate = <span class="self">self</span>.recent.subspace(<span class="kw-2">&amp;</span>candidate);
 
-                <span class="kw">let</span> (<span class="ident">latest_counter</span>, <span class="ident">candidate_value</span>) <span class="op">=</span> {
-                    <span class="kw">let</span> <span class="ident">_mutex_guard</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">allocation_mutex</span>.<span class="ident">lock</span>()<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">latest_counter</span> <span class="op">=</span> <span class="ident">trx</span>.<span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="ident">counters_range</span>, <span class="number">1</span>, <span class="bool-val">true</span>);
-                    <span class="kw">let</span> <span class="ident">candidate_value</span> <span class="op">=</span> <span class="ident">trx</span>.<span class="ident">get</span>(<span class="ident">recent_candidate</span>.<span class="ident">bytes</span>(), <span class="bool-val">false</span>);
-                    <span class="ident">trx</span>.<span class="ident">set_option</span>(<span class="ident">TransactionOption::NextWriteNoWriteConflictRange</span>)<span class="question-mark">?</span>;
-                    <span class="ident">trx</span>.<span class="ident">set</span>(<span class="ident">recent_candidate</span>.<span class="ident">bytes</span>(), <span class="kw-2">&amp;</span>[]);
-                    (<span class="ident">latest_counter</span>, <span class="ident">candidate_value</span>)
+                <span class="kw">let </span>(latest_counter, candidate_value) = {
+                    <span class="kw">let </span>_mutex_guard = <span class="self">self</span>.allocation_mutex.lock()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>latest_counter = trx.get_range(<span class="kw-2">&amp;</span>counters_range, <span class="number">1</span>, <span class="bool-val">true</span>);
+                    <span class="kw">let </span>candidate_value = trx.get(recent_candidate.bytes(), <span class="bool-val">false</span>);
+                    trx.set_option(TransactionOption::NextWriteNoWriteConflictRange)<span class="question-mark">?</span>;
+                    trx.set(recent_candidate.bytes(), <span class="kw-2">&amp;</span>[]);
+                    (latest_counter, candidate_value)
                 };
 
-                <span class="kw">let</span> (<span class="ident">latest_counter</span>, <span class="ident">candidate_value</span>) <span class="op">=</span>
-                    <span class="ident">future::try_join</span>(<span class="ident">latest_counter</span>, <span class="ident">candidate_value</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="kw">let </span>(latest_counter, candidate_value) =
+                    future::try_join(latest_counter, candidate_value).<span class="kw">await</span><span class="question-mark">?</span>;
 
-                <span class="kw">let</span> <span class="ident">current_window_start</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">first</span>) <span class="op">=</span> <span class="ident">latest_counter</span>.<span class="ident">first</span>() {
-                    <span class="self">self</span>.<span class="ident">counters</span>.<span class="ident">unpack</span>(<span class="ident">first</span>.<span class="ident">key</span>())<span class="question-mark">?</span>
-                } <span class="kw">else</span> {
-                    <span class="number">0</span>
-                };
+                <span class="kw">let </span>current_window_start: i64 = <span class="kw">if let </span><span class="prelude-val">Some</span>(first) = latest_counter.first() {
+                    <span class="self">self</span>.counters.unpack(first.key())<span class="question-mark">?
+                </span>} <span class="kw">else </span>{
+                    <span class="number">0
+                </span>};
 
-                <span class="kw">if</span> <span class="ident">current_window_start</span> <span class="op">&gt;</span> <span class="ident">start</span> {
+                <span class="kw">if </span>current_window_start &gt; start {
                     <span class="kw">break</span>;
                 }
 
-                <span class="kw">if</span> <span class="ident">candidate_value</span>.<span class="ident">is_none</span>() {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">after</span> <span class="op">=</span> <span class="ident">recent_candidate</span>.<span class="ident">bytes</span>().<span class="ident">to_vec</span>();
-                    <span class="ident">after</span>.<span class="ident">push</span>(<span class="number">0x00</span>);
-                    <span class="ident">trx</span>.<span class="ident">add_conflict_range</span>(
-                        <span class="ident">recent_candidate</span>.<span class="ident">bytes</span>(),
-                        <span class="kw-2">&amp;</span><span class="ident">after</span>,
-                        <span class="ident">ConflictRangeType::Write</span>,
+                <span class="kw">if </span>candidate_value.is_none() {
+                    <span class="kw">let </span><span class="kw-2">mut </span>after = recent_candidate.bytes().to_vec();
+                    after.push(<span class="number">0x00</span>);
+                    trx.add_conflict_range(
+                        recent_candidate.bytes(),
+                        <span class="kw-2">&amp;</span>after,
+                        ConflictRangeType::Write,
                     )<span class="question-mark">?</span>;
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">candidate</span>);
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(candidate);
                 }
             }
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">window_size</span>(<span class="ident">start</span>: <span class="ident">i64</span>) -&gt; <span class="ident">i64</span> {
-        <span class="comment">// Larger window sizes are better for high contention, smaller sizes for</span>
-        <span class="comment">// keeping the keys small.  But if there are many allocations, the keys</span>
-        <span class="comment">// can&#39;t be too small.  So start small and scale up.  We don&#39;t want this to</span>
-        <span class="comment">// ever get *too* big because we have to store about window_size/2 recent</span>
-        <span class="comment">// items.</span>
-        <span class="kw">match</span> <span class="ident">start</span> {
-            <span class="kw">_</span> <span class="kw">if</span> <span class="ident">start</span> <span class="op">&lt;</span> <span class="number">255</span> =&gt; <span class="number">64</span>,
-            <span class="kw">_</span> <span class="kw">if</span> <span class="ident">start</span> <span class="op">&lt;</span> <span class="number">65535</span> =&gt; <span class="number">1024</span>,
-            <span class="kw">_</span> =&gt; <span class="number">8192</span>,
+    <span class="kw">fn </span>window_size(start: i64) -&gt; i64 {
+        <span class="comment">// Larger window sizes are better for high contention, smaller sizes for
+        // keeping the keys small.  But if there are many allocations, the keys
+        // can&#39;t be too small.  So start small and scale up.  We don&#39;t want this to
+        // ever get *too* big because we have to store about window_size/2 recent
+        // items.
+        </span><span class="kw">match </span>start {
+            <span class="kw">_ if </span>start &lt; <span class="number">255 </span>=&gt; <span class="number">64</span>,
+            <span class="kw">_ if </span>start &lt; <span class="number">65535 </span>=&gt; <span class="number">1024</span>,
+            <span class="kw">_ </span>=&gt; <span class="number">8192</span>,
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/subspace.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>subspace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/subspace.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>subspace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../foundationdb/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -196,203 +196,203 @@
 <span id="196">196</span>
 <span id="197">197</span>
 <span id="198">198</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">KeySelector</span>, <span class="ident">RangeOption</span>, <span class="ident">Transaction</span>};
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::hash::Hash</span>;
+</span><span class="kw">use super</span>::<span class="kw-2">*</span>;
+<span class="kw">use crate</span>::{KeySelector, RangeOption, Transaction};
+<span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::hash::Hash;
 
-<span class="doccomment">/// Represents a well-defined region of keyspace in a FoundationDB database</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// It provides a convenient way to use FoundationDB tuples to define namespaces for</span>
-<span class="doccomment">/// different categories of data. The namespace is specified by a prefix tuple which is prepended</span>
-<span class="doccomment">/// to all tuples packed by the subspace. When unpacking a key with the subspace, the prefix tuple</span>
-<span class="doccomment">/// will be removed from the result.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// As a best practice, API clients should use at least one subspace for application data. For</span>
-<span class="doccomment">/// general guidance on subspace usage, see the Subspaces section of the [Developer Guide].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [Developer Guide]: https://apple.github.io/foundationdb/developer-guide.html#subspaces</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Subspace</span> {
-    <span class="ident">prefix</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Represents a well-defined region of keyspace in a FoundationDB database
+///
+/// It provides a convenient way to use FoundationDB tuples to define namespaces for
+/// different categories of data. The namespace is specified by a prefix tuple which is prepended
+/// to all tuples packed by the subspace. When unpacking a key with the subspace, the prefix tuple
+/// will be removed from the result.
+///
+/// As a best practice, API clients should use at least one subspace for application data. For
+/// general guidance on subspace usage, see the Subspaces section of the [Developer Guide].
+///
+/// [Developer Guide]: https://apple.github.io/foundationdb/developer-guide.html#subspaces
+</span><span class="attribute">#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+</span><span class="kw">pub struct </span>Subspace {
+    prefix: Vec&lt;u8&gt;,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TuplePack</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Subspace</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">E</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">prefix</span>: <span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">e</span>) }
+<span class="kw">impl</span>&lt;E: TuplePack&gt; From&lt;E&gt; <span class="kw">for </span>Subspace {
+    <span class="kw">fn </span>from(e: E) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ prefix: pack(<span class="kw-2">&amp;</span>e) }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Subspace</span> {
-    <span class="doccomment">/// `all` returns the Subspace corresponding to all keys in a FoundationDB database.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">all</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">prefix</span>: <span class="ident">Vec::new</span>() }
+<span class="kw">impl </span>Subspace {
+    <span class="doccomment">/// `all` returns the Subspace corresponding to all keys in a FoundationDB database.
+    </span><span class="kw">pub fn </span>all() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ prefix: Vec::new() }
     }
 
-    <span class="doccomment">/// Returns a new Subspace from the provided bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_bytes</span>(<span class="ident">prefix</span>: <span class="kw">impl</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">prefix</span>: <span class="ident">prefix</span>.<span class="ident">into</span>(),
+    <span class="doccomment">/// Returns a new Subspace from the provided bytes.
+    </span><span class="kw">pub fn </span>from_bytes(prefix: <span class="kw">impl </span>Into&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            prefix: prefix.into(),
         }
     }
 
-    <span class="doccomment">/// Convert into prefix key bytes</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_bytes</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">prefix</span>
+    <span class="doccomment">/// Convert into prefix key bytes
+    </span><span class="kw">pub fn </span>into_bytes(<span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
+        <span class="self">self</span>.prefix
     }
 
-    <span class="doccomment">/// Returns a new Subspace whose prefix extends this Subspace with a given tuple encodable.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">subspace</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">TuplePack</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">prefix</span>: <span class="self">self</span>.<span class="ident">pack</span>(<span class="ident">t</span>),
+    <span class="doccomment">/// Returns a new Subspace whose prefix extends this Subspace with a given tuple encodable.
+    </span><span class="kw">pub fn </span>subspace&lt;T: TuplePack&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            prefix: <span class="self">self</span>.pack(t),
         }
     }
 
-    <span class="doccomment">/// `bytes` returns the literal bytes of the prefix of this Subspace.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="self">self</span>.<span class="ident">prefix</span>.<span class="ident">as_slice</span>()
+    <span class="doccomment">/// `bytes` returns the literal bytes of the prefix of this Subspace.
+    </span><span class="kw">pub fn </span>bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="self">self</span>.prefix.as_slice()
     }
 
-    <span class="doccomment">/// Returns the key encoding the specified Tuple with the prefix of this Subspace</span>
-    <span class="doccomment">/// prepended.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">TuplePack</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">out</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prefix</span>.<span class="ident">clone</span>();
-        <span class="ident">pack_into</span>(<span class="ident">t</span>, <span class="kw-2">&amp;mut</span> <span class="ident">out</span>);
-        <span class="ident">out</span>
+    <span class="doccomment">/// Returns the key encoding the specified Tuple with the prefix of this Subspace
+    /// prepended.
+    </span><span class="kw">pub fn </span>pack&lt;T: TuplePack&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; Vec&lt;u8&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>out = <span class="self">self</span>.prefix.clone();
+        pack_into(t, <span class="kw-2">&amp;mut </span>out);
+        out
     }
 
-    <span class="doccomment">/// `unpack` returns the Tuple encoded by the given key with the prefix of this Subspace</span>
-    <span class="doccomment">/// removed.  `unpack` will return an error if the key is not in this Subspace or does not</span>
-    <span class="doccomment">/// encode a well-formed Tuple.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unpack</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span>: <span class="ident">TupleUnpack</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de</span> [<span class="ident">u8</span>]) -&gt; <span class="ident">PackResult</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_start_of</span>(<span class="ident">key</span>) {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">PackError::BadPrefix</span>);
+    <span class="doccomment">/// `unpack` returns the Tuple encoded by the given key with the prefix of this Subspace
+    /// removed.  `unpack` will return an error if the key is not in this Subspace or does not
+    /// encode a well-formed Tuple.
+    </span><span class="kw">pub fn </span>unpack&lt;<span class="lifetime">&#39;de</span>, T: TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8]) -&gt; PackResult&lt;T&gt; {
+        <span class="kw">if </span>!<span class="self">self</span>.is_start_of(key) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(PackError::BadPrefix);
         }
-        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">key</span>[<span class="self">self</span>.<span class="ident">prefix</span>.<span class="ident">len</span>()..];
-        <span class="ident">unpack</span>(<span class="ident">key</span>)
+        <span class="kw">let </span>key = <span class="kw-2">&amp;</span>key[<span class="self">self</span>.prefix.len()..];
+        unpack(key)
     }
 
-    <span class="doccomment">/// `is_start_of` returns true if the provided key starts with the prefix of this Subspace,</span>
-    <span class="doccomment">/// indicating that the Subspace logically contains the key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">bool</span> {
-        <span class="ident">key</span>.<span class="ident">starts_with</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">prefix</span>)
+    <span class="doccomment">/// `is_start_of` returns true if the provided key starts with the prefix of this Subspace,
+    /// indicating that the Subspace logically contains the key.
+    </span><span class="kw">pub fn </span>is_start_of(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>[u8]) -&gt; bool {
+        key.starts_with(<span class="kw-2">&amp;</span><span class="self">self</span>.prefix)
     }
 
-    <span class="doccomment">/// `range` returns first and last key of given Subspace</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">begin</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="self">self</span>.<span class="ident">prefix</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="number">1</span>);
-        <span class="ident">begin</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">prefix</span>);
-        <span class="ident">begin</span>.<span class="ident">push</span>(<span class="number">0x00</span>);
+    <span class="doccomment">/// `range` returns first and last key of given Subspace
+    </span><span class="kw">pub fn </span>range(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (Vec&lt;u8&gt;, Vec&lt;u8&gt;) {
+        <span class="kw">let </span><span class="kw-2">mut </span>begin = Vec::with_capacity(<span class="self">self</span>.prefix.len() + <span class="number">1</span>);
+        begin.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.prefix);
+        begin.push(<span class="number">0x00</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="self">self</span>.<span class="ident">prefix</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="number">1</span>);
-        <span class="ident">end</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">prefix</span>);
-        <span class="ident">end</span>.<span class="ident">push</span>(<span class="number">0xff</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>end = Vec::with_capacity(<span class="self">self</span>.prefix.len() + <span class="number">1</span>);
+        end.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.prefix);
+        end.push(<span class="number">0xff</span>);
 
-        (<span class="ident">begin</span>, <span class="ident">end</span>)
+        (begin, end)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Subspace</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">subspace</span>: <span class="kw-2">&amp;</span><span class="ident">Subspace</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">begin</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">subspace</span>.<span class="ident">range</span>();
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Subspace&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">fn </span>from(subspace: <span class="kw-2">&amp;</span>Subspace) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(begin, end) = subspace.range();
 
-        <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">Cow::Owned</span>(<span class="ident">begin</span>)),
-            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">Cow::Owned</span>(<span class="ident">end</span>)),
-            ..<span class="ident"><span class="self">Self</span>::default</span>()
+        <span class="self">Self </span>{
+            begin: KeySelector::first_greater_or_equal(Cow::Owned(begin)),
+            end: KeySelector::first_greater_or_equal(Cow::Owned(end)),
+            ..<span class="self">Self</span>::default()
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Transaction</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear_subspace_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">subspace</span>: <span class="kw-2">&amp;</span><span class="ident">Subspace</span>) {
-        <span class="kw">let</span> (<span class="ident">begin</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">subspace</span>.<span class="ident">range</span>();
-        <span class="self">self</span>.<span class="ident">clear_range</span>(<span class="kw-2">&amp;</span><span class="ident">begin</span>, <span class="kw-2">&amp;</span><span class="ident">end</span>)
+<span class="kw">impl </span>Transaction {
+    <span class="kw">pub fn </span>clear_subspace_range(<span class="kw-2">&amp;</span><span class="self">self</span>, subspace: <span class="kw-2">&amp;</span>Subspace) {
+        <span class="kw">let </span>(begin, end) = subspace.range();
+        <span class="self">self</span>.clear_range(<span class="kw-2">&amp;</span>begin, <span class="kw-2">&amp;</span>end)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span>std::collections::HashMap;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">sub</span>() {
-        <span class="kw">let</span> <span class="ident">ss0</span>: <span class="ident">Subspace</span> <span class="op">=</span> <span class="number">1</span>.<span class="ident">into</span>();
-        <span class="kw">let</span> <span class="ident">ss1</span> <span class="op">=</span> <span class="ident">ss0</span>.<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="number">2</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>sub() {
+        <span class="kw">let </span>ss0: Subspace = <span class="number">1</span>.into();
+        <span class="kw">let </span>ss1 = ss0.subspace(<span class="kw-2">&amp;</span><span class="number">2</span>);
 
-        <span class="kw">let</span> <span class="ident">ss2</span>: <span class="ident">Subspace</span> <span class="op">=</span> (<span class="number">1</span>, <span class="number">2</span>).<span class="ident">into</span>();
+        <span class="kw">let </span>ss2: Subspace = (<span class="number">1</span>, <span class="number">2</span>).into();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">ss1</span>.<span class="ident">bytes</span>(), <span class="ident">ss2</span>.<span class="ident">bytes</span>());
+        <span class="macro">assert_eq!</span>(ss1.bytes(), ss2.bytes());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">pack_unpack</span>() {
-        <span class="kw">let</span> <span class="ident">ss0</span>: <span class="ident">Subspace</span> <span class="op">=</span> <span class="number">1</span>.<span class="ident">into</span>();
-        <span class="kw">let</span> <span class="ident">tup</span> <span class="op">=</span> (<span class="number">2</span>, <span class="number">3</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>pack_unpack() {
+        <span class="kw">let </span>ss0: Subspace = <span class="number">1</span>.into();
+        <span class="kw">let </span>tup = (<span class="number">2</span>, <span class="number">3</span>);
 
-        <span class="kw">let</span> <span class="ident">packed</span> <span class="op">=</span> <span class="ident">ss0</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">tup</span>);
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">pack</span>(<span class="kw-2">&amp;</span>(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>));
-        <span class="macro">assert_eq!</span>(<span class="ident">expected</span>, <span class="ident">packed</span>);
+        <span class="kw">let </span>packed = ss0.pack(<span class="kw-2">&amp;</span>tup);
+        <span class="kw">let </span>expected = pack(<span class="kw-2">&amp;</span>(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>));
+        <span class="macro">assert_eq!</span>(expected, packed);
 
-        <span class="kw">let</span> <span class="ident">tup_unpack</span>: (<span class="ident">i64</span>, <span class="ident">i64</span>) <span class="op">=</span> <span class="ident">ss0</span>.<span class="ident">unpack</span>(<span class="kw-2">&amp;</span><span class="ident">packed</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">tup</span>, <span class="ident">tup_unpack</span>);
+        <span class="kw">let </span>tup_unpack: (i64, i64) = ss0.unpack(<span class="kw-2">&amp;</span>packed).unwrap();
+        <span class="macro">assert_eq!</span>(tup, tup_unpack);
 
-        <span class="macro">assert!</span>(<span class="ident">ss0</span>.<span class="ident">unpack</span>::<span class="op">&lt;</span>(<span class="ident">i64</span>, <span class="ident">i64</span>, <span class="ident">i64</span>)<span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">packed</span>).<span class="ident">is_err</span>());
+        <span class="macro">assert!</span>(ss0.unpack::&lt;(i64, i64, i64)&gt;(<span class="kw-2">&amp;</span>packed).is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_start_of</span>() {
-        <span class="kw">let</span> <span class="ident">ss0</span>: <span class="ident">Subspace</span> <span class="op">=</span> <span class="number">1</span>.<span class="ident">into</span>();
-        <span class="kw">let</span> <span class="ident">ss1</span>: <span class="ident">Subspace</span> <span class="op">=</span> <span class="number">2</span>.<span class="ident">into</span>();
-        <span class="kw">let</span> <span class="ident">tup</span> <span class="op">=</span> (<span class="number">2</span>, <span class="number">3</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>is_start_of() {
+        <span class="kw">let </span>ss0: Subspace = <span class="number">1</span>.into();
+        <span class="kw">let </span>ss1: Subspace = <span class="number">2</span>.into();
+        <span class="kw">let </span>tup = (<span class="number">2</span>, <span class="number">3</span>);
 
-        <span class="macro">assert!</span>(<span class="ident">ss0</span>.<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">ss0</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">tup</span>)));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">ss1</span>.<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">ss0</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">tup</span>)));
-        <span class="macro">assert!</span>(<span class="ident">Subspace::from</span>(<span class="string">&quot;start&quot;</span>).<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="string">&quot;start&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">Subspace::from</span>(<span class="string">&quot;start&quot;</span>).<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="string">&quot;start&quot;</span>.<span class="ident">to_string</span>())));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">Subspace::from</span>(<span class="string">&quot;start&quot;</span>).<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="string">&quot;starting&quot;</span>)));
-        <span class="macro">assert!</span>(<span class="ident">Subspace::from</span>(<span class="string">&quot;start&quot;</span>).<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">pack</span>(<span class="kw-2">&amp;</span>(<span class="string">&quot;start&quot;</span>, <span class="string">&quot;end&quot;</span>))));
-        <span class="macro">assert!</span>(<span class="ident">Subspace::from</span>((<span class="string">&quot;start&quot;</span>, <span class="number">42</span>)).<span class="ident">is_start_of</span>(<span class="kw-2">&amp;</span><span class="ident">pack</span>(<span class="kw-2">&amp;</span>(<span class="string">&quot;start&quot;</span>, <span class="number">42</span>, <span class="string">&quot;end&quot;</span>))));
+        <span class="macro">assert!</span>(ss0.is_start_of(<span class="kw-2">&amp;</span>ss0.pack(<span class="kw-2">&amp;</span>tup)));
+        <span class="macro">assert!</span>(!ss1.is_start_of(<span class="kw-2">&amp;</span>ss0.pack(<span class="kw-2">&amp;</span>tup)));
+        <span class="macro">assert!</span>(Subspace::from(<span class="string">&quot;start&quot;</span>).is_start_of(<span class="kw-2">&amp;</span>pack(<span class="kw-2">&amp;</span><span class="string">&quot;start&quot;</span>)));
+        <span class="macro">assert!</span>(Subspace::from(<span class="string">&quot;start&quot;</span>).is_start_of(<span class="kw-2">&amp;</span>pack(<span class="kw-2">&amp;</span><span class="string">&quot;start&quot;</span>.to_string())));
+        <span class="macro">assert!</span>(!Subspace::from(<span class="string">&quot;start&quot;</span>).is_start_of(<span class="kw-2">&amp;</span>pack(<span class="kw-2">&amp;</span><span class="string">&quot;starting&quot;</span>)));
+        <span class="macro">assert!</span>(Subspace::from(<span class="string">&quot;start&quot;</span>).is_start_of(<span class="kw-2">&amp;</span>pack(<span class="kw-2">&amp;</span>(<span class="string">&quot;start&quot;</span>, <span class="string">&quot;end&quot;</span>))));
+        <span class="macro">assert!</span>(Subspace::from((<span class="string">&quot;start&quot;</span>, <span class="number">42</span>)).is_start_of(<span class="kw-2">&amp;</span>pack(<span class="kw-2">&amp;</span>(<span class="string">&quot;start&quot;</span>, <span class="number">42</span>, <span class="string">&quot;end&quot;</span>))));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">range</span>() {
-        <span class="kw">let</span> <span class="ident">ss</span>: <span class="ident">Subspace</span> <span class="op">=</span> <span class="number">1</span>.<span class="ident">into</span>();
-        <span class="kw">let</span> <span class="ident">tup</span> <span class="op">=</span> (<span class="number">2</span>, <span class="number">3</span>);
-        <span class="kw">let</span> <span class="ident">packed</span> <span class="op">=</span> <span class="ident">ss</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">tup</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>range() {
+        <span class="kw">let </span>ss: Subspace = <span class="number">1</span>.into();
+        <span class="kw">let </span>tup = (<span class="number">2</span>, <span class="number">3</span>);
+        <span class="kw">let </span>packed = ss.pack(<span class="kw-2">&amp;</span>tup);
 
-        <span class="kw">let</span> (<span class="ident">begin</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">ss</span>.<span class="ident">range</span>();
-        <span class="macro">assert!</span>(<span class="ident">packed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">begin</span> <span class="op">&amp;&amp;</span> <span class="ident">packed</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">end</span>);
+        <span class="kw">let </span>(begin, end) = ss.range();
+        <span class="macro">assert!</span>(packed &gt;= begin &amp;&amp; packed &lt;= end);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">equality</span>() {
-        <span class="kw">let</span> <span class="ident">sub1</span> <span class="op">=</span> <span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>);
-        <span class="kw">let</span> <span class="ident">sub2</span> <span class="op">=</span> <span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>);
-        <span class="kw">let</span> <span class="ident">sub3</span> <span class="op">=</span> <span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test2&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">sub1</span>, <span class="ident">sub2</span>);
-        <span class="macro">assert_ne!</span>(<span class="ident">sub1</span>, <span class="ident">sub3</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>equality() {
+        <span class="kw">let </span>sub1 = Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>);
+        <span class="kw">let </span>sub2 = Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>);
+        <span class="kw">let </span>sub3 = Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test2&quot;</span>);
+        <span class="macro">assert_eq!</span>(sub1, sub2);
+        <span class="macro">assert_ne!</span>(sub1, sub3);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">hash</span>() {
-        <span class="kw">let</span> <span class="ident">sub1</span> <span class="op">=</span> <span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>);
-        <span class="kw">let</span> <span class="ident">sub2</span> <span class="op">=</span> <span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test2&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>hash() {
+        <span class="kw">let </span>sub1 = Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>);
+        <span class="kw">let </span>sub2 = Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test2&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">map</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Subspace</span>, <span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap::from</span>([(<span class="ident">sub1</span>, <span class="number">1</span>), (<span class="ident">sub2</span>, <span class="number">2</span>)]);
+        <span class="kw">let </span>map: HashMap&lt;Subspace, u8&gt; = HashMap::from([(sub1, <span class="number">1</span>), (sub2, <span class="number">2</span>)]);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">map</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>)).<span class="ident">unwrap</span>(), <span class="kw-2">&amp;</span><span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">map</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">Subspace::all</span>().<span class="ident">subspace</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test2&quot;</span>)).<span class="ident">unwrap</span>(), <span class="kw-2">&amp;</span><span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(map.get(<span class="kw-2">&amp;</span>Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test&quot;</span>)).unwrap(), <span class="kw-2">&amp;</span><span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(map.get(<span class="kw-2">&amp;</span>Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">&quot;test2&quot;</span>)).unwrap(), <span class="kw-2">&amp;</span><span class="number">2</span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

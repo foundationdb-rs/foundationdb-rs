@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/fdb_keys.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fdb_keys.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/fdb_keys.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fdb_keys.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -177,184 +177,184 @@
 <span id="177">177</span>
 <span id="178">178</span>
 <span id="179">179</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2022 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2022 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! Definitions of FDBKeys, used in api version 700 and more.</span>
+</span><span class="doccomment">//! Definitions of FDBKeys, used in api version 700 and more.
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::future::FdbFutureHandle</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
-<span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
+</span><span class="kw">use </span><span class="kw">crate</span>::error;
+<span class="kw">use </span><span class="kw">crate</span>::future::FdbFutureHandle;
+<span class="kw">use crate</span>::{FdbError, FdbResult};
+<span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::ops::Deref;
 
-<span class="doccomment">/// An slice of keys owned by a FoundationDB future</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdbKeys</span> {
-    <span class="ident">_f</span>: <span class="ident">FdbFutureHandle</span>,
-    <span class="ident">keys</span>: <span class="kw-2">*const</span> <span class="ident">fdb_sys::FDBKey</span>,
-    <span class="ident">len</span>: <span class="ident">i32</span>,
+<span class="doccomment">/// An slice of keys owned by a FoundationDB future
+</span><span class="kw">pub struct </span>FdbKeys {
+    _f: FdbFutureHandle,
+    keys: <span class="kw-2">*const </span>fdb_sys::FDBKey,
+    len: i32,
 }
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">FdbKeys</span> {}
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">FdbKeys</span> {}
+<span class="kw">unsafe impl </span>Sync <span class="kw">for </span>FdbKeys {}
+<span class="kw">unsafe impl </span>Send <span class="kw">for </span>FdbKeys {}
 
-<span class="kw">impl</span> <span class="ident">TryFrom</span><span class="op">&lt;</span><span class="ident">FdbFutureHandle</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbKeys</span> {
-    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">FdbError</span>;
+<span class="kw">impl </span>TryFrom&lt;FdbFutureHandle&gt; <span class="kw">for </span>FdbKeys {
+    <span class="kw">type </span>Error = FdbError;
 
-    <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">f</span>: <span class="ident">FdbFutureHandle</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="ident">std::ptr::null</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">len</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="kw">fn </span>try_from(f: FdbFutureHandle) -&gt; FdbResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>keys = std::ptr::null();
+        <span class="kw">let </span><span class="kw-2">mut </span>len = <span class="number">0</span>;
 
-        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_future_get_key_array</span>(<span class="ident">f</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">keys</span>, <span class="kw-2">&amp;mut</span> <span class="ident">len</span>) })<span class="question-mark">?</span>;
+        error::eval(<span class="kw">unsafe </span>{ fdb_sys::fdb_future_get_key_array(f.as_ptr(), <span class="kw-2">&amp;mut </span>keys, <span class="kw-2">&amp;mut </span>len) })<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="ident">FdbKeys</span> { <span class="ident">_f</span>: <span class="ident">f</span>, <span class="ident">keys</span>, <span class="ident">len</span> })
+        <span class="prelude-val">Ok</span>(FdbKeys { _f: f, keys, len })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">FdbKeys</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> [<span class="ident">FdbKey</span>];
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="macro">assert_eq_size!</span>(<span class="ident">FdbKey</span>, <span class="ident">fdb_sys::FDBKey</span>);
-        <span class="macro">assert_eq_align!</span>(<span class="ident">FdbKey</span>, <span class="ident">fdb_sys::FDBKey</span>);
-        <span class="kw">unsafe</span> {
-            <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="ident">std::slice::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">keys</span>, <span class="self">self</span>.<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>)
-                <span class="kw">as</span> <span class="kw-2">*const</span> [<span class="ident">fdb_sys::FDBKey</span>] <span class="kw">as</span> <span class="kw-2">*const</span> [<span class="ident">FdbKey</span>])
+<span class="kw">impl </span>Deref <span class="kw">for </span>FdbKeys {
+    <span class="kw">type </span>Target = [FdbKey];
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="macro">assert_eq_size!</span>(FdbKey, fdb_sys::FDBKey);
+        <span class="macro">assert_eq_align!</span>(FdbKey, fdb_sys::FDBKey);
+        <span class="kw">unsafe </span>{
+            <span class="kw-2">&amp;*</span>(std::slice::from_raw_parts(<span class="self">self</span>.keys, <span class="self">self</span>.len <span class="kw">as </span>usize)
+                <span class="kw">as </span><span class="kw-2">*const </span>[fdb_sys::FDBKey] <span class="kw">as </span><span class="kw-2">*const </span>[FdbKey])
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">FdbKey</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbKeys</span> {
-    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">FdbKey</span>] {
-        <span class="self">self</span>.<span class="ident">deref</span>()
+<span class="kw">impl </span>AsRef&lt;[FdbKey]&gt; <span class="kw">for </span>FdbKeys {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[FdbKey] {
+        <span class="self">self</span>.deref()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">FdbKeys</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">FdbKey</span>;
-    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">std::slice::Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FdbKey</span><span class="op">&gt;</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FdbKeys {
+    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FdbKey;
+    <span class="kw">type </span>IntoIter = std::slice::Iter&lt;<span class="lifetime">&#39;a</span>, FdbKey&gt;;
 
-    <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) -&gt; <span class="ident"><span class="self">Self</span>::IntoIter</span> {
-        <span class="self">self</span>.<span class="ident">deref</span>().<span class="ident">iter</span>()
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
+        <span class="self">self</span>.deref().iter()
     }
 }
 
-<span class="doccomment">/// An iterator of keyvalues owned by a foundationDB future</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdbKeysIter</span> {
-    <span class="ident">f</span>: <span class="ident">std::rc::Rc</span><span class="op">&lt;</span><span class="ident">FdbFutureHandle</span><span class="op">&gt;</span>,
-    <span class="ident">keys</span>: <span class="kw-2">*const</span> <span class="ident">fdb_sys::FDBKey</span>,
-    <span class="ident">len</span>: <span class="ident">i32</span>,
-    <span class="ident">pos</span>: <span class="ident">i32</span>,
+<span class="doccomment">/// An iterator of keyvalues owned by a foundationDB future
+</span><span class="kw">pub struct </span>FdbKeysIter {
+    f: std::rc::Rc&lt;FdbFutureHandle&gt;,
+    keys: <span class="kw-2">*const </span>fdb_sys::FDBKey,
+    len: i32,
+    pos: i32,
 }
 
-<span class="kw">impl</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">FdbKeysIter</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbRowKey</span>;
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
-        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::iter_nth_zero</span>)]</span>
-        <span class="self">self</span>.<span class="ident">nth</span>(<span class="number">0</span>)
+<span class="kw">impl </span>Iterator <span class="kw">for </span>FdbKeysIter {
+    <span class="kw">type </span>Item = FdbRowKey;
+    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+        <span class="attribute">#[allow(clippy::iter_nth_zero)]
+        </span><span class="self">self</span>.nth(<span class="number">0</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="ident">usize</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> <span class="ident">rem</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">len</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">pos</span>) <span class="kw">as</span> <span class="ident">usize</span>;
-        (<span class="ident">rem</span>, <span class="prelude-val">Some</span>(<span class="ident">rem</span>))
+    <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, <span class="prelude-ty">Option</span>&lt;usize&gt;) {
+        <span class="kw">let </span>rem = (<span class="self">self</span>.len - <span class="self">self</span>.pos) <span class="kw">as </span>usize;
+        (rem, <span class="prelude-val">Some</span>(rem))
     }
 
-    <span class="kw">fn</span> <span class="ident">nth</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">n</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">pos</span> <span class="kw">as</span> <span class="ident">usize</span>).<span class="ident">checked_add</span>(<span class="ident">n</span>);
-        <span class="kw">match</span> <span class="ident">pos</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">pos</span>) <span class="kw">if</span> <span class="ident">pos</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span> =&gt; {
-                <span class="comment">// safe because pos &lt; self.len</span>
-                <span class="kw">let</span> <span class="ident">row_key</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">keys</span>.<span class="ident">add</span>(<span class="ident">pos</span>) };
-                <span class="self">self</span>.<span class="ident">pos</span> <span class="op">=</span> <span class="ident">pos</span> <span class="kw">as</span> <span class="ident">i32</span> <span class="op">+</span> <span class="number">1</span>;
+    <span class="kw">fn </span>nth(<span class="kw-2">&amp;mut </span><span class="self">self</span>, n: usize) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+        <span class="kw">let </span>pos = (<span class="self">self</span>.pos <span class="kw">as </span>usize).checked_add(n);
+        <span class="kw">match </span>pos {
+            <span class="prelude-val">Some</span>(pos) <span class="kw">if </span>pos &lt; <span class="self">self</span>.len <span class="kw">as </span>usize =&gt; {
+                <span class="comment">// safe because pos &lt; self.len
+                </span><span class="kw">let </span>row_key = <span class="kw">unsafe </span>{ <span class="self">self</span>.keys.add(pos) };
+                <span class="self">self</span>.pos = pos <span class="kw">as </span>i32 + <span class="number">1</span>;
 
-                <span class="prelude-val">Some</span>(<span class="ident">FdbRowKey</span> {
-                    <span class="ident">_f</span>: <span class="self">self</span>.<span class="ident">f</span>.<span class="ident">clone</span>(),
-                    <span class="ident">row_key</span>,
+                <span class="prelude-val">Some</span>(FdbRowKey {
+                    _f: <span class="self">self</span>.f.clone(),
+                    row_key,
                 })
             }
-            <span class="kw">_</span> =&gt; {
-                <span class="self">self</span>.<span class="ident">pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">len</span>;
-                <span class="prelude-val">None</span>
-            }
+            <span class="kw">_ </span>=&gt; {
+                <span class="self">self</span>.pos = <span class="self">self</span>.len;
+                <span class="prelude-val">None
+            </span>}
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="ident">FdbKeys</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbRowKey</span>;
-    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">FdbKeysIter</span>;
+<span class="kw">impl </span>IntoIterator <span class="kw">for </span>FdbKeys {
+    <span class="kw">type </span>Item = FdbRowKey;
+    <span class="kw">type </span>IntoIter = FdbKeysIter;
 
-    <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) -&gt; <span class="ident"><span class="self">Self</span>::IntoIter</span> {
-        <span class="ident">FdbKeysIter</span> {
-            <span class="ident">f</span>: <span class="ident">std::rc::Rc::new</span>(<span class="self">self</span>.<span class="ident">_f</span>),
-            <span class="ident">keys</span>: <span class="self">self</span>.<span class="ident">keys</span>,
-            <span class="ident">len</span>: <span class="self">self</span>.<span class="ident">len</span>,
-            <span class="ident">pos</span>: <span class="number">0</span>,
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
+        FdbKeysIter {
+            f: std::rc::Rc::new(<span class="self">self</span>._f),
+            keys: <span class="self">self</span>.keys,
+            len: <span class="self">self</span>.len,
+            pos: <span class="number">0</span>,
         }
     }
 }
-<span class="doccomment">/// A row key you can own</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Until dropped, this might prevent multiple key/values from beeing freed.</span>
-<span class="doccomment">/// (i.e. the future that own the data is dropped once all data it provided is dropped)</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdbRowKey</span> {
-    <span class="ident">_f</span>: <span class="ident">std::rc::Rc</span><span class="op">&lt;</span><span class="ident">FdbFutureHandle</span><span class="op">&gt;</span>,
-    <span class="ident">row_key</span>: <span class="kw-2">*const</span> <span class="ident">fdb_sys::FDBKey</span>,
+<span class="doccomment">/// A row key you can own
+///
+/// Until dropped, this might prevent multiple key/values from beeing freed.
+/// (i.e. the future that own the data is dropped once all data it provided is dropped)
+</span><span class="kw">pub struct </span>FdbRowKey {
+    _f: std::rc::Rc&lt;FdbFutureHandle&gt;,
+    row_key: <span class="kw-2">*const </span>fdb_sys::FDBKey,
 }
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">FdbRowKey</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">FdbKey</span>;
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="macro">assert_eq_size!</span>(<span class="ident">FdbKey</span>, <span class="ident">fdb_sys::FDBKey</span>);
-        <span class="macro">assert_eq_align!</span>(<span class="ident">FdbKey</span>, <span class="ident">fdb_sys::FDBKey</span>);
-        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span>.<span class="ident">row_key</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">FdbKey</span>) }
+<span class="kw">impl </span>Deref <span class="kw">for </span>FdbRowKey {
+    <span class="kw">type </span>Target = FdbKey;
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="macro">assert_eq_size!</span>(FdbKey, fdb_sys::FDBKey);
+        <span class="macro">assert_eq_align!</span>(FdbKey, fdb_sys::FDBKey);
+        <span class="kw">unsafe </span>{ <span class="kw-2">&amp;*</span>(<span class="self">self</span>.row_key <span class="kw">as </span><span class="kw-2">*const </span>FdbKey) }
     }
 }
-<span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">FdbKey</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbRowKey</span> {
-    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">FdbKey</span> {
-        <span class="self">self</span>.<span class="ident">deref</span>()
+<span class="kw">impl </span>AsRef&lt;FdbKey&gt; <span class="kw">for </span>FdbRowKey {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>FdbKey {
+        <span class="self">self</span>.deref()
     }
 }
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">FdbRowKey</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">deref</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="ident">deref</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">FdbRowKey</span> {}
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">FdbRowKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">deref</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>FdbRowKey {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.deref() == other.deref()
     }
 }
 
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">transparent</span>)]</span>
-<span class="doccomment">/// An FdbKey, owned by a FoundationDB Future</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdbKey</span>(<span class="ident">fdb_sys::FDBKey</span>);
-
-<span class="kw">impl</span> <span class="ident">FdbKey</span> {
-    <span class="doccomment">/// retrieves the associated key</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="kw">unsafe</span> { <span class="ident">std::slice::from_raw_parts</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">key</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">u8</span>, <span class="self">self</span>.<span class="number">0</span>.<span class="ident">key_length</span> <span class="kw">as</span> <span class="ident">usize</span>) }
+<span class="kw">impl </span>Eq <span class="kw">for </span>FdbRowKey {}
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FdbRowKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="self">self</span>.deref().fmt(f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">FdbKey</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">key</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="ident">key</span>()
+<span class="attribute">#[repr(transparent)]
+</span><span class="doccomment">/// An FdbKey, owned by a FoundationDB Future
+</span><span class="kw">pub struct </span>FdbKey(fdb_sys::FDBKey);
+
+<span class="kw">impl </span>FdbKey {
+    <span class="doccomment">/// retrieves the associated key
+    </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.<span class="number">0</span>.key <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="self">self</span>.<span class="number">0</span>.key_length <span class="kw">as </span>usize) }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">FdbKey</span> {}
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>FdbKey {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.key() == other.key()
+    }
+}
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">FdbKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;({:?})&quot;</span>, <span class="ident"><span class="kw">crate</span>::tuple::Bytes::from</span>(<span class="self">self</span>.<span class="ident">key</span>()),)
+<span class="kw">impl </span>Eq <span class="kw">for </span>FdbKey {}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FdbKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;({:?})&quot;</span>, <span class="kw">crate</span>::tuple::Bytes::from(<span class="self">self</span>.key()),)
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

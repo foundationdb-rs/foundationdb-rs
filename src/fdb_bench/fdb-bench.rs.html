@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-bench/src/bin/fdb-bench.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fdb-bench.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../fdb_bench/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../fdb_bench/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../fdb_bench/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-bench/src/bin/fdb-bench.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fdb-bench.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../fdb_bench/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../fdb_bench/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../fdb_bench/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -155,162 +155,162 @@
 <span id="155">155</span>
 <span id="156">156</span>
 <span id="157">157</span>
-</pre><pre class="rust"><code><span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">foundationdb</span> <span class="kw">as</span> <span class="ident">fdb</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">futures</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">stopwatch</span>;
-<span class="attribute">#[<span class="ident">macro_use</span>]</span>
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">env_logger</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">structopt</span>;
+</pre><pre class="rust"><code><span class="kw">extern crate </span>foundationdb <span class="kw">as </span>fdb;
+<span class="kw">extern crate </span>futures;
+<span class="kw">extern crate </span>rand;
+<span class="kw">extern crate </span>stopwatch;
+<span class="attribute">#[macro_use]
+</span><span class="kw">extern crate </span>log;
+<span class="kw">extern crate </span>env_logger;
+<span class="kw">extern crate </span>structopt;
 
-<span class="kw">use</span> <span class="ident">std::sync::atomic</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+<span class="kw">use </span>std::sync::atomic::<span class="kw-2">*</span>;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">futures::future</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">rand::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">rand::rngs::mock::StepRng</span>;
-<span class="kw">use</span> <span class="ident">stopwatch::Stopwatch</span>;
-<span class="kw">use</span> <span class="ident">structopt::StructOpt</span>;
+<span class="kw">use </span>futures::future::<span class="kw-2">*</span>;
+<span class="kw">use </span>rand::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>rand::rngs::mock::StepRng;
+<span class="kw">use </span>stopwatch::Stopwatch;
+<span class="kw">use </span>structopt::StructOpt;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::fdb</span>::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::fdb::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Counter</span> {
-    <span class="ident">size</span>: <span class="ident">usize</span>,
-    <span class="ident">inner</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">AtomicUsize</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Clone)]
+</span><span class="kw">struct </span>Counter {
+    size: usize,
+    inner: Arc&lt;AtomicUsize&gt;,
 }
-<span class="kw">impl</span> <span class="ident">Counter</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">size</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">size</span>,
-            <span class="ident">inner</span>: <span class="ident">Default::default</span>(),
+<span class="kw">impl </span>Counter {
+    <span class="kw">fn </span>new(size: usize) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            size,
+            inner: Default::default(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">decr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">n</span>: <span class="ident">usize</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">fetch_add</span>(<span class="ident">n</span>, <span class="ident">Ordering::SeqCst</span>);
-        <span class="ident">val</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">size</span>
+    <span class="kw">fn </span>decr(<span class="kw-2">&amp;</span><span class="self">self</span>, n: usize) -&gt; bool {
+        <span class="kw">let </span>val = <span class="self">self</span>.inner.fetch_add(n, Ordering::SeqCst);
+        val &lt; <span class="self">self</span>.size
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Bench</span> {
-    <span class="ident">db</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Database</span><span class="op">&gt;</span>,
-    <span class="ident">opt</span>: <span class="ident">Opt</span>,
+<span class="attribute">#[derive(Clone)]
+</span><span class="kw">struct </span>Bench {
+    db: Arc&lt;Database&gt;,
+    opt: Opt,
 }
 
-<span class="kw">impl</span> <span class="ident">Bench</span> {
-    <span class="kw">fn</span> <span class="ident">run</span>(<span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">opt</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">opt</span>;
-        <span class="kw">let</span> <span class="ident">counter</span> <span class="op">=</span> <span class="ident">Counter::new</span>(<span class="ident">opt</span>.<span class="ident">count</span>);
+<span class="kw">impl </span>Bench {
+    <span class="kw">fn </span>run(<span class="self">self</span>) {
+        <span class="kw">let </span>opt = <span class="kw-2">&amp;</span><span class="self">self</span>.opt;
+        <span class="kw">let </span>counter = Counter::new(opt.count);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">handles</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>handles = Vec::new();
 
-        <span class="kw">let</span> <span class="ident">sw</span> <span class="op">=</span> <span class="ident">Stopwatch::start_new</span>();
+        <span class="kw">let </span>sw = Stopwatch::start_new();
 
-        <span class="kw">let</span> <span class="ident">step</span> <span class="op">=</span> (<span class="ident">opt</span>.<span class="ident">queue_depth</span> <span class="op">+</span> <span class="ident">opt</span>.<span class="ident">threads</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="ident">opt</span>.<span class="ident">threads</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">opt</span>.<span class="ident">threads</span> {
-            <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">start</span> <span class="op">+</span> <span class="ident">step</span>, <span class="ident">opt</span>.<span class="ident">queue_depth</span>);
+        <span class="kw">let </span>step = (opt.queue_depth + opt.threads - <span class="number">1</span>) / opt.threads;
+        <span class="kw">let </span><span class="kw-2">mut </span>start = <span class="number">0</span>;
+        <span class="kw">for _ in </span><span class="number">0</span>..opt.threads {
+            <span class="kw">let </span>end = std::cmp::min(start + step, opt.queue_depth);
 
-            <span class="kw">let</span> <span class="ident">range</span> <span class="op">=</span> <span class="ident">start</span>..<span class="ident">end</span>;
-            <span class="kw">let</span> <span class="ident">counter</span> <span class="op">=</span> <span class="ident">counter</span>.<span class="ident">clone</span>();
-            <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">clone</span>();
-            <span class="kw">let</span> <span class="ident">handle</span> <span class="op">=</span> <span class="ident">std::thread::spawn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
-                <span class="ident">futures::executor::block_on</span>(<span class="ident">b</span>.<span class="ident">run_range</span>(<span class="ident">range</span>, <span class="ident">counter</span>))
+            <span class="kw">let </span>range = start..end;
+            <span class="kw">let </span>counter = counter.clone();
+            <span class="kw">let </span>b = <span class="self">self</span>.clone();
+            <span class="kw">let </span>handle = std::thread::spawn(<span class="kw">move </span>|| {
+                futures::executor::block_on(b.run_range(range, counter))
             });
-            <span class="ident">handles</span>.<span class="ident">push</span>(<span class="ident">handle</span>);
+            handles.push(handle);
 
-            <span class="ident">start</span> <span class="op">=</span> <span class="ident">end</span>;
+            start = end;
         }
 
-        <span class="kw">for</span> <span class="ident">handle</span> <span class="kw">in</span> <span class="ident">handles</span> {
-            <span class="ident">handle</span>
-                .<span class="ident">join</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;failed to join&quot;</span>)
-                .<span class="ident">expect</span>(<span class="string">&quot;failed to run bench&quot;</span>);
+        <span class="kw">for </span>handle <span class="kw">in </span>handles {
+            handle
+                .join()
+                .expect(<span class="string">&quot;failed to join&quot;</span>)
+                .expect(<span class="string">&quot;failed to run bench&quot;</span>);
         }
 
-        <span class="kw">let</span> <span class="ident">elapsed</span> <span class="op">=</span> <span class="ident">sw</span>.<span class="ident">elapsed_ms</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+        <span class="kw">let </span>elapsed = sw.elapsed_ms() <span class="kw">as </span>usize;
 
         <span class="macro">info!</span>(
             <span class="string">&quot;bench took: {:?} ms, {:?} tps&quot;</span>,
-            <span class="ident">elapsed</span>,
-            <span class="number">1000</span> <span class="op">*</span> <span class="ident">opt</span>.<span class="ident">count</span> <span class="op">/</span> <span class="ident">elapsed</span>
+            elapsed,
+            <span class="number">1000 </span>* opt.count / elapsed
         );
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">r</span>: <span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">counter</span>: <span class="ident">Counter</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">try_join_all</span>(<span class="ident">r</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> {
-            <span class="comment">// With deterministic Rng, benchmark with same parameters will overwrite same set</span>
-            <span class="comment">// of keys again, which makes benchmark result stable.</span>
-            <span class="kw">let</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">StepRng::new</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="number">1</span>);
-            <span class="self">self</span>.<span class="ident">run_bench</span>(<span class="ident">rng</span>, <span class="ident">counter</span>.<span class="ident">clone</span>())
+    <span class="kw">async fn </span>run_range(<span class="kw-2">&amp;</span><span class="self">self</span>, r: std::ops::Range&lt;usize&gt;, counter: Counter) -&gt; FdbResult&lt;()&gt; {
+        try_join_all(r.map(|n| {
+            <span class="comment">// With deterministic Rng, benchmark with same parameters will overwrite same set
+            // of keys again, which makes benchmark result stable.
+            </span><span class="kw">let </span>rng = StepRng::new(n <span class="kw">as </span>u64, <span class="number">1</span>);
+            <span class="self">self</span>.run_bench(rng, counter.clone())
         }))
         .<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run_bench</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">StepRng</span>, <span class="ident">counter</span>: <span class="ident">Counter</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">key_buf</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0</span>; <span class="self">self</span>.<span class="ident">opt</span>.<span class="ident">key_len</span>];
+    <span class="kw">async fn </span>run_bench(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>rng: StepRng, counter: Counter) -&gt; FdbResult&lt;()&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>key_buf = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="self">self</span>.opt.key_len];
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">val_buf</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0</span>; <span class="self">self</span>.<span class="ident">opt</span>.<span class="ident">val_len</span>];
+        <span class="kw">let </span><span class="kw-2">mut </span>val_buf = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="self">self</span>.opt.val_len];
 
-        <span class="kw">let</span> <span class="ident">trx_batch_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">opt</span>.<span class="ident">trx_batch_size</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">db</span>.<span class="ident">create_trx</span>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>trx_batch_size = <span class="self">self</span>.opt.trx_batch_size;
+        <span class="kw">let </span><span class="kw-2">mut </span>trx = <span class="self">self</span>.db.create_trx()<span class="question-mark">?</span>;
 
-        <span class="kw">loop</span> {
-            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">trx_batch_size</span> {
-                <span class="ident">rng</span>.<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">key_buf</span>);
-                <span class="ident">rng</span>.<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">val_buf</span>);
-                <span class="ident">key_buf</span>[<span class="number">0</span>] <span class="op">=</span> <span class="number">0x01</span>;
-                <span class="ident">trx</span>.<span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="ident">key_buf</span>, <span class="kw-2">&amp;</span><span class="ident">val_buf</span>);
+        <span class="kw">loop </span>{
+            <span class="kw">for _ in </span><span class="number">0</span>..trx_batch_size {
+                rng.fill_bytes(<span class="kw-2">&amp;mut </span>key_buf);
+                rng.fill_bytes(<span class="kw-2">&amp;mut </span>val_buf);
+                key_buf[<span class="number">0</span>] = <span class="number">0x01</span>;
+                trx.set(<span class="kw-2">&amp;</span>key_buf, <span class="kw-2">&amp;</span>val_buf);
             }
 
-            <span class="ident">trx</span> <span class="op">=</span> <span class="ident">trx</span>.<span class="ident">commit</span>().<span class="kw">await</span><span class="question-mark">?</span>.<span class="ident">reset</span>();
+            trx = trx.commit().<span class="kw">await</span><span class="question-mark">?</span>.reset();
 
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">counter</span>.<span class="ident">decr</span>(<span class="ident">trx_batch_size</span>) {
-                <span class="kw">break</span> <span class="prelude-val">Ok</span>(());
+            <span class="kw">if </span>!counter.decr(trx_batch_size) {
+                <span class="kw">break </span><span class="prelude-val">Ok</span>(());
             }
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">StructOpt</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
-<span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;fdb-bench&quot;</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Opt</span> {
-    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">short</span> <span class="op">=</span> <span class="string">&quot;t&quot;</span>, <span class="ident">long</span> <span class="op">=</span> <span class="string">&quot;threads&quot;</span>, <span class="ident">default_value</span> <span class="op">=</span> <span class="string">&quot;1&quot;</span>)]</span>
-    <span class="ident">threads</span>: <span class="ident">usize</span>,
+<span class="attribute">#[derive(StructOpt, Debug, Clone)]
+#[structopt(name = <span class="string">&quot;fdb-bench&quot;</span>)]
+</span><span class="kw">struct </span>Opt {
+    <span class="attribute">#[structopt(short = <span class="string">&quot;t&quot;</span>, long = <span class="string">&quot;threads&quot;</span>, default_value = <span class="string">&quot;1&quot;</span>)]
+    </span>threads: usize,
 
-    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">short</span> <span class="op">=</span> <span class="string">&quot;q&quot;</span>, <span class="ident">long</span> <span class="op">=</span> <span class="string">&quot;queue-depth&quot;</span>, <span class="ident">default_value</span> <span class="op">=</span> <span class="string">&quot;1000&quot;</span>)]</span>
-    <span class="ident">queue_depth</span>: <span class="ident">usize</span>,
+    <span class="attribute">#[structopt(short = <span class="string">&quot;q&quot;</span>, long = <span class="string">&quot;queue-depth&quot;</span>, default_value = <span class="string">&quot;1000&quot;</span>)]
+    </span>queue_depth: usize,
 
-    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">short</span> <span class="op">=</span> <span class="string">&quot;c&quot;</span>, <span class="ident">long</span> <span class="op">=</span> <span class="string">&quot;count&quot;</span>, <span class="ident">default_value</span> <span class="op">=</span> <span class="string">&quot;300000&quot;</span>)]</span>
-    <span class="ident">count</span>: <span class="ident">usize</span>,
+    <span class="attribute">#[structopt(short = <span class="string">&quot;c&quot;</span>, long = <span class="string">&quot;count&quot;</span>, default_value = <span class="string">&quot;300000&quot;</span>)]
+    </span>count: usize,
 
-    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">long</span> <span class="op">=</span> <span class="string">&quot;trx-batch-size&quot;</span>, <span class="ident">default_value</span> <span class="op">=</span> <span class="string">&quot;10&quot;</span>)]</span>
-    <span class="ident">trx_batch_size</span>: <span class="ident">usize</span>,
+    <span class="attribute">#[structopt(long = <span class="string">&quot;trx-batch-size&quot;</span>, default_value = <span class="string">&quot;10&quot;</span>)]
+    </span>trx_batch_size: usize,
 
-    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">long</span> <span class="op">=</span> <span class="string">&quot;key-len&quot;</span>, <span class="ident">default_value</span> <span class="op">=</span> <span class="string">&quot;10&quot;</span>)]</span>
-    <span class="ident">key_len</span>: <span class="ident">usize</span>,
-    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">long</span> <span class="op">=</span> <span class="string">&quot;val-len&quot;</span>, <span class="ident">default_value</span> <span class="op">=</span> <span class="string">&quot;100&quot;</span>)]</span>
-    <span class="ident">val_len</span>: <span class="ident">usize</span>,
+    <span class="attribute">#[structopt(long = <span class="string">&quot;key-len&quot;</span>, default_value = <span class="string">&quot;10&quot;</span>)]
+    </span>key_len: usize,
+    <span class="attribute">#[structopt(long = <span class="string">&quot;val-len&quot;</span>, default_value = <span class="string">&quot;100&quot;</span>)]
+    </span>val_len: usize,
 }
 
-<span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="ident">env_logger::init</span>();
-    <span class="kw">let</span> <span class="ident">opt</span> <span class="op">=</span> <span class="ident">Opt::from_args</span>();
-    <span class="macro">info!</span>(<span class="string">&quot;opt: {:?}&quot;</span>, <span class="ident">opt</span>);
+<span class="kw">fn </span>main() {
+    env_logger::init();
+    <span class="kw">let </span>opt = Opt::from_args();
+    <span class="macro">info!</span>(<span class="string">&quot;opt: {:?}&quot;</span>, opt);
 
-    <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">foundationdb::boot</span>() };
-    <span class="kw">let</span> <span class="ident">db</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-        <span class="ident">futures::executor::block_on</span>(<span class="ident">fdb::Database::new_compat</span>(<span class="prelude-val">None</span>))
-            .<span class="ident">expect</span>(<span class="string">&quot;failed to get database&quot;</span>),
+    <span class="kw">let </span>_guard = <span class="kw">unsafe </span>{ foundationdb::boot() };
+    <span class="kw">let </span>db = Arc::new(
+        futures::executor::block_on(fdb::Database::new_compat(<span class="prelude-val">None</span>))
+            .expect(<span class="string">&quot;failed to get database&quot;</span>),
     );
 
-    <span class="kw">let</span> <span class="ident">bench</span> <span class="op">=</span> <span class="ident">Bench</span> { <span class="ident">db</span>, <span class="ident">opt</span> };
-    <span class="ident">bench</span>.<span class="ident">run</span>();
+    <span class="kw">let </span>bench = Bench { db, opt };
+    bench.run();
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fdb_bench" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fdb_bench" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/transaction.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transaction.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/transaction.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transaction.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../foundationdb/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -1066,1073 +1066,1073 @@
 <span id="1066">1066</span>
 <span id="1067">1067</span>
 <span id="1068">1068</span>
-</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors</span>
-<span class="comment">// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
-<span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
-<span class="comment">// copied, modified, or distributed except according to those terms.</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+// Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-<span class="doccomment">//! Implementations of the FDBTransaction C API</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! &lt;https://apple.github.io/foundationdb/api-c.html#transaction&gt;</span>
+</span><span class="doccomment">//! Implementations of the FDBTransaction C API
+//!
+//! &lt;https://apple.github.io/foundationdb/api-c.html#transaction&gt;
 
-<span class="kw">use</span> <span class="ident">foundationdb_sys</span> <span class="kw">as</span> <span class="ident">fdb_sys</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">Range</span>, <span class="ident">RangeInclusive</span>};
-<span class="kw">use</span> <span class="ident">std::ptr::NonNull</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</span><span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::ops::{Deref, Range, RangeInclusive};
+<span class="kw">use </span>std::ptr::NonNull;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::future</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::keyselector</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::options</span>;
+<span class="kw">use </span><span class="kw">crate</span>::future::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::keyselector::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::options;
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">error</span>, <span class="ident">FdbError</span>, <span class="ident">FdbResult</span>};
-<span class="kw">use</span> <span class="ident">foundationdb_macros::cfg_api_versions</span>;
+<span class="kw">use crate</span>::{error, FdbError, FdbResult};
+<span class="kw">use </span>foundationdb_macros::cfg_api_versions;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::FdbBindingError</span>;
+<span class="kw">use </span><span class="kw">crate</span>::error::FdbBindingError;
 
-<span class="kw">use</span> <span class="ident">futures</span>::{
-    <span class="ident">future</span>, <span class="ident">future::Either</span>, <span class="ident">stream</span>, <span class="ident">Future</span>, <span class="ident">FutureExt</span>, <span class="ident">Stream</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>,
+<span class="kw">use </span>futures::{
+    future, future::Either, stream, Future, FutureExt, Stream, TryFutureExt, TryStreamExt,
 };
 
-<span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">610</span>)]</span>
-<span class="kw">const</span> <span class="ident">METADATA_VERSION_KEY</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="string">b&quot;\xff/metadataVersion&quot;</span>;
+<span class="attribute">#[cfg_api_versions(min = <span class="number">610</span>)]
+</span><span class="kw">const </span>METADATA_VERSION_KEY: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;\xff/metadataVersion&quot;</span>;
 
-<span class="doccomment">/// A committed transaction.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">transparent</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionCommitted</span> {
-    <span class="ident">tr</span>: <span class="ident">Transaction</span>,
+<span class="doccomment">/// A committed transaction.
+</span><span class="attribute">#[derive(Debug)]
+#[repr(transparent)]
+</span><span class="kw">pub struct </span>TransactionCommitted {
+    tr: Transaction,
 }
 
-<span class="kw">impl</span> <span class="ident">TransactionCommitted</span> {
-    <span class="doccomment">/// Retrieves the database version number at which a given transaction was committed.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Read-only transactions do not modify the database when committed and will have a committed</span>
-    <span class="doccomment">/// version of -1. Keep in mind that a transaction which reads keys and then sets them to their</span>
-    <span class="doccomment">/// current values may be optimized to a read-only transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that database versions are not necessarily unique to a given transaction and so cannot</span>
-    <span class="doccomment">/// be used to determine in what order two transactions completed. The only use for this</span>
-    <span class="doccomment">/// function is to manually enforce causal consistency when calling `set_read_version()` on</span>
-    <span class="doccomment">/// another subsequent transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Most applications will not call this function.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">committed_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">version</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_committed_version</span>(<span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">version</span>)
+<span class="kw">impl </span>TransactionCommitted {
+    <span class="doccomment">/// Retrieves the database version number at which a given transaction was committed.
+    ///
+    /// Read-only transactions do not modify the database when committed and will have a committed
+    /// version of -1. Keep in mind that a transaction which reads keys and then sets them to their
+    /// current values may be optimized to a read-only transaction.
+    ///
+    /// Note that database versions are not necessarily unique to a given transaction and so cannot
+    /// be used to determine in what order two transactions completed. The only use for this
+    /// function is to manually enforce causal consistency when calling `set_read_version()` on
+    /// another subsequent transaction.
+    ///
+    /// Most applications will not call this function.
+    </span><span class="kw">pub fn </span>committed_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FdbResult&lt;i64&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>version: i64 = <span class="number">0</span>;
+        error::eval(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_committed_version(<span class="self">self</span>.tr.inner.as_ptr(), <span class="kw-2">&amp;mut </span>version)
         })<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">version</span>)
+        <span class="prelude-val">Ok</span>(version)
     }
 
-    <span class="doccomment">/// Reset the transaction to its initial state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This will not affect previously committed data.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Transaction</span> {
-        <span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">reset</span>();
-        <span class="self">self</span>.<span class="ident">tr</span>
+    <span class="doccomment">/// Reset the transaction to its initial state.
+    ///
+    /// This will not affect previously committed data.
+    ///
+    /// This is similar to dropping the transaction and creating a new one.
+    </span><span class="kw">pub fn </span>reset(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Transaction {
+        <span class="self">self</span>.tr.reset();
+        <span class="self">self</span>.tr
     }
 }
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TransactionCommitted</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Transaction</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tc</span>: <span class="ident">TransactionCommitted</span>) -&gt; <span class="ident">Transaction</span> {
-        <span class="ident">tc</span>.<span class="ident">reset</span>()
+<span class="kw">impl </span>From&lt;TransactionCommitted&gt; <span class="kw">for </span>Transaction {
+    <span class="kw">fn </span>from(tc: TransactionCommitted) -&gt; Transaction {
+        tc.reset()
     }
 }
 
-<span class="doccomment">/// A failed to commit transaction.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionCommitError</span> {
-    <span class="ident">tr</span>: <span class="ident">Transaction</span>,
-    <span class="ident">err</span>: <span class="ident">FdbError</span>,
+<span class="doccomment">/// A failed to commit transaction.
+</span><span class="kw">pub struct </span>TransactionCommitError {
+    tr: Transaction,
+    err: FdbError,
 }
 
-<span class="kw">impl</span> <span class="ident">TransactionCommitError</span> {
-    <span class="doccomment">/// Implements the recommended retry and backoff behavior for a transaction. This function knows</span>
-    <span class="doccomment">/// which of the error codes generated by other `Transaction` functions represent temporary</span>
-    <span class="doccomment">/// error conditions and which represent application errors that should be handled by the</span>
-    <span class="doccomment">/// application. It also implements an exponential backoff strategy to avoid swamping the</span>
-    <span class="doccomment">/// database cluster with excessive retries when there is a high level of conflict between</span>
-    <span class="doccomment">/// transactions.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// You should not call this method most of the times and use `Database::transact` which</span>
-    <span class="doccomment">/// implements a retry loop strategy for you.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">on_error</span>(<span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_on_error</span>(<span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">code</span>())
+<span class="kw">impl </span>TransactionCommitError {
+    <span class="doccomment">/// Implements the recommended retry and backoff behavior for a transaction. This function knows
+    /// which of the error codes generated by other `Transaction` functions represent temporary
+    /// error conditions and which represent application errors that should be handled by the
+    /// application. It also implements an exponential backoff strategy to avoid swamping the
+    /// database cluster with excessive retries when there is a high level of conflict between
+    /// transactions.
+    ///
+    /// You should not call this method most of the times and use `Database::transact` which
+    /// implements a retry loop strategy for you.
+    </span><span class="kw">pub fn </span>on_error(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;Transaction&gt;&gt; {
+        FdbFuture::&lt;()&gt;::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_on_error(<span class="self">self</span>.tr.inner.as_ptr(), <span class="self">self</span>.err.code())
         })
-        .<span class="ident">map_ok</span>(<span class="op">|</span>()<span class="op">|</span> <span class="self">self</span>.<span class="ident">tr</span>)
+        .map_ok(|()| <span class="self">self</span>.tr)
     }
 
-    <span class="doccomment">/// Reset the transaction to its initial state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Transaction</span> {
-        <span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">reset</span>();
-        <span class="self">self</span>.<span class="ident">tr</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">FdbError</span>;
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">FdbError</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">err</span>
+    <span class="doccomment">/// Reset the transaction to its initial state.
+    ///
+    /// This is similar to dropping the transaction and creating a new one.
+    </span><span class="kw">pub fn </span>reset(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Transaction {
+        <span class="self">self</span>.tr.reset();
+        <span class="self">self</span>.tr
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TransactionCommitError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FdbError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tce</span>: <span class="ident">TransactionCommitError</span>) -&gt; <span class="ident">FdbError</span> {
-        <span class="ident">tce</span>.<span class="ident">err</span>
+<span class="kw">impl </span>Deref <span class="kw">for </span>TransactionCommitError {
+    <span class="kw">type </span>Target = FdbError;
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>FdbError {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.err
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;TransactionCommitError({})&quot;</span>, <span class="self">self</span>.<span class="ident">err</span>)
+<span class="kw">impl </span>From&lt;TransactionCommitError&gt; <span class="kw">for </span>FdbError {
+    <span class="kw">fn </span>from(tce: TransactionCommitError) -&gt; FdbError {
+        tce.err
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">TransactionCommitError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>TransactionCommitError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;TransactionCommitError({})&quot;</span>, <span class="self">self</span>.err)
     }
 }
 
-<span class="doccomment">/// The result of `Transaction::Commit`</span>
-<span class="kw">type</span> <span class="ident">TransactionResult</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TransactionCommitted</span>, <span class="ident">TransactionCommitError</span><span class="op">&gt;</span>;
-
-<span class="doccomment">/// A cancelled transaction</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">transparent</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionCancelled</span> {
-    <span class="ident">tr</span>: <span class="ident">Transaction</span>,
-}
-<span class="kw">impl</span> <span class="ident">TransactionCancelled</span> {
-    <span class="doccomment">/// Reset the transaction to its initial state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Transaction</span> {
-        <span class="self">self</span>.<span class="ident">tr</span>.<span class="ident">reset</span>();
-        <span class="self">self</span>.<span class="ident">tr</span>
-    }
-}
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TransactionCancelled</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Transaction</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">tc</span>: <span class="ident">TransactionCancelled</span>) -&gt; <span class="ident">Transaction</span> {
-        <span class="ident">tc</span>.<span class="ident">reset</span>()
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>TransactionCommitError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="self">self</span>.err.fmt(f)
     }
 }
 
-<span class="doccomment">/// In FoundationDB, a transaction is a mutable snapshot of a database.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// All read and write operations on a transaction see and modify an otherwise-unchanging version of the database and only change the underlying database if and when the transaction is committed. Read operations do see the effects of previous write operations on the same transaction. Committing a transaction usually succeeds in the absence of conflicts.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Applications must provide error handling and an appropriate retry loop around the application code for a transaction. See the documentation for [fdb_transaction_on_error()](https://apple.github.io/foundationdb/api-c.html#transaction).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Transactions group operations into a unit with the properties of atomicity, isolation, and durability. Transactions also provide the ability to maintain an application’s invariants or integrity constraints, supporting the property of consistency. Together these properties are known as ACID.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Transactions are also causally consistent: once a transaction has been successfully committed, all subsequently created transactions will see the modifications made by it.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Transaction</span> {
-    <span class="comment">// Order of fields should not be changed, because Rust drops field top-to-bottom, and</span>
-    <span class="comment">// transaction should be dropped before cluster.</span>
-    <span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys::FDBTransaction</span><span class="op">&gt;</span>,
-}
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Transaction</span> {}
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">Transaction</span> {}
+<span class="doccomment">/// The result of `Transaction::Commit`
+</span><span class="kw">type </span>TransactionResult = <span class="prelude-ty">Result</span>&lt;TransactionCommitted, TransactionCommitError&gt;;
 
-<span class="doccomment">/// Converts Rust `bool` into `fdb_sys::fdb_bool_t`</span>
-<span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_bool</span>(<span class="ident">v</span>: <span class="ident">bool</span>) -&gt; <span class="ident">fdb_sys::fdb_bool_t</span> {
-    <span class="kw">if</span> <span class="ident">v</span> {
-        <span class="number">1</span>
-    } <span class="kw">else</span> {
-        <span class="number">0</span>
+<span class="doccomment">/// A cancelled transaction
+</span><span class="attribute">#[derive(Debug)]
+#[repr(transparent)]
+</span><span class="kw">pub struct </span>TransactionCancelled {
+    tr: Transaction,
+}
+<span class="kw">impl </span>TransactionCancelled {
+    <span class="doccomment">/// Reset the transaction to its initial state.
+    ///
+    /// This is similar to dropping the transaction and creating a new one.
+    </span><span class="kw">pub fn </span>reset(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Transaction {
+        <span class="self">self</span>.tr.reset();
+        <span class="self">self</span>.tr
     }
 }
-<span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_len</span>(<span class="ident">len</span>: <span class="ident">usize</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="ident">std::os::raw::c_int</span> {
+<span class="kw">impl </span>From&lt;TransactionCancelled&gt; <span class="kw">for </span>Transaction {
+    <span class="kw">fn </span>from(tc: TransactionCancelled) -&gt; Transaction {
+        tc.reset()
+    }
+}
+
+<span class="doccomment">/// In FoundationDB, a transaction is a mutable snapshot of a database.
+///
+/// All read and write operations on a transaction see and modify an otherwise-unchanging version of the database and only change the underlying database if and when the transaction is committed. Read operations do see the effects of previous write operations on the same transaction. Committing a transaction usually succeeds in the absence of conflicts.
+///
+/// Applications must provide error handling and an appropriate retry loop around the application code for a transaction. See the documentation for [fdb_transaction_on_error()](https://apple.github.io/foundationdb/api-c.html#transaction).
+///
+/// Transactions group operations into a unit with the properties of atomicity, isolation, and durability. Transactions also provide the ability to maintain an application’s invariants or integrity constraints, supporting the property of consistency. Together these properties are known as ACID.
+///
+/// Transactions are also causally consistent: once a transaction has been successfully committed, all subsequently created transactions will see the modifications made by it.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Transaction {
+    <span class="comment">// Order of fields should not be changed, because Rust drops field top-to-bottom, and
+    // transaction should be dropped before cluster.
+    </span>inner: NonNull&lt;fdb_sys::FDBTransaction&gt;,
+}
+<span class="kw">unsafe impl </span>Send <span class="kw">for </span>Transaction {}
+<span class="kw">unsafe impl </span>Sync <span class="kw">for </span>Transaction {}
+
+<span class="doccomment">/// Converts Rust `bool` into `fdb_sys::fdb_bool_t`
+</span><span class="attribute">#[inline]
+</span><span class="kw">fn </span>fdb_bool(v: bool) -&gt; fdb_sys::fdb_bool_t {
+    <span class="kw">if </span>v {
+        <span class="number">1
+    </span>} <span class="kw">else </span>{
+        <span class="number">0
+    </span>}
+}
+<span class="attribute">#[inline]
+</span><span class="kw">fn </span>fdb_len(len: usize, context: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; std::os::raw::c_int {
     <span class="macro">assert!</span>(
-        <span class="ident">len</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">i32::max_value</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+        len &lt;= i32::max_value() <span class="kw">as </span>usize,
         <span class="string">&quot;{}.len() &gt; i32::max_value()&quot;</span>,
-        <span class="ident">context</span>
+        context
     );
-    <span class="ident">len</span> <span class="kw">as</span> <span class="ident">i32</span>
+    len <span class="kw">as </span>i32
 }
-<span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_iteration</span>(<span class="ident">iteration</span>: <span class="ident">usize</span>) -&gt; <span class="ident">std::os::raw::c_int</span> {
-    <span class="kw">if</span> <span class="ident">iteration</span> <span class="op">&gt;</span> <span class="ident">i32::max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> {
-        <span class="number">0</span> <span class="comment">// this will cause client_invalid_operation</span>
-    } <span class="kw">else</span> {
-        <span class="ident">iteration</span> <span class="kw">as</span> <span class="ident">i32</span>
+<span class="attribute">#[inline]
+</span><span class="kw">fn </span>fdb_iteration(iteration: usize) -&gt; std::os::raw::c_int {
+    <span class="kw">if </span>iteration &gt; i32::max_value() <span class="kw">as </span>usize {
+        <span class="number">0 </span><span class="comment">// this will cause client_invalid_operation
+    </span>} <span class="kw">else </span>{
+        iteration <span class="kw">as </span>i32
     }
 }
-<span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">fdb_limit</span>(<span class="ident">v</span>: <span class="ident">usize</span>) -&gt; <span class="ident">std::os::raw::c_int</span> {
-    <span class="kw">if</span> <span class="ident">v</span> <span class="op">&gt;</span> <span class="ident">i32::max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> {
-        <span class="ident">i32::max_value</span>()
-    } <span class="kw">else</span> {
-        <span class="ident">v</span> <span class="kw">as</span> <span class="ident">i32</span>
+<span class="attribute">#[inline]
+</span><span class="kw">fn </span>fdb_limit(v: usize) -&gt; std::os::raw::c_int {
+    <span class="kw">if </span>v &gt; i32::max_value() <span class="kw">as </span>usize {
+        i32::max_value()
+    } <span class="kw">else </span>{
+        v <span class="kw">as </span>i32
     }
 }
 
-<span class="doccomment">/// `RangeOption` represents a query parameters for range scan query.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// You can construct `RangeOption` easily:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use foundationdb::RangeOption;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let opt = RangeOption::from((b&quot;begin&quot;.as_ref(), b&quot;end&quot;.as_ref()));</span>
-<span class="doccomment">/// let opt: RangeOption = (b&quot;begin&quot;.as_ref()..b&quot;end&quot;.as_ref()).into();</span>
-<span class="doccomment">/// let opt = RangeOption {</span>
-<span class="doccomment">///     limit: Some(10),</span>
-<span class="doccomment">///     ..RangeOption::from((b&quot;begin&quot;.as_ref(), b&quot;end&quot;.as_ref()))</span>
-<span class="doccomment">/// };</span>
-<span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// The beginning of the range.</span>
-    <span class="kw">pub</span> <span class="ident">begin</span>: <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The end of the range.</span>
-    <span class="kw">pub</span> <span class="ident">end</span>: <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// If non-zero, indicates the maximum number of key-value pairs to return.</span>
-    <span class="kw">pub</span> <span class="ident">limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// If non-zero, indicates a (soft) cap on the combined number of bytes of keys and values to</span>
-    <span class="doccomment">/// return for each item.</span>
-    <span class="kw">pub</span> <span class="ident">target_bytes</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// One of the options::StreamingMode values indicating how the caller would like the data in</span>
-    <span class="doccomment">/// the range returned.</span>
-    <span class="kw">pub</span> <span class="ident">mode</span>: <span class="ident">options::StreamingMode</span>,
-    <span class="doccomment">/// If true, key-value pairs will be returned in reverse lexicographical order beginning at</span>
-    <span class="doccomment">/// the end of the range.</span>
-    <span class="kw">pub</span> <span class="ident">reverse</span>: <span class="ident">bool</span>,
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">__non_exhaustive</span>: <span class="ident">std::marker::PhantomData</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
+<span class="doccomment">/// `RangeOption` represents a query parameters for range scan query.
+///
+/// You can construct `RangeOption` easily:
+///
+/// ```
+/// use foundationdb::RangeOption;
+///
+/// let opt = RangeOption::from((b&quot;begin&quot;.as_ref(), b&quot;end&quot;.as_ref()));
+/// let opt: RangeOption = (b&quot;begin&quot;.as_ref()..b&quot;end&quot;.as_ref()).into();
+/// let opt = RangeOption {
+///     limit: Some(10),
+///     ..RangeOption::from((b&quot;begin&quot;.as_ref(), b&quot;end&quot;.as_ref()))
+/// };
+/// ```
+</span><span class="attribute">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The beginning of the range.
+    </span><span class="kw">pub </span>begin: KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;,
+    <span class="doccomment">/// The end of the range.
+    </span><span class="kw">pub </span>end: KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;,
+    <span class="doccomment">/// If non-zero, indicates the maximum number of key-value pairs to return.
+    </span><span class="kw">pub </span>limit: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+    <span class="doccomment">/// If non-zero, indicates a (soft) cap on the combined number of bytes of keys and values to
+    /// return for each item.
+    </span><span class="kw">pub </span>target_bytes: usize,
+    <span class="doccomment">/// One of the options::StreamingMode values indicating how the caller would like the data in
+    /// the range returned.
+    </span><span class="kw">pub </span>mode: options::StreamingMode,
+    <span class="doccomment">/// If true, key-value pairs will be returned in reverse lexicographical order beginning at
+    /// the end of the range.
+    </span><span class="kw">pub </span>reverse: bool,
+    <span class="attribute">#[doc(hidden)]
+    </span><span class="kw">pub </span>__non_exhaustive: std::marker::PhantomData&lt;()&gt;,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Reverses the range direction.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rev</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">reverse</span> <span class="op">=</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">reverse</span>;
-        <span class="self">self</span>
-    }
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Reverses the range direction.
+    </span><span class="kw">pub fn </span>rev(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.reverse = !<span class="self">self</span>.reverse;
+        <span class="self">self
+    </span>}
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_range</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kvs</span>: <span class="kw-2">&amp;</span><span class="ident">FdbValues</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">kvs</span>.<span class="ident">more</span>() {
-            <span class="kw">return</span> <span class="prelude-val">None</span>;
+    <span class="kw">pub fn </span>next_range(<span class="kw-2">mut </span><span class="self">self</span>, kvs: <span class="kw-2">&amp;</span>FdbValues) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">if </span>!kvs.more() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">last</span> <span class="op">=</span> <span class="ident">kvs</span>.<span class="ident">last</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">last_key</span> <span class="op">=</span> <span class="ident">last</span>.<span class="ident">key</span>();
+        <span class="kw">let </span>last = kvs.last()<span class="question-mark">?</span>;
+        <span class="kw">let </span>last_key = last.key();
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">limit</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">limit</span>.<span class="ident">as_mut</span>() {
-            <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">=</span> <span class="ident">limit</span>.<span class="ident">saturating_sub</span>(<span class="ident">kvs</span>.<span class="ident">len</span>());
-            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">==</span> <span class="number">0</span> {
-                <span class="kw">return</span> <span class="prelude-val">None</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.limit.as_mut() {
+            <span class="kw-2">*</span>limit = limit.saturating_sub(kvs.len());
+            <span class="kw">if </span><span class="kw-2">*</span>limit == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">None</span>;
             }
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">reverse</span> {
-            <span class="self">self</span>.<span class="ident">end</span>.<span class="ident">make_first_greater_or_equal</span>(<span class="ident">last_key</span>);
-        } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">begin</span>.<span class="ident">make_first_greater_than</span>(<span class="ident">last_key</span>);
+        <span class="kw">if </span><span class="self">self</span>.reverse {
+            <span class="self">self</span>.end.make_first_greater_or_equal(last_key);
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.begin.make_first_greater_than(last_key);
         }
         <span class="prelude-val">Some</span>(<span class="self">self</span>)
     }
 
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">710</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">next_mapped_range</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kvs</span>: <span class="kw-2">&amp;</span><span class="ident">MappedKeyValues</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">kvs</span>.<span class="ident">more</span>() {
-            <span class="kw">return</span> <span class="prelude-val">None</span>;
+    <span class="attribute">#[cfg_api_versions(min = <span class="number">710</span>)]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>next_mapped_range(<span class="kw-2">mut </span><span class="self">self</span>, kvs: <span class="kw-2">&amp;</span>MappedKeyValues) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">if </span>!kvs.more() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">last</span> <span class="op">=</span> <span class="ident">kvs</span>.<span class="ident">last</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">last_key</span> <span class="op">=</span> <span class="ident">last</span>.<span class="ident">parent_key</span>();
+        <span class="kw">let </span>last = kvs.last()<span class="question-mark">?</span>;
+        <span class="kw">let </span>last_key = last.parent_key();
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">limit</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">limit</span>.<span class="ident">as_mut</span>() {
-            <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">=</span> <span class="ident">limit</span>.<span class="ident">saturating_sub</span>(<span class="ident">kvs</span>.<span class="ident">len</span>());
-            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">limit</span> <span class="op">==</span> <span class="number">0</span> {
-                <span class="kw">return</span> <span class="prelude-val">None</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.limit.as_mut() {
+            <span class="kw-2">*</span>limit = limit.saturating_sub(kvs.len());
+            <span class="kw">if </span><span class="kw-2">*</span>limit == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">None</span>;
             }
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">reverse</span> {
-            <span class="self">self</span>.<span class="ident">end</span>.<span class="ident">make_first_greater_or_equal</span>(<span class="ident">last_key</span>);
-        } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">begin</span>.<span class="ident">make_first_greater_than</span>(<span class="ident">last_key</span>);
+        <span class="kw">if </span><span class="self">self</span>.reverse {
+            <span class="self">self</span>.end.make_first_greater_or_equal(last_key);
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.begin.make_first_greater_than(last_key);
         }
         <span class="prelude-val">Some</span>(<span class="self">self</span>)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>([].<span class="ident">as_ref</span>()),
-            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>([].<span class="ident">as_ref</span>()),
-            <span class="ident">limit</span>: <span class="prelude-val">None</span>,
-            <span class="ident">target_bytes</span>: <span class="number">0</span>,
-            <span class="ident">mode</span>: <span class="ident">options::StreamingMode::Iterator</span>,
-            <span class="ident">reverse</span>: <span class="bool-val">false</span>,
-            <span class="ident">__non_exhaustive</span>: <span class="ident">std::marker::PhantomData</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            begin: KeySelector::first_greater_or_equal([].as_ref()),
+            end: KeySelector::first_greater_or_equal([].as_ref()),
+            limit: <span class="prelude-val">None</span>,
+            target_bytes: <span class="number">0</span>,
+            mode: options::StreamingMode::Iterator,
+            reverse: <span class="bool-val">false</span>,
+            __non_exhaustive: std::marker::PhantomData,
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span>(<span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">begin</span>,
-            <span class="ident">end</span>,
-            ..<span class="ident"><span class="self">Self</span>::default</span>()
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;(KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;, KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;)&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>from((begin, end): (KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;, KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;)) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            begin,
+            end,
+            ..<span class="self">Self</span>::default()
         }
     }
 }
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">begin</span>),
-            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">end</span>),
-            ..<span class="ident"><span class="self">Self</span>::default</span>()
+<span class="kw">impl </span>From&lt;(Vec&lt;u8&gt;, Vec&lt;u8&gt;)&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">fn </span>from((begin, end): (Vec&lt;u8&gt;, Vec&lt;u8&gt;)) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            begin: KeySelector::first_greater_or_equal(begin),
+            end: KeySelector::first_greater_or_equal(end),
+            ..<span class="self">Self</span>::default()
         }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>])<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>((<span class="ident">begin</span>, <span class="ident">end</span>): (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>])) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">begin</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">begin</span>),
-            <span class="ident">end</span>: <span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">end</span>),
-            ..<span class="ident"><span class="self">Self</span>::default</span>()
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8])&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>from((begin, end): (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8])) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            begin: KeySelector::first_greater_or_equal(begin),
+            end: KeySelector::first_greater_or_equal(end),
+            ..<span class="self">Self</span>::default()
         }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">KeySelector</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">RangeOption::from</span>((<span class="ident">range</span>.<span class="ident">start</span>, <span class="ident">range</span>.<span class="ident">end</span>))
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;std::ops::Range&lt;KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>from(range: Range&lt;KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
+        RangeOption::from((range.start, range.end))
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">RangeOption::from</span>((<span class="ident">range</span>.<span class="ident">start</span>, <span class="ident">range</span>.<span class="ident">end</span>))
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;std::ops::Range&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>from(range: Range&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;) -&gt; <span class="self">Self </span>{
+        RangeOption::from((range.start, range.end))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">std::ops::Range</span><span class="op">&lt;</span><span class="ident">std::vec::Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">RangeOption::from</span>((<span class="ident">range</span>.<span class="ident">start</span>, <span class="ident">range</span>.<span class="ident">end</span>))
+<span class="kw">impl </span>From&lt;std::ops::Range&lt;std::vec::Vec&lt;u8&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">fn </span>from(range: Range&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="self">Self </span>{
+        RangeOption::from((range.start, range.end))
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">std::ops::RangeInclusive</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">range</span>: <span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">range</span>.<span class="ident">into_inner</span>();
-        (<span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">start</span>)..<span class="ident">KeySelector::first_greater_than</span>(<span class="ident">end</span>)).<span class="ident">into</span>()
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;std::ops::RangeInclusive&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>from(range: RangeInclusive&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(start, end) = range.into_inner();
+        (KeySelector::first_greater_or_equal(start)..KeySelector::first_greater_than(end)).into()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">std::ops::RangeInclusive</span><span class="op">&lt;</span><span class="ident">std::vec::Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">range</span>: <span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">range</span>.<span class="ident">into_inner</span>();
-        (<span class="ident">KeySelector::first_greater_or_equal</span>(<span class="ident">start</span>)..<span class="ident">KeySelector::first_greater_than</span>(<span class="ident">end</span>)).<span class="ident">into</span>()
+<span class="kw">impl </span>From&lt;std::ops::RangeInclusive&lt;std::vec::Vec&lt;u8&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">fn </span>from(range: RangeInclusive&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(start, end) = range.into_inner();
+        (KeySelector::first_greater_or_equal(start)..KeySelector::first_greater_than(end)).into()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Transaction</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">inner</span>: <span class="ident">NonNull</span><span class="op">&lt;</span><span class="ident">fdb_sys::FDBTransaction</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">inner</span> }
+<span class="kw">impl </span>Transaction {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(inner: NonNull&lt;fdb_sys::FDBTransaction&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ inner }
     }
 
-    <span class="doccomment">/// Called to set an option on an FDBTransaction.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">opt</span>: <span class="ident">options::TransactionOption</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">unsafe</span> { <span class="ident">opt</span>.<span class="ident">apply</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
+    <span class="doccomment">/// Called to set an option on an FDBTransaction.
+    </span><span class="kw">pub fn </span>set_option(<span class="kw-2">&amp;</span><span class="self">self</span>, opt: options::TransactionOption) -&gt; FdbResult&lt;()&gt; {
+        <span class="kw">unsafe </span>{ opt.apply(<span class="self">self</span>.inner.as_ptr()) }
     }
 
-    <span class="doccomment">/// Modify the database snapshot represented by transaction to change the given</span>
-    <span class="doccomment">/// key to have the given value.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the given key was not previously present in the database it is inserted.</span>
-    <span class="doccomment">/// The modification affects the actual database only if transaction is later</span>
-    <span class="doccomment">/// committed with `Transaction::commit`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `key` - the name of the key to be inserted into the database.</span>
-    <span class="doccomment">/// * `value` - the value to be inserted into the database</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
-        <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_set</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
-                <span class="ident">value</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">value</span>.<span class="ident">len</span>(), <span class="string">&quot;value&quot;</span>),
+    <span class="doccomment">/// Modify the database snapshot represented by transaction to change the given
+    /// key to have the given value.
+    ///
+    /// If the given key was not previously present in the database it is inserted.
+    /// The modification affects the actual database only if transaction is later
+    /// committed with `Transaction::commit`.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - the name of the key to be inserted into the database.
+    /// * `value` - the value to be inserted into the database
+    </span><span class="kw">pub fn </span>set(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>[u8], value: <span class="kw-2">&amp;</span>[u8]) {
+        <span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_set(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                value.as_ptr(),
+                fdb_len(value.len(), <span class="string">&quot;value&quot;</span>),
             )
         }
     }
 
-    <span class="doccomment">/// Modify the database snapshot represented by transaction to remove the given key from the</span>
-    <span class="doccomment">/// database.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the key was not previously present in the database, there is no effect. The modification</span>
-    <span class="doccomment">/// affects the actual database only if transaction is later committed with</span>
-    <span class="doccomment">/// `Transaction::commit`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `key` - the name of the key to be removed from the database.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
-        <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_clear</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
+    <span class="doccomment">/// Modify the database snapshot represented by transaction to remove the given key from the
+    /// database.
+    ///
+    /// If the key was not previously present in the database, there is no effect. The modification
+    /// affects the actual database only if transaction is later committed with
+    /// `Transaction::commit`.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - the name of the key to be removed from the database.
+    </span><span class="kw">pub fn </span>clear(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>[u8]) {
+        <span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_clear(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
             )
         }
     }
 
-    <span class="doccomment">/// Reads a value from the database snapshot represented by transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns an FDBFuture which will be set to the value of key in the database if there is any.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `key` - the name of the key to be looked up in the database</span>
-    <span class="doccomment">/// * `snapshot` - `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(
+    <span class="doccomment">/// Reads a value from the database snapshot represented by transaction.
+    ///
+    /// Returns an FDBFuture which will be set to the value of key in the database if there is any.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - the name of the key to be looked up in the database
+    /// * `snapshot` - `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    </span><span class="kw">pub fn </span>get(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">snapshot</span>),
+        key: <span class="kw-2">&amp;</span>[u8],
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;<span class="prelude-ty">Option</span>&lt;FdbSlice&gt;&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_bool(snapshot),
             )
         })
     }
 
-    <span class="doccomment">/// Modify the database snapshot represented by transaction to perform the operation indicated</span>
-    <span class="doccomment">/// by operationType with operand param to the value stored by the given key.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// An atomic operation is a single database command that carries out several logical steps:</span>
-    <span class="doccomment">/// reading the value of a key, performing a transformation on that value, and writing the</span>
-    <span class="doccomment">/// result. Different atomic operations perform different transformations. Like other database</span>
-    <span class="doccomment">/// operations, an atomic operation is used within a transaction; however, its use within a</span>
-    <span class="doccomment">/// transaction will not cause the transaction to conflict.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Atomic operations do not expose the current value of the key to the client but simply send</span>
-    <span class="doccomment">/// the database the transformation to apply. In regard to conflict checking, an atomic</span>
-    <span class="doccomment">/// operation is equivalent to a write without a read. It can only cause other transactions</span>
-    <span class="doccomment">/// performing reads of the key to conflict.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// By combining these logical steps into a single, read-free operation, FoundationDB can</span>
-    <span class="doccomment">/// guarantee that the transaction will not conflict due to the operation. This makes atomic</span>
-    <span class="doccomment">/// operations ideal for operating on keys that are frequently modified. A common example is</span>
-    <span class="doccomment">/// the use of a key-value pair as a counter.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Warning</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If a transaction uses both an atomic operation and a strictly serializable read on the same</span>
-    <span class="doccomment">/// key, the benefits of using the atomic operation (for both conflict checking and performance)</span>
-    <span class="doccomment">/// are lost.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">atomic_op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">param</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">op_type</span>: <span class="ident">options::MutationType</span>) {
-        <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_atomic_op</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
-                <span class="ident">param</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">param</span>.<span class="ident">len</span>(), <span class="string">&quot;param&quot;</span>),
-                <span class="ident">op_type</span>.<span class="ident">code</span>(),
+    <span class="doccomment">/// Modify the database snapshot represented by transaction to perform the operation indicated
+    /// by operationType with operand param to the value stored by the given key.
+    ///
+    /// An atomic operation is a single database command that carries out several logical steps:
+    /// reading the value of a key, performing a transformation on that value, and writing the
+    /// result. Different atomic operations perform different transformations. Like other database
+    /// operations, an atomic operation is used within a transaction; however, its use within a
+    /// transaction will not cause the transaction to conflict.
+    ///
+    /// Atomic operations do not expose the current value of the key to the client but simply send
+    /// the database the transformation to apply. In regard to conflict checking, an atomic
+    /// operation is equivalent to a write without a read. It can only cause other transactions
+    /// performing reads of the key to conflict.
+    ///
+    /// By combining these logical steps into a single, read-free operation, FoundationDB can
+    /// guarantee that the transaction will not conflict due to the operation. This makes atomic
+    /// operations ideal for operating on keys that are frequently modified. A common example is
+    /// the use of a key-value pair as a counter.
+    ///
+    /// # Warning
+    ///
+    /// If a transaction uses both an atomic operation and a strictly serializable read on the same
+    /// key, the benefits of using the atomic operation (for both conflict checking and performance)
+    /// are lost.
+    </span><span class="kw">pub fn </span>atomic_op(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>[u8], param: <span class="kw-2">&amp;</span>[u8], op_type: options::MutationType) {
+        <span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_atomic_op(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                param.as_ptr(),
+                fdb_len(param.len(), <span class="string">&quot;param&quot;</span>),
+                op_type.code(),
             )
         }
     }
 
-    <span class="doccomment">/// Resolves a key selector against the keys in the database snapshot represented by</span>
-    <span class="doccomment">/// transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns an FDBFuture which will be set to the key in the database matching the key</span>
-    <span class="doccomment">/// selector.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `selector`: the key selector</span>
-    <span class="doccomment">/// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_key</span>(
+    <span class="doccomment">/// Resolves a key selector against the keys in the database snapshot represented by
+    /// transaction.
+    ///
+    /// Returns an FDBFuture which will be set to the key in the database matching the key
+    /// selector.
+    ///
+    /// # Arguments
+    ///
+    /// * `selector`: the key selector
+    /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    </span><span class="kw">pub fn </span>get_key(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">KeySelector</span>,
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">selector</span>.<span class="ident">key</span>();
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_key</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">selector</span>.<span class="ident">or_equal</span>()),
-                <span class="ident">selector</span>.<span class="ident">offset</span>(),
-                <span class="ident">fdb_bool</span>(<span class="ident">snapshot</span>),
+        selector: <span class="kw-2">&amp;</span>KeySelector,
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;FdbSlice&gt;&gt; + Send + Sync + Unpin {
+        <span class="kw">let </span>key = selector.key();
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_key(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_bool(selector.or_equal()),
+                selector.offset(),
+                fdb_bool(snapshot),
             )
         })
     }
 
-    <span class="doccomment">/// Reads all key-value pairs in the database snapshot represented by transaction (potentially</span>
-    <span class="doccomment">/// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or</span>
-    <span class="doccomment">/// equal to the key resolved by the begin key selector and lexicographically less than the key</span>
-    <span class="doccomment">/// resolved by the end key selector.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns a stream of KeyValue slices.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method is a little more efficient than `get_ranges_keyvalues` but a little harder to</span>
-    <span class="doccomment">/// use.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `opt`: the range, limit, target_bytes and mode</span>
-    <span class="doccomment">/// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_ranges</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">opt</span>: <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
-        <span class="ident">stream::unfold</span>((<span class="number">1</span>, <span class="prelude-val">Some</span>(<span class="ident">opt</span>)), <span class="kw">move</span> <span class="op">|</span>(<span class="ident">iteration</span>, <span class="ident">maybe_opt</span>)<span class="op">|</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opt</span>) <span class="op">=</span> <span class="ident">maybe_opt</span> {
-                <span class="ident">Either::Left</span>(<span class="self">self</span>.<span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="ident">opt</span>, <span class="ident">iteration</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">snapshot</span>).<span class="ident">map</span>(
-                    <span class="kw">move</span> <span class="op">|</span><span class="ident">maybe_values</span><span class="op">|</span> {
-                        <span class="kw">let</span> <span class="ident">next_opt</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">maybe_values</span> {
-                            <span class="prelude-val">Ok</span>(<span class="ident">values</span>) =&gt; <span class="ident">opt</span>.<span class="ident">next_range</span>(<span class="ident">values</span>),
+    <span class="doccomment">/// Reads all key-value pairs in the database snapshot represented by transaction (potentially
+    /// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or
+    /// equal to the key resolved by the begin key selector and lexicographically less than the key
+    /// resolved by the end key selector.
+    ///
+    /// Returns a stream of KeyValue slices.
+    ///
+    /// This method is a little more efficient than `get_ranges_keyvalues` but a little harder to
+    /// use.
+    ///
+    /// # Arguments
+    ///
+    /// * `opt`: the range, limit, target_bytes and mode
+    /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    </span><span class="kw">pub fn </span>get_ranges&lt;<span class="lifetime">&#39;a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        opt: RangeOption&lt;<span class="lifetime">&#39;a</span>&gt;,
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;FdbValues&gt;&gt; + Send + Sync + Unpin + <span class="lifetime">&#39;a </span>{
+        stream::unfold((<span class="number">1</span>, <span class="prelude-val">Some</span>(opt)), <span class="kw">move </span>|(iteration, maybe_opt)| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(opt) = maybe_opt {
+                Either::Left(<span class="self">self</span>.get_range(<span class="kw-2">&amp;</span>opt, iteration <span class="kw">as </span>usize, snapshot).map(
+                    <span class="kw">move </span>|maybe_values| {
+                        <span class="kw">let </span>next_opt = <span class="kw">match </span><span class="kw-2">&amp;</span>maybe_values {
+                            <span class="prelude-val">Ok</span>(values) =&gt; opt.next_range(values),
                             <span class="prelude-val">Err</span>(..) =&gt; <span class="prelude-val">None</span>,
                         };
-                        <span class="prelude-val">Some</span>((<span class="ident">maybe_values</span>, (<span class="ident">iteration</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">next_opt</span>)))
+                        <span class="prelude-val">Some</span>((maybe_values, (iteration + <span class="number">1</span>, next_opt)))
                     },
                 ))
-            } <span class="kw">else</span> {
-                <span class="ident">Either::Right</span>(<span class="ident">future::ready</span>(<span class="prelude-val">None</span>))
+            } <span class="kw">else </span>{
+                Either::Right(future::ready(<span class="prelude-val">None</span>))
             }
         })
     }
 
-    <span class="doccomment">/// Reads all key-value pairs in the database snapshot represented by transaction (potentially</span>
-    <span class="doccomment">/// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or</span>
-    <span class="doccomment">/// equal to the key resolved by the begin key selector and lexicographically less than the key</span>
-    <span class="doccomment">/// resolved by the end key selector.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns a stream of KeyValue.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `opt`: the range, limit, target_bytes and mode</span>
-    <span class="doccomment">/// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_ranges_keyvalues</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">opt</span>: <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValue</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
-        <span class="self">self</span>.<span class="ident">get_ranges</span>(<span class="ident">opt</span>, <span class="ident">snapshot</span>)
-            .<span class="ident">map_ok</span>(<span class="op">|</span><span class="ident">values</span><span class="op">|</span> <span class="ident">stream::iter</span>(<span class="ident">values</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="prelude-val">Ok</span>)))
-            .<span class="ident">try_flatten</span>()
+    <span class="doccomment">/// Reads all key-value pairs in the database snapshot represented by transaction (potentially
+    /// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or
+    /// equal to the key resolved by the begin key selector and lexicographically less than the key
+    /// resolved by the end key selector.
+    ///
+    /// Returns a stream of KeyValue.
+    ///
+    /// # Arguments
+    ///
+    /// * `opt`: the range, limit, target_bytes and mode
+    /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    </span><span class="kw">pub fn </span>get_ranges_keyvalues&lt;<span class="lifetime">&#39;a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        opt: RangeOption&lt;<span class="lifetime">&#39;a</span>&gt;,
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;FdbValue&gt;&gt; + Unpin + <span class="lifetime">&#39;a </span>{
+        <span class="self">self</span>.get_ranges(opt, snapshot)
+            .map_ok(|values| stream::iter(values.into_iter().map(<span class="prelude-val">Ok</span>)))
+            .try_flatten()
     }
 
-    <span class="doccomment">/// Reads all key-value pairs in the database snapshot represented by transaction (potentially</span>
-    <span class="doccomment">/// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or</span>
-    <span class="doccomment">/// equal to the key resolved by the begin key selector and lexicographically less than the key</span>
-    <span class="doccomment">/// resolved by the end key selector.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Arguments</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * `opt`: the range, limit, target_bytes and mode</span>
-    <span class="doccomment">/// * `iteration`: If opt.mode is Iterator, this parameter should start at 1 and be incremented</span>
-    <span class="doccomment">///   by 1 for each successive call while reading this range. In all other cases it is ignored.</span>
-    <span class="doccomment">/// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_range</span>(
+    <span class="doccomment">/// Reads all key-value pairs in the database snapshot represented by transaction (potentially
+    /// limited by limit, target_bytes, or mode) which have a key lexicographically greater than or
+    /// equal to the key resolved by the begin key selector and lexicographically less than the key
+    /// resolved by the end key selector.
+    ///
+    /// # Arguments
+    ///
+    /// * `opt`: the range, limit, target_bytes and mode
+    /// * `iteration`: If opt.mode is Iterator, this parameter should start at 1 and be incremented
+    ///   by 1 for each successive call while reading this range. In all other cases it is ignored.
+    /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    </span><span class="kw">pub fn </span>get_range(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">opt</span>: <span class="kw-2">&amp;</span><span class="ident">RangeOption</span>,
-        <span class="ident">iteration</span>: <span class="ident">usize</span>,
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">begin</span>;
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">end</span>;
-        <span class="kw">let</span> <span class="ident">key_begin</span> <span class="op">=</span> <span class="ident">begin</span>.<span class="ident">key</span>();
-        <span class="kw">let</span> <span class="ident">key_end</span> <span class="op">=</span> <span class="ident">end</span>.<span class="ident">key</span>();
+        opt: <span class="kw-2">&amp;</span>RangeOption,
+        iteration: usize,
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;FdbValues&gt;&gt; + Send + Sync + Unpin {
+        <span class="kw">let </span>begin = <span class="kw-2">&amp;</span>opt.begin;
+        <span class="kw">let </span>end = <span class="kw-2">&amp;</span>opt.end;
+        <span class="kw">let </span>key_begin = begin.key();
+        <span class="kw">let </span>key_end = end.key();
 
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_range</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key_begin</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key_begin</span>.<span class="ident">len</span>(), <span class="string">&quot;key_begin&quot;</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">begin</span>.<span class="ident">or_equal</span>()),
-                <span class="ident">begin</span>.<span class="ident">offset</span>(),
-                <span class="ident">key_end</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key_end</span>.<span class="ident">len</span>(), <span class="string">&quot;key_end&quot;</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">end</span>.<span class="ident">or_equal</span>()),
-                <span class="ident">end</span>.<span class="ident">offset</span>(),
-                <span class="ident">fdb_limit</span>(<span class="ident">opt</span>.<span class="ident">limit</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>)),
-                <span class="ident">fdb_limit</span>(<span class="ident">opt</span>.<span class="ident">target_bytes</span>),
-                <span class="ident">opt</span>.<span class="ident">mode</span>.<span class="ident">code</span>(),
-                <span class="ident">fdb_iteration</span>(<span class="ident">iteration</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">snapshot</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">opt</span>.<span class="ident">reverse</span>),
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_range(
+                <span class="self">self</span>.inner.as_ptr(),
+                key_begin.as_ptr(),
+                fdb_len(key_begin.len(), <span class="string">&quot;key_begin&quot;</span>),
+                fdb_bool(begin.or_equal()),
+                begin.offset(),
+                key_end.as_ptr(),
+                fdb_len(key_end.len(), <span class="string">&quot;key_end&quot;</span>),
+                fdb_bool(end.or_equal()),
+                end.offset(),
+                fdb_limit(opt.limit.unwrap_or(<span class="number">0</span>)),
+                fdb_limit(opt.target_bytes),
+                opt.mode.code(),
+                fdb_iteration(iteration),
+                fdb_bool(snapshot),
+                fdb_bool(opt.reverse),
             )
         })
     }
 
-    <span class="doccomment">/// Mapped Range is an experimental feature introduced in FDB 7.1.</span>
-    <span class="doccomment">/// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.</span>
-    <span class="doccomment">/// In such a case, querying records by scanning an index in relational databases can be</span>
-    <span class="doccomment">/// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,</span>
-    <span class="doccomment">/// this can happen in one request without additional back and forth. Considering the overhead</span>
-    <span class="doccomment">/// of each request, this saves time and resources on serialization, deserialization, and network.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A mapped request will:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.</span>
-    <span class="doccomment">/// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.</span>
-    <span class="doccomment">/// * Put all results in a nested structure and return them.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// **WARNING** : This feature is considered experimental at this time. It is only allowed when</span>
-    <span class="doccomment">/// using snapshot isolation AND disabling read-your-writes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is the &quot;raw&quot; version, users are expected to use [Transaction::get_mapped_ranges]</span>
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">710</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_mapped_range</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">opt</span>: <span class="kw-2">&amp;</span><span class="ident">RangeOption</span>,
-        <span class="ident">mapper</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">iteration</span>: <span class="ident">usize</span>,
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">MappedKeyValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="kw">let</span> <span class="ident">begin</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">begin</span>;
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">opt</span>.<span class="ident">end</span>;
-        <span class="kw">let</span> <span class="ident">key_begin</span> <span class="op">=</span> <span class="ident">begin</span>.<span class="ident">key</span>();
-        <span class="kw">let</span> <span class="ident">key_end</span> <span class="op">=</span> <span class="ident">end</span>.<span class="ident">key</span>();
+    <span class="doccomment">/// Mapped Range is an experimental feature introduced in FDB 7.1.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.
+    /// In such a case, querying records by scanning an index in relational databases can be
+    /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
+    ///
+    /// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,
+    /// this can happen in one request without additional back and forth. Considering the overhead
+    /// of each request, this saves time and resources on serialization, deserialization, and network.
+    ///
+    /// A mapped request will:
+    ///
+    /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
+    /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
+    /// * Put all results in a nested structure and return them.
+    ///
+    /// **WARNING** : This feature is considered experimental at this time. It is only allowed when
+    /// using snapshot isolation AND disabling read-your-writes.
+    ///
+    /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
+    ///
+    /// This is the &quot;raw&quot; version, users are expected to use [Transaction::get_mapped_ranges]
+    </span><span class="attribute">#[cfg_api_versions(min = <span class="number">710</span>)]
+    </span><span class="kw">pub fn </span>get_mapped_range&lt;<span class="lifetime">&#39;a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        opt: <span class="kw-2">&amp;</span>RangeOption,
+        mapper: <span class="kw-2">&amp;</span>[u8],
+        iteration: usize,
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;MappedKeyValues&gt;&gt; + Send + Sync + Unpin {
+        <span class="kw">let </span>begin = <span class="kw-2">&amp;</span>opt.begin;
+        <span class="kw">let </span>end = <span class="kw-2">&amp;</span>opt.end;
+        <span class="kw">let </span>key_begin = begin.key();
+        <span class="kw">let </span>key_end = end.key();
 
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_mapped_range</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key_begin</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key_begin</span>.<span class="ident">len</span>(), <span class="string">&quot;key_begin&quot;</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">begin</span>.<span class="ident">or_equal</span>()),
-                <span class="ident">begin</span>.<span class="ident">offset</span>(),
-                <span class="ident">key_end</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key_end</span>.<span class="ident">len</span>(), <span class="string">&quot;key_end&quot;</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">end</span>.<span class="ident">or_equal</span>()),
-                <span class="ident">end</span>.<span class="ident">offset</span>(),
-                <span class="ident">mapper</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">mapper</span>.<span class="ident">len</span>(), <span class="string">&quot;mapper_length&quot;</span>),
-                <span class="ident">fdb_limit</span>(<span class="ident">opt</span>.<span class="ident">limit</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>)),
-                <span class="ident">fdb_limit</span>(<span class="ident">opt</span>.<span class="ident">target_bytes</span>),
-                <span class="ident">opt</span>.<span class="ident">mode</span>.<span class="ident">code</span>(),
-                <span class="ident">fdb_iteration</span>(<span class="ident">iteration</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">snapshot</span>),
-                <span class="ident">fdb_bool</span>(<span class="ident">opt</span>.<span class="ident">reverse</span>),
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_mapped_range(
+                <span class="self">self</span>.inner.as_ptr(),
+                key_begin.as_ptr(),
+                fdb_len(key_begin.len(), <span class="string">&quot;key_begin&quot;</span>),
+                fdb_bool(begin.or_equal()),
+                begin.offset(),
+                key_end.as_ptr(),
+                fdb_len(key_end.len(), <span class="string">&quot;key_end&quot;</span>),
+                fdb_bool(end.or_equal()),
+                end.offset(),
+                mapper.as_ptr(),
+                fdb_len(mapper.len(), <span class="string">&quot;mapper_length&quot;</span>),
+                fdb_limit(opt.limit.unwrap_or(<span class="number">0</span>)),
+                fdb_limit(opt.target_bytes),
+                opt.mode.code(),
+                fdb_iteration(iteration),
+                fdb_bool(snapshot),
+                fdb_bool(opt.reverse),
             )
         })
     }
 
-    <span class="doccomment">/// Mapped Range is an experimental feature introduced in FDB 7.1.</span>
-    <span class="doccomment">/// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.</span>
-    <span class="doccomment">/// In such a case, querying records by scanning an index in relational databases can be</span>
-    <span class="doccomment">/// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,</span>
-    <span class="doccomment">/// this can happen in one request without additional back and forth. Considering the overhead</span>
-    <span class="doccomment">/// of each request, this saves time and resources on serialization, deserialization, and network.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A mapped request will:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.</span>
-    <span class="doccomment">/// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.</span>
-    <span class="doccomment">/// * Put all results in a nested structure and return them.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// **WARNING** : This feature is considered experimental at this time. It is only allowed when</span>
-    <span class="doccomment">/// using snapshot isolation AND disabling read-your-writes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).</span>
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">710</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_mapped_ranges</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">opt</span>: <span class="ident">RangeOption</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-        <span class="ident">mapper</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>],
-        <span class="ident">snapshot</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">MappedKeyValues</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> <span class="op">+</span> <span class="lifetime">&#39;a</span> {
-        <span class="ident">stream::unfold</span>((<span class="number">1</span>, <span class="prelude-val">Some</span>(<span class="ident">opt</span>)), <span class="kw">move</span> <span class="op">|</span>(<span class="ident">iteration</span>, <span class="ident">maybe_opt</span>)<span class="op">|</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opt</span>) <span class="op">=</span> <span class="ident">maybe_opt</span> {
-                <span class="ident">Either::Left</span>(
-                    <span class="self">self</span>.<span class="ident">get_mapped_range</span>(<span class="kw-2">&amp;</span><span class="ident">opt</span>, <span class="ident">mapper</span>, <span class="ident">iteration</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">snapshot</span>)
-                        .<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">maybe_values</span><span class="op">|</span> {
-                            <span class="kw">let</span> <span class="ident">next_opt</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">maybe_values</span> {
-                                <span class="prelude-val">Ok</span>(<span class="ident">values</span>) =&gt; <span class="ident">opt</span>.<span class="ident">next_mapped_range</span>(<span class="ident">values</span>),
+    <span class="doccomment">/// Mapped Range is an experimental feature introduced in FDB 7.1.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.
+    /// In such a case, querying records by scanning an index in relational databases can be
+    /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
+    ///
+    /// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,
+    /// this can happen in one request without additional back and forth. Considering the overhead
+    /// of each request, this saves time and resources on serialization, deserialization, and network.
+    ///
+    /// A mapped request will:
+    ///
+    /// * Do a range query (same as a `Transaction.get_range` request) and get the result. We call it the primary query.
+    /// * For each key-value pair in the primary query result, translate it to a `get_range` query and get the result. We call them secondary queries.
+    /// * Put all results in a nested structure and return them.
+    ///
+    /// **WARNING** : This feature is considered experimental at this time. It is only allowed when
+    /// using snapshot isolation AND disabling read-your-writes.
+    ///
+    /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
+    </span><span class="attribute">#[cfg_api_versions(min = <span class="number">710</span>)]
+    </span><span class="kw">pub fn </span>get_mapped_ranges&lt;<span class="lifetime">&#39;a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        opt: RangeOption&lt;<span class="lifetime">&#39;a</span>&gt;,
+        mapper: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
+        snapshot: bool,
+    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;MappedKeyValues&gt;&gt; + Send + Sync + Unpin + <span class="lifetime">&#39;a </span>{
+        stream::unfold((<span class="number">1</span>, <span class="prelude-val">Some</span>(opt)), <span class="kw">move </span>|(iteration, maybe_opt)| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(opt) = maybe_opt {
+                Either::Left(
+                    <span class="self">self</span>.get_mapped_range(<span class="kw-2">&amp;</span>opt, mapper, iteration <span class="kw">as </span>usize, snapshot)
+                        .map(<span class="kw">move </span>|maybe_values| {
+                            <span class="kw">let </span>next_opt = <span class="kw">match </span><span class="kw-2">&amp;</span>maybe_values {
+                                <span class="prelude-val">Ok</span>(values) =&gt; opt.next_mapped_range(values),
                                 <span class="prelude-val">Err</span>(..) =&gt; <span class="prelude-val">None</span>,
                             };
-                            <span class="prelude-val">Some</span>((<span class="ident">maybe_values</span>, (<span class="ident">iteration</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">next_opt</span>)))
+                            <span class="prelude-val">Some</span>((maybe_values, (iteration + <span class="number">1</span>, next_opt)))
                         }),
                 )
-            } <span class="kw">else</span> {
-                <span class="ident">Either::Right</span>(<span class="ident">future::ready</span>(<span class="prelude-val">None</span>))
+            } <span class="kw">else </span>{
+                Either::Right(future::ready(<span class="prelude-val">None</span>))
             }
         })
     }
 
-    <span class="doccomment">/// Modify the database snapshot represented by transaction to remove all keys (if any) which</span>
-    <span class="doccomment">/// are lexicographically greater than or equal to the given begin key and lexicographically</span>
-    <span class="doccomment">/// less than the given end_key.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The modification affects the actual database only if transaction is later committed with</span>
-    <span class="doccomment">/// `Transaction::commit`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
-        <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_clear_range</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
-                <span class="ident">end</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">end</span>.<span class="ident">len</span>(), <span class="string">&quot;end&quot;</span>),
+    <span class="doccomment">/// Modify the database snapshot represented by transaction to remove all keys (if any) which
+    /// are lexicographically greater than or equal to the given begin key and lexicographically
+    /// less than the given end_key.
+    ///
+    /// The modification affects the actual database only if transaction is later committed with
+    /// `Transaction::commit`.
+    </span><span class="kw">pub fn </span>clear_range(<span class="kw-2">&amp;</span><span class="self">self</span>, begin: <span class="kw-2">&amp;</span>[u8], end: <span class="kw-2">&amp;</span>[u8]) {
+        <span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_clear_range(
+                <span class="self">self</span>.inner.as_ptr(),
+                begin.as_ptr(),
+                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                end.as_ptr(),
+                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
             )
         }
     }
 
-    <span class="doccomment">/// Get the estimated byte size of the key range based on the byte sample collected by FDB</span>
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">630</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_estimated_range_size_bytes</span>(
+    <span class="doccomment">/// Get the estimated byte size of the key range based on the byte sample collected by FDB
+    </span><span class="attribute">#[cfg_api_versions(min = <span class="number">630</span>)]
+    </span><span class="kw">pub fn </span>get_estimated_range_size_bytes(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_estimated_range_size_bytes</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
-                <span class="ident">end</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">end</span>.<span class="ident">len</span>(), <span class="string">&quot;end&quot;</span>),
+        begin: <span class="kw-2">&amp;</span>[u8],
+        end: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;i64&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::&lt;i64&gt;::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_estimated_range_size_bytes(
+                <span class="self">self</span>.inner.as_ptr(),
+                begin.as_ptr(),
+                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                end.as_ptr(),
+                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
             )
         })
     }
 
-    <span class="doccomment">/// Attempts to commit the sets and clears previously applied to the database snapshot</span>
-    <span class="doccomment">/// represented by transaction to the actual database.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The commit may or may not succeed – in particular, if a conflicting transaction previously</span>
-    <span class="doccomment">/// committed, then the commit must fail in order to preserve transactional isolation. If the</span>
-    <span class="doccomment">/// commit does succeed, the transaction is durably committed to the database and all</span>
-    <span class="doccomment">/// subsequently started transactions will observe its effects.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It is not necessary to commit a read-only transaction – you can simply drop it.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Callers will usually want to retry a transaction if the commit or a another method on the</span>
-    <span class="doccomment">/// transaction returns a retryable error (see `on_error` and/or `Database::transact`).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// As with other client/server databases, in some failure scenarios a client may be unable to</span>
-    <span class="doccomment">/// determine whether a transaction succeeded. In these cases, `Transaction::commit` will return</span>
-    <span class="doccomment">/// an error and `is_maybe_committed()` will returns true on that error. The `on_error` function</span>
-    <span class="doccomment">/// treats this error as retryable, so retry loops that don’t check for `is_maybe_committed()`</span>
-    <span class="doccomment">/// could execute the transaction twice. In these cases, you must consider the idempotence of</span>
-    <span class="doccomment">/// the transaction. For more information, see [Transactions with unknown results](https://apple.github.io/foundationdb/developer-guide.html#developer-guide-unknown-results).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Normally, commit will wait for outstanding reads to return. However, if those reads were</span>
-    <span class="doccomment">/// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,</span>
-    <span class="doccomment">/// any outstanding reads will immediately return errors.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">commit</span>(<span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">TransactionResult</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_commit</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }).<span class="ident">map</span>(
-            <span class="kw">move</span> <span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">r</span> {
-                <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">TransactionCommitted</span> { <span class="ident">tr</span>: <span class="self">self</span> }),
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="prelude-val">Err</span>(<span class="ident">TransactionCommitError</span> { <span class="ident">tr</span>: <span class="self">self</span>, <span class="ident">err</span> }),
+    <span class="doccomment">/// Attempts to commit the sets and clears previously applied to the database snapshot
+    /// represented by transaction to the actual database.
+    ///
+    /// The commit may or may not succeed – in particular, if a conflicting transaction previously
+    /// committed, then the commit must fail in order to preserve transactional isolation. If the
+    /// commit does succeed, the transaction is durably committed to the database and all
+    /// subsequently started transactions will observe its effects.
+    ///
+    /// It is not necessary to commit a read-only transaction – you can simply drop it.
+    ///
+    /// Callers will usually want to retry a transaction if the commit or a another method on the
+    /// transaction returns a retryable error (see `on_error` and/or `Database::transact`).
+    ///
+    /// As with other client/server databases, in some failure scenarios a client may be unable to
+    /// determine whether a transaction succeeded. In these cases, `Transaction::commit` will return
+    /// an error and `is_maybe_committed()` will returns true on that error. The `on_error` function
+    /// treats this error as retryable, so retry loops that don’t check for `is_maybe_committed()`
+    /// could execute the transaction twice. In these cases, you must consider the idempotence of
+    /// the transaction. For more information, see [Transactions with unknown results](https://apple.github.io/foundationdb/developer-guide.html#developer-guide-unknown-results).
+    ///
+    /// Normally, commit will wait for outstanding reads to return. However, if those reads were
+    /// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,
+    /// any outstanding reads will immediately return errors.
+    </span><span class="kw">pub fn </span>commit(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = TransactionResult&gt; + Send + Sync + Unpin {
+        FdbFuture::&lt;()&gt;::new(<span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_commit(<span class="self">self</span>.inner.as_ptr()) }).map(
+            <span class="kw">move </span>|r| <span class="kw">match </span>r {
+                <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(TransactionCommitted { tr: <span class="self">self </span>}),
+                <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(TransactionCommitError { tr: <span class="self">self</span>, err }),
             },
         )
     }
 
-    <span class="doccomment">/// Implements the recommended retry and backoff behavior for a transaction. This function knows</span>
-    <span class="doccomment">/// which of the error codes generated by other `Transaction` functions represent temporary</span>
-    <span class="doccomment">/// error conditions and which represent application errors that should be handled by the</span>
-    <span class="doccomment">/// application. It also implements an exponential backoff strategy to avoid swamping the</span>
-    <span class="doccomment">/// database cluster with excessive retries when there is a high level of conflict between</span>
-    <span class="doccomment">/// transactions.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It is not necessary to call `reset()` when handling an error with `on_error()` since the</span>
-    <span class="doccomment">/// transaction has already been reset.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// You should not call this method most of the times and use `Database::transact` which</span>
-    <span class="doccomment">/// implements a retry loop strategy for you.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">on_error</span>(
+    <span class="doccomment">/// Implements the recommended retry and backoff behavior for a transaction. This function knows
+    /// which of the error codes generated by other `Transaction` functions represent temporary
+    /// error conditions and which represent application errors that should be handled by the
+    /// application. It also implements an exponential backoff strategy to avoid swamping the
+    /// database cluster with excessive retries when there is a high level of conflict between
+    /// transactions.
+    ///
+    /// It is not necessary to call `reset()` when handling an error with `on_error()` since the
+    /// transaction has already been reset.
+    ///
+    /// You should not call this method most of the times and use `Database::transact` which
+    /// implements a retry loop strategy for you.
+    </span><span class="kw">pub fn </span>on_error(
         <span class="self">self</span>,
-        <span class="ident">err</span>: <span class="ident">FdbError</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_on_error</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="ident">err</span>.<span class="ident">code</span>())
+        err: FdbError,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;Transaction&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::&lt;()&gt;::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_on_error(<span class="self">self</span>.inner.as_ptr(), err.code())
         })
-        .<span class="ident">map_ok</span>(<span class="op">|</span>()<span class="op">|</span> <span class="self">self</span>)
+        .map_ok(|()| <span class="self">self</span>)
     }
 
-    <span class="doccomment">/// Cancels the transaction. All pending or future uses of the transaction will return a</span>
-    <span class="doccomment">/// transaction_cancelled error. The transaction can be used again after it is reset.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cancel</span>(<span class="self">self</span>) -&gt; <span class="ident">TransactionCancelled</span> {
-        <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_cancel</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) };
-        <span class="ident">TransactionCancelled</span> { <span class="ident">tr</span>: <span class="self">self</span> }
+    <span class="doccomment">/// Cancels the transaction. All pending or future uses of the transaction will return a
+    /// transaction_cancelled error. The transaction can be used again after it is reset.
+    </span><span class="kw">pub fn </span>cancel(<span class="self">self</span>) -&gt; TransactionCancelled {
+        <span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_cancel(<span class="self">self</span>.inner.as_ptr()) };
+        TransactionCancelled { tr: <span class="self">self </span>}
     }
 
-    <span class="doccomment">/// Returns a list of public network addresses as strings, one for each of the storage servers</span>
-    <span class="doccomment">/// responsible for storing key_name and its associated value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_addresses_for_key</span>(
+    <span class="doccomment">/// Returns a list of public network addresses as strings, one for each of the storage servers
+    /// responsible for storing key_name and its associated value.
+    </span><span class="kw">pub fn </span>get_addresses_for_key(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbAddresses</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_addresses_for_key</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
+        key: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;FdbAddresses&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_addresses_for_key(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
             )
         })
     }
 
-    <span class="doccomment">/// A watch&#39;s behavior is relative to the transaction that created it. A watch will report a</span>
-    <span class="doccomment">/// change in relation to the key’s value as readable by that transaction. The initial value</span>
-    <span class="doccomment">/// used for comparison is either that of the transaction’s read version or the value as</span>
-    <span class="doccomment">/// modified by the transaction itself prior to the creation of the watch. If the value changes</span>
-    <span class="doccomment">/// and then changes back to its initial value, the watch might not report the change.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Until the transaction that created it has been committed, a watch will not report changes</span>
-    <span class="doccomment">/// made by other transactions. In contrast, a watch will immediately report changes made by</span>
-    <span class="doccomment">/// the transaction itself. Watches cannot be created if the transaction has set the</span>
-    <span class="doccomment">/// READ_YOUR_WRITES_DISABLE transaction option, and an attempt to do so will return an</span>
-    <span class="doccomment">/// watches_disabled error.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the transaction used to create a watch encounters an error during commit, then the watch</span>
-    <span class="doccomment">/// will be set with that error. A transaction whose commit result is unknown will set all of</span>
-    <span class="doccomment">/// its watches with the commit_unknown_result error. If an uncommitted transaction is reset or</span>
-    <span class="doccomment">/// destroyed, then any watches it created will be set with the transaction_cancelled error.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns an future representing an empty value that will be set once the watch has</span>
-    <span class="doccomment">/// detected a change to the value at the specified key.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// By default, each database connection can have no more than 10,000 watches that have not yet</span>
-    <span class="doccomment">/// reported a change. When this number is exceeded, an attempt to create a watch will return a</span>
-    <span class="doccomment">/// too_many_watches error. This limit can be changed using the MAX_WATCHES database option.</span>
-    <span class="doccomment">/// Because a watch outlives the transaction that creates it, any watch that is no longer</span>
-    <span class="doccomment">/// needed should be cancelled by dropping its future.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">watch</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_watch</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">key</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">key</span>.<span class="ident">len</span>(), <span class="string">&quot;key&quot;</span>),
+    <span class="doccomment">/// A watch&#39;s behavior is relative to the transaction that created it. A watch will report a
+    /// change in relation to the key’s value as readable by that transaction. The initial value
+    /// used for comparison is either that of the transaction’s read version or the value as
+    /// modified by the transaction itself prior to the creation of the watch. If the value changes
+    /// and then changes back to its initial value, the watch might not report the change.
+    ///
+    /// Until the transaction that created it has been committed, a watch will not report changes
+    /// made by other transactions. In contrast, a watch will immediately report changes made by
+    /// the transaction itself. Watches cannot be created if the transaction has set the
+    /// READ_YOUR_WRITES_DISABLE transaction option, and an attempt to do so will return an
+    /// watches_disabled error.
+    ///
+    /// If the transaction used to create a watch encounters an error during commit, then the watch
+    /// will be set with that error. A transaction whose commit result is unknown will set all of
+    /// its watches with the commit_unknown_result error. If an uncommitted transaction is reset or
+    /// destroyed, then any watches it created will be set with the transaction_cancelled error.
+    ///
+    /// Returns an future representing an empty value that will be set once the watch has
+    /// detected a change to the value at the specified key.
+    ///
+    /// By default, each database connection can have no more than 10,000 watches that have not yet
+    /// reported a change. When this number is exceeded, an attempt to create a watch will return a
+    /// too_many_watches error. This limit can be changed using the MAX_WATCHES database option.
+    /// Because a watch outlives the transaction that creates it, any watch that is no longer
+    /// needed should be cancelled by dropping its future.
+    </span><span class="kw">pub fn </span>watch(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;()&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_watch(
+                <span class="self">self</span>.inner.as_ptr(),
+                key.as_ptr(),
+                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
             )
         })
     }
 
-    <span class="doccomment">/// Returns an FDBFuture which will be set to the approximate transaction size so far in the</span>
-    <span class="doccomment">/// returned future, which is the summation of the estimated size of mutations, read conflict</span>
-    <span class="doccomment">/// ranges, and write conflict ranges.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can be called multiple times before the transaction is committed.</span>
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">620</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_approximate_size</span>(
+    <span class="doccomment">/// Returns an FDBFuture which will be set to the approximate transaction size so far in the
+    /// returned future, which is the summation of the estimated size of mutations, read conflict
+    /// ranges, and write conflict ranges.
+    ///
+    /// This can be called multiple times before the transaction is committed.
+    </span><span class="attribute">#[cfg_api_versions(min = <span class="number">620</span>)]
+    </span><span class="kw">pub fn </span>get_approximate_size(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_approximate_size</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>())
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;i64&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_approximate_size(<span class="self">self</span>.inner.as_ptr())
         })
     }
 
-    <span class="doccomment">/// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.</span>
-    <span class="doccomment">/// Note: the returned split points contain the start key and end key of the given range.</span>
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">700</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_range_split_points</span>(
+    <span class="doccomment">/// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.
+    /// Note: the returned split points contain the start key and end key of the given range.
+    </span><span class="attribute">#[cfg_api_versions(min = <span class="number">700</span>)]
+    </span><span class="kw">pub fn </span>get_range_split_points(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">chunk_size</span>: <span class="ident">i64</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbKeys</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture</span>::<span class="op">&lt;</span><span class="ident">FdbKeys</span><span class="op">&gt;</span><span class="ident">::new</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_get_range_split_points</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
-                <span class="ident">end</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">end</span>.<span class="ident">len</span>(), <span class="string">&quot;end&quot;</span>),
-                <span class="ident">chunk_size</span>,
+        begin: <span class="kw-2">&amp;</span>[u8],
+        end: <span class="kw-2">&amp;</span>[u8],
+        chunk_size: i64,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;FdbKeys&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::&lt;FdbKeys&gt;::new(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_get_range_split_points(
+                <span class="self">self</span>.inner.as_ptr(),
+                begin.as_ptr(),
+                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                end.as_ptr(),
+                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
+                chunk_size,
             )
         })
     }
 
-    <span class="doccomment">/// Returns an FDBFuture which will be set to the versionstamp which was used by any</span>
-    <span class="doccomment">/// versionstamp operations in this transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The future will be ready only after the successful completion of a call to `commit()` on</span>
-    <span class="doccomment">/// this Transaction. Read-only transactions do not modify the database when committed and will</span>
-    <span class="doccomment">/// result in the future completing with an error. Keep in mind that a transaction which reads</span>
-    <span class="doccomment">/// keys and then sets them to their current values may be optimized to a read-only transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Most applications will not call this function.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_versionstamp</span>(
+    <span class="doccomment">/// Returns an FDBFuture which will be set to the versionstamp which was used by any
+    /// versionstamp operations in this transaction.
+    ///
+    /// The future will be ready only after the successful completion of a call to `commit()` on
+    /// this Transaction. Read-only transactions do not modify the database when committed and will
+    /// result in the future completing with an error. Keep in mind that a transaction which reads
+    /// keys and then sets them to their current values may be optimized to a read-only transaction.
+    ///
+    /// Most applications will not call this function.
+    </span><span class="kw">pub fn </span>get_versionstamp(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-    ) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">FdbSlice</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_get_versionstamp</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) })
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;FdbSlice&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::new(<span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_get_versionstamp(<span class="self">self</span>.inner.as_ptr()) })
     }
 
-    <span class="doccomment">/// The transaction obtains a snapshot read version automatically at the time of the first call</span>
-    <span class="doccomment">/// to `get_*()` (including this one) and (unless causal consistency has been deliberately</span>
-    <span class="doccomment">/// compromised by transaction options) is guaranteed to represent all transactions which were</span>
-    <span class="doccomment">/// reported committed before that call.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_read_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Unpin</span> {
-        <span class="ident">FdbFuture::new</span>(<span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_get_read_version</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) })
+    <span class="doccomment">/// The transaction obtains a snapshot read version automatically at the time of the first call
+    /// to `get_*()` (including this one) and (unless causal consistency has been deliberately
+    /// compromised by transaction options) is guaranteed to represent all transactions which were
+    /// reported committed before that call.
+    </span><span class="kw">pub fn </span>get_read_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;i64&gt;&gt; + Send + Sync + Unpin {
+        FdbFuture::new(<span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_get_read_version(<span class="self">self</span>.inner.as_ptr()) })
     }
 
-    <span class="doccomment">/// Sets the snapshot read version used by a transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is not needed in simple cases.</span>
-    <span class="doccomment">/// If the given version is too old, subsequent reads will fail with error_code_past_version;</span>
-    <span class="doccomment">/// if it is too new, subsequent reads may be delayed indefinitely and/or fail with</span>
-    <span class="doccomment">/// error_code_future_version. If any of get_*() have been called on this transaction already,</span>
-    <span class="doccomment">/// the result is undefined.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_read_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">version</span>: <span class="ident">i64</span>) {
-        <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_set_read_version</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(), <span class="ident">version</span>) }
+    <span class="doccomment">/// Sets the snapshot read version used by a transaction.
+    ///
+    /// This is not needed in simple cases.
+    /// If the given version is too old, subsequent reads will fail with error_code_past_version;
+    /// if it is too new, subsequent reads may be delayed indefinitely and/or fail with
+    /// error_code_future_version. If any of get_*() have been called on this transaction already,
+    /// the result is undefined.
+    </span><span class="kw">pub fn </span>set_read_version(<span class="kw-2">&amp;</span><span class="self">self</span>, version: i64) {
+        <span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_set_read_version(<span class="self">self</span>.inner.as_ptr(), version) }
     }
 
-    <span class="doccomment">/// The metadata version key `\xff/metadataVersion` is a key intended to help layers deal with hot keys.</span>
-    <span class="doccomment">/// The value of this key is sent to clients along with the read version from the proxy,</span>
-    <span class="doccomment">/// so a client can read its value without communicating with a storage server.</span>
-    <span class="doccomment">/// To retrieve the metadataVersion, you need to set `TransactionOption::ReadSystemKeys`</span>
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">610</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">get_metadata_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">snapshot</span>: <span class="ident">bool</span>) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get</span>(<span class="ident">METADATA_VERSION_KEY</span>, <span class="ident">snapshot</span>).<span class="kw">await</span> {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">fdb_slice</span>)) =&gt; {
-                <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">fdb_slice</span>.<span class="ident">deref</span>();
-                <span class="comment">// as we cannot write the metadata-key directly(we must mutate with an atomic_op),</span>
-                <span class="comment">// can we assume that it will always be the correct size?</span>
-                <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="number">8</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+    <span class="doccomment">/// The metadata version key `\xff/metadataVersion` is a key intended to help layers deal with hot keys.
+    /// The value of this key is sent to clients along with the read version from the proxy,
+    /// so a client can read its value without communicating with a storage server.
+    /// To retrieve the metadataVersion, you need to set `TransactionOption::ReadSystemKeys`
+    </span><span class="attribute">#[cfg_api_versions(min = <span class="number">610</span>)]
+    </span><span class="kw">pub async fn </span>get_metadata_version(<span class="kw-2">&amp;</span><span class="self">self</span>, snapshot: bool) -&gt; FdbResult&lt;<span class="prelude-ty">Option</span>&lt;i64&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.get(METADATA_VERSION_KEY, snapshot).<span class="kw">await </span>{
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fdb_slice)) =&gt; {
+                <span class="kw">let </span>value = fdb_slice.deref();
+                <span class="comment">// as we cannot write the metadata-key directly(we must mutate with an atomic_op),
+                // can we assume that it will always be the correct size?
+                </span><span class="kw">if </span>value.len() &lt; <span class="number">8 </span>{
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
                 }
 
-                <span class="comment">// The 80-bits versionstamps are 10 bytes longs, and are composed of:</span>
-                <span class="comment">// * 8 bytes (Transaction Version)</span>
-                <span class="comment">// * followed by 2 bytes (Transaction Batch Order)</span>
-                <span class="comment">// More details can be found here: https://forums.foundationdb.org/t/implementing-versionstamps-in-bindings/250</span>
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arr</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
-                <span class="ident">arr</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>[<span class="number">0</span>..<span class="number">8</span>]);
-                <span class="kw">let</span> <span class="ident">transaction_version</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">i64::from_be_bytes</span>(<span class="ident">arr</span>);
+                <span class="comment">// The 80-bits versionstamps are 10 bytes longs, and are composed of:
+                // * 8 bytes (Transaction Version)
+                // * followed by 2 bytes (Transaction Batch Order)
+                // More details can be found here: https://forums.foundationdb.org/t/implementing-versionstamps-in-bindings/250
+                </span><span class="kw">let </span><span class="kw-2">mut </span>arr = [<span class="number">0u8</span>; <span class="number">8</span>];
+                arr.copy_from_slice(<span class="kw-2">&amp;</span>value[<span class="number">0</span>..<span class="number">8</span>]);
+                <span class="kw">let </span>transaction_version: i64 = i64::from_be_bytes(arr);
 
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">transaction_version</span>))
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(transaction_version))
             }
             <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
 
-            <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+            <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(err),
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg_api_versions</span>(<span class="ident">min</span> <span class="op">=</span> <span class="number">610</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_metadata_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="comment">// The param is transformed by removing the final four bytes from ``param`` and reading</span>
-        <span class="comment">// those as a little-Endian 32-bit integer to get a position ``pos``.</span>
-        <span class="comment">// The 10 bytes of the parameter from ``pos`` to ``pos + 10`` are replaced with the</span>
-        <span class="comment">// versionstamp of the transaction used. The first byte of the parameter is position 0.</span>
-        <span class="comment">// As we only have the metadata value, we can just create an 14-bytes Vec filled with 0u8.</span>
-        <span class="kw">let</span> <span class="ident">param</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">14</span>];
-        <span class="self">self</span>.<span class="ident">atomic_op</span>(
-            <span class="ident">METADATA_VERSION_KEY</span>,
-            <span class="ident">param</span>.<span class="ident">as_slice</span>(),
-            <span class="ident">options::MutationType::SetVersionstampedValue</span>,
+    <span class="attribute">#[cfg_api_versions(min = <span class="number">610</span>)]
+    </span><span class="kw">pub fn </span>update_metadata_version(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="comment">// The param is transformed by removing the final four bytes from ``param`` and reading
+        // those as a little-Endian 32-bit integer to get a position ``pos``.
+        // The 10 bytes of the parameter from ``pos`` to ``pos + 10`` are replaced with the
+        // versionstamp of the transaction used. The first byte of the parameter is position 0.
+        // As we only have the metadata value, we can just create an 14-bytes Vec filled with 0u8.
+        </span><span class="kw">let </span>param = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">14</span>];
+        <span class="self">self</span>.atomic_op(
+            METADATA_VERSION_KEY,
+            param.as_slice(),
+            options::MutationType::SetVersionstampedValue,
         )
     }
 
-    <span class="doccomment">/// Reset transaction to its initial state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In order to protect against a race condition with cancel(), this call require a mutable</span>
-    <span class="doccomment">/// access to the transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is similar to dropping the transaction and creating a new one.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It is not necessary to call `reset()` when handling an error with `on_error()` since the</span>
-    <span class="doccomment">/// transaction has already been reset.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">unsafe</span> { <span class="ident">fdb_sys::fdb_transaction_reset</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>()) }
+    <span class="doccomment">/// Reset transaction to its initial state.
+    ///
+    /// In order to protect against a race condition with cancel(), this call require a mutable
+    /// access to the transaction.
+    ///
+    /// This is similar to dropping the transaction and creating a new one.
+    ///
+    /// It is not necessary to call `reset()` when handling an error with `on_error()` since the
+    /// transaction has already been reset.
+    </span><span class="kw">pub fn </span>reset(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_reset(<span class="self">self</span>.inner.as_ptr()) }
     }
 
-    <span class="doccomment">/// Adds a conflict range to a transaction without performing the associated read or write.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Note</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Most applications will use the serializable isolation that transactions provide by default</span>
-    <span class="doccomment">/// and will not need to manipulate conflict ranges.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_conflict_range</span>(
+    <span class="doccomment">/// Adds a conflict range to a transaction without performing the associated read or write.
+    ///
+    /// # Note
+    ///
+    /// Most applications will use the serializable isolation that transactions provide by default
+    /// and will not need to manipulate conflict ranges.
+    </span><span class="kw">pub fn </span>add_conflict_range(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">begin</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">end</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">ty</span>: <span class="ident">options::ConflictRangeType</span>,
-    ) -&gt; <span class="ident">FdbResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">error::eval</span>(<span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_add_conflict_range</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">begin</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">begin</span>.<span class="ident">len</span>(), <span class="string">&quot;begin&quot;</span>),
-                <span class="ident">end</span>.<span class="ident">as_ptr</span>(),
-                <span class="ident">fdb_len</span>(<span class="ident">end</span>.<span class="ident">len</span>(), <span class="string">&quot;end&quot;</span>),
-                <span class="ident">ty</span>.<span class="ident">code</span>(),
+        begin: <span class="kw-2">&amp;</span>[u8],
+        end: <span class="kw-2">&amp;</span>[u8],
+        ty: options::ConflictRangeType,
+    ) -&gt; FdbResult&lt;()&gt; {
+        error::eval(<span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_add_conflict_range(
+                <span class="self">self</span>.inner.as_ptr(),
+                begin.as_ptr(),
+                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                end.as_ptr(),
+                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
+                ty.code(),
             )
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Transaction</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">unsafe</span> {
-            <span class="ident">fdb_sys::fdb_transaction_destroy</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_ptr</span>());
+<span class="kw">impl </span>Drop <span class="kw">for </span>Transaction {
+    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">unsafe </span>{
+            fdb_sys::fdb_transaction_destroy(<span class="self">self</span>.inner.as_ptr());
         }
     }
 }
 
-<span class="doccomment">/// A retryable transaction, generated by Database.run</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RetryableTransaction</span> {
-    <span class="ident">inner</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Transaction</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A retryable transaction, generated by Database.run
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>RetryableTransaction {
+    inner: Arc&lt;Transaction&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">RetryableTransaction</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Transaction</span>;
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Transaction</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">deref</span>()
+<span class="kw">impl </span>Deref <span class="kw">for </span>RetryableTransaction {
+    <span class="kw">type </span>Target = Transaction;
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Transaction {
+        <span class="self">self</span>.inner.deref()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">RetryableTransaction</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">t</span>: <span class="ident">Transaction</span>) -&gt; <span class="ident">RetryableTransaction</span> {
-        <span class="ident">RetryableTransaction</span> { <span class="ident">inner</span>: <span class="ident">Arc::new</span>(<span class="ident">t</span>) }
+<span class="kw">impl </span>RetryableTransaction {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(t: Transaction) -&gt; RetryableTransaction {
+        RetryableTransaction { inner: Arc::new(t) }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">take</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Transaction</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span> {
-        <span class="comment">// checking weak references</span>
-        <span class="kw">if</span> <span class="ident">Arc::weak_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>) <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FdbBindingError::ReferenceToTransactionKept</span>);
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>take(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Transaction, FdbBindingError&gt; {
+        <span class="comment">// checking weak references
+        </span><span class="kw">if </span>Arc::weak_count(<span class="kw-2">&amp;</span><span class="self">self</span>.inner) != <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FdbBindingError::ReferenceToTransactionKept);
         }
-        <span class="ident">Arc::try_unwrap</span>(<span class="self">self</span>.<span class="ident">inner</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">FdbBindingError::ReferenceToTransactionKept</span>)
+        Arc::try_unwrap(<span class="self">self</span>.inner).map_err(|<span class="kw">_</span>| FdbBindingError::ReferenceToTransactionKept)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">on_error</span>(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async fn </span>on_error(
         <span class="self">self</span>,
-        <span class="ident">err</span>: <span class="ident">FdbError</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RetryableTransaction</span>, <span class="ident">FdbError</span><span class="op">&gt;</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>
-            .<span class="ident">take</span>()<span class="question-mark">?</span>
-            .<span class="ident">on_error</span>(<span class="ident">err</span>)
-            .<span class="kw">await</span>
-            .<span class="ident">map</span>(<span class="ident">RetryableTransaction::new</span>))
+        err: FdbError,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Result</span>&lt;RetryableTransaction, FdbError&gt;, FdbBindingError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.take()<span class="question-mark">?
+            </span>.on_error(err)
+            .<span class="kw">await
+            </span>.map(RetryableTransaction::new))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">commit</span>(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async fn </span>commit(
         <span class="self">self</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TransactionCommitted</span>, <span class="ident">TransactionCommitError</span><span class="op">&gt;</span>, <span class="ident">FdbBindingError</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">take</span>()<span class="question-mark">?</span>.<span class="ident">commit</span>().<span class="kw">await</span>)
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Result</span>&lt;TransactionCommitted, TransactionCommitError&gt;, FdbBindingError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.take()<span class="question-mark">?</span>.commit().<span class="kw">await</span>)
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="foundationdb" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>
