@@ -58,10 +58,14 @@ impl Database {
         let err = unsafe { fdb_sys::fdb_create_database(path_ptr, &mut v) };
         drop(path_str); // path_str own the CString that we are getting the ptr from
         error::eval(err)?;
-        Ok(Database {
-            inner: NonNull::new(v)
-                .expect("fdb_create_database to not return null if there is no error"),
-        })
+        let ptr =
+            NonNull::new(v).expect("fdb_create_database to not return null if there is no error");
+        Ok(Self::new_from_pointer(ptr))
+    }
+
+    /// Create a new FDBDatabase from a raw pointer. Users are expected to use the `new` method.
+    pub fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
+        Self { inner: ptr }
     }
 
     /// Create a database for the given configuration path
