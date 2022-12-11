@@ -777,8 +777,21 @@ impl Transaction {
     pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
         FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
             move |r| match r {
-                Ok(()) => Ok(TransactionCommitted { tr: self }),
-                Err(err) => Err(TransactionCommitError { tr: self, err }),
+                Ok(()) => {
+                    #[cfg(feature = "trace")]
+                    tracing::event!(tracing::Level::INFO, "transaction committed");
+
+                    Ok(TransactionCommitted { tr: self })
+                }
+                Err(err) => {
+                    #[cfg(feature = "trace")]
+                    {
+                        let error_code = err.code();
+                        tracing::event!(tracing::Level::ERROR, error_code, "could not commit");
+                    }
+
+                    Err(TransactionCommitError { tr: self, err })
+                }
             },
         )
     }
@@ -1049,6 +1062,7 @@ impl RetryableTransaction {
         Arc::try_unwrap(self.inner).map_err(|_| FdbBindingError::ReferenceToTransactionKept)
     }
 
+    #[cfg_attr(feature = "trace", tracing::instrument(skip_all))]
     pub(crate) async fn on_error(
         self,
         err: FdbError,
@@ -1060,6 +1074,7 @@ impl RetryableTransaction {
             .map(RetryableTransaction::new))
     }
 
+    #[cfg_attr(feature = "trace", tracing::instrument(skip_all))]
     pub(crate) async fn commit(
         self,
     ) -> Result<Result<TransactionCommitted, TransactionCommitError>, FdbBindingError> {

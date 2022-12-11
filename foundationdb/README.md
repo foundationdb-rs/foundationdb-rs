@@ -77,6 +77,7 @@ This Rust crate is not tied to any Async Runtime.
 | `embedded-fdb-include` | Use the locally embedded FoundationDB fdb_c.h and fdb.options files to compile |
 | `uuid`                 | Support for the uuid crate for Tuples                                          |
 | `num-bigint`           | Support for the bigint crate for Tuples                                        |
+| `trace`                | Support for the tracing crate                                                  |
 
 ### Hello, World using the crate
 
