@@ -132,6 +132,7 @@ impl Database {
     /// Once [Generic Associated Types](https://github.com/rust-lang/rfcs/blob/master/text/1598-generic_associated_types.md)
     /// lands in stable rust, the returned future of f won't need to be boxed anymore, also the
     /// lifetime limitations around f might be lowered.
+    #[cfg_attr(feature = "trace", tracing::instrument(skip_all))]
     pub async fn transact<F>(&self, mut f: F, options: TransactOption) -> Result<F::Item, F::Error>
     where
         F: DatabaseTransact,
@@ -248,6 +249,7 @@ impl Database {
     /// The closure will notify the user in case of a maybe_committed transaction in a previous run
     ///  with the boolean provided in the closure.
     ///
+    #[cfg_attr(feature = "trace", tracing::instrument(skip_all))]
     pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
     where
         F: Fn(RetryableTransaction, bool) -> Fut,
@@ -270,6 +272,16 @@ impl Database {
                     match transaction.on_error(e).await {
                         // we can retry the error
                         Ok(Ok(t)) => {
+                            #[cfg(feature = "trace")]
+                            {
+                                let error_code = e.code();
+                                tracing::event!(
+                                    tracing::Level::WARN,
+                                    error_code,
+                                    "restarting transaction"
+                                );
+                            }
+
                             transaction = t;
                             continue;
                         }
@@ -291,10 +303,20 @@ impl Database {
                 Err(err) => return Err(err),
                 Ok(Ok(_)) => return result_closure,
                 Ok(Err(transaction_commit_error)) => {
+                    #[cfg(feature = "trace")]
+                    let error_code = transaction_commit_error.code();
+
                     maybe_committed_transaction = transaction_commit_error.is_maybe_committed();
                     // we have an error during commit, checking if it is a retryable error
                     match transaction_commit_error.on_error().await {
                         Ok(t) => {
+                            #[cfg(feature = "trace")]
+                            tracing::event!(
+                                tracing::Level::WARN,
+                                error_code,
+                                "restarting transaction"
+                            );
+
                             transaction = RetryableTransaction::new(t);
                             continue;
                         }
@@ -314,6 +336,7 @@ impl Database {
     /// the network thread has entered a state where it is no longer processing requests or if its time to process
     /// requests has increased. If the network thread is busy, this operation may take some amount of time to complete,
     /// which is why this operation returns a future.
+    #[cfg_attr(feature = "trace", tracing::instrument(skip_all))]
     pub async fn perform_no_op(&self) -> FdbResult<()> {
         let trx = self.create_trx()?;
 
