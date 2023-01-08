@@ -27,6 +27,7 @@ use crate::error::FdbBindingError;
 use futures::prelude::*;
 
 #[cfg(feature = "fdb-7_1")]
+#[cfg(any(feature = "tenant-experimental"))]
 use crate::tenant::FdbTenant;
 
 /// Represents a FoundationDB database
@@ -83,6 +84,7 @@ impl Database {
 }
 
 #[cfg_api_versions(min = 710)]
+#[cfg(any(feature = "tenant-experimental"))]
 impl Database {
     pub fn open_tenant(&self, tenant_name: &[u8]) -> FdbResult<FdbTenant> {
         let mut ptr: *mut fdb_sys::FDB_tenant = std::ptr::null_mut();

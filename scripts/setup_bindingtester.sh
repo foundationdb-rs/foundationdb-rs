@@ -22,7 +22,9 @@ fdboption_file="$(pip show foundationdb | grep Loca | awk '{print $2}')/fdb/fdbo
   # Instead of building fdb-python with ninja/cmake, patching it with pip install
   cp ${fdboption_file} ./bindings/python/fdb/fdboptions.py
 
-  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 710, types=ALL_TYPES, tenants_enabled=True)
+  # Tenants are disabled for now.
+  # TODO: enable them when feature is stabilized in FDB itself
+  echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 710, types=ALL_TYPES)
 " >> ./bindings/bindingtester/known_testers.py
 )
 

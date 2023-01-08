@@ -1,4 +1,11 @@
-//! Implementation of the Tenants API
+//! Implementation of the Tenants API. Experimental features exposed through the `tenant-experimental` feature.
+//!
+//! Please refers to the official [documentation](https://apple.github.io/foundationdb/tenants.html)
+//!
+//! ## Warning
+//!
+//! Tenants are currently experimental and are not recommended for use in production. Please note that
+//! currently, we [cannot upgrade a cluster with tenants enabled](https://forums.foundationdb.org/t/tenant-feature-metadata-changes-in-7-2-release/3459).
 
 use crate::options::TransactionOption;
 use std::future::Future;
@@ -19,6 +26,7 @@ use std::time::Instant;
 const TENANT_MAP_PREFIX: &[u8] = b"\xFF\xFF/management/tenant_map/";
 const TENANT_MAP_PREFIX_END: &[u8] = b"\xFF\xFF/management/tenant_map0";
 
+/// A `FdbTenant` represents a named key-space within a database that can be interacted with transactionally.
 pub struct FdbTenant {
     pub(crate) inner: NonNull<fdb_sys::FDBTenant>,
     pub(crate) name: Vec<u8>,
@@ -36,7 +44,7 @@ impl Drop for FdbTenant {
 }
 
 impl FdbTenant {
-    /// Returns the name of this [`Tenant`].
+    /// Returns the name of this [`FdbTenant`].
     pub fn get_name(&self) -> &[u8] {
         &self.name
     }
@@ -65,7 +73,7 @@ impl FdbTenant {
     /// # Warning: retry
     ///
     /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
-    /// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction
+    /// set the [crate::options::TransactionOption::RetryLimit] or [crate::options::TransactionOption::RetryLimit] on the transaction
     /// if the task need to be guaranteed to finish. These options can be safely set on every iteration of the closure.
     ///
     /// # Warning: Maybe committed transactions
