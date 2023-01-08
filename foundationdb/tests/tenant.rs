@@ -3,14 +3,14 @@ mod common;
 #[test]
 fn test_tenant() {
     let _guard = unsafe { foundationdb::boot() };
-    #[cfg(any(feature = "fdb-7_1",))]
+    #[cfg(all(feature = "fdb-7_1", feature = "tenant-experimental"))]
     {
         futures::executor::block_on(test_tenant_management()).expect("failed to run");
         futures::executor::block_on(test_tenant_run()).expect("failed to run");
     }
 }
 
-#[cfg(any(feature = "fdb-7_1",))]
+#[cfg(all(feature = "fdb-7_1", feature = "tenant-experimental"))]
 async fn test_tenant_management() -> foundationdb::FdbResult<()> {
     use foundationdb::tenant::TenantManagement;
 
@@ -56,7 +56,7 @@ async fn test_tenant_management() -> foundationdb::FdbResult<()> {
     Ok(())
 }
 
-#[cfg(any(feature = "fdb-7_1",))]
+#[cfg(all(feature = "fdb-7_1", feature = "tenant-experimental"))]
 async fn test_tenant_run() -> foundationdb::FdbResult<()> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
