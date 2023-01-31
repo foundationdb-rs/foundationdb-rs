@@ -166,6 +166,15 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
@@ -323,7 +332,16 @@
 
 <span class="kw">impl </span>Debug <span class="kw">for </span>FdbBindingError {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        std::fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f)
+        <span class="kw">match </span><span class="self">self </span>{
+            FdbBindingError::NonRetryableFdbError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, err),
+            FdbBindingError::HcaError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, err),
+            FdbBindingError::DirectoryError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, err),
+            FdbBindingError::PackError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, err),
+            FdbBindingError::ReferenceToTransactionKept =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;Reference to transaction kept&quot;</span>)
+            }
+            FdbBindingError::CustomError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, err),
+        }
     }
 }
 
