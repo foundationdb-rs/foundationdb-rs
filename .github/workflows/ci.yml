@@ -28,7 +28,10 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.5"
+          version: "7.1.25"
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -55,6 +58,12 @@ jobs:
         with:
           command: test
           args: --manifest-path foundationdb/Cargo.toml --features embedded-fdb-include --tests
+
+      - name: Test experimental tenants
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path foundationdb/Cargo.toml --features tenant-experimental --tests
 
       - name: Test bigint
         uses: actions-rs/cargo@v1
@@ -163,7 +172,10 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.5"
+          version: "7.1.25"
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -196,7 +208,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.5"
+          version: "7.1.25"
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -230,7 +242,10 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.0.0
         with:
-          version: "7.1.5"
+          version: "7.1.25"
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - uses: actions-rs/toolchain@v1
         with:

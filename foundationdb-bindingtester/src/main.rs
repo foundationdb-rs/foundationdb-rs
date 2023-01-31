@@ -41,6 +41,7 @@ use crate::fdb::options::{MutationType, StreamingMode};
 use foundationdb::directory::DirectoryError;
 use foundationdb::directory::DirectoryLayer;
 use foundationdb::directory::{Directory, DirectoryOutput};
+use foundationdb::tenant::{FdbTenant, TenantManagement};
 use foundationdb::tuple::{PackResult, TupleUnpack};
 
 use tuple::VersionstampOffset;
@@ -83,6 +84,7 @@ struct Instr {
     code: InstrCode,
     database: bool,
     snapshot: bool,
+    tenant: bool,
     starts_with: bool,
     selector: bool,
 }
@@ -92,6 +94,9 @@ impl std::fmt::Debug for Instr {
         write!(fmt, "[{:?}", self.code)?;
         if self.database {
             write!(fmt, " db")?;
+        }
+        if self.tenant {
+            write!(fmt, " tenant")?;
         }
         if self.snapshot {
             write!(fmt, " snapshot")?;
@@ -148,8 +153,17 @@ impl Instr {
         }
     }
 
+    fn pop_tenant(&mut self) -> bool {
+        if self.tenant {
+            self.tenant = false;
+            true
+        } else {
+            false
+        }
+    }
+
     fn has_flags(&self) -> bool {
-        self.database || self.snapshot || self.starts_with || self.selector
+        self.database || self.snapshot || self.starts_with || self.selector || self.tenant
     }
 }
 
@@ -242,6 +256,13 @@ enum InstrCode {
 
     // Other
     DirectoryStripPrefix,
+
+    // Tenants
+    TenantCreate,
+    TenantDelete,
+    TenantSetActive,
+    TenantClearActive,
+    TenantList,
 }
 
 fn has_opt<'a>(cmd: &'a str, opt: &'static str) -> (&'a str, bool) {
@@ -262,6 +283,7 @@ impl Instr {
         let cmd = tup[0].as_str().unwrap();
 
         let (cmd, database) = has_opt(cmd, "_DATABASE");
+        let (cmd, tenant) = has_opt(cmd, "_TENANT");
         let (cmd, snapshot) = has_opt(cmd, "_SNAPSHOT");
         let (cmd, starts_with) = has_opt(cmd, "_STARTS_WITH");
         let (cmd, selector) = has_opt(cmd, "_SELECTOR");
@@ -346,12 +368,19 @@ impl Instr {
 
             "DIRECTORY_STRIP_PREFIX" => DirectoryStripPrefix,
 
+            "TENANT_CREATE" => TenantCreate,
+            "TENANT_DELETE" => TenantDelete,
+            "TENANT_SET_ACTIVE" => TenantSetActive,
+            "TENANT_CLEAR_ACTIVE" => TenantClearActive,
+            "TENANT_LIST" => TenantList,
+
             name => unimplemented!("inimplemented instr: {}", name),
         };
         Instr {
             code,
             database,
             snapshot,
+            tenant,
             starts_with,
             selector,
         }
@@ -549,6 +578,8 @@ struct StackMachine {
     directory_stack: Vec<DirectoryStackItem>,
     directory_index: usize,
     error_index: usize,
+
+    tenant: Option<FdbTenant>,
 }
 
 fn strinc(key: Bytes) -> Bytes {
@@ -586,6 +617,7 @@ impl StackMachine {
             directory_stack: vec![DirectoryStackItem::Directory(DirectoryLayer::default())],
             directory_index: 0,
             error_index: 0,
+            tenant: None,
         }
     }
 
@@ -780,6 +812,11 @@ impl StackMachine {
         use crate::InstrCode::*;
 
         let is_db = instr.pop_database();
+        let is_tenant = instr.pop_tenant();
+        if is_tenant {
+            unimplemented!("{}", is_tenant);
+        }
+
         let mut mutation = false;
         let mut pending = false;
 
@@ -936,8 +973,12 @@ impl StackMachine {
             // under the currently used transaction name.
             NewTransaction => {
                 let name = self.cur_transaction.clone();
-                debug!("create_trx {:?}", name);
-                let trx = self.check(number, db.create_trx())?;
+                debug!("create_trx {:?} tenant={}", name, self.tenant.is_some());
+
+                let trx = match &self.tenant {
+                    None => self.check(number, db.create_trx())?,
+                    Some(tenant) => self.check(number, tenant.create_trx())?,
+                };
                 trx.set_option(fdb::options::TransactionOption::DebugTransactionIdentifier(
                     "RUST".to_string(),
                 ))
@@ -2595,6 +2636,67 @@ impl StackMachine {
                     }
                 },
             },
+            // Pops the top item off of the stack as TENANT_NAME. Creates a new tenant
+            // in the database with the name TENANT_NAME. May optionally push a future
+            // onto the stack.
+            TenantCreate => {
+                let tenant_name = self.pop_bytes().await;
+                debug!("creating tenant {}", tenant_name);
+                match TenantManagement::create_tenant(&db, &tenant_name.0).await {
+                    Ok(()) => self.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
+                    Err(err) => self.push_err(number, err),
+                }
+            }
+            // Pops the top item off of the stack as TENANT_NAME. Deletes the tenant with
+            // the name TENANT_NAME from the database. May optionally push a future onto
+            // the stack.
+            TenantDelete => {
+                let tenant_name = self.pop_bytes().await;
+                debug!("deleting tenant {}", tenant_name);
+                match TenantManagement::delete_tenant(&db, &tenant_name.0).await {
+                    Ok(()) => self.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
+                    Err(err) => self.push_err(number, err),
+                }
+            }
+            // Pops the top item off of the stack as TENANT_NAME. Opens the tenant with
+            // name TENANT_NAME and stores it as the active tenant.
+            TenantSetActive => {
+                let tenant_name = self.pop_bytes().await;
+                debug!("set active tenant {}", tenant_name);
+                match db.open_tenant(&tenant_name.0) {
+                    Ok(tenant) => self.tenant = Some(tenant),
+                    Err(err) => self.push_err(number, err),
+                }
+            }
+            // Unsets the active tenant.
+            TenantClearActive => self.tenant = None,
+            // Pops the top 3 items off of the stack as BEGIN, END, & LIMIT.
+            // Performs a range read of the tenant management keyspace in a language-appropriate
+            // way using these parameters. The resulting range of n tenant names are
+            // packed into a tuple as [t1,t2,t3,...,tn], and this single packed value
+            // is pushed onto the stack.
+            // Note: as of 30 of September, this is NOT used in branch release-7.1
+            TenantList => {
+                debug!("list tenants");
+                let begin = self.pop_bytes().await;
+                let end = self.pop_bytes().await;
+                let limit: usize = self.pop_usize().await;
+                let mut results = Vec::with_capacity(limit);
+                match TenantManagement::list_tenant(&db, &begin.0, &end.0, Some(limit)).await {
+                    Ok(tenants) => {
+                        for tenant in tenants {
+                            match tenant {
+                                Err(_err) => {
+                                    unimplemented!("received an tenant that cannot be deserialized")
+                                }
+                                Ok(tenant) => results.push(Element::Int(tenant.id)),
+                            }
+                        }
+                        self.push(number, Element::Tuple(results));
+                    }
+                    Err(err) => self.push_err(number, err),
+                }
+            }
         }
 
         if is_db && pending {
