@@ -1,6 +1,7 @@
 name: Scheduled correctness
 
 on:
+  workflow_dispatch:
   # https://crontab.guru/#0_*_*_*_*
   # “At minute 0.”
   schedule:
