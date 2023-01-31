@@ -1,5 +1,6 @@
 name: "Nix checks"
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
