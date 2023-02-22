@@ -383,6 +383,34 @@ impl Transaction {
         unsafe { opt.apply(self.inner.as_ptr()) }
     }
 
+    /// Pass through an option given a code and raw data. Useful when creating a passthrough layer
+    /// where the code and data will be provided as raw, in order to avoid deserializing to an option
+    /// and serializing it back to code and data.
+    /// In general, you should use `set_option`.
+    pub fn set_raw_option(
+        &self,
+        code: fdb_sys::FDBTransactionOption,
+        data: Option<Vec<u8>>,
+    ) -> FdbResult<()> {
+        let (data_ptr, size) = data
+            .as_ref()
+            .map(|data| {
+                (
+                    (data.as_ptr() as *const u8),
+                    i32::try_from(data.len()).expect("len to fit in i32"),
+                )
+            })
+            .unwrap_or_else(|| (std::ptr::null(), 0));
+        let err = unsafe {
+            fdb_sys::fdb_transaction_set_option(self.inner.as_ptr(), code, data_ptr, size)
+        };
+        if err != 0 {
+            Err(FdbError::from_code(err))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Modify the database snapshot represented by transaction to change the given
     /// key to have the given value.
     ///
