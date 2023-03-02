@@ -27,6 +27,8 @@ fn test_get() {
     futures::executor::block_on(test_read_version_async()).expect("failed to run");
     futures::executor::block_on(test_set_read_version_async()).expect("failed to run");
     futures::executor::block_on(test_get_addresses_for_key_async()).expect("failed to run");
+    futures::executor::block_on(test_set_raw_option_async()).expect("failed to run");
+    futures::executor::block_on(test_fails_to_set_unknown_raw_option()).expect("failed to run");
     #[cfg(any(
         feature = "fdb-7_1",
         feature = "fdb-7_0",
@@ -334,5 +336,57 @@ async fn test_metadata_version() -> FdbResult<()> {
     );
     assert_eq!(commit_version, metadata_version);
 
+    Ok(())
+}
+
+async fn test_set_raw_option_async() -> FdbResult<()> {
+    const KEY: &[u8] = b"test_set_raw_option_async";
+    const RETRY_COUNT: usize = 5;
+    async fn async_body(
+        db: &Database,
+        trx: &Transaction,
+        try_count0: Arc<AtomicUsize>,
+    ) -> FdbResult<()> {
+        // increment try counter
+        try_count0.fetch_add(1, Ordering::SeqCst);
+        let option = options::TransactionOption::RetryLimit(RETRY_COUNT as i32);
+        trx.set_raw_option(option.code(), Some(RETRY_COUNT.to_le_bytes().to_vec()))
+            .expect("failed to set retry limit");
+
+        // update conflict range
+        trx.get(KEY, false).await?;
+
+        // make current transaction invalid by making conflict
+        make_dirty(db, KEY).await?;
+
+        trx.set(KEY, common::random_str(10).as_bytes());
+
+        // `Database::transact` will handle commit by itself, so returns without commit
+        Ok(())
+    }
+
+    let try_count = Arc::new(AtomicUsize::new(0));
+    let db = common::database().await?;
+    let res = db
+        .transact_boxed(
+            &db,
+            |trx, db| async_body(db, trx, try_count.clone()).boxed(),
+            TransactOption::default(),
+        )
+        .await;
+    assert!(res.is_err(), "should not be able to commit");
+
+    // `TransactionOption::RetryCount` does not count first try, so `try_count` should be equal to
+    // `RETRY_COUNT+1`
+    assert_eq!(try_count.load(Ordering::SeqCst), RETRY_COUNT + 1);
+
+    Ok(())
+}
+
+async fn test_fails_to_set_unknown_raw_option() -> FdbResult<()> {
+    let db = common::database().await?;
+    let trx = db.create_trx()?;
+    let res = trx.set_raw_option(0, None);
+    assert!(res.is_err(), "should not be able to set option");
     Ok(())
 }
