@@ -15,6 +15,7 @@
 //! More info can be found in the [relevant documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange).
 
 use crate::future::{FdbFutureHandle, FdbKeyValue};
+use crate::mem::read_unaligned_slice;
 use crate::{error, KeySelector};
 use crate::{FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
@@ -138,8 +139,10 @@ impl FdbMappedKeyValue {
     /// retrieves the associated slice of [`FdbKeyValue`]
     pub fn key_values(&self) -> &[FdbKeyValue] {
         unsafe {
-            &*(std::slice::from_raw_parts(self.0.getRange.data, self.0.getRange.m_size as usize)
-                as *const [fdb_sys::FDBKeyValue] as *const [FdbKeyValue])
+            &*(read_unaligned_slice(
+                self.0.getRange.data as *const FdbKeyValue,
+                self.0.getRange.m_size as usize,
+            ))
         }
     }
 }
@@ -151,9 +154,10 @@ impl Deref for MappedKeyValues {
         assert_eq_size!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
         assert_eq_align!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
         unsafe {
-            &*(std::slice::from_raw_parts(self.mapped_keyvalues, self.len as usize)
-                as *const [fdb_sys::FDBMappedKeyValue]
-                as *const [FdbMappedKeyValue])
+            &*(read_unaligned_slice(
+                self.mapped_keyvalues as *const FdbMappedKeyValue,
+                self.len as usize,
+            ))
         }
     }
 }
