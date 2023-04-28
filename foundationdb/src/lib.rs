@@ -23,6 +23,7 @@ mod keyselector;
 #[cfg(any(feature = "fdb-7_1"))]
 #[deny(missing_docs)]
 pub mod mapped_key_values;
+mod mem;
 /// Generated configuration types for use with the various `set_option` functions
 #[allow(clippy::all)]
 pub mod options;
