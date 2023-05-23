@@ -14,6 +14,7 @@ use crate::{FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
 use std::fmt;
 use std::ops::Deref;
+use crate::mem::read_unaligned_slice;
 
 /// An slice of keys owned by a FoundationDB future
 pub struct FdbKeys {
@@ -43,7 +44,7 @@ impl Deref for FdbKeys {
         assert_eq_size!(FdbKey, fdb_sys::FDBKey);
         assert_eq_align!(FdbKey, fdb_sys::FDBKey);
         unsafe {
-            &*(std::slice::from_raw_parts(self.keys, self.len as usize)
+            &*(read_unaligned_slice(self.keys, self.len as usize)
                 as *const [fdb_sys::FDBKey] as *const [FdbKey])
         }
     }

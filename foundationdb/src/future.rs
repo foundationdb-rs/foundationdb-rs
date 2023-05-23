@@ -35,7 +35,7 @@ use std::sync::Arc;
 pub use crate::fdb_keys::FdbKeys;
 #[cfg_api_versions(min = 710)]
 pub use crate::mapped_key_values::MappedKeyValues;
-use crate::mem::read_unaligned_slice;
+use crate::mem::{read_unaligned_slice, read_unaligned_struct};
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 use futures::prelude::*;
@@ -419,7 +419,9 @@ impl Deref for FdbValue {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
         assert_eq_align!(FdbKeyValue, fdb_sys::FDBKeyValue);
-        unsafe { &*(self.keyvalue as *const FdbKeyValue) }
+        unsafe {
+            &*(read_unaligned_struct(self.keyvalue as *const FdbKeyValue))
+        }
     }
 }
 impl AsRef<FdbKeyValue> for FdbValue {
