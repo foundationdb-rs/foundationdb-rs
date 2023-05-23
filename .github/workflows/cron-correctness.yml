@@ -16,6 +16,7 @@ jobs:
     strategy:
       matrix:
         parallelism: ["1", "2", "3"]
+        toolchain: ["1.58.1", "stable", "beta", "nightly"]
     env:
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
@@ -37,7 +38,7 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
           profile: minimal
 
       - name: Build
