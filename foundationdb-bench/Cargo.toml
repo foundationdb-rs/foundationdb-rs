@@ -6,7 +6,7 @@ authors = [
     "Vincent Rouillé <vincent@clikengo.com>",
 ]
 edition = "2021"
-rust-version = "1.57"
+rust-version = "1.58"
 
 description = """
 Bindings to the C api for FoundationDB
