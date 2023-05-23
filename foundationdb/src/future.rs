@@ -419,9 +419,7 @@ impl Deref for FdbValue {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
         assert_eq_align!(FdbKeyValue, fdb_sys::FDBKeyValue);
-        unsafe {
-            &*(read_unaligned_struct(self.keyvalue as *const FdbKeyValue))
-        }
+        unsafe { &*(read_unaligned_struct(self.keyvalue as *const FdbKeyValue)) }
     }
 }
 impl AsRef<FdbKeyValue> for FdbValue {

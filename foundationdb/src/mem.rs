@@ -4,7 +4,6 @@
 ///
 /// Rust does not allow dereferencing unaligned pointers, so we copy the memory first to an aligned
 /// pointer before constructing our slice.
-
 use std::{alloc::Layout, ptr::copy_nonoverlapping};
 
 pub(crate) unsafe fn read_unaligned_slice<T>(src: *const T, len: usize) -> *const [T] {
