@@ -91,14 +91,14 @@ impl FdbMappedKeyValue {
     /// Retrieves the "parent" key that generated the secondary scan.
     pub fn parent_key(&self) -> &[u8] {
         unsafe {
-            std::slice::from_raw_parts(self.0.key.key as *const u8, self.0.key.key_length as usize)
+            &*std::ptr::slice_from_raw_parts(self.0.key.key as *const u8, self.0.key.key_length as usize)
         }
     }
 
     /// Retrieves the "parent" value that generated the secondary scan.
     pub fn parent_value(&self) -> &[u8] {
         unsafe {
-            std::slice::from_raw_parts(
+            &*std::ptr::slice_from_raw_parts(
                 self.0.value.key as *const u8,
                 self.0.value.key_length as usize,
             )
@@ -108,7 +108,7 @@ impl FdbMappedKeyValue {
     /// Retrieves the beginning of the range
     pub fn begin_range(&self) -> &[u8] {
         unsafe {
-            std::slice::from_raw_parts(
+            &*std::ptr::slice_from_raw_parts(
                 self.0.getRange.begin.key.key as *const u8,
                 self.0.getRange.begin.key.key_length as usize,
             )
@@ -118,7 +118,7 @@ impl FdbMappedKeyValue {
     /// Retrieves the end of the range
     pub fn end_range(&self) -> &[u8] {
         unsafe {
-            std::slice::from_raw_parts(
+            &*std::ptr::slice_from_raw_parts(
                 self.0.getRange.end.key.key as *const u8,
                 self.0.getRange.end.key.key_length as usize,
             )
@@ -138,7 +138,7 @@ impl FdbMappedKeyValue {
     /// retrieves the associated slice of [`FdbKeyValue`]
     pub fn key_values(&self) -> &[FdbKeyValue] {
         unsafe {
-            &*(std::slice::from_raw_parts(self.0.getRange.data, self.0.getRange.m_size as usize)
+            &*(std::ptr::slice_from_raw_parts(self.0.getRange.data, self.0.getRange.m_size as usize)
                 as *const [fdb_sys::FDBKeyValue] as *const [FdbKeyValue])
         }
     }
@@ -151,7 +151,7 @@ impl Deref for MappedKeyValues {
         assert_eq_size!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
         assert_eq_align!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
         unsafe {
-            &*(std::slice::from_raw_parts(self.mapped_keyvalues, self.len as usize)
+            &*(std::ptr::slice_from_raw_parts(self.mapped_keyvalues, self.len as usize)
                 as *const [fdb_sys::FDBMappedKeyValue]
                 as *const [FdbMappedKeyValue])
         }

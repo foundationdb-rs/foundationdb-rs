@@ -145,7 +145,7 @@ unsafe impl Send for FdbSlice {}
 impl Deref for FdbSlice {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        unsafe { std::slice::from_raw_parts(self.value, self.len as usize) }
+        unsafe { &*std::ptr::slice_from_raw_parts(self.value, self.len as usize) }
     }
 }
 impl AsRef<[u8]> for FdbSlice {
@@ -222,7 +222,7 @@ impl Deref for FdbAddresses {
         assert_eq_size!(FdbAddress, *const c_char);
         assert_eq_align!(FdbAddress, *const c_char);
         unsafe {
-            &*(std::slice::from_raw_parts(self.strings, self.len as usize)
+            &*(std::ptr::slice_from_raw_parts(self.strings, self.len as usize)
                 as *const [*const c_char] as *const [FdbAddress])
         }
     }
@@ -305,7 +305,7 @@ impl Deref for FdbValues {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
         assert_eq_align!(FdbKeyValue, fdb_sys::FDBKeyValue);
         unsafe {
-            &*(std::slice::from_raw_parts(self.keyvalues, self.len as usize)
+            &*(std::ptr::slice_from_raw_parts(self.keyvalues, self.len as usize)
                 as *const [fdb_sys::FDBKeyValue] as *const [FdbKeyValue])
         }
     }
@@ -455,13 +455,13 @@ pub struct FdbKeyValue(fdb_sys::FDBKeyValue);
 impl FdbKeyValue {
     /// key
     pub fn key(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
+        unsafe { &*std::ptr::slice_from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
     }
 
     /// value
     pub fn value(&self) -> &[u8] {
         unsafe {
-            std::slice::from_raw_parts(self.0.value as *const u8, self.0.value_length as usize)
+            &*std::ptr::slice_from_raw_parts(self.0.value as *const u8, self.0.value_length as usize)
         }
     }
 }
