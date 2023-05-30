@@ -170,7 +170,7 @@ impl Debug for FdbBindingError {
 
 impl Display for FdbBindingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        std::fmt::Display::fmt(&self, f)
+        std::fmt::Debug::fmt(&self, f)
     }
 }
 
