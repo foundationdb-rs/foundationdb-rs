@@ -664,8 +664,8 @@ impl Transaction {
     ///
     /// This is the "raw" version, users are expected to use [Transaction::get_mapped_ranges]
     #[cfg_api_versions(min = 710)]
-    pub fn get_mapped_range<'a>(
-        &'a self,
+    pub fn get_mapped_range(
+        &self,
         opt: &RangeOption,
         mapper: &[u8],
         iteration: usize,

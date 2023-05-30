@@ -91,7 +91,10 @@ impl FdbMappedKeyValue {
     /// Retrieves the "parent" key that generated the secondary scan.
     pub fn parent_key(&self) -> &[u8] {
         unsafe {
-            &*std::ptr::slice_from_raw_parts(self.0.key.key as *const u8, self.0.key.key_length as usize)
+            &*std::ptr::slice_from_raw_parts(
+                self.0.key.key as *const u8,
+                self.0.key.key_length as usize,
+            )
         }
     }
 

@@ -455,13 +455,18 @@ pub struct FdbKeyValue(fdb_sys::FDBKeyValue);
 impl FdbKeyValue {
     /// key
     pub fn key(&self) -> &[u8] {
-        unsafe { &*std::ptr::slice_from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
+        unsafe {
+            &*std::ptr::slice_from_raw_parts(self.0.key as *const u8, self.0.key_length as usize)
+        }
     }
 
     /// value
     pub fn value(&self) -> &[u8] {
         unsafe {
-            &*std::ptr::slice_from_raw_parts(self.0.value as *const u8, self.0.value_length as usize)
+            &*std::ptr::slice_from_raw_parts(
+                self.0.value as *const u8,
+                self.0.value_length as usize,
+            )
         }
     }
 }
