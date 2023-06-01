@@ -369,7 +369,7 @@ async fn main() {
     let db = fdb::Database::new_compat(None)
         .await
         .expect("failed to get database");
-    init(&db, &*ALL_CLASSES).await;
+    init(&db, &ALL_CLASSES).await;
     println!("Initialized");
     run_sim(&db, 10, 10).await;
 }
