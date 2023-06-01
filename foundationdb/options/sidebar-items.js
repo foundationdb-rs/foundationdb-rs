@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["ConflictRangeType",""],["DatabaseOption",""],["ErrorPredicate",""],["MutationType",""],["NetworkOption",""],["StreamingMode",""],["TransactionOption",""]]};
+window.SIDEBAR_ITEMS = {"enum":["ConflictRangeType","DatabaseOption","ErrorPredicate","MutationType","NetworkOption","StreamingMode","TransactionOption"]};

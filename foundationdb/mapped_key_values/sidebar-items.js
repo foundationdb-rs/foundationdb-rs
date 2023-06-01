@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["FdbMappedKeyValue","A KeyValue produced by a mapped operation, ownder by a Foundation Future."],["FdbMappedValue","An FdbMappedValue that you can own."],["FdbMappedValuesIter","An iterator of mapped keyvalues owned by a foundationDB future"],["MappedKeyValues","An slice of mapped keyvalues owned by a foundationDB future produced by the `get_mapped` method."]]};
+window.SIDEBAR_ITEMS = {"struct":["FdbMappedKeyValue","FdbMappedValue","FdbMappedValuesIter","MappedKeyValues"]};

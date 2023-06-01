@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/fdb_keys.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fdb_keys.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-6827029ac823cab7.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-8af5e100b21cd173.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/fdb_keys.rs`."><title>fdb_keys.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c4dbdcde0fbd8430.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" disabled href="../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" disabled href="../../static.files/ayu-be46fdc453a55015.css"><script src="../../static.files/storage-3891ce972e3a2bf8.js"></script><script defer src="../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-98a684e84ae5b08b.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../foundationdb/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -177,6 +177,7 @@
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2022 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
@@ -197,7 +198,7 @@
 <span class="doccomment">/// An slice of keys owned by a FoundationDB future
 </span><span class="kw">pub struct </span>FdbKeys {
     _f: FdbFutureHandle,
-    keys: <span class="kw-2">*const </span>fdb_sys::FDBKey,
+    keys: <span class="kw-2">*const </span>FdbKey,
     len: i32,
 }
 <span class="kw">unsafe impl </span>Sync <span class="kw">for </span>FdbKeys {}
@@ -212,7 +213,11 @@
 
         error::eval(<span class="kw">unsafe </span>{ fdb_sys::fdb_future_get_key_array(f.as_ptr(), <span class="kw-2">&amp;mut </span>keys, <span class="kw-2">&amp;mut </span>len) })<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(FdbKeys { _f: f, keys, len })
+        <span class="prelude-val">Ok</span>(FdbKeys {
+            _f: f,
+            keys: keys <span class="kw">as </span><span class="kw-2">*const </span>FdbKey,
+            len,
+        })
     }
 }
 
@@ -220,11 +225,8 @@
     <span class="kw">type </span>Target = [FdbKey];
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="macro">assert_eq_size!</span>(FdbKey, fdb_sys::FDBKey);
-        <span class="macro">assert_eq_align!</span>(FdbKey, fdb_sys::FDBKey);
-        <span class="kw">unsafe </span>{
-            <span class="kw-2">&amp;*</span>(std::slice::from_raw_parts(<span class="self">self</span>.keys, <span class="self">self</span>.len <span class="kw">as </span>usize)
-                <span class="kw">as </span><span class="kw-2">*const </span>[fdb_sys::FDBKey] <span class="kw">as </span><span class="kw-2">*const </span>[FdbKey])
-        }
+        <span class="macro">assert_eq_align!</span>(FdbKey, u8);
+        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.keys, <span class="self">self</span>.len <span class="kw">as </span>usize) }
     }
 }
 
@@ -246,7 +248,7 @@
 <span class="doccomment">/// An iterator of keyvalues owned by a foundationDB future
 </span><span class="kw">pub struct </span>FdbKeysIter {
     f: std::rc::Rc&lt;FdbFutureHandle&gt;,
-    keys: <span class="kw-2">*const </span>fdb_sys::FDBKey,
+    keys: <span class="kw-2">*const </span>FdbKey,
     len: i32,
     pos: i32,
 }
@@ -303,15 +305,15 @@
 /// (i.e. the future that own the data is dropped once all data it provided is dropped)
 </span><span class="kw">pub struct </span>FdbRowKey {
     _f: std::rc::Rc&lt;FdbFutureHandle&gt;,
-    row_key: <span class="kw-2">*const </span>fdb_sys::FDBKey,
+    row_key: <span class="kw-2">*const </span>FdbKey,
 }
 
 <span class="kw">impl </span>Deref <span class="kw">for </span>FdbRowKey {
     <span class="kw">type </span>Target = FdbKey;
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="macro">assert_eq_size!</span>(FdbKey, fdb_sys::FDBKey);
-        <span class="macro">assert_eq_align!</span>(FdbKey, fdb_sys::FDBKey);
-        <span class="kw">unsafe </span>{ <span class="kw-2">&amp;*</span>(<span class="self">self</span>.row_key <span class="kw">as </span><span class="kw-2">*const </span>FdbKey) }
+        <span class="macro">assert_eq_align!</span>(FdbKey, u8);
+        <span class="kw">unsafe </span>{ <span class="kw-2">&amp;*</span>(<span class="self">self</span>.row_key) }
     }
 }
 <span class="kw">impl </span>AsRef&lt;FdbKey&gt; <span class="kw">for </span>FdbRowKey {
@@ -332,7 +334,7 @@
     }
 }
 
-<span class="attr">#[repr(transparent)]
+<span class="attr">#[repr(packed)]
 </span><span class="doccomment">/// An FdbKey, owned by a FoundationDB Future
 </span><span class="kw">pub struct </span>FdbKey(fdb_sys::FDBKey);
 
@@ -357,4 +359,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.1 (d5a82bbd2 2023-02-07)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0 (84c898d65 2023-04-16)" data-search-js="search-8a59a8356673ec1f.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

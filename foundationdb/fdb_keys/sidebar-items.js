@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["FdbKey","An FdbKey, owned by a FoundationDB Future"],["FdbKeys","An slice of keys owned by a FoundationDB future"],["FdbKeysIter","An iterator of keyvalues owned by a foundationDB future"],["FdbRowKey","A row key you can own"]]};
+window.SIDEBAR_ITEMS = {"struct":["FdbKey","FdbKeys","FdbKeysIter","FdbRowKey"]};

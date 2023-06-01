@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"attr":[["cfg_api_versions","Allow to compute the range of supported api versions for a functionality."]]};
+window.SIDEBAR_ITEMS = {"attr":["cfg_api_versions"]};
