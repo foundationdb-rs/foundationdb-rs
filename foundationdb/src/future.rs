@@ -190,7 +190,7 @@ impl TryFrom<FdbFutureHandle> for Option<FdbSlice> {
 /// A slice of addresses owned by a foundationDB future
 pub struct FdbAddresses {
     _f: FdbFutureHandle,
-    strings: *const *const c_char,
+    strings: *const FdbAddress,
     len: i32,
 }
 unsafe impl Sync for FdbAddresses {}
@@ -209,7 +209,7 @@ impl TryFrom<FdbFutureHandle> for FdbAddresses {
 
         Ok(FdbAddresses {
             _f: f,
-            strings,
+            strings: strings as *const FdbAddress,
             len,
         })
     }
@@ -220,11 +220,8 @@ impl Deref for FdbAddresses {
 
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbAddress, *const c_char);
-        assert_eq_align!(FdbAddress, *const c_char);
-        unsafe {
-            &*(std::slice::from_raw_parts(self.strings, self.len as usize)
-                as *const [*const c_char] as *const [FdbAddress])
-        }
+        assert_eq_align!(FdbAddress, u8);
+        unsafe { std::slice::from_raw_parts(self.strings, self.len as usize) }
     }
 }
 impl AsRef<[FdbAddress]> for FdbAddresses {
@@ -239,7 +236,7 @@ impl AsRef<[FdbAddress]> for FdbAddresses {
 /// can never own a FdbAddress directly, you can only have references to it.
 /// This way, you can never obtain a lifetime greater than the lifetime of the
 /// slice that gave you access to it.
-#[repr(transparent)]
+#[repr(packed)]
 pub struct FdbAddress {
     c_str: *const c_char,
 }
@@ -260,7 +257,7 @@ impl AsRef<CStr> for FdbAddress {
 /// An slice of keyvalues owned by a foundationDB future
 pub struct FdbValues {
     _f: FdbFutureHandle,
-    keyvalues: *const fdb_sys::FDBKeyValue,
+    keyvalues: *const FdbKeyValue,
     len: i32,
     more: bool,
 }
@@ -292,7 +289,7 @@ impl TryFrom<FdbFutureHandle> for FdbValues {
 
         Ok(FdbValues {
             _f: f,
-            keyvalues,
+            keyvalues: keyvalues as *const FdbKeyValue,
             len,
             more: more != 0,
         })
@@ -303,11 +300,8 @@ impl Deref for FdbValues {
     type Target = [FdbKeyValue];
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
-        assert_eq_align!(FdbKeyValue, fdb_sys::FDBKeyValue);
-        unsafe {
-            &*(std::slice::from_raw_parts(self.keyvalues, self.len as usize)
-                as *const [fdb_sys::FDBKeyValue] as *const [FdbKeyValue])
-        }
+        assert_eq_align!(FdbKeyValue, u8);
+        unsafe { std::slice::from_raw_parts(self.keyvalues, self.len as usize) }
     }
 }
 impl AsRef<[FdbKeyValue]> for FdbValues {
@@ -341,7 +335,7 @@ impl IntoIterator for FdbValues {
 /// An iterator of keyvalues owned by a foundationDB future
 pub struct FdbValuesIter {
     f: Arc<FdbFutureHandle>,
-    keyvalues: *const fdb_sys::FDBKeyValue,
+    keyvalues: *const FdbKeyValue,
     len: i32,
     pos: i32,
 }
@@ -413,7 +407,7 @@ impl DoubleEndedIterator for FdbValuesIter {
 /// (i.e. the future that own the data is dropped once all data it provided is dropped)
 pub struct FdbValue {
     _f: Arc<FdbFutureHandle>,
-    keyvalue: *const fdb_sys::FDBKeyValue,
+    keyvalue: *const FdbKeyValue,
 }
 
 unsafe impl Send for FdbValue {}
@@ -422,7 +416,7 @@ impl Deref for FdbValue {
     type Target = FdbKeyValue;
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
-        assert_eq_align!(FdbKeyValue, fdb_sys::FDBKeyValue);
+        assert_eq_align!(FdbKeyValue, u8);
         unsafe { &*(self.keyvalue as *const FdbKeyValue) }
     }
 }
@@ -449,7 +443,7 @@ impl fmt::Debug for FdbValue {
 /// can never own a FdbKeyValue directly, you can only have references to it.
 /// This way, you can never obtain a lifetime greater than the lifetime of the
 /// slice that gave you access to it.
-#[repr(transparent)]
+#[repr(packed)]
 pub struct FdbKeyValue(fdb_sys::FDBKeyValue);
 
 impl FdbKeyValue {

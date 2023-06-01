@@ -18,7 +18,7 @@ use std::ops::Deref;
 /// An slice of keys owned by a FoundationDB future
 pub struct FdbKeys {
     _f: FdbFutureHandle,
-    keys: *const fdb_sys::FDBKey,
+    keys: *const FdbKey,
     len: i32,
 }
 unsafe impl Sync for FdbKeys {}
@@ -33,7 +33,11 @@ impl TryFrom<FdbFutureHandle> for FdbKeys {
 
         error::eval(unsafe { fdb_sys::fdb_future_get_key_array(f.as_ptr(), &mut keys, &mut len) })?;
 
-        Ok(FdbKeys { _f: f, keys, len })
+        Ok(FdbKeys {
+            _f: f,
+            keys: keys as *const FdbKey,
+            len,
+        })
     }
 }
 
@@ -41,11 +45,8 @@ impl Deref for FdbKeys {
     type Target = [FdbKey];
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKey, fdb_sys::FDBKey);
-        assert_eq_align!(FdbKey, fdb_sys::FDBKey);
-        unsafe {
-            &*(std::slice::from_raw_parts(self.keys, self.len as usize)
-                as *const [fdb_sys::FDBKey] as *const [FdbKey])
-        }
+        assert_eq_align!(FdbKey, u8);
+        unsafe { std::slice::from_raw_parts(self.keys, self.len as usize) }
     }
 }
 
@@ -67,7 +68,7 @@ impl<'a> IntoIterator for &'a FdbKeys {
 /// An iterator of keyvalues owned by a foundationDB future
 pub struct FdbKeysIter {
     f: std::rc::Rc<FdbFutureHandle>,
-    keys: *const fdb_sys::FDBKey,
+    keys: *const FdbKey,
     len: i32,
     pos: i32,
 }
@@ -124,15 +125,15 @@ impl IntoIterator for FdbKeys {
 /// (i.e. the future that own the data is dropped once all data it provided is dropped)
 pub struct FdbRowKey {
     _f: std::rc::Rc<FdbFutureHandle>,
-    row_key: *const fdb_sys::FDBKey,
+    row_key: *const FdbKey,
 }
 
 impl Deref for FdbRowKey {
     type Target = FdbKey;
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKey, fdb_sys::FDBKey);
-        assert_eq_align!(FdbKey, fdb_sys::FDBKey);
-        unsafe { &*(self.row_key as *const FdbKey) }
+        assert_eq_align!(FdbKey, u8);
+        unsafe { &*(self.row_key) }
     }
 }
 impl AsRef<FdbKey> for FdbRowKey {
@@ -153,7 +154,7 @@ impl fmt::Debug for FdbRowKey {
     }
 }
 
-#[repr(transparent)]
+#[repr(packed)]
 /// An FdbKey, owned by a FoundationDB Future
 pub struct FdbKey(fdb_sys::FDBKey);
 
