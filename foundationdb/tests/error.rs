@@ -1,6 +1,5 @@
 use foundationdb::FdbBindingError;
 
-
 #[test]
 // This test is here because I'm always creating infinite recursion on Display and Debug impl 🤦
 // Exhibit A: https://github.com/foundationdb-rs/foundationdb-rs/pull/83

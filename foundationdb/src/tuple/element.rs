@@ -130,7 +130,7 @@ impl<'a> Element<'a> {
         }
     }
 
-    fn cmp_at_root<'b>(&self, b: &Element<'b>) -> cmp::Ordering {
+    fn cmp_at_root(&self, b: &Element<'_>) -> cmp::Ordering {
         let a_values = self.cmp_values().iter().map(CmpElement);
         let b_values = b.cmp_values().iter().map(CmpElement);
         a_values.cmp(b_values)
