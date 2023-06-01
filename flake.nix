@@ -12,6 +12,7 @@
     # Utilized by `nix develop`
     devShells.x86_64-linux.default =
       let
+        rustChannel = "stable";
         overlays = [ (import rust-overlay) fdb-overlay.overlays.default ];
         pkgs = import nixpkgs {
           inherit overlays;
@@ -32,11 +33,11 @@
           cargo-edit
           cargo-msrv
           rust-analyzer
-          (rust-bin.stable.latest.default.override {
+          (rust-bin.${rustChannel}.latest.default.override {
             extensions = [ "rust-src" ];
           })
-          rust-bin.stable.latest.rustfmt
-          rust-bin.stable.latest.clippy
+          rust-bin.${rustChannel}.latest.rustfmt
+          rust-bin.${rustChannel}.latest.clippy
 
           # FDB part
           libfdb
@@ -54,8 +55,8 @@
         LD_LIBRARY_PATH = "${libfdb}/include";
 
         # To import with Intellij IDEA
-        RUST_TOOLCHAIN_PATH = "${pkgs.rust-bin.stable.latest.default}/bin";
-        RUST_SRC_PATH = "${pkgs.rust-bin.stable.latest.rust-src}/lib/rustlib/src/rust/library";
+        RUST_TOOLCHAIN_PATH = "${pkgs.rust-bin.${rustChannel}.latest.default}/bin";
+        RUST_SRC_PATH = "${pkgs.rust-bin.${rustChannel}.latest.rust-src}/lib/rustlib/src/rust/library";
       };
   };
 }
