@@ -22,5 +22,6 @@ keywords = ["foundationdb", "proc-macro"]
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.98", features = ["full"] }
+syn = { version = "2.0.18", features = ["full"] }
 quote = "1.0.20"
+quote = "1.0.28"

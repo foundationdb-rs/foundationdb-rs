@@ -22,11 +22,11 @@ categories = ["database"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-env_logger = "0.9.0"
+env_logger = "0.9.3"
 foundationdb = { path = "../foundationdb", features = ["uuid", "num-bigint", "fdb-7_1", "embedded-fdb-include", "tenant-experimental"], default-features = false }
 foundationdb-sys = { version = "0.7.0", path = "../foundationdb-sys", features = ["embedded-fdb-include"], default-features = false }
-futures = "0.3.21"
-log = "0.4.17"
+futures = "0.3.28"
+log = "0.4.18"
 num-bigint = "0.4.3"
 structopt = "0.3.26"
-async-trait = "0.1.56"
+async-trait = "0.1.68"
