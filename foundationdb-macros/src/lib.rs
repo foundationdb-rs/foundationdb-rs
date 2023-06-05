@@ -3,7 +3,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
 use syn::__private::TokenStream2;
-use syn::{AttributeArgs, Item, Lit, Meta, NestedMeta};
+use syn::parse::Parser;
+use syn::{Item, LitInt};
+use try_map::FallibleMapExt;
 
 /// Allow to compute the range of supported api versions for a functionality.
 ///
@@ -18,54 +20,49 @@ use syn::{AttributeArgs, Item, Lit, Meta, NestedMeta};
 /// `#[cfg_api_versions(min = 510, max = 600)]` will be translated to:
 /// `#[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]`
 #[proc_macro_attribute]
-pub fn cfg_api_versions(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(item as Item);
-    let attributes = syn::parse_macro_input!(attr as AttributeArgs);
-
-    let (minimum_version, maximum_version) = parse_version_arguments(&attributes);
-    generate_feature_range(&input, minimum_version, maximum_version)
+pub fn cfg_api_versions(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = proc_macro2::TokenStream::from(args);
+    let input = proc_macro2::TokenStream::from(input);
+    cfg_api_versions_impl(args, input).into()
 }
 
-/// Search for a required min and an optional max in the attributes
-fn parse_version_arguments(attributes_args: &AttributeArgs) -> (i32, Option<i32>) {
-    let min = attributes_args
-        .iter()
-        .find_map(|attribute| find_attribute(attribute, "min"))
-        .expect("Macro is expecting at least a 'min' argument");
-    let max = attributes_args
-        .iter()
-        .find_map(|attribute| find_attribute(attribute, "max"));
-
-    (min, max)
-}
-
-/// given an attribute's key, returns the associated i32, or None.
-fn find_attribute(attribute: &NestedMeta, key: &str) -> Option<i32> {
-    match attribute {
-        NestedMeta::Meta(Meta::NameValue(name_value)) => {
-            if name_value.path.is_ident(key) {
-                if let Lit::Int(attribute_value) = &name_value.lit {
-                    Some(
-                        attribute_value
-                            .base10_parse::<i32>()
-                            .expect("could not cast attribute to i32"),
-                    )
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+fn cfg_api_versions_impl(
+    args: proc_macro2::TokenStream,
+    input: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    let mut min: Option<LitInt> = None;
+    let mut max: Option<LitInt> = None;
+    let version_parser = syn::meta::parser(|meta| {
+        if meta.path.is_ident("min") {
+            min = Some(meta.value()?.parse()?);
+            Ok(())
+        } else if meta.path.is_ident("max") {
+            max = Some(meta.value()?.parse()?);
+            Ok(())
+        } else {
+            Err(meta.error("unsupported cfg_api_versions property"))
         }
-        _ => None,
-    }
+    });
+
+    Parser::parse2(version_parser, args).expect("Unable to parse attribute cfg_api_versions");
+
+    let input: Item = syn::parse2(input).expect("Unable to parse input");
+
+    let minimum_version = min
+        .expect("min property must be provided")
+        .base10_parse::<i32>()
+        .expect("Unable to parse min version");
+    let maximum_version = max
+        .try_map(|x| x.base10_parse::<i32>())
+        .expect("Unable to parse max version");
+    generate_feature_range(&input, minimum_version, maximum_version)
 }
 
 fn generate_feature_range(
     input: &Item,
     minimum_version: i32,
     maximum_version: Option<i32>,
-) -> TokenStream {
+) -> proc_macro2::TokenStream {
     let allowed_fdb_versions: Vec<TokenStream2> =
         get_supported_feature_range(minimum_version, maximum_version)
             .iter()
@@ -76,7 +73,6 @@ fn generate_feature_range(
         #[cfg(any(#(#allowed_fdb_versions),*))]
         #input
     )
-    .into()
 }
 
 /// Given a range of version, this function will generate the appropriate macro text.
@@ -111,7 +107,10 @@ fn get_version_mapping() -> HashMap<String, i32> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cfg_api_versions_impl;
     use crate::get_supported_feature_range;
+    use proc_macro2::TokenStream;
+    use quote::quote;
 
     #[test]
     fn test_create_supported_list() {
@@ -147,5 +146,87 @@ mod tests {
         assert!(v.contains(&String::from("fdb-5_2")));
         assert!(v.contains(&String::from("fdb-5_1")));
         assert!(v.contains(&String::from("fdb-5_0")));
+    }
+
+    fn test_cfg_versions(expected_versions: TokenStream, attrs: TokenStream) {
+        let input = quote! {
+            fn ma_fonction() {}
+        };
+
+        let expected = quote! {
+            #[cfg(any(#expected_versions))]
+            fn ma_fonction() {}
+        };
+
+        let result = cfg_api_versions_impl(attrs, input);
+        assert_eq!(result.to_string(), expected.to_string())
+    }
+
+    #[test]
+    fn test_min_700_no_max_version() {
+        let data = quote!(feature = "fdb-7_0", feature = "fdb-7_1");
+
+        let attrs = quote!(min = 700);
+
+        test_cfg_versions(data, attrs)
+    }
+
+    #[test]
+    fn test_min_600_max_700() {
+        let expected_versions = quote!(
+            feature = "fdb-6_0",
+            feature = "fdb-6_1",
+            feature = "fdb-6_2",
+            feature = "fdb-6_3",
+            feature = "fdb-7_0"
+        );
+
+        let attrs = quote!(min = 600, max = 700);
+
+        test_cfg_versions(expected_versions, attrs)
+    }
+
+    #[test]
+    fn test_min_500_max_610() {
+        let expected_versions = quote!(
+            feature = "fdb-5_0",
+            feature = "fdb-5_1",
+            feature = "fdb-5_2",
+            feature = "fdb-6_0",
+            feature = "fdb-6_1"
+        );
+
+        let attrs = quote!(min = 500, max = 610);
+
+        test_cfg_versions(expected_versions, attrs)
+    }
+
+    #[test]
+    fn test_min_500_no_max() {
+        let expected_versions = quote!(
+            feature = "fdb-5_0",
+            feature = "fdb-5_1",
+            feature = "fdb-5_2",
+            feature = "fdb-6_0",
+            feature = "fdb-6_1",
+            feature = "fdb-6_2",
+            feature = "fdb-6_3",
+            feature = "fdb-7_0",
+            feature = "fdb-7_1"
+        );
+
+        let attrs = quote!(min = 500);
+
+        test_cfg_versions(expected_versions, attrs)
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_no_min_version() {
+        let expected_versions = quote!(feature = "fdb-5_0",);
+
+        let attrs = quote!(max = 500);
+
+        test_cfg_versions(expected_versions, attrs)
     }
 }
