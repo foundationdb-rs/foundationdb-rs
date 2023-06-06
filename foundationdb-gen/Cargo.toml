@@ -41,4 +41,4 @@ fdb-7_0 = []
 fdb-7_1 = []
 
 [dependencies]
-xml-rs = "0.8.4"
+xml-rs = "0.8.14"
