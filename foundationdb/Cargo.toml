@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb"
-version = "0.7.0"
+version = "0.8.0"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
@@ -45,11 +45,11 @@ fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1", "serde", "ser
 tenant-experimental = []
 
 [build-dependencies]
-foundationdb-gen = { version = "0.7.0", path = "../foundationdb-gen", default-features = false }
+foundationdb-gen = { version = "0.8.0", path = "../foundationdb-gen", default-features = false }
 
 [dependencies]
-foundationdb-sys = { version = "0.7.0", path = "../foundationdb-sys", default-features = false }
-foundationdb-macros = { version = "0.1.1", path = "../foundationdb-macros" }
+foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", default-features = false }
+foundationdb-macros = { version = "0.2.0", path = "../foundationdb-macros" }
 futures = "0.3.28"
 memchr = "2.5.0"
 rand = { version = "0.8.5", features = ["default", "small_rng"] }

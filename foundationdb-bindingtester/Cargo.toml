@@ -1,6 +1,6 @@
 [package]
 name = "bindingtester"
-version = "0.7.0"
+version = "0.8.0"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
@@ -24,7 +24,7 @@ license = "MIT/Apache-2.0"
 [dependencies]
 env_logger = "0.9.3"
 foundationdb = { path = "../foundationdb", features = ["uuid", "num-bigint", "fdb-7_1", "embedded-fdb-include", "tenant-experimental"], default-features = false }
-foundationdb-sys = { version = "0.7.0", path = "../foundationdb-sys", features = ["embedded-fdb-include"], default-features = false }
+foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", features = ["embedded-fdb-include"], default-features = false }
 futures = "0.3.28"
 log = "0.4.18"
 num-bigint = "0.4.3"
