@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+# 0.8.0
+
+- #89: Bump MSRV to 1.60.0
+- #98: Bump dependencies
+- #96: Fix infinite recursion on display
+- #95: Fix pointer alignment
+- #86: Introduce a pass-through transaction option setter
+- #79: Add raw method to create a Database
+- #73: Introduce db.run
+- #70: Add the experimental tenant API
+- #69: Add a no-op method
+- #68: Improve get-mapped-ranges
+
 ## 0.7.0
 
 - #62: Add Hash, Eq and PartialEq to Subspace

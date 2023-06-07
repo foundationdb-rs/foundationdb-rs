@@ -1,11 +1,11 @@
 [package]
 name = "foundationdb-macros"
-version = "0.1.1"
+version = "0.2.0"
 authors = [
     "Pierre Zemb <contact@pierrezemb.fr>"
 ]
 edition = "2021"
-rust-version = "1.58"
+rust-version = "1.60"
 
 description = """
 Macro definitions used to maintain the FoundationDB's crate
