@@ -4,7 +4,7 @@ use quote::quote;
 use std::collections::HashMap;
 use syn::__private::TokenStream2;
 use syn::parse::Parser;
-use syn::{Item, LitInt};
+use syn::{Item, ItemFn, LitInt};
 use try_map::FallibleMapExt;
 
 /// Allow to compute the range of supported api versions for a functionality.
@@ -103,6 +103,30 @@ fn get_version_mapping() -> HashMap<String, i32> {
     version_mapping.insert("fdb-5_1".into(), 510);
     version_mapping.insert("fdb-5_0".into(), 500);
     version_mapping
+}
+
+#[proc_macro_attribute]
+pub fn simulation_entrypoint(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as ItemFn);
+
+    let block = &input.block;
+    let attrs = &input.attrs;
+
+    // FIXME: we silently ignore original function signature which can lead to confusion
+    // we should use input signature and validate it is (&str, WorkloadContext) -> Box<dyn RustWorkload>
+    // it will allow the user to choose its parameters name
+    quote::quote!(
+        #(#attrs)*
+        #[no_mangle]
+        fn workload_instantiate_hook(name: &str, context: WorkloadContext) -> Box<dyn RustWorkload> {
+            #block
+        }
+        #[no_mangle]
+        pub extern "C" fn workloadFactory(logger: *const u8) -> *const u8 {
+            unsafe { ::foundationdb_simulation::CPPWorkloadFactory(logger as *const _) }
+        }
+    )
+    .into()
 }
 
 #[cfg(test)]

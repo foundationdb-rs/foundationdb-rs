@@ -6,6 +6,7 @@ members = [
     "foundationdb-bench",
     "foundationdb-bindingtester",
     "foundationdb-macros",
+    "foundationdb-simulation",
 ]
 
 [profile.release]
