@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 # 0.8.0
 
-- #89: Bump MSRV to 1.60.0
+- #89: Bump MSRV to 1.63.0
 - #98: Bump dependencies
 - #96: Fix infinite recursion on display
 - #95: Fix pointer alignment
