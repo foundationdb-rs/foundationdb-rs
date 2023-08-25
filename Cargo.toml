@@ -8,5 +8,11 @@ members = [
     "foundationdb-macros",
 ]
 
+[workspace.package]
+edition = "2021"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/foundationdb-rs/foundationdb-rs"
+rust-version = "1.63"
+
 [profile.release]
 debug = true
