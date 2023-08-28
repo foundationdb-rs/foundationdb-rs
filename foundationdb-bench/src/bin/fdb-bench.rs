@@ -9,11 +9,11 @@ extern crate structopt;
 use std::sync::atomic::*;
 use std::sync::Arc;
 
+use foundationdb_bench::Stopwatch;
 use futures::future::*;
 use rand::prelude::*;
 use rand::rngs::mock::StepRng;
 use structopt::StructOpt;
-use foundationdb_bench::Stopwatch;
 
 use crate::fdb::*;
 
