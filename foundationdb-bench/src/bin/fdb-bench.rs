@@ -1,7 +1,6 @@
 extern crate foundationdb as fdb;
 extern crate futures;
 extern crate rand;
-extern crate stopwatch;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -10,10 +9,10 @@ extern crate structopt;
 use std::sync::atomic::*;
 use std::sync::Arc;
 
+use foundationdb_bench::Stopwatch;
 use futures::future::*;
 use rand::prelude::*;
 use rand::rngs::mock::StepRng;
-use stopwatch::Stopwatch;
 use structopt::StructOpt;
 
 use crate::fdb::*;
