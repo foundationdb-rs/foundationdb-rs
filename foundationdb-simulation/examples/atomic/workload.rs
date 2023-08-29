@@ -12,6 +12,8 @@ pub struct AtomicWorkload {
     success_count: usize,
     // how many transactions failed
     error_count: usize,
+    // how many maybe_committed transactions we encountered
+    maybe_committed_count: usize,
 }
 
 impl AtomicWorkload {
@@ -22,6 +24,7 @@ impl AtomicWorkload {
             context,
             success_count: 0,
             error_count: 0,
+            maybe_committed_count: 0,
         }
     }
 }
@@ -53,7 +56,21 @@ impl RustWorkload for AtomicWorkload {
 
                     match trx.commit().await {
                         Ok(_) => self.success_count += 1,
-                        Err(_) => self.error_count += 1,
+                        Err(err) => {
+                            if err.is_maybe_committed() {
+                                self.context.trace(
+                                    Severity::Info,
+                                    "Detected an maybe_committed transactions",
+                                    details![
+                                        "Layer" => "Rust",
+                                        "Client" => self.client_id
+                                    ],
+                                );
+                                self.maybe_committed_count += 1;
+                            } else {
+                                self.error_count += 1;
+                            }
+                        }
                     }
 
                     self.context.trace(
@@ -78,7 +95,24 @@ impl RustWorkload for AtomicWorkload {
                 match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
                     Ok(Some(fdb_slice)) => {
                         let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
-                        if count as usize != self.success_count {
+                        let count = count as usize;
+                        // We don't know how much maybe_committed transactions has succeeded,
+                        // so we are checking the whole range
+                        if self.expected_count <= count
+                            && count <= self.expected_count + self.maybe_committed_count
+                        {
+                            self.context.trace(
+                                Severity::Info,
+                                "Atomic count match",
+                                details![
+                                    "Layer" => "Rust",
+                                    "Client" => self.client_id,
+                                    "Expected" => self.expected_count,
+                                    "Found" => count,
+                                    "MaybeCommitted" => self.maybe_committed_count,
+                                ],
+                            );
+                        } else {
                             self.context.trace(
                                 Severity::Error,
                                 "Atomic count doesn't match",
@@ -87,6 +121,7 @@ impl RustWorkload for AtomicWorkload {
                                     "Client" => self.client_id,
                                     "Expected" => self.expected_count,
                                     "Found" => count,
+                                    "MaybeCommitted" => self.maybe_committed_count,
                                 ],
                             );
                         }
