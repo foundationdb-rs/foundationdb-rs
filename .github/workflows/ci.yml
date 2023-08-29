@@ -8,6 +8,42 @@ on:
   pull_request:
 
 jobs:
+  simulation:
+    name: "Simulation framework"
+    runs-on: ubuntu-latest
+    container:
+      image: foundationdb/build:centos7-20230825040255-3a1d89d918
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # TODO: use what is included in the image
+      - name: Download fdb clients
+        run: wget https://github.com/apple/foundationdb/releases/download/7.1.23/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
+        working-directory: /tmp
+
+      # TODO: use what is included in the image
+      - name: install fdb clients
+        run: rpm -i /tmp/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
+        working-directory: /tmp
+
+      - name: install jq
+        run: yum install -y jq
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build simulation example
+        run: source /opt/rh/devtoolset-11/enable && source /root/.cargo/env && cargo build -p foundationdb-simulation --release --example atomic
+
+      - name: Run atomic simulation example
+        run: /opt/foundationdb/old/7.1.23/bin/fdbserver-7.1.23  -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json
+
+      - name: Retrieve severity logs
+        if: ${{ failure() }}
+        run: "jq 'select( .Severity | tonumber > 30)' *.json"
+
   compatibility:
     name: "Compat ${{ matrix.os }}/${{ matrix.toolchain }}/${{ matrix.fdb_feature_version }}"
 
@@ -49,7 +85,7 @@ jobs:
 
 
   test:
-    name: "Test with ${{ matrix.toolchain }}"
+    name: "Test foundationDB with ${{ matrix.toolchain }}"
     strategy:
       matrix:
         toolchain: ["1.63.0", "stable", "beta", "nightly"]
@@ -74,7 +110,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Run all tests
-        run: cargo test --features num-bigint,embedded-fdb-include,tenant-experimental
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental
 
   lint:
     name: Rustfmt / Clippy
@@ -132,7 +168,7 @@ jobs:
 
       - name: Test
         # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-        run: cargo test --tests --no-fail-fast --target x86_64-unknown-linux-gnu
+        run: cargo test -p foundationdb --tests --no-fail-fast --target x86_64-unknown-linux-gnu
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/debug/bindingtester

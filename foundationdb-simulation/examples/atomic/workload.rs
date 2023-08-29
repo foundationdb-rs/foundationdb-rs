@@ -39,29 +39,32 @@ impl RustWorkload for AtomicWorkload {
     fn start(&'static mut self, db: SimDatabase, done: Promise) {
         println!("rust_start({})", self.client_id);
         fdb_spawn(async move {
-            for _ in 0..self.expected_count {
-                let trx = db.create_trx().expect("Could not create transaction");
-                let buf: [u8; 8] = 1i64.to_le_bytes();
+            // Only use a single client
+            if self.client_id == 0 {
+                for _ in 0..self.expected_count {
+                    let trx = db.create_trx().expect("Could not create transaction");
+                    let buf: [u8; 8] = 1i64.to_le_bytes();
 
-                trx.atomic_op(
-                    &Subspace::all().pack(&COUNT_KEY),
-                    &buf,
-                    options::MutationType::Add,
-                );
+                    trx.atomic_op(
+                        &Subspace::all().pack(&COUNT_KEY),
+                        &buf,
+                        options::MutationType::Add,
+                    );
 
-                match trx.commit().await {
-                    Ok(_) => self.success_count += 1,
-                    Err(_) => self.error_count += 1,
+                    match trx.commit().await {
+                        Ok(_) => self.success_count += 1,
+                        Err(_) => self.error_count += 1,
+                    }
+
+                    self.context.trace(
+                        Severity::Info,
+                        "Successfully setup workload",
+                        details![
+                            "Layer" => "Rust",
+                            "Client" => self.client_id
+                        ],
+                    );
                 }
-
-                self.context.trace(
-                    Severity::Info,
-                    "Successfully setup workload",
-                    details![
-                        "Layer" => "Rust",
-                        "Client" => self.client_id
-                    ],
-                );
             }
             done.send(true);
         });
@@ -69,33 +72,35 @@ impl RustWorkload for AtomicWorkload {
     fn check(&'static mut self, db: SimDatabase, done: Promise) {
         println!("rust_check({})", self.client_id);
         fdb_spawn(async move {
-            let trx = db.create_trx().expect("Could not create transaction");
+            if self.client_id == 0 {
+                let trx = db.create_trx().expect("Could not create transaction");
 
-            match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
-                Ok(Some(fdb_slice)) => {
-                    let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
-                    if count as usize != self.success_count {
+                match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
+                    Ok(Some(fdb_slice)) => {
+                        let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
+                        if count as usize != self.success_count {
+                            self.context.trace(
+                                Severity::Error,
+                                "Atomic count doesn't match",
+                                details![
+                                    "Layer" => "Rust",
+                                    "Client" => self.client_id,
+                                    "Expected" => self.expected_count,
+                                    "Found" => count,
+                                ],
+                            );
+                        }
+                    }
+                    _ => {
                         self.context.trace(
                             Severity::Error,
-                            "Atomic count doesn't match",
+                            "Could not get Atomic count",
                             details![
                                 "Layer" => "Rust",
-                                "Client" => self.client_id,
-                                "Expected" => self.expected_count,
-                                "Found" => count,
+                                "Client" => self.client_id
                             ],
                         );
                     }
-                }
-                _ => {
-                    self.context.trace(
-                        Severity::Error,
-                        "Could not get Atomic count",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id
-                        ],
-                    );
                 }
             }
             done.send(true);
