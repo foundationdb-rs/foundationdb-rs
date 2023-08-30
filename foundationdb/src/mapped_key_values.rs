@@ -90,26 +90,19 @@ impl fmt::Debug for FdbMappedKeyValue {
 impl FdbMappedKeyValue {
     /// Retrieves the "parent" key that generated the secondary scan.
     pub fn parent_key(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(self.0.key.key as *const u8, self.0.key.key_length as usize)
-        }
+        unsafe { std::slice::from_raw_parts(self.0.key.key, self.0.key.key_length as usize) }
     }
 
     /// Retrieves the "parent" value that generated the secondary scan.
     pub fn parent_value(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.0.value.key as *const u8,
-                self.0.value.key_length as usize,
-            )
-        }
+        unsafe { std::slice::from_raw_parts(self.0.value.key, self.0.value.key_length as usize) }
     }
 
     /// Retrieves the beginning of the range
     pub fn begin_range(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
-                self.0.getRange.begin.key.key as *const u8,
+                self.0.getRange.begin.key.key,
                 self.0.getRange.begin.key.key_length as usize,
             )
         }
@@ -119,7 +112,7 @@ impl FdbMappedKeyValue {
     pub fn end_range(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
-                self.0.getRange.end.key.key as *const u8,
+                self.0.getRange.end.key.key,
                 self.0.getRange.end.key.key_length as usize,
             )
         }
@@ -198,7 +191,7 @@ impl Deref for FdbMappedValue {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
         assert_eq_align!(FdbMappedKeyValue, u8);
-        unsafe { &*(self.mapped_keyvalue as *const FdbMappedKeyValue) }
+        unsafe { &*self.mapped_keyvalue }
     }
 }
 impl AsRef<FdbMappedKeyValue> for FdbMappedValue {
