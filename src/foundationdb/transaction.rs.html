@@ -1492,7 +1492,7 @@
             .as_ref()
             .map(|data| {
                 (
-                    (data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8),
+                    data.as_ptr(),
                     i32::try_from(data.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>),
                 )
             })

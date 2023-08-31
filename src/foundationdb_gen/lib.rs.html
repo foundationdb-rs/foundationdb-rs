@@ -410,10 +410,6 @@
 <a href="#410" id="410">410</a>
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
 </pre></div><pre class="rust"><code><span class="kw">extern crate </span>xml;
 
 <span class="kw">use </span>std::fmt;
@@ -611,17 +607,13 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Copy, Debug)]
+<span class="attr">#[derive(Clone, Copy, Debug, Default)]
 </span><span class="kw">enum </span>FdbOptionTy {
-    Empty,
+    <span class="attr">#[default]
+    </span>Empty,
     Int,
     Str,
     Bytes,
-}
-<span class="kw">impl </span>std::default::Default <span class="kw">for </span>FdbOptionTy {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        FdbOptionTy::Empty
-    }
 }
 
 <span class="attr">#[derive(Default, Debug)]

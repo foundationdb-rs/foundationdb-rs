@@ -341,7 +341,7 @@
 <span class="kw">impl </span>FdbKey {
     <span class="doccomment">/// retrieves the associated key
     </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.<span class="number">0</span>.key <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="self">self</span>.<span class="number">0</span>.key_length <span class="kw">as </span>usize) }
+        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.<span class="number">0</span>.key, <span class="self">self</span>.<span class="number">0</span>.key_length <span class="kw">as </span>usize) }
     }
 }
 

@@ -494,6 +494,7 @@
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
@@ -574,6 +575,7 @@
     }
 
     <span class="doccomment">/// Create a database for the default configuration path
+    </span><span class="attr">#[allow(clippy::should_implement_trait)]
     </span><span class="kw">pub fn </span>default() -&gt; FdbResult&lt;Database&gt; {
         <span class="self">Self</span>::new(<span class="prelude-val">None</span>)
     }

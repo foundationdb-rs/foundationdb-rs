@@ -175,6 +175,8 @@
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
@@ -230,7 +232,9 @@
     }
 
     <span class="kw">fn </span>is_error_predicate(<span class="self">self</span>, predicate: options::ErrorPredicate) -&gt; bool {
-        <span class="kw">let </span>check =
+        <span class="comment">// This cast to `i32` isn&#39;t unnecessary in all configurations.
+        </span><span class="attr">#[allow(clippy::unnecessary_cast)]
+        </span><span class="kw">let </span>check =
             <span class="kw">unsafe </span>{ fdb_sys::fdb_error_predicate(predicate.code() <span class="kw">as </span>i32, <span class="self">self</span>.error_code) };
 
         check != <span class="number">0

@@ -137,10 +137,6 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
 </pre></div><pre class="rust"><code><span class="comment">// The MIT License (MIT)
 //
 // Copyright (c) 2014 Chucky Ellison &lt;cme at freefour.com&gt;
@@ -189,7 +185,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Stopwatch {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        <span class="kw">return </span><span class="macro">write!</span>(f, <span class="string">&quot;{}ms&quot;</span>, <span class="self">self</span>.elapsed_ms());
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}ms&quot;</span>, <span class="self">self</span>.elapsed_ms())
     }
 }
 
@@ -197,14 +193,14 @@
     <span class="doccomment">/// Returns a new stopwatch.
     </span><span class="kw">pub fn </span>new() -&gt; Stopwatch {
         <span class="kw">let </span>sw: Stopwatch = Default::default();
-        <span class="kw">return </span>sw;
+        sw
     }
 
     <span class="doccomment">/// Returns a new stopwatch which will immediately be started.
     </span><span class="kw">pub fn </span>start_new() -&gt; Stopwatch {
         <span class="kw">let </span><span class="kw-2">mut </span>sw = Stopwatch::new();
         sw.start();
-        <span class="kw">return </span>sw;
+        sw
     }
 
     <span class="doccomment">/// Starts the stopwatch.
@@ -234,27 +230,23 @@
 
     <span class="doccomment">/// Returns whether the stopwatch is running.
     </span><span class="kw">pub fn </span>is_running(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">return </span><span class="self">self</span>.start_time.is_some();
+        <span class="self">self</span>.start_time.is_some()
     }
 
     <span class="doccomment">/// Returns the elapsed time since the start of the stopwatch.
     </span><span class="kw">pub fn </span>elapsed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         <span class="kw">match </span><span class="self">self</span>.start_time {
             <span class="comment">// stopwatch is running
-            </span><span class="prelude-val">Some</span>(t1) =&gt; {
-                <span class="kw">return </span>t1.elapsed() + <span class="self">self</span>.elapsed;
-            }
+            </span><span class="prelude-val">Some</span>(t1) =&gt; t1.elapsed() + <span class="self">self</span>.elapsed,
             <span class="comment">// stopwatch is not running
-            </span><span class="prelude-val">None </span>=&gt; {
-                <span class="kw">return </span><span class="self">self</span>.elapsed;
-            }
+            </span><span class="prelude-val">None </span>=&gt; <span class="self">self</span>.elapsed,
         }
     }
 
     <span class="doccomment">/// Returns the elapsed time since the start of the stopwatch in milliseconds.
     </span><span class="kw">pub fn </span>elapsed_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="kw">let </span>dur = <span class="self">self</span>.elapsed();
-        <span class="kw">return </span>(dur.as_secs() * <span class="number">1000 </span>+ (dur.subsec_nanos() / <span class="number">1000000</span>) <span class="kw">as </span>u64) <span class="kw">as </span>i64;
+        (dur.as_secs() * <span class="number">1000 </span>+ dur.subsec_millis() <span class="kw">as </span>u64) <span class="kw">as </span>i64
     }
 
     <span class="doccomment">/// Returns the elapsed time since last split or start/restart.
@@ -281,7 +273,7 @@
     /// If the stopwatch is in stopped state this will always return zero.
     </span><span class="kw">pub fn </span>elapsed_split_ms(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; i64 {
         <span class="kw">let </span>dur = <span class="self">self</span>.elapsed_split();
-        <span class="kw">return </span>(dur.as_secs() * <span class="number">1000 </span>+ (dur.subsec_nanos() / <span class="number">1_000_000</span>) <span class="kw">as </span>u64) <span class="kw">as </span>i64;
+        (dur.as_secs() * <span class="number">1000 </span>+ dur.subsec_millis() <span class="kw">as </span>u64) <span class="kw">as </span>i64
     }
 }
 </code></pre></div></section></main></body></html>
