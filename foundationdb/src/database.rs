@@ -78,6 +78,7 @@ impl Database {
     }
 
     /// Create a database for the default configuration path
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> FdbResult<Database> {
         Self::new(None)
     }

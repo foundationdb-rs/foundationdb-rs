@@ -396,7 +396,7 @@ impl Transaction {
             .as_ref()
             .map(|data| {
                 (
-                    (data.as_ptr() as *const u8),
+                    data.as_ptr(),
                     i32::try_from(data.len()).expect("len to fit in i32"),
                 )
             })

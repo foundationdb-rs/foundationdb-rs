@@ -53,6 +53,8 @@ impl FdbError {
     }
 
     fn is_error_predicate(self, predicate: options::ErrorPredicate) -> bool {
+        // This cast to `i32` isn't unnecessary in all configurations.
+        #[allow(clippy::unnecessary_cast)]
         let check =
             unsafe { fdb_sys::fdb_error_predicate(predicate.code() as i32, self.error_code) };
 

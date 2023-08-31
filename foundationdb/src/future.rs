@@ -417,7 +417,7 @@ impl Deref for FdbValue {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
         assert_eq_align!(FdbKeyValue, u8);
-        unsafe { &*(self.keyvalue as *const FdbKeyValue) }
+        unsafe { &*self.keyvalue }
     }
 }
 impl AsRef<FdbKeyValue> for FdbValue {
@@ -449,11 +449,17 @@ pub struct FdbKeyValue(fdb_sys::FDBKeyValue);
 impl FdbKeyValue {
     /// key
     pub fn key(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
+        // This cast to `*const u8` isn't unnecessary in all configurations.
+        #[allow(clippy::unnecessary_cast)]
+        unsafe {
+            std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize)
+        }
     }
 
     /// value
     pub fn value(&self) -> &[u8] {
+        // This cast to `*const u8` isn't unnecessary in all configurations.
+        #[allow(clippy::unnecessary_cast)]
         unsafe {
             std::slice::from_raw_parts(self.0.value as *const u8, self.0.value_length as usize)
         }

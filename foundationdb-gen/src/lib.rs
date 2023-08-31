@@ -195,17 +195,13 @@ impl FdbScope {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 enum FdbOptionTy {
+    #[default]
     Empty,
     Int,
     Str,
     Bytes,
-}
-impl std::default::Default for FdbOptionTy {
-    fn default() -> Self {
-        FdbOptionTy::Empty
-    }
 }
 
 #[derive(Default, Debug)]

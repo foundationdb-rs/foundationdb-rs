@@ -161,7 +161,7 @@ pub struct FdbKey(fdb_sys::FDBKey);
 impl FdbKey {
     /// retrieves the associated key
     pub fn key(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize) }
+        unsafe { std::slice::from_raw_parts(self.0.key, self.0.key_length as usize) }
     }
 }
 
