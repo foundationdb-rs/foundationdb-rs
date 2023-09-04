@@ -34,16 +34,12 @@ jobs:
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
-          profile: minimal
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p bindingtester
+        run: cargo build -p bindingtester
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/debug/bindingtester

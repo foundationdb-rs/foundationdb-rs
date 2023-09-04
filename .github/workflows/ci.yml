@@ -36,24 +36,16 @@ jobs:
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
-          profile: minimal
-          default: true
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose -p foundationdb --no-default-features --features ${{ matrix.fdb_feature_version }}
+        run: cargo build --verbose -p foundationdb --no-default-features --features ${{ matrix.fdb_feature_version }}
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          # Examples needs to have uuid enabled
-          args: --verbose -p foundationdb --no-default-features --features ${{ matrix.fdb_feature_version }},uuid
+        # Examples needs to have uuid enabled
+        run: cargo test --verbose -p foundationdb --no-default-features --features ${{ matrix.fdb_feature_version }},uuid
 
 
   test:
@@ -76,17 +68,13 @@ jobs:
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: "${{ matrix.toolchain }}"
           components: rustfmt, clippy
 
       - name: Run all tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features num-bigint,embedded-fdb-include,tenant-experimental
+        run: cargo test --features num-bigint,embedded-fdb-include,tenant-experimental
 
   lint:
     name: Rustfmt / Clippy
@@ -104,22 +92,16 @@ jobs:
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: stable
           components: rustfmt, clippy
 
       - name: Fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
+        run: cargo clippy
 
   coverage:
     name: Code coverage
@@ -141,23 +123,16 @@ jobs:
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          override: true
 
       - name: Build bindingtester
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p bindingtester --target x86_64-unknown-linux-gnu
+        run: cargo build -p bindingtester --target x86_64-unknown-linux-gnu
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-          args: --tests --no-fail-fast --target x86_64-unknown-linux-gnu
+        # doc tests are disabled fow now as they do not compile with -Cpanic=abort
+        run: cargo test --tests --no-fail-fast --target x86_64-unknown-linux-gnu
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/debug/bindingtester

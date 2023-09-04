@@ -20,10 +20,9 @@ jobs:
           version: "7.1.37"
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          override: true
 
       - name: Install cargo-msrv
         run: cargo install cargo-msrv
