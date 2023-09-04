@@ -97,8 +97,8 @@ impl RustWorkload for AtomicWorkload {
                         let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
                         let count = count as usize;
                         // We don't know how much maybe_committed transactions has succeeded,
-                        // so we are checking the whole range
-                        if self.expected_count <= count
+                        // so we are checking the possible  range
+                        if self.success_count <= count
                             && count <= self.expected_count + self.maybe_committed_count
                         {
                             self.context.trace(
@@ -109,6 +109,7 @@ impl RustWorkload for AtomicWorkload {
                                     "Client" => self.client_id,
                                     "Expected" => self.expected_count,
                                     "Found" => count,
+                                    "CommittedCount" => self.success_count,
                                     "MaybeCommitted" => self.maybe_committed_count,
                                 ],
                             );
@@ -121,6 +122,7 @@ impl RustWorkload for AtomicWorkload {
                                     "Client" => self.client_id,
                                     "Expected" => self.expected_count,
                                     "Found" => count,
+                                    "CommittedCount" => self.success_count,
                                     "MaybeCommitted" => self.maybe_committed_count,
                                 ],
                             );
