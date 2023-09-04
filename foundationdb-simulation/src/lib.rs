@@ -138,5 +138,5 @@ extern "C" fn workload_get_check_timeout(workload: &Workload) -> f64 {
 }
 #[no_mangle]
 extern "C" fn workload_drop(workload: *mut Workload) {
-    unsafe { Box::from_raw(workload) };
+    unsafe { drop(Box::from_raw(workload)) };
 }
