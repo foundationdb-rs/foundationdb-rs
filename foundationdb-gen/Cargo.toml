@@ -6,16 +6,16 @@ authors = [
     "Vincent Rouillé <vincent@clikengo.com>",
     "Pierre Zemb <contact@pierrezemb.fr>"
 ]
-edition = "2021"
-rust-version = "1.63"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 description = """
 Binding generation helper for FoundationDB.
 """
 
 documentation = "https://docs.rs/foundationdb"
-repository = "https://github.com/foundationdb-rs/foundationdb-rs"
-license = "MIT/Apache-2.0"
 
 readme = "README.md"
 keywords = ["foundationdb", "kv"]
