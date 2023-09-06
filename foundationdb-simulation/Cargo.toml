@@ -1,0 +1,27 @@
+[package]
+name = "foundationdb-simulation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+foundationdb = { version = "0.8.0", path = "../foundationdb", default-features = false }
+foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", default-features = false }
+
+[build-dependencies]
+cc = "1.0.73"
+
+[features]
+default = ["embedded-fdb-include", "fdb-7_1"]
+fdb-7_1 = ["foundationdb/fdb-7_1", "foundationdb-sys/fdb-7_1"]
+embedded-fdb-include = [
+    "foundationdb/embedded-fdb-include",
+    "foundationdb-sys/embedded-fdb-include",
+]
+
+[[example]]
+name = "atomic"
+path = "examples/atomic/lib.rs"
+crate-type = ["cdylib"]
+
+[dev-dependencies]
+foundationdb-macros = { version = "0.2.0", path = "../foundationdb-macros", default-features = false }
