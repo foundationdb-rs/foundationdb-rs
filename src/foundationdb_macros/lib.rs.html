@@ -230,13 +230,37 @@
 <a href="#230" id="230">230</a>
 <a href="#231" id="231">231</a>
 <a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Macro definitions used to maintain the crate
 </span><span class="kw">use </span>proc_macro::TokenStream;
 <span class="kw">use </span>quote::quote;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>syn::__private::TokenStream2;
 <span class="kw">use </span>syn::parse::Parser;
-<span class="kw">use </span>syn::{Item, LitInt};
+<span class="kw">use </span>syn::{Item, ItemFn, LitInt};
 <span class="kw">use </span>try_map::FallibleMapExt;
 
 <span class="doccomment">/// Allow to compute the range of supported api versions for a functionality.
@@ -335,6 +359,30 @@
     version_mapping.insert(<span class="string">&quot;fdb-5_1&quot;</span>.into(), <span class="number">510</span>);
     version_mapping.insert(<span class="string">&quot;fdb-5_0&quot;</span>.into(), <span class="number">500</span>);
     version_mapping
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>simulation_entrypoint(_attr: TokenStream, item: TokenStream) -&gt; TokenStream {
+    <span class="kw">let </span>input = <span class="macro">syn::parse_macro_input!</span>(item <span class="kw">as </span>ItemFn);
+
+    <span class="kw">let </span>block = <span class="kw-2">&amp;</span>input.block;
+    <span class="kw">let </span>attrs = <span class="kw-2">&amp;</span>input.attrs;
+
+    <span class="comment">// FIXME: we silently ignore original function signature which can lead to confusion
+    // we should use input signature and validate it is (&amp;str, WorkloadContext) -&gt; Box&lt;dyn RustWorkload&gt;
+    // it will allow the user to choose its parameters name
+    </span><span class="macro">quote::quote!</span>(
+        #(#attrs)*
+        <span class="attr">#[no_mangle]
+        </span><span class="kw">fn </span>workload_instantiate_hook(name: <span class="kw-2">&amp;</span>str, context: WorkloadContext) -&gt; Box&lt;<span class="kw">dyn </span>RustWorkload&gt; {
+            #block
+        }
+        <span class="attr">#[no_mangle]
+        </span><span class="kw">pub extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>workloadFactory(logger: <span class="kw-2">*const </span>u8) -&gt; <span class="kw-2">*const </span>u8 {
+            <span class="kw">unsafe </span>{ ::foundationdb_simulation::CPPWorkloadFactory(logger <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_</span>) }
+        }
+    )
+    .into()
 }
 
 <span class="attr">#[cfg(test)]

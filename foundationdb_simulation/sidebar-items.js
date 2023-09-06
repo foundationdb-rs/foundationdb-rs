@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Severity"],"fn":["CPPWorkloadFactory","fdb_spawn"],"macro":["details"],"struct":["Metric","Promise","WorkloadContext"],"trait":["RustWorkload"],"type":["Details","SimDatabase","Workload"]};

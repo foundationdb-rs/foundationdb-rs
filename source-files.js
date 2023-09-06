@@ -6,6 +6,7 @@ var sourcesIndex = JSON.parse('{\
 "foundationdb_gen":["",[],["lib.rs"]],\
 "foundationdb_macros":["",[],["lib.rs"]],\
 "foundationdb_options_gen":["",[],["foundationdb-options-gen.rs"]],\
+"foundationdb_simulation":["",[],["fdb_rt.rs","fdb_wrapper.rs","lib.rs"]],\
 "foundationdb_sys":["",[],["lib.rs"]]\
 }');
 createSourceSidebar();
