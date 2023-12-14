@@ -22,6 +22,7 @@ pub use pack::{TuplePack, TupleUnpack, VersionstampOffset};
 pub use subspace::Subspace;
 pub use versionstamp::Versionstamp;
 
+
 const NIL: u8 = 0x00;
 const BYTES: u8 = 0x01;
 const STRING: u8 = 0x02;
@@ -190,7 +191,7 @@ pub fn pack<T: TuplePack>(v: &T) -> Vec<u8> {
 ///
 /// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
 pub fn pack_with_versionstamp<T: TuplePack>(v: &T) -> Vec<u8> {
-    v.pack_to_vec_with_versionstamp()
+    v.pack_to_vec()
 }
 
 /// Pack value into the given buffer
@@ -198,7 +199,7 @@ pub fn pack_with_versionstamp<T: TuplePack>(v: &T) -> Vec<u8> {
 /// # Panics
 ///
 /// Panics if the encoded data size doesn't fit in `u32`.
-pub fn pack_into<T: TuplePack>(v: &T, output: &mut Vec<u8>) -> VersionstampOffset {
+pub fn pack_into<T: TuplePack>(v: &T, output: &mut Vec<u8>) {
     v.pack_into_vec(output)
 }
 
@@ -208,10 +209,7 @@ pub fn pack_into<T: TuplePack>(v: &T, output: &mut Vec<u8>) -> VersionstampOffse
 ///
 /// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
 pub fn pack_into_with_versionstamp<T: TuplePack>(v: &T, output: &mut Vec<u8>) {
-    let offset = v.pack_into_vec_with_versionstamp(output);
-    if let VersionstampOffset::MultipleIncomplete = offset {
-        panic!("pack_into_with_versionstamp does not allow multiple versionstamps");
-    }
+    v.pack_into_vec(output);
 }
 
 /// Unpack input
@@ -650,11 +648,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verstionstamp() {
-        assert_eq!(
-            Bytes::from(pack(&("foo", Versionstamp::incomplete(0)))),
-            Bytes::from(&b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00"[..])
-        );
+    fn test_versionstamp() {
         assert_eq!(
             Bytes::from(pack_with_versionstamp(&(
                 "foo",

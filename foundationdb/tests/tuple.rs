@@ -35,7 +35,7 @@ async fn test_subspace_with_versionstamp(db: &Database) {
     // In this example we will create a subspace starting with a versionstamp.
     let subspace = Subspace::from("root");
     let subspace = subspace.subspace(&Versionstamp::incomplete(0));
-    let key = subspace.pack_with_versionstamp(&"key");
+    let key = subspace.pack(&"key");
 
     eprintln!("writing key {key:?}");
     trx.atomic_op(&key, b"hello", MutationType::SetVersionstampedKey);
@@ -77,7 +77,7 @@ async fn test_subspace_with_versionstamp(db: &Database) {
 
     // Now that the subspace already exists, we can add more versionstamped keys in there.
     let trx = db.create_trx().expect("cannot create txn");
-    let key = subspace.pack_with_versionstamp(&Versionstamp::incomplete(0));
+    let key = subspace.pack(&Versionstamp::incomplete(0));
     trx.atomic_op(&key, b"hello2", MutationType::SetVersionstampedKey);
     let key_versionstamp = trx.get_versionstamp();
     trx.commit().await.expect("cannot commit");
@@ -92,7 +92,7 @@ async fn test_subspace_with_versionstamp(db: &Database) {
     );
     // we can read the key back by re-packing with the subspace:
     let trx = db.create_trx().expect("cannot create txn");
-    let key = subspace.pack_with_versionstamp(&key_versionstamp);
+    let key = subspace.pack(&key_versionstamp);
     let value = trx.get(&key, false).await.expect("cannot read key");
     assert_eq!(value.as_deref(), Some(b"hello2".as_ref()));
     trx.commit().await.expect("cannot commit");

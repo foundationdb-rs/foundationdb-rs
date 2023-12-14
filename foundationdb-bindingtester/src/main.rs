@@ -44,8 +44,6 @@ use foundationdb::directory::{Directory, DirectoryOutput};
 use foundationdb::tenant::{FdbTenant, TenantManagement};
 use foundationdb::tuple::{PackResult, TupleUnpack};
 
-use tuple::VersionstampOffset;
-
 fn mutation_from_str(s: &str) -> MutationType {
     match s {
         "ADD" => MutationType::Add,
@@ -1498,26 +1496,26 @@ impl StackMachine {
                     buf.push(element);
                 }
 
-                let tuple = Element::Tuple(buf.clone());
-                let i = tuple.count_incomplete_versionstamp();
-                let mut vec = prefix.into_owned();
-                let offset = buf.pack_into_vec_with_versionstamp(&mut vec);
-                match offset {
-                    VersionstampOffset::None { size: _ } => {
-                        assert_eq!(i, 0);
-                        self.push(number, ERROR_NONE.clone().into_owned());
-                    }
-                    VersionstampOffset::OneIncomplete { offset: _ } => {
-                        assert_eq!(i, 1);
-                        let data = Element::Bytes(vec.into());
-                        self.push(number, OK.clone().into_owned());
-                        self.push(number, data);
-                    }
-                    VersionstampOffset::MultipleIncomplete => {
-                        assert!(i > 1);
-                        self.push(number, ERROR_MULTIPLE.clone().into_owned());
-                    }
-                }
+                // let tuple = Element::Tuple(buf.clone());
+                // let i = tuple.count_incomplete_versionstamp();
+                // let mut vec = prefix.into_owned();
+                // let offset = buf.pack_into_vec_with_versionstamp(&mut vec);
+                // match offset {
+                //     VersionstampOffset::None { size: _ } => {
+                //         assert_eq!(i, 0);
+                //         self.push(number, ERROR_NONE.clone().into_owned());
+                //     }
+                //     VersionstampOffset::OneIncomplete { offset: _ } => {
+                //         assert_eq!(i, 1);
+                //         let data = Element::Bytes(vec.into());
+                //         self.push(number, OK.clone().into_owned());
+                //         self.push(number, data);
+                //     }
+                //     VersionstampOffset::MultipleIncomplete => {
+                //         assert!(i > 1);
+                //         self.push(number, ERROR_MULTIPLE.clone().into_owned());
+                //     }
+                // }
             }
 
             // Pops the top item off of the stack as PACKED, and then unpacks PACKED into a

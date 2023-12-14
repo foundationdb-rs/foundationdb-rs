@@ -7,6 +7,7 @@
 // copied, modified, or distributed except according to those terms.
 
 use super::*;
+use super::pack::PackedTuple;
 use crate::{KeySelector, RangeOption, Transaction};
 use std::borrow::Cow;
 use std::hash::Hash;
@@ -24,17 +25,15 @@ use std::hash::Hash;
 /// [Developer Guide]: https://apple.github.io/foundationdb/developer-guide.html#subspaces
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Subspace {
-    prefix: Vec<u8>,
-    versionstamp_offset: VersionstampOffset,
+    prefix: PackedTuple<Vec<u8>>,
 }
 
 impl<E: TuplePack> From<E> for Subspace {
     fn from(e: E) -> Self {
-        let mut prefix = vec![];
-        let versionstamp_offset = pack_into(&e, &mut prefix);
+        let mut prefix = PackedTuple::new(Vec::new());
+        e.pack_root(&mut prefix).expect("failed to pack");
         Self {
             prefix,
-            versionstamp_offset,
         }
     }
 }
@@ -43,67 +42,48 @@ impl Subspace {
     /// `all` returns the Subspace corresponding to all keys in a FoundationDB database.
     pub fn all() -> Self {
         Self {
-            prefix: Vec::new(),
-            versionstamp_offset: VersionstampOffset::None { size: 0 },
+            prefix: PackedTuple::new(Vec::new()),
         }
     }
 
-    /// Returns a new Subspace from the provided bytes.
+    /// Returns a new Subspace from the provided bytes. We assume that the provided bytes
+    /// don't contain any incomplete versionstamp, since they don't carry that information.
     pub fn from_bytes(prefix: impl Into<Vec<u8>>) -> Self {
-        let prefix = prefix.into();
+        let prefix = PackedTuple::new(prefix.into());
         Self {
-            versionstamp_offset: VersionstampOffset::None {
-                size: u32::try_from(prefix.len()).expect("data doesn't fit u32"),
-            },
             prefix,
         }
     }
 
-    /// Convert into prefix key bytes
+    /// Convert into packed bytes
+    pub fn packed(&self) -> Vec<u8> {
+        self.prefix.clone().pack().expect("failed to pack prefix")
+    }
+
+    /// Get raw prefix bytes
+    pub fn bytes(&self) -> &[u8] {
+        self.prefix.as_bytes()
+    }
+
     pub fn into_bytes(self) -> Vec<u8> {
-        self.prefix
+        self.prefix.inner()
     }
 
     /// Returns a new Subspace whose prefix extends this Subspace with a given tuple encodable.
     pub fn subspace<T: TuplePack>(&self, t: &T) -> Self {
         let mut prefix = self.prefix.clone();
-        let mut versionstamp_offset = self.versionstamp_offset;
-        versionstamp_offset += pack_into(t, &mut prefix);
+        t.pack_root(&mut prefix).expect("failed to pack");
         Self {
             prefix,
-            versionstamp_offset,
         }
-    }
-
-    /// `bytes` returns the literal bytes of the prefix of this Subspace.
-    pub fn bytes(&self) -> &[u8] {
-        self.prefix.as_slice()
     }
 
     /// Returns the key encoding the specified Tuple with the prefix of this Subspace
     /// prepended.
     pub fn pack<T: TuplePack>(&self, t: &T) -> Vec<u8> {
         let mut out = self.prefix.clone();
-        pack_into(t, &mut out);
-        out
-    }
-
-    /// Returns the key encoding the specified Tuple with the prefix of this Subspace
-    /// prepended, with a versionstamp.
-    pub fn pack_with_versionstamp<T: TuplePack>(&self, t: &T) -> Vec<u8> {
-        let mut output = self.prefix.clone();
-        let mut versionstamp_offset = self.versionstamp_offset;
-        versionstamp_offset += pack_into(t, &mut output);
-        match versionstamp_offset {
-            VersionstampOffset::OneIncomplete { offset } => {
-                output.extend_from_slice(&offset.to_le_bytes());
-            }
-            VersionstampOffset::MultipleIncomplete => {
-                panic!("Subspace cannot contain more than one incomplete versionstamp");
-            }
-            _ => {}
-        }
-        output
+        t.pack_root(&mut out).expect("failed to pack");
+        out.pack().expect("failed to pack")
     }
 
     /// `unpack` returns the Tuple encoded by the given key with the prefix of this Subspace
@@ -113,24 +93,25 @@ impl Subspace {
         if !self.is_start_of(key) {
             return Err(PackError::BadPrefix);
         }
-        let key = &key[self.prefix.len()..];
+        let key = &key[self.prefix.as_bytes().len()..];
         unpack(key)
     }
 
     /// `is_start_of` returns true if the provided key starts with the prefix of this Subspace,
     /// indicating that the Subspace logically contains the key.
     pub fn is_start_of(&self, key: &[u8]) -> bool {
-        key.starts_with(&self.prefix)
+        key.starts_with(self.prefix.as_bytes())
     }
 
     /// `range` returns first and last key of given Subspace
     pub fn range(&self) -> (Vec<u8>, Vec<u8>) {
-        let mut begin = Vec::with_capacity(self.prefix.len() + 1);
-        begin.extend_from_slice(&self.prefix);
+        let prefix_bytes = self.prefix.as_bytes();
+        let mut begin = Vec::with_capacity(prefix_bytes.len() + 1);
+        begin.extend_from_slice(prefix_bytes);
         begin.push(0x00);
 
-        let mut end = Vec::with_capacity(self.prefix.len() + 1);
-        end.extend_from_slice(&self.prefix);
+        let mut end = Vec::with_capacity(prefix_bytes.len() + 1);
+        end.extend_from_slice(prefix_bytes);
         end.push(0xff);
 
         (begin, end)
@@ -191,7 +172,7 @@ mod tests {
         let subspace: Subspace = 1.into();
         let tup = (Versionstamp::incomplete(0), 2);
 
-        let packed = subspace.pack_with_versionstamp(&tup);
+        let packed = subspace.pack(&tup);
         let expected = pack_with_versionstamp(&(1, Versionstamp::incomplete(0), 2));
         assert_eq!(expected, packed);
     }
@@ -202,7 +183,7 @@ mod tests {
         // the offset.
         let subspace: Subspace = 1.into();
         let tup = (Versionstamp::complete([1; 10], 0), 2);
-        let packed = subspace.pack_with_versionstamp(&tup);
+        let packed = subspace.pack(&tup);
         let tup_unpack: (Versionstamp, i64) = subspace.unpack(&packed).unwrap();
         assert_eq!(tup, tup_unpack);
 
@@ -215,7 +196,7 @@ mod tests {
     fn unpack_with_subspace_versionstamp() {
         let subspace: Subspace = Versionstamp::complete([1; 10], 2).into();
         let tup = (Versionstamp::complete([1; 10], 0), 2);
-        let packed = subspace.pack_with_versionstamp(&tup);
+        let packed = subspace.pack(&tup);
         let tup_unpack: (Versionstamp, i64) = subspace.unpack(&packed).unwrap();
         assert_eq!(tup, tup_unpack);
         assert!(subspace
@@ -228,7 +209,7 @@ mod tests {
         let subspace: Subspace = Versionstamp::incomplete(0).into();
         let tup = (1, 2);
 
-        let packed = subspace.pack_with_versionstamp(&tup);
+        let packed = subspace.pack(&tup);
         let expected = pack_with_versionstamp(&(Versionstamp::incomplete(0), 1, 2));
         assert_eq!(expected, packed);
     }
@@ -238,7 +219,7 @@ mod tests {
         let subspace: Subspace = 1.into();
         let subspace = subspace.subspace(&Versionstamp::incomplete(0));
         let tup = (1, 2);
-        let packed = subspace.pack_with_versionstamp(&tup);
+        let packed = subspace.pack(&tup);
         let expected = pack_with_versionstamp(&(1, Versionstamp::incomplete(0), 1, 2));
         assert_eq!(expected, packed);
     }
@@ -248,14 +229,14 @@ mod tests {
     fn subspace_cannot_use_multiple_incomplete_versionstamps() {
         let subspace: Subspace = Versionstamp::incomplete(0).into();
         let subspace = subspace.subspace(&Versionstamp::incomplete(0));
-        subspace.pack_with_versionstamp(&1);
+        subspace.pack(&1);
     }
 
     #[test]
     #[should_panic]
     fn subspace_cannot_pack_multiple_incomplete_versionstamps() {
         let subspace: Subspace = Versionstamp::incomplete(0).into();
-        subspace.pack_with_versionstamp(&Versionstamp::incomplete(0));
+        subspace.pack(&Versionstamp::incomplete(0));
     }
 
     #[test]
