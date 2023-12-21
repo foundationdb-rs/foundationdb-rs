@@ -31,6 +31,9 @@ const INCLUDE_PATH: &str = "-I./include/700";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_1"))]
 const INCLUDE_PATH: &str = "-I./include/710";
 
+#[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_2"))]
+const INCLUDE_PATH: &str = "-I./include/720";
+
 fn main() {
     // Link against fdb_c.
     println!("cargo:rustc-link-lib=fdb_c");
@@ -84,6 +87,10 @@ fn main() {
     #[cfg(feature = "fdb-7_1")]
     {
         api_version = 710;
+    }
+    #[cfg(feature = "fdb-7_2")]
+    {
+        api_version = 720;
     }
 
     // Sigh, bindgen only takes a String for its header path, but that's UTF-8 while
