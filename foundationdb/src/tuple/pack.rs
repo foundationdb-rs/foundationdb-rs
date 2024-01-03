@@ -85,8 +85,8 @@ pub trait TuplePack {
     /// # Panics
     ///
     /// Panics if the encoded data size doesn't fit in `u32`.
-    fn pack_into_vec(&self, output: &mut Vec<u8>) {
-        self.pack_root(output).expect(PACK_ERR_MSG);
+    fn pack_into_vec(&self, output: &mut Vec<u8>) -> VersionstampOffset {
+        self.pack_root(output).expect(PACK_ERR_MSG)
     }
 
     /// Pack value into the given buffer

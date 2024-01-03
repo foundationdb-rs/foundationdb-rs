@@ -198,7 +198,7 @@ pub fn pack_with_versionstamp<T: TuplePack>(v: &T) -> Vec<u8> {
 /// # Panics
 ///
 /// Panics if the encoded data size doesn't fit in `u32`.
-pub fn pack_into<T: TuplePack>(v: &T, output: &mut Vec<u8>) {
+pub fn pack_into<T: TuplePack>(v: &T, output: &mut Vec<u8>) -> VersionstampOffset {
     v.pack_into_vec(output)
 }
 

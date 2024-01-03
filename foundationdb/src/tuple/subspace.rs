@@ -25,24 +25,37 @@ use std::hash::Hash;
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Subspace {
     prefix: Vec<u8>,
+    versionstamp_offset: VersionstampOffset,
 }
 
 impl<E: TuplePack> From<E> for Subspace {
     fn from(e: E) -> Self {
-        Self { prefix: pack(&e) }
+        let mut prefix = vec![];
+        let versionstamp_offset = pack_into(&e, &mut prefix);
+        Self {
+            prefix,
+            versionstamp_offset,
+        }
     }
 }
 
 impl Subspace {
     /// `all` returns the Subspace corresponding to all keys in a FoundationDB database.
     pub fn all() -> Self {
-        Self { prefix: Vec::new() }
+        Self {
+            prefix: Vec::new(),
+            versionstamp_offset: VersionstampOffset::None { size: 0 },
+        }
     }
 
     /// Returns a new Subspace from the provided bytes.
     pub fn from_bytes(prefix: impl Into<Vec<u8>>) -> Self {
+        let prefix = prefix.into();
         Self {
-            prefix: prefix.into(),
+            versionstamp_offset: VersionstampOffset::None {
+                size: u32::try_from(prefix.len()).expect("data doesn't fit u32"),
+            },
+            prefix,
         }
     }
 
@@ -53,8 +66,12 @@ impl Subspace {
 
     /// Returns a new Subspace whose prefix extends this Subspace with a given tuple encodable.
     pub fn subspace<T: TuplePack>(&self, t: &T) -> Self {
+        let mut prefix = self.prefix.clone();
+        let mut versionstamp_offset = self.versionstamp_offset;
+        versionstamp_offset += pack_into(t, &mut prefix);
         Self {
-            prefix: self.pack(t),
+            prefix,
+            versionstamp_offset,
         }
     }
 
@@ -69,6 +86,24 @@ impl Subspace {
         let mut out = self.prefix.clone();
         pack_into(t, &mut out);
         out
+    }
+
+    /// Returns the key encoding the specified Tuple with the prefix of this Subspace
+    /// prepended, with a versionstamp.
+    pub fn pack_with_versionstamp<T: TuplePack>(&self, t: &T) -> Vec<u8> {
+        let mut output = self.prefix.clone();
+        let mut versionstamp_offset = self.versionstamp_offset;
+        versionstamp_offset += pack_into(t, &mut output);
+        match versionstamp_offset {
+            VersionstampOffset::OneIncomplete { offset } => {
+                output.extend_from_slice(&offset.to_le_bytes());
+            }
+            VersionstampOffset::MultipleIncomplete => {
+                panic!("Subspace cannot contain more than one incomplete versionstamp");
+            }
+            _ => {}
+        }
+        output
     }
 
     /// `unpack` returns the Tuple encoded by the given key with the prefix of this Subspace
@@ -149,6 +184,78 @@ mod tests {
         assert_eq!(tup, tup_unpack);
 
         assert!(ss0.unpack::<(i64, i64, i64)>(&packed).is_err());
+    }
+
+    #[test]
+    fn subspace_pack_with_versionstamp() {
+        let subspace: Subspace = 1.into();
+        let tup = (Versionstamp::incomplete(0), 2);
+
+        let packed = subspace.pack_with_versionstamp(&tup);
+        let expected = pack_with_versionstamp(&(1, Versionstamp::incomplete(0), 2));
+        assert_eq!(expected, packed);
+    }
+
+    #[test]
+    fn subspace_unpack_with_versionstamp() {
+        // On unpack, the versionstamp will be complete, so pack_with_versionstamp won't append
+        // the offset.
+        let subspace: Subspace = 1.into();
+        let tup = (Versionstamp::complete([1; 10], 0), 2);
+        let packed = subspace.pack_with_versionstamp(&tup);
+        let tup_unpack: (Versionstamp, i64) = subspace.unpack(&packed).unwrap();
+        assert_eq!(tup, tup_unpack);
+
+        assert!(subspace
+            .unpack::<(i64, Versionstamp, i64)>(&packed)
+            .is_err());
+    }
+
+    #[test]
+    fn unpack_with_subspace_versionstamp() {
+        let subspace: Subspace = Versionstamp::complete([1; 10], 2).into();
+        let tup = (Versionstamp::complete([1; 10], 0), 2);
+        let packed = subspace.pack_with_versionstamp(&tup);
+        let tup_unpack: (Versionstamp, i64) = subspace.unpack(&packed).unwrap();
+        assert_eq!(tup, tup_unpack);
+        assert!(subspace
+            .unpack::<(Versionstamp, Versionstamp, i64)>(&packed)
+            .is_err());
+    }
+
+    #[test]
+    fn subspace_can_use_incomplete_versionstamp() {
+        let subspace: Subspace = Versionstamp::incomplete(0).into();
+        let tup = (1, 2);
+
+        let packed = subspace.pack_with_versionstamp(&tup);
+        let expected = pack_with_versionstamp(&(Versionstamp::incomplete(0), 1, 2));
+        assert_eq!(expected, packed);
+    }
+
+    #[test]
+    fn child_subspace_can_use_incomplete_versionstamp() {
+        let subspace: Subspace = 1.into();
+        let subspace = subspace.subspace(&Versionstamp::incomplete(0));
+        let tup = (1, 2);
+        let packed = subspace.pack_with_versionstamp(&tup);
+        let expected = pack_with_versionstamp(&(1, Versionstamp::incomplete(0), 1, 2));
+        assert_eq!(expected, packed);
+    }
+
+    #[test]
+    #[should_panic]
+    fn subspace_cannot_use_multiple_incomplete_versionstamps() {
+        let subspace: Subspace = Versionstamp::incomplete(0).into();
+        let subspace = subspace.subspace(&Versionstamp::incomplete(0));
+        subspace.pack_with_versionstamp(&1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn subspace_cannot_pack_multiple_incomplete_versionstamps() {
+        let subspace: Subspace = Versionstamp::incomplete(0).into();
+        subspace.pack_with_versionstamp(&Versionstamp::incomplete(0));
     }
 
     #[test]
