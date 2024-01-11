@@ -30,6 +30,20 @@ use futures::prelude::*;
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
 
+/// Wrapper around the boolean representing whether the 
+/// previous transaction is still on fly
+/// This wrapper prevents the boolean to be copy and force it 
+/// to be moved instead.
+/// This pretty handy when you don't want to see the `Database::run` closure
+/// capturing the environment.
+pub struct MaybeCommitted(bool);
+
+impl From<MaybeCommitted> for bool {
+    fn from(value: MaybeCommitted) -> Self {
+        value.0
+    }
+}
+
 /// Represents a FoundationDB database
 ///
 /// A mutable, lexicographically ordered mapping from binary keys to binary values.
@@ -273,11 +287,19 @@ impl Database {
     /// whether a transaction succeeded. You should make sure your closure is idempotent.
     ///
     /// The closure will notify the user in case of a maybe_committed transaction in a previous run
-    ///  with the boolean provided in the closure.
-    ///
+    ///  with the `MaybeCommitted` provided in the closure.
+    /// 
+    /// This one can used as boolean with
+    /// ```ignore
+    /// db.run(|trx, maybe_committed| async {
+    ///     if maybe_committed.into() {
+    ///         // Handle the problem if needed
+    ///     }
+    /// }).await;
+    ///```
     pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
     where
-        F: Fn(RetryableTransaction, bool) -> Fut,
+        F: Fn(RetryableTransaction, MaybeCommitted) -> Fut,
         Fut: Future<Output = Result<T, FdbBindingError>>,
     {
         let mut maybe_committed_transaction = false;
@@ -287,7 +309,7 @@ impl Database {
 
         loop {
             // executing the closure
-            let result_closure = closure(transaction.clone(), maybe_committed_transaction).await;
+            let result_closure = closure(transaction.clone(), MaybeCommitted(maybe_committed_transaction)).await;
 
             if let Err(e) = result_closure {
                 // checks if it is an FdbError
