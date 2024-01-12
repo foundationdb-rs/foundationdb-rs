@@ -30,9 +30,9 @@ use futures::prelude::*;
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
 
-/// Wrapper around the boolean representing whether the 
+/// Wrapper around the boolean representing whether the
 /// previous transaction is still on fly
-/// This wrapper prevents the boolean to be copy and force it 
+/// This wrapper prevents the boolean to be copy and force it
 /// to be moved instead.
 /// This pretty handy when you don't want to see the `Database::run` closure
 /// capturing the environment.
@@ -288,7 +288,7 @@ impl Database {
     ///
     /// The closure will notify the user in case of a maybe_committed transaction in a previous run
     ///  with the `MaybeCommitted` provided in the closure.
-    /// 
+    ///
     /// This one can used as boolean with
     /// ```ignore
     /// db.run(|trx, maybe_committed| async {
@@ -309,7 +309,11 @@ impl Database {
 
         loop {
             // executing the closure
-            let result_closure = closure(transaction.clone(), MaybeCommitted(maybe_committed_transaction)).await;
+            let result_closure = closure(
+                transaction.clone(),
+                MaybeCommitted(maybe_committed_transaction),
+            )
+            .await;
 
             if let Err(e) = result_closure {
                 // checks if it is an FdbError
