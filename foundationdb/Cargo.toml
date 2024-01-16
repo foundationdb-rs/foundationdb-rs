@@ -49,7 +49,7 @@ foundationdb-gen = { version = "0.8.0", path = "../foundationdb-gen", default-fe
 
 [dependencies]
 foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", default-features = false }
-foundationdb-macros = { version = "0.2.0", path = "../foundationdb-macros" }
+foundationdb-macros = { version = "0.3.0", path = "../foundationdb-macros" }
 futures = "0.3.28"
 memchr = "2.5.0"
 rand = { version = "0.8.5", features = ["default", "small_rng"] }

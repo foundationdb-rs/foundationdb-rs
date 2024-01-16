@@ -24,4 +24,4 @@ path = "examples/atomic/lib.rs"
 crate-type = ["cdylib"]
 
 [dev-dependencies]
-foundationdb-macros = { version = "0.2.0", path = "../foundationdb-macros", default-features = false }
+foundationdb-macros = { version = "0.3.0", path = "../foundationdb-macros", default-features = false }
