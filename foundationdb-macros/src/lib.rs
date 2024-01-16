@@ -93,6 +93,8 @@ fn get_supported_feature_range(minimum_version: i32, maximum_version: Option<i32
 // TODO: Should we import something like lazy_static?
 fn get_version_mapping() -> HashMap<String, i32> {
     let mut version_mapping = HashMap::with_capacity(8);
+    version_mapping.insert("fdb-7_3".into(), 730);
+    version_mapping.insert("fdb-7_2".into(), 720);
     version_mapping.insert("fdb-7_1".into(), 710);
     version_mapping.insert("fdb-7_0".into(), 700);
     version_mapping.insert("fdb-6_3".into(), 630);
@@ -139,9 +141,11 @@ mod tests {
     #[test]
     fn test_create_supported_list() {
         let v = get_supported_feature_range(700, None);
-        assert_eq!(v.len(), 2);
+        assert_eq!(v.len(), 4);
         assert!(v.contains(&String::from("fdb-7_0")));
         assert!(v.contains(&String::from("fdb-7_1")));
+        assert!(v.contains(&String::from("fdb-7_2")));
+        assert!(v.contains(&String::from("fdb-7_3")));
 
         let v = get_supported_feature_range(600, Some(700));
         assert_eq!(v.len(), 5);
@@ -160,7 +164,9 @@ mod tests {
         assert!(v.contains(&String::from("fdb-5_0")));
 
         let v = get_supported_feature_range(500, None);
-        assert_eq!(v.len(), 9);
+        assert_eq!(v.len(), 11);
+        assert!(v.contains(&String::from("fdb-7_3")));
+        assert!(v.contains(&String::from("fdb-7_2")));
         assert!(v.contains(&String::from("fdb-7_1")));
         assert!(v.contains(&String::from("fdb-7_0")));
         assert!(v.contains(&String::from("fdb-6_3")));
@@ -188,7 +194,12 @@ mod tests {
 
     #[test]
     fn test_min_700_no_max_version() {
-        let data = quote!(feature = "fdb-7_0", feature = "fdb-7_1");
+        let data = quote!(
+            feature = "fdb-7_0",
+            feature = "fdb-7_1",
+            feature = "fdb-7_2",
+            feature = "fdb-7_3"
+        );
 
         let attrs = quote!(min = 700);
 
@@ -236,7 +247,9 @@ mod tests {
             feature = "fdb-6_2",
             feature = "fdb-6_3",
             feature = "fdb-7_0",
-            feature = "fdb-7_1"
+            feature = "fdb-7_1",
+            feature = "fdb-7_2",
+            feature = "fdb-7_3"
         );
 
         let attrs = quote!(min = 500);
