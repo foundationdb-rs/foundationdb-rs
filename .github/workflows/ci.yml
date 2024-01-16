@@ -51,7 +51,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest"]
         toolchain: ["1.70.0", "stable"]
-        fdb_feature_version: ["fdb-7_1", "fdb-7_0", "fdb-6_3", "fdb-6_2", "fdb-6_1"]
+        fdb_feature_version: ["fdb-7_2", "fdb-7_1", "fdb-7_0", "fdb-6_3", "fdb-6_2", "fdb-6_1"]
 
     runs-on: ${{ matrix.os }}
 
@@ -66,7 +66,7 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.2.9"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -99,7 +99,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.2.9"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -123,7 +123,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.2.9"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -154,7 +154,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.2.9"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"

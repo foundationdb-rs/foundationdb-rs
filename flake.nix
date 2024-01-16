@@ -40,7 +40,7 @@
           rust-bin.${rustChannel}.latest.clippy
 
           # FDB part
-          libfdb
+          libfdb72
 
           # bindingTester part
           python3
@@ -51,8 +51,8 @@
         BINDGEN_EXTRA_CLANG_ARGS = "-isystem ${llvmPackages.libclang.lib}/lib/clang/${lib.getVersion clang}/include";
         LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";
 
-        FDB_CLIENT_LIB_PATH = "${libfdb}/include";
-        LD_LIBRARY_PATH = "${libfdb}/include";
+        FDB_CLIENT_LIB_PATH = "${libfdb72}/include";
+        LD_LIBRARY_PATH = "${libfdb72}/include";
 
         # To import with Intellij IDEA
         RUST_TOOLCHAIN_PATH = "${pkgs.rust-bin.${rustChannel}.latest.default}/bin";

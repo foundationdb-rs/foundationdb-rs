@@ -41,7 +41,7 @@ A flake.nix is provided to develop the bindings. We recommend add a cluster-file
 A FoundationDB cluster can be run using these commands:
 
 ```shell
-docker run -p 4500:4500 --name fdb -it --rm -d foundationdb/foundationdb:7.1.19
+docker run -p 4500:4500 --name fdb -it --rm -d foundationdb/foundationdb:7.2.9
 docker exec fdb fdbcli --exec "configure new single memory"
 ```
 
