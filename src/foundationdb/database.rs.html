@@ -495,6 +495,32 @@
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
 <a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
@@ -526,6 +552,20 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;fdb-7_1&quot;</span>)]
 #[cfg(feature = <span class="string">&quot;tenant-experimental&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::tenant::FdbTenant;
+
+<span class="doccomment">/// Wrapper around the boolean representing whether the
+/// previous transaction is still on fly
+/// This wrapper prevents the boolean to be copy and force it
+/// to be moved instead.
+/// This pretty handy when you don&#39;t want to see the `Database::run` closure
+/// capturing the environment.
+</span><span class="kw">pub struct </span>MaybeCommitted(bool);
+
+<span class="kw">impl </span>From&lt;MaybeCommitted&gt; <span class="kw">for </span>bool {
+    <span class="kw">fn </span>from(value: MaybeCommitted) -&gt; <span class="self">Self </span>{
+        value.<span class="number">0
+    </span>}
+}
 
 <span class="doccomment">/// Represents a FoundationDB database
 ///
@@ -770,11 +810,19 @@
     /// whether a transaction succeeded. You should make sure your closure is idempotent.
     ///
     /// The closure will notify the user in case of a maybe_committed transaction in a previous run
-    ///  with the boolean provided in the closure.
+    ///  with the `MaybeCommitted` provided in the closure.
     ///
+    /// This one can used as boolean with
+    /// ```ignore
+    /// db.run(|trx, maybe_committed| async {
+    ///     if maybe_committed.into() {
+    ///         // Handle the problem if needed
+    ///     }
+    /// }).await;
+    ///```
     </span><span class="kw">pub async fn </span>run&lt;F, Fut, T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, closure: F) -&gt; <span class="prelude-ty">Result</span>&lt;T, FdbBindingError&gt;
     <span class="kw">where
-        </span>F: Fn(RetryableTransaction, bool) -&gt; Fut,
+        </span>F: Fn(RetryableTransaction, MaybeCommitted) -&gt; Fut,
         Fut: Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, FdbBindingError&gt;&gt;,
     {
         <span class="kw">let </span><span class="kw-2">mut </span>maybe_committed_transaction = <span class="bool-val">false</span>;
@@ -784,7 +832,11 @@
 
         <span class="kw">loop </span>{
             <span class="comment">// executing the closure
-            </span><span class="kw">let </span>result_closure = closure(transaction.clone(), maybe_committed_transaction).<span class="kw">await</span>;
+            </span><span class="kw">let </span>result_closure = closure(
+                transaction.clone(),
+                MaybeCommitted(maybe_committed_transaction),
+            )
+            .<span class="kw">await</span>;
 
             <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = result_closure {
                 <span class="comment">// checks if it is an FdbError
