@@ -26,7 +26,7 @@ use crate::{error, FdbError, FdbResult};
 use crate::error::FdbBindingError;
 use futures::prelude::*;
 
-#[cfg(feature = "fdb-7_1")]
+#[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
 
