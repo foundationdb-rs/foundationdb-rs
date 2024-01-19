@@ -215,7 +215,7 @@ struct FdbOption {
     hidden: bool,
     default_for: Option<i32>,
     persistent: bool,
-    sensitive: bool
+    sensitive: bool,
 }
 
 impl FdbOption {
