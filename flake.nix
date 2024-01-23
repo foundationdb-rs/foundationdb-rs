@@ -32,6 +32,7 @@
           cargo-expand
           cargo-edit
           cargo-msrv
+          cargo-audit
           rust-analyzer
           (rust-bin.${rustChannel}.latest.default.override {
             extensions = [ "rust-src" ];

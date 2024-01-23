@@ -21,9 +21,9 @@ categories = ["database"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-env_logger = "0.10.0"
+env_logger = "0.10.2"
 foundationdb = { version = "*", path = "../foundationdb" }
-futures = "0.3.28"
-log = "0.4.18"
+futures = "0.3.30"
+log = "0.4.20"
 rand = "0.8.5"
 structopt = "0.3.26"
