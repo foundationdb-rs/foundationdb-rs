@@ -28,7 +28,7 @@ features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
 
 [features]
-default = ["fdb-7_3", "uuid"]
+default = ["uuid"]
 # Use the locally embedded foundationdb fdb_c.h and fdb.options files
 embedded-fdb-include = [
     "foundationdb-sys/embedded-fdb-include",
