@@ -124,7 +124,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Run all tests
-        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
 
   lint:
     name: Rustfmt / Clippy
@@ -182,7 +182,7 @@ jobs:
 
       - name: Test
         # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-        run: cargo test -p foundationdb --tests --no-fail-fast --target x86_64-unknown-linux-gnu
+        run: cargo test -p foundationdb --tests --no-fail-fast --target x86_64-unknown-linux-gnu --features=fdb-7_3
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/debug/bindingtester
