@@ -151,7 +151,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy
+        run: cargo clippy --no-deps
 
   coverage:
     name: Code coverage
