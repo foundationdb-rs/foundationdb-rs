@@ -1,4 +1,4 @@
-use foundationdb::{api::FdbApiBuilder};
+use foundationdb::api::FdbApiBuilder;
 use std::thread;
 
 #[test]
