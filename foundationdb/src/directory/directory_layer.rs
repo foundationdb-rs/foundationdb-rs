@@ -400,13 +400,13 @@ impl DirectoryLayer {
         // checking range
         let fdb_values = trx.get_range(&range_option, 1, snapshot).await?;
 
-        match fdb_values.get(0) {
+        match fdb_values.first() {
             None => {}
             Some(fdb_key_value) => {
                 let previous_prefix: Vec<Element> =
                     self.node_subspace.unpack(fdb_key_value.key())?;
 
-                if let Some(Element::Bytes(previous_prefix)) = previous_prefix.get(0) {
+                if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
                     if key.starts_with(previous_prefix) {
                         return Ok(Some(self.node_with_prefix(previous_prefix)));
                     };
