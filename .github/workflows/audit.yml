@@ -6,6 +6,7 @@ on:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    if: github.repository == 'foundationdb-rs/foundationdb-rs'
     steps:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0

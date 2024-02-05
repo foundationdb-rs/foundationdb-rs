@@ -151,7 +151,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --no-deps
+        run: cargo clippy --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
 
   coverage:
     name: Code coverage
