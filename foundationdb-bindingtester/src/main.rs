@@ -1401,11 +1401,10 @@ impl StackMachine {
             // limits, so these bindings can obtain different sizes back.
             GetApproximateSize => {
                 debug!("get_approximate_size");
-                trx.as_mut()
-                    .get_approximate_size()
-                    .await
-                    .expect("failed to get approximate size");
-                self.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned());
+                match trx.as_mut().get_approximate_size().await {
+                    Ok(_) => self.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned()),
+                    Err(error) => self.push_err(number, error),
+                }
             }
 
             GetRangeSplitPoints => {
