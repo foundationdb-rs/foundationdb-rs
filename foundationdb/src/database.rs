@@ -120,6 +120,18 @@ impl Database {
     }
 }
 
+#[cfg_api_versions(min = 730)]
+impl Database {
+    /// Retrieve a client-side status information in a JSON format.
+    pub fn get_client_status(
+        &self,
+    ) -> impl Future<Output = FdbResult<crate::future::FdbSlice>> + Send + Sync + Unpin {
+        crate::future::FdbFuture::new(unsafe {
+            fdb_sys::fdb_database_get_client_status(self.inner.as_ptr())
+        })
+    }
+}
+
 impl Database {
     /// Create a database for the given configuration path
     ///
