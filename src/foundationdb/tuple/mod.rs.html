@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -683,7 +684,7 @@
 <span class="kw">use </span>std::ops::Deref;
 <span class="kw">use </span>std::result;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
 </span><span class="kw">pub use </span>uuid::Uuid;
 
 <span class="kw">pub use </span>element::Element;
@@ -702,7 +703,7 @@
 <span class="kw">const </span>DOUBLE: u8 = <span class="number">0x21</span>;
 <span class="kw">const </span>FALSE: u8 = <span class="number">0x26</span>;
 <span class="kw">const </span>TRUE: u8 = <span class="number">0x27</span>;
-<span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
 </span><span class="kw">const </span>UUID: u8 = <span class="number">0x30</span>;
 <span class="comment">// Not a single official binding is implementing 80 Bit versionstamp...
 // const VERSIONSTAMP_88: u8 = 0x32;
@@ -743,7 +744,7 @@
         expected: <span class="prelude-ty">Option</span>&lt;u8&gt;,
     },
     BadPrefix,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
     </span>BadUuid,
     UnsupportedIntLength,
 }
@@ -759,14 +760,14 @@
         <span class="kw">match </span><span class="self">self </span>{
             PackError::Message(s) =&gt; s.fmt(f),
             PackError::IoError(err) =&gt; err.fmt(f),
-            PackError::TrailingBytes =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;trailing bytes&quot;</span>),
-            PackError::MissingBytes =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;missing bytes&quot;</span>),
-            PackError::BadStringFormat =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;not an utf8 string&quot;</span>),
-            PackError::BadCode { found, .. } =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;bad code, found {}&quot;</span>, found),
-            PackError::BadPrefix =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;bad prefix&quot;</span>),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
-            </span>PackError::BadUuid =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;bad uuid&quot;</span>),
-            PackError::UnsupportedIntLength =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer length was to large&quot;</span>),
+            PackError::TrailingBytes =&gt; <span class="macro">write!</span>(f, <span class="string">"trailing bytes"</span>),
+            PackError::MissingBytes =&gt; <span class="macro">write!</span>(f, <span class="string">"missing bytes"</span>),
+            PackError::BadStringFormat =&gt; <span class="macro">write!</span>(f, <span class="string">"not an utf8 string"</span>),
+            PackError::BadCode { found, .. } =&gt; <span class="macro">write!</span>(f, <span class="string">"bad code, found {}"</span>, found),
+            PackError::BadPrefix =&gt; <span class="macro">write!</span>(f, <span class="string">"bad prefix"</span>),
+            <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
+            </span>PackError::BadUuid =&gt; <span class="macro">write!</span>(f, <span class="string">"bad uuid"</span>),
+            PackError::UnsupportedIntLength =&gt; <span class="macro">write!</span>(f, <span class="string">"integer length was to large"</span>),
         }
     }
 }
@@ -780,65 +781,65 @@
 ///
 /// This sequence can be either owned or borrowed.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-</span><span class="kw">pub struct </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw">pub </span>Cow&lt;<span class="lifetime">&#39;a</span>, [u8]&gt;);
+</span><span class="kw">pub struct </span>Bytes&lt;<span class="lifetime">'a</span>&gt;(<span class="kw">pub </span>Cow&lt;<span class="lifetime">'a</span>, [u8]&gt;);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Debug <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Debug <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
         fmt::Display::fmt(<span class="self">self</span>, f)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Display <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, fmt: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        <span class="macro">write!</span>(fmt, <span class="string">&quot;b\&quot;&quot;</span>)<span class="question-mark">?</span>;
+        <span class="macro">write!</span>(fmt, <span class="string">"b\""</span>)<span class="question-mark">?</span>;
         <span class="kw">for </span><span class="kw-2">&amp;</span>byte <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter() {
-            <span class="kw">if </span>byte == <span class="string">b&#39;\\&#39; </span>{
-                <span class="macro">write!</span>(fmt, <span class="string">r&quot;\\&quot;</span>)<span class="question-mark">?</span>;
+            <span class="kw">if </span>byte == <span class="string">b'\\' </span>{
+                <span class="macro">write!</span>(fmt, <span class="string">r"\\"</span>)<span class="question-mark">?</span>;
             } <span class="kw">else if </span>byte.is_ascii_alphanumeric() {
-                <span class="macro">write!</span>(fmt, <span class="string">&quot;{}&quot;</span>, byte <span class="kw">as </span>char)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(fmt, <span class="string">"{}"</span>, byte <span class="kw">as </span>char)<span class="question-mark">?</span>;
             } <span class="kw">else </span>{
-                <span class="macro">write!</span>(fmt, <span class="string">&quot;\\x{:02x}&quot;</span>, byte)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(fmt, <span class="string">"\\x{:02x}"</span>, byte)<span class="question-mark">?</span>;
             }
         }
-        <span class="macro">write!</span>(fmt, <span class="string">&quot;\&quot;&quot;</span>)
+        <span class="macro">write!</span>(fmt, <span class="string">"\""</span>)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Bytes&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="self">self</span>.<span class="number">0</span>.into_owned()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Deref <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Deref <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">type </span>Target = [u8];
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; AsRef&lt;[u8]&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; AsRef&lt;[u8]&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(bytes: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(bytes: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(Cow::Borrowed(bytes))
     }
 }
-<span class="kw">impl </span>From&lt;Vec&lt;u8&gt;&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>From&lt;Vec&lt;u8&gt;&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>from(vec: Vec&lt;u8&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(Cow::Owned(vec))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(s: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(s: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
         s.as_bytes().into()
     }
 }
-<span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>from(vec: String) -&gt; <span class="self">Self </span>{
         vec.into_bytes().into()
     }
@@ -848,7 +849,7 @@
 ///
 /// # Panics
 ///
-/// Panics if the encoded data size doesn&#39;t fit in `u32`.
+/// Panics if the encoded data size doesn't fit in `u32`.
 </span><span class="kw">pub fn </span>pack&lt;T: TuplePack&gt;(v: <span class="kw-2">&amp;</span>T) -&gt; Vec&lt;u8&gt; {
     v.pack_to_vec()
 }
@@ -857,7 +858,7 @@
 ///
 /// # Panics
 ///
-/// Panics if there is multiple versionstamp present or if the encoded data size doesn&#39;t fit in `u32`.
+/// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
 </span><span class="kw">pub fn </span>pack_with_versionstamp&lt;T: TuplePack&gt;(v: <span class="kw-2">&amp;</span>T) -&gt; Vec&lt;u8&gt; {
     v.pack_to_vec_with_versionstamp()
 }
@@ -866,7 +867,7 @@
 ///
 /// # Panics
 ///
-/// Panics if the encoded data size doesn&#39;t fit in `u32`.
+/// Panics if the encoded data size doesn't fit in `u32`.
 </span><span class="kw">pub fn </span>pack_into&lt;T: TuplePack&gt;(v: <span class="kw-2">&amp;</span>T, output: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;) -&gt; VersionstampOffset {
     v.pack_into_vec(output)
 }
@@ -875,16 +876,16 @@
 ///
 /// # Panics
 ///
-/// Panics if there is multiple versionstamp present or if the encoded data size doesn&#39;t fit in `u32`.
+/// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
 </span><span class="kw">pub fn </span>pack_into_with_versionstamp&lt;T: TuplePack&gt;(v: <span class="kw-2">&amp;</span>T, output: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;) {
     <span class="kw">let </span>offset = v.pack_into_vec_with_versionstamp(output);
     <span class="kw">if let </span>VersionstampOffset::MultipleIncomplete = offset {
-        <span class="macro">panic!</span>(<span class="string">&quot;pack_into_with_versionstamp does not allow multiple versionstamps&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"pack_into_with_versionstamp does not allow multiple versionstamps"</span>);
     }
 }
 
 <span class="doccomment">/// Unpack input
-</span><span class="kw">pub fn </span>unpack&lt;<span class="lifetime">&#39;de</span>, T: TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8]) -&gt; PackResult&lt;T&gt; {
+</span><span class="kw">pub fn </span>unpack&lt;<span class="lifetime">'de</span>, T: TupleUnpack&lt;<span class="lifetime">'de</span>&gt;&gt;(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8]) -&gt; PackResult&lt;T&gt; {
     T::unpack_root(input)
 }
 
@@ -894,12 +895,12 @@
 
     <span class="kw">const </span>NIL_VAL: <span class="prelude-ty">Option</span>&lt;()&gt; = <span class="prelude-val">None</span>;
 
-    <span class="kw">fn </span>test_serde&lt;<span class="lifetime">&#39;de</span>, T&gt;(val: T, buf: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8])
+    <span class="kw">fn </span>test_serde&lt;<span class="lifetime">'de</span>, T&gt;(val: T, buf: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8])
     <span class="kw">where
-        </span>T: TuplePack + TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; + fmt::Debug + PartialEq,
+        </span>T: TuplePack + TupleUnpack&lt;<span class="lifetime">'de</span>&gt; + fmt::Debug + PartialEq,
     {
         <span class="macro">assert_eq!</span>(Bytes::from(pack(<span class="kw-2">&amp;</span>val)), Bytes::from(buf));
-        <span class="macro">assert_eq!</span>(unpack::&lt;<span class="lifetime">&#39;de</span>, T&gt;(buf).unwrap(), val);
+        <span class="macro">assert_eq!</span>(unpack::&lt;<span class="lifetime">'de</span>, T&gt;(buf).unwrap(), val);
     }
 
     <span class="attr">#[test]
@@ -907,15 +908,15 @@
         test_serde(NIL_VAL, <span class="kw-2">&amp;</span>[NIL]);
         test_serde((NIL_VAL,), <span class="kw-2">&amp;</span>[NIL]);
         test_serde(((NIL_VAL,),), <span class="kw-2">&amp;</span>[NESTED, NIL, ESCAPE, NIL]);
-        <span class="comment">// assert_eq!(to_bytes(b&quot;foo\x00bar&quot;).unwrap(), b&quot;\x01foo\x00\xffbar\x00&quot;);
-        </span>test_serde(<span class="string">&quot;FÔO\x00bar&quot;</span>.to_owned(), <span class="string">b&quot;\x02F\xc3\x94O\x00\xffbar\x00&quot;</span>);
+        <span class="comment">// assert_eq!(to_bytes(b"foo\x00bar").unwrap(), b"\x01foo\x00\xffbar\x00");
+        </span>test_serde(<span class="string">"FÔO\x00bar"</span>.to_owned(), <span class="string">b"\x02F\xc3\x94O\x00\xffbar\x00"</span>);
         test_serde(
-            ((<span class="string">&quot;foo\x00bar&quot;</span>.to_owned(), NIL_VAL, ()),),
-            <span class="string">b&quot;\x05\x02foo\x00\xffbar\x00\x00\xff\x05\x00\x00&quot;</span>,
+            ((<span class="string">"foo\x00bar"</span>.to_owned(), NIL_VAL, ()),),
+            <span class="string">b"\x05\x02foo\x00\xffbar\x00\x00\xff\x05\x00\x00"</span>,
         );
-        test_serde(-<span class="number">1</span>, <span class="string">b&quot;\x13\xfe&quot;</span>);
-        test_serde(-<span class="number">5551212</span>, <span class="string">b&quot;\x11\xabK\x93&quot;</span>);
-        test_serde(-<span class="number">42f32</span>, <span class="string">b&quot;\x20\x3d\xd7\xff\xff&quot;</span>);
+        test_serde(-<span class="number">1</span>, <span class="string">b"\x13\xfe"</span>);
+        test_serde(-<span class="number">5551212</span>, <span class="string">b"\x11\xabK\x93"</span>);
+        test_serde(-<span class="number">42f32</span>, <span class="string">b"\x20\x3d\xd7\xff\xff"</span>);
     }
 
     <span class="attr">#[test]
@@ -943,133 +944,133 @@
 
         <span class="comment">// versionstamp
         </span>test_serde(
-            Versionstamp::complete(<span class="kw-2">*</span><span class="string">b&quot;\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03&quot;</span>, <span class="number">0</span>),
-            <span class="string">b&quot;\x33\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03\x00\x00&quot;</span>,
+            Versionstamp::complete(<span class="kw-2">*</span><span class="string">b"\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03"</span>, <span class="number">0</span>),
+            <span class="string">b"\x33\xaa\xbb\xcc\xdd\xee\xff\x00\x01\x02\x03\x00\x00"</span>,
         );
         test_serde(
-            Versionstamp::complete(<span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>, <span class="number">657</span>),
-            <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
+            Versionstamp::complete(<span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>, <span class="number">657</span>),
+            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
         );
 
-        test_serde(<span class="number">0</span>, <span class="string">b&quot;\x14&quot;</span>);
-        test_serde(<span class="number">1</span>, <span class="string">b&quot;\x15\x01&quot;</span>);
-        test_serde(-<span class="number">1</span>, <span class="string">b&quot;\x13\xfe&quot;</span>);
-        test_serde(<span class="number">255</span>, <span class="string">b&quot;\x15\xff&quot;</span>);
-        test_serde(-<span class="number">255</span>, <span class="string">b&quot;\x13\x00&quot;</span>);
-        test_serde(<span class="number">256</span>, <span class="string">b&quot;\x16\x01\x00&quot;</span>);
-        test_serde(-<span class="number">256</span>, <span class="string">b&quot;\x12\xfe\xff&quot;</span>);
-        test_serde(<span class="number">65536</span>, <span class="string">b&quot;\x17\x01\x00\x00&quot;</span>);
-        test_serde(-<span class="number">65536</span>, <span class="string">b&quot;\x11\xfe\xff\xff&quot;</span>);
-        test_serde(i64::max_value(), <span class="string">b&quot;\x1C\x7f\xff\xff\xff\xff\xff\xff\xff&quot;</span>);
+        test_serde(<span class="number">0</span>, <span class="string">b"\x14"</span>);
+        test_serde(<span class="number">1</span>, <span class="string">b"\x15\x01"</span>);
+        test_serde(-<span class="number">1</span>, <span class="string">b"\x13\xfe"</span>);
+        test_serde(<span class="number">255</span>, <span class="string">b"\x15\xff"</span>);
+        test_serde(-<span class="number">255</span>, <span class="string">b"\x13\x00"</span>);
+        test_serde(<span class="number">256</span>, <span class="string">b"\x16\x01\x00"</span>);
+        test_serde(-<span class="number">256</span>, <span class="string">b"\x12\xfe\xff"</span>);
+        test_serde(<span class="number">65536</span>, <span class="string">b"\x17\x01\x00\x00"</span>);
+        test_serde(-<span class="number">65536</span>, <span class="string">b"\x11\xfe\xff\xff"</span>);
+        test_serde(i64::max_value(), <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>);
         test_serde(
             i64::max_value() <span class="kw">as </span>u64 + <span class="number">1</span>,
-            <span class="string">b&quot;\x1C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
-        test_serde(u64::max_value(), <span class="string">b&quot;\x1C\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>);
+        test_serde(u64::max_value(), <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>);
         test_serde(
             u128::max_value(),
-            <span class="string">b&quot;\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>,
-            <span class="string">b&quot;\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             u64::max_value() <span class="kw">as </span>i128 + <span class="number">1</span>,
-            <span class="string">b&quot;\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             i64::min_value() <span class="kw">as </span>i128 + <span class="number">1</span>,
-            <span class="string">b&quot;\x0C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             i64::min_value() <span class="kw">as </span>i128 - <span class="number">1</span>,
-            <span class="string">b&quot;\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
             -(u64::max_value() <span class="kw">as </span>i128),
-            <span class="string">b&quot;\x0C\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             -(u64::max_value() <span class="kw">as </span>i128) - <span class="number">1</span>,
-            <span class="string">b&quot;\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             -(u64::max_value() <span class="kw">as </span>i128) - <span class="number">2</span>,
-            <span class="string">b&quot;\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
             (u64::max_value() <span class="kw">as </span>i128) * -<span class="number">2</span>,
-            <span class="string">b&quot;\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01&quot;</span>,
+            <span class="string">b"\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
             (u64::max_value() <span class="kw">as </span>i128) * <span class="number">2</span>,
-            <span class="string">b&quot;\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
-        test_serde(-<span class="number">4294967295i64</span>, <span class="string">b&quot;\x10\x00\x00\x00\x00&quot;</span>);
+        test_serde(-<span class="number">4294967295i64</span>, <span class="string">b"\x10\x00\x00\x00\x00"</span>);
         test_serde(
             i64::min_value() + <span class="number">2</span>,
-            <span class="string">b&quot;\x0C\x80\x00\x00\x00\x00\x00\x00\x01&quot;</span>,
+            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
             i64::min_value() + <span class="number">1</span>,
-            <span class="string">b&quot;\x0C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
-        test_serde(i64::min_value(), <span class="string">b&quot;\x0C\x7f\xff\xff\xff\xff\xff\xff\xff&quot;</span>);
+        test_serde(i64::min_value(), <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>);
 
-        test_serde(<span class="number">9252427359321063944i128</span>, <span class="string">b&quot;\x1c\x80g9\xa9np\x02\x08&quot;</span>);
+        test_serde(<span class="number">9252427359321063944i128</span>, <span class="string">b"\x1c\x80g9\xa9np\x02\x08"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            unpack::&lt;i64&gt;(<span class="string">b&quot;\x1c\x80g9\xa9np\x02\x08&quot;</span>).unwrap_err(),
+            unpack::&lt;i64&gt;(<span class="string">b"\x1c\x80g9\xa9np\x02\x08"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
         test_serde(
             -<span class="number">9252427359321063944i128</span>,
-            <span class="string">b&quot;\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7&quot;</span>,
+            <span class="string">b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            unpack::&lt;i64&gt;(<span class="string">b&quot;\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7&quot;</span>).unwrap_err(),
+            unpack::&lt;i64&gt;(<span class="string">b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
         test_serde(
             u64::max_value() <span class="kw">as </span>i128,
-            <span class="string">b&quot;\x1c\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            unpack::&lt;i64&gt;(<span class="string">b&quot;\x1c\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>).unwrap_err(),
+            unpack::&lt;i64&gt;(<span class="string">b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
         test_serde(
             -(u64::max_value() <span class="kw">as </span>i128),
-            <span class="string">b&quot;\x0c\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            unpack::&lt;i64&gt;(<span class="string">b&quot;\x0c\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>).unwrap_err(),
+            unpack::&lt;i64&gt;(<span class="string">b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
         test_serde(
             (i64::max_value() <span class="kw">as </span>i128) + <span class="number">1</span>,
-            <span class="string">b&quot;\x1c\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1c\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            unpack::&lt;i64&gt;(<span class="string">b&quot;\x1c\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>).unwrap_err(),
+            unpack::&lt;i64&gt;(<span class="string">b"\x1c\x80\x00\x00\x00\x00\x00\x00\x00"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
         test_serde(
             (i64::min_value() <span class="kw">as </span>i128) - <span class="number">1</span>,
-            <span class="string">b&quot;\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            unpack::&lt;i64&gt;(<span class="string">b&quot;\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>).unwrap_err(),
+            unpack::&lt;i64&gt;(<span class="string">b"\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
     #[test]
     </span><span class="kw">fn </span>test_bigint() {
         <span class="kw">use </span>num_bigint::{BigInt, BigUint};
@@ -1095,121 +1096,121 @@
         test_serde(BigInt::from(-<span class="number">255i16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">0</span>]);
         test_serde(BigInt::from(-<span class="number">256i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x12</span>, <span class="number">254</span>, <span class="number">255</span>]);
 
-        test_serde(BigInt::from(<span class="number">0</span>), <span class="string">b&quot;\x14&quot;</span>);
-        test_serde(BigUint::from(<span class="number">0u64</span>), <span class="string">b&quot;\x14&quot;</span>);
-        test_serde(BigInt::from(<span class="number">1</span>), <span class="string">b&quot;\x15\x01&quot;</span>);
-        test_serde(BigUint::from(<span class="number">1u64</span>), <span class="string">b&quot;\x15\x01&quot;</span>);
-        test_serde(BigInt::from(-<span class="number">1</span>), <span class="string">b&quot;\x13\xfe&quot;</span>);
-        test_serde(BigInt::from(<span class="number">255</span>), <span class="string">b&quot;\x15\xff&quot;</span>);
-        test_serde(BigUint::from(<span class="number">255u64</span>), <span class="string">b&quot;\x15\xff&quot;</span>);
-        test_serde(BigInt::from(-<span class="number">255</span>), <span class="string">b&quot;\x13\x00&quot;</span>);
-        test_serde(BigInt::from(<span class="number">256</span>), <span class="string">b&quot;\x16\x01\x00&quot;</span>);
-        test_serde(BigUint::from(<span class="number">256u64</span>), <span class="string">b&quot;\x16\x01\x00&quot;</span>);
-        test_serde(BigInt::from(-<span class="number">256</span>), <span class="string">b&quot;\x12\xfe\xff&quot;</span>);
-        test_serde(BigInt::from(<span class="number">65536</span>), <span class="string">b&quot;\x17\x01\x00\x00&quot;</span>);
-        test_serde(BigUint::from(<span class="number">65536u64</span>), <span class="string">b&quot;\x17\x01\x00\x00&quot;</span>);
-        test_serde(BigInt::from(-<span class="number">65536</span>), <span class="string">b&quot;\x11\xfe\xff\xff&quot;</span>);
+        test_serde(BigInt::from(<span class="number">0</span>), <span class="string">b"\x14"</span>);
+        test_serde(BigUint::from(<span class="number">0u64</span>), <span class="string">b"\x14"</span>);
+        test_serde(BigInt::from(<span class="number">1</span>), <span class="string">b"\x15\x01"</span>);
+        test_serde(BigUint::from(<span class="number">1u64</span>), <span class="string">b"\x15\x01"</span>);
+        test_serde(BigInt::from(-<span class="number">1</span>), <span class="string">b"\x13\xfe"</span>);
+        test_serde(BigInt::from(<span class="number">255</span>), <span class="string">b"\x15\xff"</span>);
+        test_serde(BigUint::from(<span class="number">255u64</span>), <span class="string">b"\x15\xff"</span>);
+        test_serde(BigInt::from(-<span class="number">255</span>), <span class="string">b"\x13\x00"</span>);
+        test_serde(BigInt::from(<span class="number">256</span>), <span class="string">b"\x16\x01\x00"</span>);
+        test_serde(BigUint::from(<span class="number">256u64</span>), <span class="string">b"\x16\x01\x00"</span>);
+        test_serde(BigInt::from(-<span class="number">256</span>), <span class="string">b"\x12\xfe\xff"</span>);
+        test_serde(BigInt::from(<span class="number">65536</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
+        test_serde(BigUint::from(<span class="number">65536u64</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
+        test_serde(BigInt::from(-<span class="number">65536</span>), <span class="string">b"\x11\xfe\xff\xff"</span>);
         test_serde(
             BigInt::from(i64::max_value()),
-            <span class="string">b&quot;\x1C\x7f\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigUint::from(i64::max_value() <span class="kw">as </span>u64),
-            <span class="string">b&quot;\x1C\x7f\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigInt::from(i64::max_value() <span class="kw">as </span>u64 + <span class="number">1</span>),
-            <span class="string">b&quot;\x1C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigUint::from(i64::max_value() <span class="kw">as </span>u64 + <span class="number">1</span>),
-            <span class="string">b&quot;\x1C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigInt::from(u64::max_value()),
-            <span class="string">b&quot;\x1C\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigUint::from(u64::max_value()),
-            <span class="string">b&quot;\x1C\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigInt::from(u128::max_value()),
-            <span class="string">b&quot;\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigUint::from(u128::max_value()),
-            <span class="string">b&quot;\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigInt::from(u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>),
-            <span class="string">b&quot;\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigUint::from(u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>),
-            <span class="string">b&quot;\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigInt::from(u64::max_value() <span class="kw">as </span>i128 + <span class="number">1</span>),
-            <span class="string">b&quot;\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigUint::from(u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>),
-            <span class="string">b&quot;\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigInt::from(i64::min_value() <span class="kw">as </span>i128 + <span class="number">1</span>),
-            <span class="string">b&quot;\x0C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigInt::from(i64::min_value() <span class="kw">as </span>i128 - <span class="number">1</span>),
-            <span class="string">b&quot;\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
             BigInt::from(-(u64::max_value() <span class="kw">as </span>i128)),
-            <span class="string">b&quot;\x0C\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigInt::from(-(u64::max_value() <span class="kw">as </span>i128) - <span class="number">1</span>),
-            <span class="string">b&quot;\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
             BigInt::from(-(u64::max_value() <span class="kw">as </span>i128) - <span class="number">2</span>),
-            <span class="string">b&quot;\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
             BigInt::from((u64::max_value() <span class="kw">as </span>i128) * -<span class="number">2</span>),
-            <span class="string">b&quot;\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01&quot;</span>,
+            <span class="string">b"\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
             BigInt::from((u64::max_value() <span class="kw">as </span>i128) * <span class="number">2</span>),
-            <span class="string">b&quot;\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe&quot;</span>,
+            <span class="string">b"\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
-        test_serde(BigInt::from(-<span class="number">4294967295i64</span>), <span class="string">b&quot;\x10\x00\x00\x00\x00&quot;</span>);
+        test_serde(BigInt::from(-<span class="number">4294967295i64</span>), <span class="string">b"\x10\x00\x00\x00\x00"</span>);
         test_serde(
             BigInt::from(i64::min_value() + <span class="number">2</span>),
-            <span class="string">b&quot;\x0C\x80\x00\x00\x00\x00\x00\x00\x01&quot;</span>,
+            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
             BigInt::from(i64::min_value() + <span class="number">1</span>),
-            <span class="string">b&quot;\x0C\x80\x00\x00\x00\x00\x00\x00\x00&quot;</span>,
+            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
             BigInt::from(i64::min_value()),
-            <span class="string">b&quot;\x0C\x7f\xff\xff\xff\xff\xff\xff\xff&quot;</span>,
+            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
 
         test_serde(
             Element::BigInt(<span class="number">9252427359321063944i128</span>.into()),
-            <span class="string">b&quot;\x1c\x80g9\xa9np\x02\x08&quot;</span>,
+            <span class="string">b"\x1c\x80g9\xa9np\x02\x08"</span>,
         );
         test_serde(
             Element::BigInt((-<span class="number">9252427359321063944i128</span>).into()),
-            <span class="string">b&quot;\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7&quot;</span>,
+            <span class="string">b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7"</span>,
         );
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
     #[test]
     </span><span class="kw">fn </span>test_uuid() {
         <span class="kw">use </span>uuid::Uuid;
@@ -1217,63 +1218,63 @@
         test_serde(
             Element::Uuid(
                 Uuid::from_slice(
-                    <span class="string">b&quot;\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e&quot;</span>,
+                    <span class="string">b"\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e"</span>,
                 )
                 .unwrap(),
             ),
-            <span class="string">b&quot;\x30\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e&quot;</span>,
+            <span class="string">b"\x30\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e"</span>,
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bindingtester() {
-        test_serde(<span class="string">&quot;NEW_TRANSACTION&quot;</span>.to_string(), <span class="string">b&quot;\x02NEW_TRANSACTION\x00&quot;</span>);
+        test_serde(<span class="string">"NEW_TRANSACTION"</span>.to_string(), <span class="string">b"\x02NEW_TRANSACTION\x00"</span>);
         test_serde(
-            <span class="macro">vec!</span>[<span class="string">&quot;NEW_TRANSACTION&quot;</span>.to_string()],
-            <span class="string">b&quot;\x02NEW_TRANSACTION\x00&quot;</span>,
+            <span class="macro">vec!</span>[<span class="string">"NEW_TRANSACTION"</span>.to_string()],
+            <span class="string">b"\x02NEW_TRANSACTION\x00"</span>,
         );
         test_serde(
             <span class="macro">vec!</span>[
-                Element::String(Cow::Borrowed(<span class="string">&quot;PUSH&quot;</span>)),
+                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
                 Element::Bytes(Bytes::from(
-                    <span class="string">b&quot;\x01tester_output\x00\x01results\x00\x14&quot;</span>.as_ref(),
+                    <span class="string">b"\x01tester_output\x00\x01results\x00\x14"</span>.as_ref(),
                 )),
             ],
-            <span class="string">b&quot;\x02PUSH\x00\x01\x01tester_output\x00\xff\x01results\x00\xff\x14\x00&quot;</span>,
+            <span class="string">b"\x02PUSH\x00\x01\x01tester_output\x00\xff\x01results\x00\xff\x14\x00"</span>,
         );
         test_serde(
-            <span class="macro">vec!</span>[Element::String(Cow::Borrowed(<span class="string">&quot;PUSH&quot;</span>)), Element::Nil],
-            <span class="string">b&quot;\x02PUSH\x00\x00&quot;</span>,
+            <span class="macro">vec!</span>[Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)), Element::Nil],
+            <span class="string">b"\x02PUSH\x00\x00"</span>,
         );
         test_serde(
             <span class="macro">vec!</span>[
-                Element::String(Cow::Borrowed(<span class="string">&quot;PUSH&quot;</span>)),
+                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
                 Element::Tuple(<span class="macro">vec!</span>[
                     Element::Nil,
                     Element::Float(<span class="number">3299069000000.0</span>),
                     Element::Float(-<span class="number">0.000000000000000000000000000000000000011883096</span>),
                 ]),
             ],
-            <span class="string">b&quot;\x02PUSH\x00\x05\x00\xff \xd4@\x07\xf5 \x7f~\x9a\xc2\x00&quot;</span>,
+            <span class="string">b"\x02PUSH\x00\x05\x00\xff \xd4@\x07\xf5 \x7f~\x9a\xc2\x00"</span>,
         );
         test_serde(
             <span class="macro">vec!</span>[
-                Element::String(Cow::Borrowed(<span class="string">&quot;PUSH&quot;</span>)),
+                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
                 Element::Int(-<span class="number">133525682914243904</span>),
             ],
-            <span class="string">b&quot;\x02PUSH\x00\x0c\xfe%\x9f\x19M\x81J\xbf&quot;</span>,
+            <span class="string">b"\x02PUSH\x00\x0c\xfe%\x9f\x19M\x81J\xbf"</span>,
         );
 
         test_serde(
             Element::Tuple(<span class="macro">vec!</span>[Element::Nil, Element::Nil]),
-            <span class="string">b&quot;\x00\x00&quot;</span>,
+            <span class="string">b"\x00\x00"</span>,
         );
         test_serde(
             Element::Tuple(<span class="macro">vec!</span>[
-                Element::String(Cow::Borrowed(<span class="string">&quot;PUSH&quot;</span>)),
+                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
                 Element::Tuple(<span class="macro">vec!</span>[Element::Double(-<span class="number">8.251343508909708e-15</span>)]),
             ]),
-            <span class="string">b&quot;\x02PUSH\x00\x05!B\xfdkl\x9f\xcc\x8eK\x00&quot;</span>,
+            <span class="string">b"\x02PUSH\x00\x05!B\xfdkl\x9f\xcc\x8eK\x00"</span>,
         );
     }
 
@@ -1284,24 +1285,24 @@
         test_serde(Element::Int(-<span class="number">1</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">254</span>]);
         test_serde(
             Element::Versionstamp(Versionstamp::complete(
-                <span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>,
+                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
                 <span class="number">657</span>,
             )),
-            <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
+            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
         );
         test_serde(
             (Element::Versionstamp(Versionstamp::complete(
-                <span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>,
+                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
                 <span class="number">657</span>,
             )),),
-            <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
+            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
         );
         test_serde(
             (Element::Versionstamp(Versionstamp::complete(
-                <span class="kw-2">*</span><span class="string">b&quot;\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a&quot;</span>,
+                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
                 <span class="number">657</span>,
             )),),
-            <span class="string">b&quot;\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91&quot;</span>,
+            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
         );
         test_serde(
             <span class="macro">vec!</span>[Element::Bool(<span class="bool-val">true</span>), Element::Bool(<span class="bool-val">false</span>)],
@@ -1321,16 +1322,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_verstionstamp() {
         <span class="macro">assert_eq!</span>(
-            Bytes::from(pack(<span class="kw-2">&amp;</span>(<span class="string">&quot;foo&quot;</span>, Versionstamp::incomplete(<span class="number">0</span>)))),
-            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b&quot;\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00&quot;</span>[..])
+            Bytes::from(pack(<span class="kw-2">&amp;</span>(<span class="string">"foo"</span>, Versionstamp::incomplete(<span class="number">0</span>)))),
+            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00"</span>[..])
         );
         <span class="macro">assert_eq!</span>(
             Bytes::from(pack_with_versionstamp(<span class="kw-2">&amp;</span>(
-                <span class="string">&quot;foo&quot;</span>,
+                <span class="string">"foo"</span>,
                 Versionstamp::incomplete(<span class="number">0</span>)
             ))),
             Bytes::from(
-                <span class="kw-2">&amp;</span><span class="string">b&quot;\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x06\x00\x00\x00&quot;
+                <span class="kw-2">&amp;</span><span class="string">b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x06\x00\x00\x00"
                     </span>[..]
             )
         );

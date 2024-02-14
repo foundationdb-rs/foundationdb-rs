@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/pack.rs`."><title>pack.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/pack.rs`."><title>pack.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1147,7 +1148,7 @@
     }
 }
 
-<span class="kw">const </span>PACK_ERR_MSG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;pack io error on Vec, data size didn&#39;t fit in `u32`?&quot;</span>;
+<span class="kw">const </span>PACK_ERR_MSG: <span class="kw-2">&amp;</span>str = <span class="string">"pack io error on Vec, data size didn't fit in `u32`?"</span>;
 
 <span class="doccomment">/// A type that can be packed
 </span><span class="kw">pub trait </span>TuplePack {
@@ -1165,7 +1166,7 @@
     ///
     /// # Panics
     ///
-    /// Panics if the encoded data size doesn&#39;t fit in `u32`.
+    /// Panics if the encoded data size doesn't fit in `u32`.
     </span><span class="kw">fn </span>pack_to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>vec = Vec::new();
         <span class="self">self</span>.pack_into_vec(<span class="kw-2">&amp;mut </span>vec);
@@ -1176,12 +1177,12 @@
     ///
     /// # Panics
     ///
-    /// Panics if there is multiple versionstamp present or if the encoded data size doesn&#39;t fit in `u32`.
+    /// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
     </span><span class="kw">fn </span>pack_to_vec_with_versionstamp(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>vec = Vec::new();
         <span class="kw">let </span>offset = <span class="self">self</span>.pack_into_vec_with_versionstamp(<span class="kw-2">&amp;mut </span>vec);
         <span class="kw">if let </span>VersionstampOffset::MultipleIncomplete = offset {
-            <span class="macro">panic!</span>(<span class="string">&quot;pack_to_vec_with_versionstamp does not allow multiple versionstamps&quot;</span>);
+            <span class="macro">panic!</span>(<span class="string">"pack_to_vec_with_versionstamp does not allow multiple versionstamps"</span>);
         }
         vec
     }
@@ -1190,7 +1191,7 @@
     ///
     /// # Panics
     ///
-    /// Panics if the encoded data size doesn&#39;t fit in `u32`.
+    /// Panics if the encoded data size doesn't fit in `u32`.
     </span><span class="kw">fn </span>pack_into_vec(<span class="kw-2">&amp;</span><span class="self">self</span>, output: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;) -&gt; VersionstampOffset {
         <span class="self">self</span>.pack_root(output).expect(PACK_ERR_MSG)
     }
@@ -1199,7 +1200,7 @@
     ///
     /// # Panics
     ///
-    /// Panics if the encoded data size doesn&#39;t fit in `u32`.
+    /// Panics if the encoded data size doesn't fit in `u32`.
     </span><span class="kw">fn </span>pack_into_vec_with_versionstamp(<span class="kw-2">&amp;</span><span class="self">self</span>, output: <span class="kw-2">&amp;mut </span>Vec&lt;u8&gt;) -&gt; VersionstampOffset {
         <span class="kw">let </span><span class="kw-2">mut </span>offset = VersionstampOffset::None {
             size: u32::try_from(output.len()).expect(PACK_ERR_MSG),
@@ -1213,10 +1214,10 @@
 }
 
 <span class="doccomment">/// A type that can be unpacked
-</span><span class="kw">pub trait </span>TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;: Sized {
-    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt;;
+</span><span class="kw">pub trait </span>TupleUnpack&lt;<span class="lifetime">'de</span>&gt;: Sized {
+    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt;;
 
-    <span class="kw">fn </span>unpack_root(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8]) -&gt; PackResult&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>unpack_root(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8]) -&gt; PackResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>(input, this) = <span class="self">Self</span>::unpack(input, TupleDepth::new())<span class="question-mark">?</span>;
         <span class="kw">if </span>!input.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(PackError::TrailingBytes);
@@ -1225,7 +1226,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>T
 <span class="kw">where
     </span>T: TuplePack,
 {
@@ -1339,7 +1340,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>() {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>() {
     <span class="kw">fn </span>unpack(<span class="kw-2">mut </span>input: <span class="kw-2">&amp;</span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">if </span>tuple_depth.depth() &gt; <span class="number">0 </span>{
             input = parse_code(input, NESTED)<span class="question-mark">?</span>;
@@ -1375,11 +1376,11 @@
                 }
             }
 
-            <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, $(<span class="macro-nonterminal">$name</span>),+&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>($(<span class="macro-nonterminal">$name</span>,)+)
+            <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, $(<span class="macro-nonterminal">$name</span>),+&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>($(<span class="macro-nonterminal">$name</span>,)+)
             <span class="kw">where
-                </span>$(<span class="macro-nonterminal">$name</span>: TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;,)+
+                </span>$(<span class="macro-nonterminal">$name</span>: TupleUnpack&lt;<span class="lifetime">'de</span>&gt;,)+
             {
-                <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+                <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
                     <span class="kw">let </span>input = <span class="kw">if </span>tuple_depth.depth() &gt; <span class="number">0 </span>{ parse_code(input, NESTED)<span class="question-mark">? </span>} <span class="kw">else </span>{ input };
 
                     $(
@@ -1482,7 +1483,7 @@
             }
         }
 
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$ux </span>{
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$ux </span>{
             <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
                 <span class="kw">const </span>SZ: usize = mem::size_of::&lt;<span class="macro-nonterminal">$ux</span>&gt;();
                 <span class="kw">let </span>(input, found) = parse_byte(input)<span class="question-mark">?</span>;
@@ -1546,7 +1547,7 @@
             }
         }
 
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$ix </span>{
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$ix </span>{
             <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
                 <span class="kw">const </span>SZ: usize = mem::size_of::&lt;<span class="macro-nonterminal">$ix</span>&gt;();
                 <span class="kw">let </span>(input, found) = parse_byte(input)<span class="question-mark">?</span>;
@@ -1613,7 +1614,7 @@
             arr.copy_from_slice(bytes);
             <span class="prelude-val">Ok</span>((input, <span class="macro-nonterminal">$ux::from_be_bytes</span>(arr)))
         }
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$fx </span>{
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$fx </span>{
             <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
                 <span class="kw">let </span>input = parse_code(input, <span class="macro-nonterminal">$code</span>)<span class="question-mark">?</span>;
                 <span class="kw">let </span>(input, u) = <span class="macro-nonterminal">$parse_ux</span>(input)<span class="question-mark">?</span>;
@@ -1647,14 +1648,14 @@
 <span class="macro">impl_fx!</span>(f32, f32_to_u32_be_bytes, <span class="number">4</span>, parse_u32, u32, FLOAT);
 <span class="macro">impl_fx!</span>(f64, f64_to_u64_be_bytes, <span class="number">8</span>, parse_u64, u64, DOUBLE);
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
 </span><span class="kw">mod </span>bigint {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>num_bigint::{BigInt, BigUint, Sign};
     <span class="kw">use </span>std::convert::TryFrom;
 
     <span class="kw">fn </span>invert(bytes: <span class="kw-2">&amp;mut </span>[u8]) {
-        <span class="comment">// The ones&#39; complement of a binary number is defined as the value
+        <span class="comment">// The ones' complement of a binary number is defined as the value
         // obtained by inverting all the bits in the binary representation
         // of the number (swapping 0s for 1s and vice versa).
         </span><span class="kw">for </span>byte <span class="kw">in </span>bytes.iter_mut() {
@@ -1663,7 +1664,7 @@
     }
 
     <span class="kw">fn </span>inverted(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
-        <span class="comment">// The ones&#39; complement of a binary number is defined as the value
+        <span class="comment">// The ones' complement of a binary number is defined as the value
         // obtained by inverting all the bits in the binary representation
         // of the number (swapping 0s for 1s and vice versa).
         </span>bytes.iter().map(|byte| !<span class="kw-2">*</span>byte).collect()
@@ -1673,7 +1674,7 @@
         u8::try_from(n).map_err(|<span class="kw">_</span>| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                <span class="string">&quot;BigUint requires more than 255 bytes to be represented&quot;</span>,
+                <span class="string">"BigUint requires more than 255 bytes to be represented"</span>,
             )
         })
     }
@@ -1718,7 +1719,7 @@
         }
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>BigInt {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>BigInt {
         <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
             <span class="kw">let </span>(input, found) = parse_byte(input)<span class="question-mark">?</span>;
             <span class="kw">if </span>INTZERO &lt;= found &amp;&amp; found &lt;= INTZERO + MAX_SZ <span class="kw">as </span>u8 {
@@ -1774,7 +1775,7 @@
         }
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>BigUint {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>BigUint {
         <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
             <span class="kw">let </span>(input, found) = parse_byte(input)<span class="question-mark">?</span>;
             <span class="kw">if </span>INTZERO &lt;= found &amp;&amp; found &lt;= INTZERO + MAX_SZ <span class="kw">as </span>u8 {
@@ -1807,20 +1808,20 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>bool {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>bool {
     <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>(input, v) = parse_byte(input)<span class="question-mark">?</span>;
         <span class="kw">match </span>v {
             FALSE =&gt; <span class="prelude-val">Ok</span>((input, <span class="bool-val">false</span>)),
             TRUE =&gt; <span class="prelude-val">Ok</span>((input, <span class="bool-val">true</span>)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(PackError::Message(
-                <span class="macro">format!</span>(<span class="string">&quot;{} is not a valid bool value&quot;</span>, v).into_boxed_str(),
+                <span class="macro">format!</span>(<span class="string">"{} is not a valid bool value"</span>, v).into_boxed_str(),
             )),
         }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[T]
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T]
 <span class="kw">where
     </span>T: TuplePack,
 {
@@ -1870,11 +1871,11 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, T&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Vec&lt;T&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, T&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Vec&lt;T&gt;
 <span class="kw">where
-    </span>T: TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;,
+    </span>T: TupleUnpack&lt;<span class="lifetime">'de</span>&gt;,
 {
-    <span class="kw">fn </span>unpack(<span class="kw-2">mut </span>input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+    <span class="kw">fn </span>unpack(<span class="kw-2">mut </span>input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>nested = tuple_depth.depth() &gt; <span class="number">0</span>;
         <span class="kw">if </span>nested {
             input = parse_code(input, NESTED)<span class="question-mark">?</span>;
@@ -1896,7 +1897,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TuplePack <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TuplePack <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>pack&lt;W: io::Write&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         w: <span class="kw-2">&amp;mut </span>W,
@@ -1907,15 +1908,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">&#39;de</span>&gt; {
-    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'de</span>&gt; {
+    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>input = parse_code(input, BYTES)<span class="question-mark">?</span>;
         <span class="kw">let </span>(input, v) = parse_slice(input)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>((input, Bytes(v)))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8] {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8] {
     <span class="kw">fn </span>pack&lt;W: io::Write&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         w: <span class="kw-2">&amp;mut </span>W,
@@ -1935,14 +1936,14 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Vec&lt;u8&gt; {
-    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Vec&lt;u8&gt; {
+    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>(input, bytes) = Bytes::unpack(input, tuple_depth)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>((input, bytes.into_owned()))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TuplePack <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>str {
     <span class="kw">fn </span>pack&lt;W: io::Write&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         w: <span class="kw-2">&amp;mut </span>W,
@@ -1963,7 +1964,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TuplePack <span class="kw">for </span>Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TuplePack <span class="kw">for </span>Cow&lt;<span class="lifetime">'a</span>, str&gt; {
     <span class="kw">fn </span>pack&lt;W: io::Write&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         w: <span class="kw-2">&amp;mut </span>W,
@@ -1973,15 +1974,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Cow&lt;<span class="lifetime">&#39;de</span>, str&gt; {
-    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Cow&lt;<span class="lifetime">'de</span>, str&gt; {
+    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>input = parse_code(input, STRING)<span class="question-mark">?</span>;
         <span class="kw">let </span>(input, v) = parse_string(input)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>((input, v))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>String {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>String {
     <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>input = parse_code(input, STRING)<span class="question-mark">?</span>;
         <span class="kw">let </span>(input, v) = parse_string(input)<span class="question-mark">?</span>;
@@ -2016,11 +2017,11 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, T&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="prelude-ty">Option</span>&lt;T&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, T&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="prelude-ty">Option</span>&lt;T&gt;
 <span class="kw">where
-    </span>T: TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;,
+    </span>T: TupleUnpack&lt;<span class="lifetime">'de</span>&gt;,
 {
-    <span class="kw">fn </span>unpack(<span class="kw-2">mut </span>input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+    <span class="kw">fn </span>unpack(<span class="kw-2">mut </span>input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>NIL) = input.first() {
             input = parse_code(input, NIL)<span class="question-mark">?</span>;
             <span class="kw">if </span>tuple_depth.depth() &gt; <span class="number">1 </span>{
@@ -2034,7 +2035,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TuplePack <span class="kw">for </span>Element&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TuplePack <span class="kw">for </span>Element&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>pack&lt;W: io::Write&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         w: <span class="kw-2">&amp;mut </span>W,
@@ -2050,16 +2051,16 @@
             Element::Bytes(<span class="kw-2">ref </span>b) =&gt; b.pack(w, tuple_depth),
             Element::Versionstamp(<span class="kw-2">ref </span>b) =&gt; b.pack(w, tuple_depth),
             Element::Tuple(<span class="kw-2">ref </span>v) =&gt; v.pack(w, tuple_depth),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
             </span>Element::Uuid(v) =&gt; v.pack(w, tuple_depth),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
             </span>Element::BigInt(v) =&gt; v.pack(w, tuple_depth),
         }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Element&lt;<span class="lifetime">&#39;de</span>&gt; {
-    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8], <span class="self">Self</span>)&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Element&lt;<span class="lifetime">'de</span>&gt; {
+    <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">const </span>INTMIN: u8 = INTZERO - <span class="number">8</span>;
         <span class="kw">const </span>INTMAX: u8 = INTZERO + <span class="number">8</span>;
 
@@ -2079,7 +2080,7 @@
                 (input, Element::Bytes(v))
             }
             STRING =&gt; {
-                <span class="kw">let </span>(input, v) = Cow::&lt;<span class="lifetime">&#39;de</span>, str&gt;::unpack(input, tuple_depth)<span class="question-mark">?</span>;
+                <span class="kw">let </span>(input, v) = Cow::&lt;<span class="lifetime">'de</span>, str&gt;::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::String(v))
             }
             NESTED =&gt; {
@@ -2088,29 +2089,29 @@
             }
             INTMIN..=INTMAX =&gt; <span class="kw">match </span>i64::unpack(input, tuple_depth) {
                 <span class="prelude-val">Ok</span>((input, v)) =&gt; (input, Element::Int(v)),
-                <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
                 </span><span class="prelude-val">Err</span>(PackError::UnsupportedIntLength) =&gt; {
                     <span class="kw">let </span>(input, v) = num_bigint::BigInt::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                     (input, Element::BigInt(v))
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(err),
             },
-            <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
             </span>NEGINTSTART =&gt; {
                 <span class="kw">let </span>(input, v) = num_bigint::BigInt::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::BigInt(v))
             }
-            <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
             </span>POSINTEND =&gt; {
                 <span class="kw">let </span>(input, v) = num_bigint::BigInt::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::BigInt(v))
             }
-            <span class="attr">#[cfg(not(feature = <span class="string">&quot;num-bigint&quot;</span>))]
+            <span class="attr">#[cfg(not(feature = <span class="string">"num-bigint"</span>))]
             </span>NEGINTSTART =&gt; {
                 <span class="kw">let </span>(input, v) = i64::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::Int(v))
             }
-            <span class="attr">#[cfg(not(feature = <span class="string">&quot;num-bigint&quot;</span>))]
+            <span class="attr">#[cfg(not(feature = <span class="string">"num-bigint"</span>))]
             </span>POSINTEND =&gt; {
                 <span class="kw">let </span>(input, v) = i64::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::Int(v))
@@ -2131,7 +2132,7 @@
                 <span class="kw">let </span>(input, v) = Versionstamp::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::Versionstamp(v))
             }
-            <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
             </span>UUID =&gt; {
                 <span class="kw">let </span>(input, v) = uuid::Uuid::unpack(input, tuple_depth)<span class="question-mark">?</span>;
                 (input, Element::Uuid(v))
@@ -2174,7 +2175,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Versionstamp {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Versionstamp {
     <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
         <span class="kw">let </span>input = parse_code(input, VERSIONSTAMP)<span class="question-mark">?</span>;
         <span class="kw">let </span>(input, slice) = parse_bytes(input, <span class="number">12</span>)<span class="question-mark">?</span>;
@@ -2184,7 +2185,7 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
 </span><span class="kw">mod </span>pack_uuid {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>uuid::Uuid;
@@ -2201,7 +2202,7 @@
         }
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Uuid {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; TupleUnpack&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Uuid {
         <span class="kw">fn </span>unpack(input: <span class="kw-2">&amp;</span>[u8], _tuple_depth: TupleDepth) -&gt; PackResult&lt;(<span class="kw-2">&amp;</span>[u8], <span class="self">Self</span>)&gt; {
             <span class="kw">let </span>input = parse_code(input, UUID)<span class="question-mark">?</span>;
             <span class="kw">let </span>(input, slice) = parse_bytes(input, <span class="number">16</span>)<span class="question-mark">?</span>;

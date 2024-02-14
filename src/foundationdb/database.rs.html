@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/database.rs`."><title>database.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/database.rs`."><title>database.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -549,15 +550,15 @@
 <span class="kw">use </span><span class="kw">crate</span>::error::FdbBindingError;
 <span class="kw">use </span>futures::prelude::<span class="kw-2">*</span>;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;fdb-7_1&quot;</span>)]
-#[cfg(feature = <span class="string">&quot;tenant-experimental&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"fdb-7_1"</span>)]
+#[cfg(feature = <span class="string">"tenant-experimental"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::tenant::FdbTenant;
 
 <span class="doccomment">/// Wrapper around the boolean representing whether the
 /// previous transaction is still on fly
 /// This wrapper prevents the boolean to be copy and force it
 /// to be moved instead.
-/// This pretty handy when you don&#39;t want to see the `Database::run` closure
+/// This pretty handy when you don't want to see the `Database::run` closure
 /// capturing the environment.
 </span><span class="kw">pub struct </span>MaybeCommitted(bool);
 
@@ -590,7 +591,7 @@
     <span class="doccomment">/// Create a database for the given configuration path if any, or the default one.
     </span><span class="kw">pub fn </span>new(path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; FdbResult&lt;Database&gt; {
         <span class="kw">let </span>path_str =
-            path.map(|path| std::ffi::CString::new(path).expect(<span class="string">&quot;path to be convertible to CStr&quot;</span>));
+            path.map(|path| std::ffi::CString::new(path).expect(<span class="string">"path to be convertible to CStr"</span>));
         <span class="kw">let </span>path_ptr = path_str
             .as_ref()
             .map(|path| path.as_ptr())
@@ -600,7 +601,7 @@
         drop(path_str); <span class="comment">// path_str own the CString that we are getting the ptr from
         </span>error::eval(err)<span class="question-mark">?</span>;
         <span class="kw">let </span>ptr =
-            NonNull::new(v).expect(<span class="string">&quot;fdb_create_database to not return null if there is no error&quot;</span>);
+            NonNull::new(v).expect(<span class="string">"fdb_create_database to not return null if there is no error"</span>);
         <span class="prelude-val">Ok</span>(<span class="self">Self</span>::new_from_pointer(ptr))
     }
 
@@ -622,7 +623,7 @@
 }
 
 <span class="attr">#[cfg_api_versions(min = <span class="number">710</span>)]
-#[cfg(feature = <span class="string">&quot;tenant-experimental&quot;</span>)]
+#[cfg(feature = <span class="string">"tenant-experimental"</span>)]
 </span><span class="kw">impl </span>Database {
     <span class="kw">pub fn </span>open_tenant(<span class="kw-2">&amp;</span><span class="self">self</span>, tenant_name: <span class="kw-2">&amp;</span>[u8]) -&gt; FdbResult&lt;FdbTenant&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ptr: <span class="kw-2">*mut </span>fdb_sys::FDB_tenant = std::ptr::null_mut();
@@ -637,7 +638,7 @@
         error::eval(err)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(FdbTenant {
             inner: NonNull::new(ptr)
-                .expect(<span class="string">&quot;fdb_database_open_tenant to not return null if there is no error&quot;</span>),
+                .expect(<span class="string">"fdb_database_open_tenant to not return null if there is no error"</span>),
             name: tenant_name.to_owned(),
         })
     }
@@ -649,14 +650,14 @@
     /// This is a compatibility api. If you only use API version ≥ 610 you should
     /// use `Database::new`, `Database::from_path` or  `Database::default`.
     </span><span class="kw">pub async fn </span>new_compat(path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; FdbResult&lt;Database&gt; {
-        <span class="attr">#[cfg(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
+        <span class="attr">#[cfg(any(feature = <span class="string">"fdb-5_1"</span>, feature = <span class="string">"fdb-5_2"</span>, feature = <span class="string">"fdb-6_0"</span>))]
         </span>{
             <span class="kw">let </span>cluster = <span class="kw">crate</span>::cluster::Cluster::new(path).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>database = cluster.create_database().<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(database)
         }
 
-        <span class="attr">#[cfg(not(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>)))]
+        <span class="attr">#[cfg(not(any(feature = <span class="string">"fdb-5_1"</span>, feature = <span class="string">"fdb-5_2"</span>, feature = <span class="string">"fdb-6_0"</span>)))]
         </span>{
             Database::new(path)
         }
@@ -674,7 +675,7 @@
             <span class="kw">unsafe </span>{ fdb_sys::fdb_database_create_transaction(<span class="self">self</span>.inner.as_ptr(), <span class="kw-2">&amp;mut </span>trx) };
         error::eval(err)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(Transaction::new(NonNull::new(trx).expect(
-            <span class="string">&quot;fdb_database_create_transaction to not return null if there is no error&quot;</span>,
+            <span class="string">"fdb_database_create_transaction to not return null if there is no error"</span>,
         )))
     }
 
@@ -694,7 +695,7 @@
     /// if the task need to be guaranteed to finish.
     ///
     /// Once [Generic Associated Types](https://github.com/rust-lang/rfcs/blob/master/text/1598-generic_associated_types.md)
-    /// lands in stable rust, the returned future of f won&#39;t need to be boxed anymore, also the
+    /// lands in stable rust, the returned future of f won't need to be boxed anymore, also the
     /// lifetime limitations around f might be lowered.
     </span><span class="kw">pub async fn </span>transact&lt;F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>f: F, options: TransactOption) -&gt; <span class="prelude-ty">Result</span>&lt;F::Item, F::Error&gt;
     <span class="kw">where
@@ -739,22 +740,22 @@
         }
     }
 
-    <span class="kw">pub fn </span>transact_boxed&lt;<span class="lifetime">&#39;trx</span>, F, D, T, E&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;trx </span><span class="self">self</span>,
+    <span class="kw">pub fn </span>transact_boxed&lt;<span class="lifetime">'trx</span>, F, D, T, E&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'trx </span><span class="self">self</span>,
         data: D,
         f: F,
         options: TransactOption,
-    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;trx
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">'trx
     </span><span class="kw">where
-        for</span>&lt;<span class="lifetime">&#39;a</span>&gt; F: FnMut(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
-        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        for</span>&lt;<span class="lifetime">'a</span>&gt; F: FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">'a</span>&gt;&gt;,
         E: TransactError,
-        F: Send + <span class="lifetime">&#39;trx</span>,
-        T: Send + <span class="lifetime">&#39;trx</span>,
-        E: Send + <span class="lifetime">&#39;trx</span>,
-        D: Send + <span class="lifetime">&#39;trx</span>,
+        F: Send + <span class="lifetime">'trx</span>,
+        T: Send + <span class="lifetime">'trx</span>,
+        E: Send + <span class="lifetime">'trx</span>,
+        D: Send + <span class="lifetime">'trx</span>,
     {
         <span class="self">self</span>.transact(
             boxed::FnMutBoxed {
@@ -766,20 +767,20 @@
         )
     }
 
-    <span class="kw">pub fn </span>transact_boxed_local&lt;<span class="lifetime">&#39;trx</span>, F, D, T, E&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;trx </span><span class="self">self</span>,
+    <span class="kw">pub fn </span>transact_boxed_local&lt;<span class="lifetime">'trx</span>, F, D, T, E&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'trx </span><span class="self">self</span>,
         data: D,
         f: F,
         options: TransactOption,
-    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;trx
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">'trx
     </span><span class="kw">where
-        for</span>&lt;<span class="lifetime">&#39;a</span>&gt; F:
-            FnMut(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        for</span>&lt;<span class="lifetime">'a</span>&gt; F:
+            FnMut(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Transaction, <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>D) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">'a</span>&gt;&gt;,
         E: TransactError,
-        F: <span class="lifetime">&#39;trx</span>,
-        T: <span class="lifetime">&#39;trx</span>,
-        E: <span class="lifetime">&#39;trx</span>,
-        D: <span class="lifetime">&#39;trx</span>,
+        F: <span class="lifetime">'trx</span>,
+        T: <span class="lifetime">'trx</span>,
+        E: <span class="lifetime">'trx</span>,
+        D: <span class="lifetime">'trx</span>,
     {
         <span class="self">self</span>.transact(
             boxed_local::FnMutBoxedLocal {
@@ -886,7 +887,7 @@
     <span class="doccomment">/// Perform a no-op against FDB to check network thread liveness. This operation will not change the underlying data
     /// in any way, nor will it perform any I/O against the FDB cluster. However, it will schedule some amount of work
     /// onto the FDB client and wait for it to complete. The FoundationDB client operates by scheduling onto an event
-    /// queue that is then processed by a single thread (the &quot;network thread&quot;). This method can be used to determine if
+    /// queue that is then processed by a single thread (the "network thread"). This method can be used to determine if
     /// the network thread has entered a state where it is no longer processing requests or if its time to process
     /// requests has increased. If the network thread is busy, this operation may take some amount of time to complete,
     /// which is why this operation returns a future.
@@ -912,36 +913,36 @@
 </span><span class="kw">mod </span>boxed {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">async fn </span>boxed_data_fut&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt;(
-        <span class="kw-2">mut </span>f: FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt;,
+    <span class="kw">async fn </span>boxed_data_fut&lt;<span class="lifetime">'t</span>, F, T, E, D&gt;(
+        <span class="kw-2">mut </span>f: FnMutBoxed&lt;<span class="lifetime">'t</span>, F, D&gt;,
         trx: Transaction,
-    ) -&gt; (FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt;, Transaction, <span class="prelude-ty">Result</span>&lt;T, E&gt;)
+    ) -&gt; (FnMutBoxed&lt;<span class="lifetime">'t</span>, F, D&gt;, Transaction, <span class="prelude-ty">Result</span>&lt;T, E&gt;)
     <span class="kw">where
-        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
-        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">'a</span>&gt;&gt;,
         E: TransactError,
     {
         <span class="kw">let </span>r = (f.f)(<span class="kw-2">&amp;</span>trx, <span class="kw-2">&amp;mut </span>f.d).<span class="kw">await</span>;
         (f, trx, r)
     }
 
-    <span class="kw">pub struct </span>FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt; {
+    <span class="kw">pub struct </span>FnMutBoxed&lt;<span class="lifetime">'t</span>, F, D&gt; {
         <span class="kw">pub </span>f: F,
         <span class="kw">pub </span>d: D,
-        <span class="kw">pub </span>m: PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;t </span>()&gt;,
+        <span class="kw">pub </span>m: PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">'t </span>()&gt;,
     }
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt; DatabaseTransact <span class="kw">for </span>FnMutBoxed&lt;<span class="lifetime">&#39;t</span>, F, D&gt;
+    <span class="kw">impl</span>&lt;<span class="lifetime">'t</span>, F, T, E, D&gt; DatabaseTransact <span class="kw">for </span>FnMutBoxed&lt;<span class="lifetime">'t</span>, F, D&gt;
     <span class="kw">where
-        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
-        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">&#39;a</span>&gt;&gt;,
-        F: <span class="lifetime">&#39;t </span>+ Send,
-        T: <span class="lifetime">&#39;t</span>,
-        E: <span class="lifetime">&#39;t</span>,
-        D: <span class="lifetime">&#39;t </span>+ Send,
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Send + <span class="lifetime">'a</span>&gt;&gt;,
+        F: <span class="lifetime">'t </span>+ Send,
+        T: <span class="lifetime">'t</span>,
+        E: <span class="lifetime">'t</span>,
+        D: <span class="lifetime">'t </span>+ Send,
         E: TransactError,
     {
         <span class="kw">type </span>Item = T;
@@ -950,7 +951,7 @@
             Box&lt;
                 <span class="kw">dyn </span>Future&lt;Output = (<span class="self">Self</span>, Transaction, <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt;)&gt;
                     + Send
-                    + <span class="lifetime">&#39;t</span>,
+                    + <span class="lifetime">'t</span>,
             &gt;,
         &gt;;
 
@@ -965,42 +966,42 @@
 </span><span class="kw">mod </span>boxed_local {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">async fn </span>boxed_local_data_fut&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt;(
-        <span class="kw-2">mut </span>f: FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt;,
+    <span class="kw">async fn </span>boxed_local_data_fut&lt;<span class="lifetime">'t</span>, F, T, E, D&gt;(
+        <span class="kw-2">mut </span>f: FnMutBoxedLocal&lt;<span class="lifetime">'t</span>, F, D&gt;,
         trx: Transaction,
-    ) -&gt; (FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt;, Transaction, <span class="prelude-ty">Result</span>&lt;T, E&gt;)
+    ) -&gt; (FnMutBoxedLocal&lt;<span class="lifetime">'t</span>, F, D&gt;, Transaction, <span class="prelude-ty">Result</span>&lt;T, E&gt;)
     <span class="kw">where
-        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
-        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;a</span>&gt;&gt;,
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">'a</span>&gt;&gt;,
         E: TransactError,
     {
         <span class="kw">let </span>r = (f.f)(<span class="kw-2">&amp;</span>trx, <span class="kw-2">&amp;mut </span>f.d).<span class="kw">await</span>;
         (f, trx, r)
     }
 
-    <span class="kw">pub struct </span>FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt; {
+    <span class="kw">pub struct </span>FnMutBoxedLocal&lt;<span class="lifetime">'t</span>, F, D&gt; {
         <span class="kw">pub </span>f: F,
         <span class="kw">pub </span>d: D,
-        <span class="kw">pub </span>m: PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;t </span>()&gt;,
+        <span class="kw">pub </span>m: PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">'t </span>()&gt;,
     }
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;t</span>, F, T, E, D&gt; DatabaseTransact <span class="kw">for </span>FnMutBoxedLocal&lt;<span class="lifetime">&#39;t</span>, F, D&gt;
+    <span class="kw">impl</span>&lt;<span class="lifetime">'t</span>, F, T, E, D&gt; DatabaseTransact <span class="kw">for </span>FnMutBoxedLocal&lt;<span class="lifetime">'t</span>, F, D&gt;
     <span class="kw">where
-        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; FnMut(
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Transaction,
-            <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>D,
-        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">&#39;a</span>&gt;&gt;,
-        F: <span class="lifetime">&#39;t</span>,
-        T: <span class="lifetime">&#39;t</span>,
-        E: <span class="lifetime">&#39;t</span>,
-        D: <span class="lifetime">&#39;t</span>,
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; FnMut(
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Transaction,
+            <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>D,
+        ) -&gt; Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + <span class="lifetime">'a</span>&gt;&gt;,
+        F: <span class="lifetime">'t</span>,
+        T: <span class="lifetime">'t</span>,
+        E: <span class="lifetime">'t</span>,
+        D: <span class="lifetime">'t</span>,
         E: TransactError,
     {
         <span class="kw">type </span>Item = T;
         <span class="kw">type </span>Error = E;
         <span class="kw">type </span>Future = Pin&lt;
-            Box&lt;<span class="kw">dyn </span>Future&lt;Output = (<span class="self">Self</span>, Transaction, <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt;)&gt; + <span class="lifetime">&#39;t</span>&gt;,
+            Box&lt;<span class="kw">dyn </span>Future&lt;Output = (<span class="self">Self</span>, Transaction, <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt;)&gt; + <span class="lifetime">'t</span>&gt;,
         &gt;;
 
         <span class="kw">fn </span>transact(<span class="self">self</span>, trx: Transaction) -&gt; <span class="self">Self</span>::Future {

@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-b8ef60583ffbe545/out/options.rs`."><title>options.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../../../../../../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../../../../../../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-96caaa1efe533eb4/out/options.rs`."><title>options.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../../../../../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../../../../../../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -842,7 +843,7 @@
     </span>TraceMaxLogsSize(i32),
     <span class="doccomment">/// value of the LogGroup attribute
     ///
-    /// Sets the &#39;LogGroup&#39; attribute with the specified value for all events in the trace output files. The default log group is &#39;default&#39;.
+    /// Sets the 'LogGroup' attribute with the specified value for all events in the trace output files. The default log group is 'default'.
     </span>TraceLogGroup(String),
     <span class="doccomment">/// Format of trace files
     ///
@@ -856,7 +857,7 @@
     ///
     /// Once provided, this string will be used to replace the port/PID in the log file names.
     </span>TraceFileIdentifier(String),
-    <span class="doccomment">/// Append this suffix to partially written log files. When a log file is complete, it is renamed to remove the suffix. No separator is added between the file and the suffix. If you want to add a file extension, you should include the separator - e.g. &#39;.tmp&#39; instead of &#39;tmp&#39; to add the &#39;tmp&#39; extension.
+    <span class="doccomment">/// Append this suffix to partially written log files. When a log file is complete, it is renamed to remove the suffix. No separator is added between the file and the suffix. If you want to add a file extension, you should include the separator - e.g. '.tmp' instead of 'tmp' to add the 'tmp' extension.
     ///
     /// Set file suffix for partially written log files.
     </span>TracePartialFileSuffix(String),
@@ -998,15 +999,15 @@
         <span class="kw">let </span>code = <span class="self">self</span>.code();
         <span class="kw">let </span>err = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             NetworkOption::LocalAddress(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::ClusterFile(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TraceEnable(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TraceRollSize(v) =&gt; {
@@ -1018,51 +1019,51 @@
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::TraceLogGroup(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TraceFormat(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TraceClockSource(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TraceFileIdentifier(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TracePartialFileSuffix(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::Knob(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSPlugin(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSCertBytes(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSCertPath(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSKeyBytes(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSKeyPath(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSVerifyPeers(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::BuggifyEnable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
@@ -1076,25 +1077,25 @@
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::TLSCaBytes(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSCaPath(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::TLSPassword(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::DisableMultiVersionClientApi =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::CallbacksOnExternalThreads =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ExternalClientLibrary(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::ExternalClientDirectory(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             NetworkOption::DisableLocalClient =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
@@ -1116,7 +1117,7 @@
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::DistributedClientTracer(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
         };
@@ -1174,7 +1175,7 @@
     </span>TransactionBypassUnreadable,
     <span class="doccomment">/// Use configuration database.
     </span>UseConfigDatabase,
-    <span class="doccomment">/// An integer between 0 and 100 (default is 0) expressing the probability that a client will verify it can&#39;t read stale data whenever it detects a recovery.
+    <span class="doccomment">/// An integer between 0 and 100 (default is 0) expressing the probability that a client will verify it can't read stale data whenever it detects a recovery.
     </span>TestCausalReadRisky,
 }
 <span class="kw">impl </span>DatabaseOption {
@@ -1210,11 +1211,11 @@
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::MachineId(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_database_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_database_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             DatabaseOption::DatacenterId(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_database_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_database_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             DatabaseOption::SnapshotRywEnable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1260,7 +1261,7 @@
     </span>IncludePortInAddress,
     <span class="doccomment">/// The next write performed on this transaction will not generate a write conflict range. As a result, other transactions which read the key(s) being modified by the next write will not conflict with this transaction. Care needs to be taken when using this option on a transaction that is shared between multiple threads. When setting this option, write conflict ranges will be disabled on the next write operation, regardless of what thread it is on.
     </span>NextWriteNoWriteConflictRange,
-    <span class="doccomment">/// Reads performed by a transaction will not see any prior mutations that occured in that transaction, instead seeing the value which was in the database at the transaction&#39;s read version. This option may provide a small performance benefit for the client, but also disables a number of client-side optimizations which are beneficial for transactions which tend to read and write the same keys within a single transaction. It is an error to set this option after performing any reads or writes on the transaction.
+    <span class="doccomment">/// Reads performed by a transaction will not see any prior mutations that occured in that transaction, instead seeing the value which was in the database at the transaction's read version. This option may provide a small performance benefit for the client, but also disables a number of client-side optimizations which are beneficial for transactions which tend to read and write the same keys within a single transaction. It is an error to set this option after performing any reads or writes on the transaction.
     </span>ReadYourWritesDisable,
     <span class="doccomment">/// Deprecated
     </span>ReadAheadDisable,
@@ -1313,7 +1314,7 @@
     </span>MaxRetryDelay(i32),
     <span class="doccomment">/// value in bytes
     ///
-    /// Set the transaction size limit in bytes. The size is calculated by combining the sizes of all keys and values written or mutated, all key ranges cleared, and all read and write conflict ranges. (In other words, it includes the total size of all data included in the request to the cluster to commit the transaction.) Large transactions can cause performance problems on FoundationDB clusters, so setting this limit to a smaller value than the default can help prevent the client from accidentally degrading the cluster&#39;s performance. This value must be at least 32 and cannot be set to higher than 10,000,000, the default transaction size limit.
+    /// Set the transaction size limit in bytes. The size is calculated by combining the sizes of all keys and values written or mutated, all key ranges cleared, and all read and write conflict ranges. (In other words, it includes the total size of all data included in the request to the cluster to commit the transaction.) Large transactions can cause performance problems on FoundationDB clusters, so setting this limit to a smaller value than the default can help prevent the client from accidentally degrading the cluster's performance. This value must be at least 32 and cannot be set to higher than 10,000,000, the default transaction size limit.
     </span>SizeLimit(i32),
     <span class="doccomment">/// Snapshot read operations will see the results of writes done in the same transaction. This is the default behavior.
     </span>SnapshotRywEnable,
@@ -1329,7 +1330,7 @@
     </span>UseProvisionalProxies,
     <span class="doccomment">/// The transaction can retrieve keys that are conflicting with other transactions.
     </span>ReportConflictingKeys,
-    <span class="doccomment">/// By default, the special key space will only allow users to read from exactly one module (a subspace in the special key space). Use this option to allow reading from zero or more modules. Users who set this option should be prepared for new modules, which may have different behaviors than the modules they&#39;re currently reading. For example, a new module might block or return an error.
+    <span class="doccomment">/// By default, the special key space will only allow users to read from exactly one module (a subspace in the special key space). Use this option to allow reading from zero or more modules. Users who set this option should be prepared for new modules, which may have different behaviors than the modules they're currently reading. For example, a new module might block or return an error.
     </span>SpecialKeySpaceRelaxed,
     <span class="doccomment">/// By default, users are not allowed to write to special keys. Enable this option will implicitly enable all options required to achieve the configuration change.
     </span>SpecialKeySpaceEnableWrites,
@@ -1418,15 +1419,15 @@
             TransactionOption::ReadSystemKeys =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::RawAccess =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::DebugRetryLogging(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             TransactionOption::TransactionLoggingEnable(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             TransactionOption::DebugTransactionIdentifier(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             TransactionOption::LogTransaction =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1461,15 +1462,15 @@
             TransactionOption::SpecialKeySpaceRelaxed =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::SpecialKeySpaceEnableWrites =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::Tag(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             TransactionOption::AutoThrottleTag(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             TransactionOption::SpanParent(<span class="kw-2">ref </span>v) =&gt; {
-                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>))
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
             TransactionOption::ExpensiveClearCostEstimationEnable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1484,7 +1485,7 @@
 </span><span class="kw">pub enum </span>StreamingMode {
     <span class="doccomment">/// Client intends to consume the entire range and would like it all transferred as early as possible.
     </span>WantAll,
-    <span class="doccomment">/// The default. The client doesn&#39;t know how much of the range it is likely to used and wants different performance concerns to be balanced. Only a small portion of data is transferred to the client initially (in order to minimize costs if the client doesn&#39;t read the entire range), and as the caller iterates over more items in the range larger batches will be transferred in order to minimize latency. After enough iterations, the iterator mode will eventually reach the same byte limit as ``WANT_ALL``
+    <span class="doccomment">/// The default. The client doesn't know how much of the range it is likely to used and wants different performance concerns to be balanced. Only a small portion of data is transferred to the client initially (in order to minimize costs if the client doesn't read the entire range), and as the caller iterates over more items in the range larger batches will be transferred in order to minimize latency. After enough iterations, the iterator mode will eventually reach the same byte limit as ``WANT_ALL``
     </span>Iterator,
     <span class="doccomment">/// Infrequently used. The client has passed a specific row limit and wants that many rows delivered in a single batch. Because of iterator operation in client drivers make request batches transparent to the user, consider ``WANT_ALL`` StreamingMode instead. A row limit must be specified if this mode is used.
     </span>Exact,
@@ -1515,7 +1516,7 @@
 </span><span class="kw">pub enum </span>MutationType {
     <span class="doccomment">/// addend
     ///
-    /// Performs an addition of little-endian integers. If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``. The integers to be added must be stored in a little-endian representation.  They can be signed in two&#39;s complement representation or unsigned. You can add to an integer at a known offset in the value by prepending the appropriate number of zero bytes to ``param`` and padding with zero bytes to match the length of the value. However, this offset technique requires that you know the addition will not cause the integer field within the value to overflow.
+    /// Performs an addition of little-endian integers. If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``. The integers to be added must be stored in a little-endian representation.  They can be signed in two's complement representation or unsigned. You can add to an integer at a known offset in the value by prepending the appropriate number of zero bytes to ``param`` and padding with zero bytes to match the length of the value. However, this offset technique requires that you know the addition will not cause the integer field within the value to overflow.
     </span>Add,
     <span class="doccomment">/// value with which to perform bitwise and
     ///

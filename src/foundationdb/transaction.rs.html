@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/transaction.rs`."><title>transaction.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/transaction.rs`."><title>transaction.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1126,7 +1127,7 @@
 };
 
 <span class="attr">#[cfg_api_versions(min = <span class="number">610</span>)]
-</span><span class="kw">const </span>METADATA_VERSION_KEY: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;\xff/metadataVersion&quot;</span>;
+</span><span class="kw">const </span>METADATA_VERSION_KEY: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"\xff/metadataVersion"</span>;
 
 <span class="doccomment">/// A committed transaction.
 </span><span class="attr">#[derive(Debug)]
@@ -1219,7 +1220,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>TransactionCommitError {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;TransactionCommitError({})&quot;</span>, <span class="self">self</span>.err)
+        <span class="macro">write!</span>(f, <span class="string">"TransactionCommitError({})"</span>, <span class="self">self</span>.err)
     }
 }
 
@@ -1281,10 +1282,10 @@
     </span>}
 }
 <span class="attr">#[inline]
-</span><span class="kw">fn </span>fdb_len(len: usize, context: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; std::os::raw::c_int {
+</span><span class="kw">fn </span>fdb_len(len: usize, context: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; std::os::raw::c_int {
     <span class="macro">assert!</span>(
         len &lt;= i32::max_value() <span class="kw">as </span>usize,
-        <span class="string">&quot;{}.len() &gt; i32::max_value()&quot;</span>,
+        <span class="string">"{}.len() &gt; i32::max_value()"</span>,
         context
     );
     len <span class="kw">as </span>i32
@@ -1313,19 +1314,19 @@
 /// ```
 /// use foundationdb::RangeOption;
 ///
-/// let opt = RangeOption::from((b&quot;begin&quot;.as_ref(), b&quot;end&quot;.as_ref()));
-/// let opt: RangeOption = (b&quot;begin&quot;.as_ref()..b&quot;end&quot;.as_ref()).into();
+/// let opt = RangeOption::from((b"begin".as_ref(), b"end".as_ref()));
+/// let opt: RangeOption = (b"begin".as_ref()..b"end".as_ref()).into();
 /// let opt = RangeOption {
 ///     limit: Some(10),
-///     ..RangeOption::from((b&quot;begin&quot;.as_ref(), b&quot;end&quot;.as_ref()))
+///     ..RangeOption::from((b"begin".as_ref(), b"end".as_ref()))
 /// };
 /// ```
 </span><span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The beginning of the range.
-    </span><span class="kw">pub </span>begin: KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span><span class="kw">pub </span>begin: KeySelector&lt;<span class="lifetime">'a</span>&gt;,
     <span class="doccomment">/// The end of the range.
-    </span><span class="kw">pub </span>end: KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span><span class="kw">pub </span>end: KeySelector&lt;<span class="lifetime">'a</span>&gt;,
     <span class="doccomment">/// If non-zero, indicates the maximum number of key-value pairs to return.
     </span><span class="kw">pub </span>limit: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     <span class="doccomment">/// If non-zero, indicates a (soft) cap on the combined number of bytes of keys and values to
@@ -1341,7 +1342,7 @@
     </span><span class="kw">pub </span>__non_exhaustive: std::marker::PhantomData&lt;()&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; RangeOption&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Reverses the range direction.
     </span><span class="kw">pub fn </span>rev(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.reverse = !<span class="self">self</span>.reverse;
@@ -1396,7 +1397,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Default <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             begin: KeySelector::first_greater_or_equal([].as_ref()),
@@ -1410,8 +1411,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;(KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;, KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;)&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from((begin, end): (KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;, KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;)) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;(KeySelector&lt;<span class="lifetime">'a</span>&gt;, KeySelector&lt;<span class="lifetime">'a</span>&gt;)&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from((begin, end): (KeySelector&lt;<span class="lifetime">'a</span>&gt;, KeySelector&lt;<span class="lifetime">'a</span>&gt;)) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             begin,
             end,
@@ -1419,7 +1420,7 @@
         }
     }
 }
-<span class="kw">impl </span>From&lt;(Vec&lt;u8&gt;, Vec&lt;u8&gt;)&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>From&lt;(Vec&lt;u8&gt;, Vec&lt;u8&gt;)&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>from((begin, end): (Vec&lt;u8&gt;, Vec&lt;u8&gt;)) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             begin: KeySelector::first_greater_or_equal(begin),
@@ -1428,8 +1429,8 @@
         }
     }
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8])&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from((begin, end): (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8], <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8])) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8], <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8])&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from((begin, end): (<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8], <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8])) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             begin: KeySelector::first_greater_or_equal(begin),
             end: KeySelector::first_greater_or_equal(end),
@@ -1437,32 +1438,32 @@
         }
     }
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;std::ops::Range&lt;KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(range: Range&lt;KeySelector&lt;<span class="lifetime">&#39;a</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;std::ops::Range&lt;KeySelector&lt;<span class="lifetime">'a</span>&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(range: Range&lt;KeySelector&lt;<span class="lifetime">'a</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
         RangeOption::from((range.start, range.end))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;std::ops::Range&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(range: Range&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;std::ops::Range&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(range: Range&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;) -&gt; <span class="self">Self </span>{
         RangeOption::from((range.start, range.end))
     }
 }
 
-<span class="kw">impl </span>From&lt;std::ops::Range&lt;std::vec::Vec&lt;u8&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>From&lt;std::ops::Range&lt;std::vec::Vec&lt;u8&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>from(range: Range&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="self">Self </span>{
         RangeOption::from((range.start, range.end))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;std::ops::RangeInclusive&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(range: RangeInclusive&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;std::ops::RangeInclusive&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>from(range: RangeInclusive&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>(start, end) = range.into_inner();
         (KeySelector::first_greater_or_equal(start)..KeySelector::first_greater_than(end)).into()
     }
 }
 
-<span class="kw">impl </span>From&lt;std::ops::RangeInclusive&lt;std::vec::Vec&lt;u8&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">&#39;static</span>&gt; {
+<span class="kw">impl </span>From&lt;std::ops::RangeInclusive&lt;std::vec::Vec&lt;u8&gt;&gt;&gt; <span class="kw">for </span>RangeOption&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>from(range: RangeInclusive&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>(start, end) = range.into_inner();
         (KeySelector::first_greater_or_equal(start)..KeySelector::first_greater_than(end)).into()
@@ -1493,7 +1494,7 @@
             .map(|data| {
                 (
                     data.as_ptr(),
-                    i32::try_from(data.len()).expect(<span class="string">&quot;len to fit in i32&quot;</span>),
+                    i32::try_from(data.len()).expect(<span class="string">"len to fit in i32"</span>),
                 )
             })
             .unwrap_or_else(|| (std::ptr::null(), <span class="number">0</span>));
@@ -1523,9 +1524,9 @@
             fdb_sys::fdb_transaction_set(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
                 value.as_ptr(),
-                fdb_len(value.len(), <span class="string">&quot;value&quot;</span>),
+                fdb_len(value.len(), <span class="string">"value"</span>),
             )
         }
     }
@@ -1545,7 +1546,7 @@
             fdb_sys::fdb_transaction_clear(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
             )
         }
     }
@@ -1567,7 +1568,7 @@
             fdb_sys::fdb_transaction_get(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
                 fdb_bool(snapshot),
             )
         })
@@ -1602,9 +1603,9 @@
             fdb_sys::fdb_transaction_atomic_op(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
                 param.as_ptr(),
-                fdb_len(param.len(), <span class="string">&quot;param&quot;</span>),
+                fdb_len(param.len(), <span class="string">"param"</span>),
                 op_type.code(),
             )
         }
@@ -1630,7 +1631,7 @@
             fdb_sys::fdb_transaction_get_key(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
                 fdb_bool(selector.or_equal()),
                 selector.offset(),
                 fdb_bool(snapshot),
@@ -1652,11 +1653,11 @@
     ///
     /// * `opt`: the range, limit, target_bytes and mode
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
-    </span><span class="kw">pub fn </span>get_ranges&lt;<span class="lifetime">&#39;a</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
-        opt: RangeOption&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span><span class="kw">pub fn </span>get_ranges&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
+        opt: RangeOption&lt;<span class="lifetime">'a</span>&gt;,
         snapshot: bool,
-    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;FdbValues&gt;&gt; + Send + Sync + Unpin + <span class="lifetime">&#39;a </span>{
+    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;FdbValues&gt;&gt; + Send + Sync + Unpin + <span class="lifetime">'a </span>{
         stream::unfold((<span class="number">1</span>, <span class="prelude-val">Some</span>(opt)), <span class="kw">move </span>|(iteration, maybe_opt)| {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(opt) = maybe_opt {
                 Either::Left(<span class="self">self</span>.get_range(<span class="kw-2">&amp;</span>opt, iteration <span class="kw">as </span>usize, snapshot).map(
@@ -1685,11 +1686,11 @@
     ///
     /// * `opt`: the range, limit, target_bytes and mode
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
-    </span><span class="kw">pub fn </span>get_ranges_keyvalues&lt;<span class="lifetime">&#39;a</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
-        opt: RangeOption&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span><span class="kw">pub fn </span>get_ranges_keyvalues&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
+        opt: RangeOption&lt;<span class="lifetime">'a</span>&gt;,
         snapshot: bool,
-    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;FdbValue&gt;&gt; + Unpin + <span class="lifetime">&#39;a </span>{
+    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;FdbValue&gt;&gt; + Unpin + <span class="lifetime">'a </span>{
         <span class="self">self</span>.get_ranges(opt, snapshot)
             .map_ok(|values| stream::iter(values.into_iter().map(<span class="prelude-val">Ok</span>)))
             .try_flatten()
@@ -1721,11 +1722,11 @@
             fdb_sys::fdb_transaction_get_range(
                 <span class="self">self</span>.inner.as_ptr(),
                 key_begin.as_ptr(),
-                fdb_len(key_begin.len(), <span class="string">&quot;key_begin&quot;</span>),
+                fdb_len(key_begin.len(), <span class="string">"key_begin"</span>),
                 fdb_bool(begin.or_equal()),
                 begin.offset(),
                 key_end.as_ptr(),
-                fdb_len(key_end.len(), <span class="string">&quot;key_end&quot;</span>),
+                fdb_len(key_end.len(), <span class="string">"key_end"</span>),
                 fdb_bool(end.or_equal()),
                 end.offset(),
                 fdb_limit(opt.limit.unwrap_or(<span class="number">0</span>)),
@@ -1739,11 +1740,11 @@
     }
 
     <span class="doccomment">/// Mapped Range is an experimental feature introduced in FDB 7.1.
-    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
     /// In such a case, querying records by scanning an index in relational databases can be
     /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
     ///
-    /// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,
+    /// This method is allowing FoundationDB "follow up" a GetRange request with GetValue requests,
     /// this can happen in one request without additional back and forth. Considering the overhead
     /// of each request, this saves time and resources on serialization, deserialization, and network.
     ///
@@ -1758,7 +1759,7 @@
     ///
     /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
     ///
-    /// This is the &quot;raw&quot; version, users are expected to use [Transaction::get_mapped_ranges]
+    /// This is the "raw" version, users are expected to use [Transaction::get_mapped_ranges]
     </span><span class="attr">#[cfg_api_versions(min = <span class="number">710</span>)]
     </span><span class="kw">pub fn </span>get_mapped_range(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -1776,15 +1777,15 @@
             fdb_sys::fdb_transaction_get_mapped_range(
                 <span class="self">self</span>.inner.as_ptr(),
                 key_begin.as_ptr(),
-                fdb_len(key_begin.len(), <span class="string">&quot;key_begin&quot;</span>),
+                fdb_len(key_begin.len(), <span class="string">"key_begin"</span>),
                 fdb_bool(begin.or_equal()),
                 begin.offset(),
                 key_end.as_ptr(),
-                fdb_len(key_end.len(), <span class="string">&quot;key_end&quot;</span>),
+                fdb_len(key_end.len(), <span class="string">"key_end"</span>),
                 fdb_bool(end.or_equal()),
                 end.offset(),
                 mapper.as_ptr(),
-                fdb_len(mapper.len(), <span class="string">&quot;mapper_length&quot;</span>),
+                fdb_len(mapper.len(), <span class="string">"mapper_length"</span>),
                 fdb_limit(opt.limit.unwrap_or(<span class="number">0</span>)),
                 fdb_limit(opt.target_bytes),
                 opt.mode.code(),
@@ -1796,11 +1797,11 @@
     }
 
     <span class="doccomment">/// Mapped Range is an experimental feature introduced in FDB 7.1.
-    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a &quot;index&quot;.
+    /// It is intended to improve the client throughput and reduce latency for querying data through a Subspace used as a "index".
     /// In such a case, querying records by scanning an index in relational databases can be
     /// translated to a GetRange request on the index entries followed up by multiple GetValue requests for the record entries in FDB.
     ///
-    /// This method is allowing FoundationDB &quot;follow up&quot; a GetRange request with GetValue requests,
+    /// This method is allowing FoundationDB "follow up" a GetRange request with GetValue requests,
     /// this can happen in one request without additional back and forth. Considering the overhead
     /// of each request, this saves time and resources on serialization, deserialization, and network.
     ///
@@ -1815,12 +1816,12 @@
     ///
     /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
     </span><span class="attr">#[cfg_api_versions(min = <span class="number">710</span>)]
-    </span><span class="kw">pub fn </span>get_mapped_ranges&lt;<span class="lifetime">&#39;a</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
-        opt: RangeOption&lt;<span class="lifetime">&#39;a</span>&gt;,
-        mapper: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
+    </span><span class="kw">pub fn </span>get_mapped_ranges&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
+        opt: RangeOption&lt;<span class="lifetime">'a</span>&gt;,
+        mapper: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8],
         snapshot: bool,
-    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;MappedKeyValues&gt;&gt; + Send + Sync + Unpin + <span class="lifetime">&#39;a </span>{
+    ) -&gt; <span class="kw">impl </span>Stream&lt;Item = FdbResult&lt;MappedKeyValues&gt;&gt; + Send + Sync + Unpin + <span class="lifetime">'a </span>{
         stream::unfold((<span class="number">1</span>, <span class="prelude-val">Some</span>(opt)), <span class="kw">move </span>|(iteration, maybe_opt)| {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(opt) = maybe_opt {
                 Either::Left(
@@ -1850,9 +1851,9 @@
             fdb_sys::fdb_transaction_clear_range(
                 <span class="self">self</span>.inner.as_ptr(),
                 begin.as_ptr(),
-                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                fdb_len(begin.len(), <span class="string">"begin"</span>),
                 end.as_ptr(),
-                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
+                fdb_len(end.len(), <span class="string">"end"</span>),
             )
         }
     }
@@ -1868,9 +1869,9 @@
             fdb_sys::fdb_transaction_get_estimated_range_size_bytes(
                 <span class="self">self</span>.inner.as_ptr(),
                 begin.as_ptr(),
-                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                fdb_len(begin.len(), <span class="string">"begin"</span>),
                 end.as_ptr(),
-                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
+                fdb_len(end.len(), <span class="string">"end"</span>),
             )
         })
     }
@@ -1946,12 +1947,12 @@
             fdb_sys::fdb_transaction_get_addresses_for_key(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
             )
         })
     }
 
-    <span class="doccomment">/// A watch&#39;s behavior is relative to the transaction that created it. A watch will report a
+    <span class="doccomment">/// A watch's behavior is relative to the transaction that created it. A watch will report a
     /// change in relation to the key’s value as readable by that transaction. The initial value
     /// used for comparison is either that of the transaction’s read version or the value as
     /// modified by the transaction itself prior to the creation of the watch. If the value changes
@@ -1981,7 +1982,7 @@
             fdb_sys::fdb_transaction_watch(
                 <span class="self">self</span>.inner.as_ptr(),
                 key.as_ptr(),
-                fdb_len(key.len(), <span class="string">&quot;key&quot;</span>),
+                fdb_len(key.len(), <span class="string">"key"</span>),
             )
         })
     }
@@ -2013,9 +2014,9 @@
             fdb_sys::fdb_transaction_get_range_split_points(
                 <span class="self">self</span>.inner.as_ptr(),
                 begin.as_ptr(),
-                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                fdb_len(begin.len(), <span class="string">"begin"</span>),
                 end.as_ptr(),
-                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
+                fdb_len(end.len(), <span class="string">"end"</span>),
                 chunk_size,
             )
         })
@@ -2130,9 +2131,9 @@
             fdb_sys::fdb_transaction_add_conflict_range(
                 <span class="self">self</span>.inner.as_ptr(),
                 begin.as_ptr(),
-                fdb_len(begin.len(), <span class="string">&quot;begin&quot;</span>),
+                fdb_len(begin.len(), <span class="string">"begin"</span>),
                 end.as_ptr(),
-                fdb_len(end.len(), <span class="string">&quot;end&quot;</span>),
+                fdb_len(end.len(), <span class="string">"end"</span>),
                 ty.code(),
             )
         })

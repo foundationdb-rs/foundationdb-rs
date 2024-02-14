@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/element.rs`."><title>element.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/tuple/element.rs`."><title>element.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -232,44 +233,44 @@
 <span class="kw">use super</span>::{Bytes, Versionstamp};
 <span class="kw">use </span>std::{borrow::Cow, cmp};
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
 </span><span class="kw">use </span>num_bigint::Sign;
-<span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
 </span><span class="kw">use </span>std::convert::TryFrom;
 
 <span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub enum </span>Element&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub enum </span>Element&lt;<span class="lifetime">'a</span>&gt; {
     Nil,
-    Bytes(Bytes&lt;<span class="lifetime">&#39;a</span>&gt;),
-    String(Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;),
-    Tuple(Vec&lt;Element&lt;<span class="lifetime">&#39;a</span>&gt;&gt;),
+    Bytes(Bytes&lt;<span class="lifetime">'a</span>&gt;),
+    String(Cow&lt;<span class="lifetime">'a</span>, str&gt;),
+    Tuple(Vec&lt;Element&lt;<span class="lifetime">'a</span>&gt;&gt;),
     Int(i64),
-    <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
     </span>BigInt(num_bigint::BigInt),
     Float(f32),
     Double(f64),
     Bool(bool),
-    <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
     </span>Uuid(uuid::Uuid),
     Versionstamp(Versionstamp),
 }
 
-<span class="kw">struct </span>CmpElement&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Element&lt;<span class="lifetime">&#39;b</span>&gt;);
+<span class="kw">struct </span>CmpElement&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Element&lt;<span class="lifetime">'b</span>&gt;);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; PartialEq <span class="kw">for </span>CmpElement&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; PartialEq <span class="kw">for </span>CmpElement&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.cmp(other) == cmp::Ordering::Equal
     }
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; Eq <span class="kw">for </span>CmpElement&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; {}
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; Eq <span class="kw">for </span>CmpElement&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; PartialOrd <span class="kw">for </span>CmpElement&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; PartialOrd <span class="kw">for </span>CmpElement&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
     <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;cmp::Ordering&gt; {
         <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; Ord <span class="kw">for </span>CmpElement&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; Ord <span class="kw">for </span>CmpElement&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
     <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; cmp::Ordering {
         <span class="self">self</span>.<span class="number">0
             </span>.code()
@@ -283,14 +284,14 @@
                     a_values.cmp(b_values)
                 }
                 (Element::Int(a), Element::Int(b)) =&gt; a.cmp(b),
-                <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
                 </span>(Element::BigInt(a), Element::BigInt(b)) =&gt; a.cmp(b),
-                <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
                 </span>(Element::BigInt(a), Element::Int(b)) =&gt; <span class="kw">match </span>i64::try_from(a) {
                     <span class="prelude-val">Ok</span>(a) =&gt; a.cmp(b),
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; a.sign().cmp(<span class="kw-2">&amp;</span>Sign::NoSign),
                 },
-                <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
                 </span>(Element::Int(a), Element::BigInt(b)) =&gt; <span class="kw">match </span>i64::try_from(b) {
                     <span class="prelude-val">Ok</span>(b) =&gt; a.cmp(<span class="kw-2">&amp;</span>b),
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; Sign::NoSign.cmp(<span class="kw-2">&amp;</span>b.sign()),
@@ -301,7 +302,7 @@
                 (Element::Double(a), Element::Double(b)) =&gt; {
                     f64_to_u64_be_bytes(<span class="kw-2">*</span>a).cmp(<span class="kw-2">&amp;</span>f64_to_u64_be_bytes(<span class="kw-2">*</span>b))
                 }
-                <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+                <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
                 </span>(Element::Uuid(a), Element::Uuid(b)) =&gt; a.cmp(b),
                 (Element::Versionstamp(a), Element::Versionstamp(b)) =&gt; a.cmp(b),
                 <span class="kw">_ </span>=&gt; cmp::Ordering::Equal,
@@ -309,25 +310,25 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PartialEq <span class="kw">for </span>Element&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PartialEq <span class="kw">for </span>Element&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.cmp(other) == cmp::Ordering::Equal
     }
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Eq <span class="kw">for </span>Element&lt;<span class="lifetime">&#39;a</span>&gt; {}
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Eq <span class="kw">for </span>Element&lt;<span class="lifetime">'a</span>&gt; {}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PartialOrd <span class="kw">for </span>Element&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PartialOrd <span class="kw">for </span>Element&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;cmp::Ordering&gt; {
         <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
     }
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Ord <span class="kw">for </span>Element&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Ord <span class="kw">for </span>Element&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; cmp::Ordering {
         <span class="self">self</span>.cmp_at_root(other)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Element&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Element&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u8 {
         <span class="kw">match </span><span class="self">self </span>{
             Element::Nil =&gt; <span class="kw">super</span>::NIL,
@@ -335,7 +336,7 @@
             Element::String(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::STRING,
             Element::Tuple(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::NESTED,
             Element::Int(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::INTZERO,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
             </span>Element::BigInt(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::INTZERO,
             Element::Float(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::FLOAT,
             Element::Double(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::DOUBLE,
@@ -346,7 +347,7 @@
                     <span class="kw">super</span>::FALSE
                 }
             }
-            <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
             </span>Element::Uuid(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::UUID,
             Element::Versionstamp(<span class="kw">_</span>) =&gt; <span class="kw">super</span>::VERSIONSTAMP,
         }
@@ -360,25 +361,25 @@
         }
     }
 
-    <span class="kw">fn </span>cmp_at_root(<span class="kw-2">&amp;</span><span class="self">self</span>, b: <span class="kw-2">&amp;</span>Element&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; cmp::Ordering {
+    <span class="kw">fn </span>cmp_at_root(<span class="kw-2">&amp;</span><span class="self">self</span>, b: <span class="kw-2">&amp;</span>Element&lt;<span class="lifetime">'_</span>&gt;) -&gt; cmp::Ordering {
         <span class="kw">let </span>a_values = <span class="self">self</span>.cmp_values().iter().map(CmpElement);
         <span class="kw">let </span>b_values = b.cmp_values().iter().map(CmpElement);
         a_values.cmp(b_values)
     }
 
-    <span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; Element&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; Element&lt;<span class="lifetime">'static</span>&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Element::Nil =&gt; Element::Nil,
             Element::Bytes(v) =&gt; Element::Bytes(v.into_owned().into()),
             Element::String(v) =&gt; Element::String(Cow::Owned(v.into_owned())),
             Element::Tuple(v) =&gt; Element::Tuple(v.into_iter().map(|e| e.into_owned()).collect()),
             Element::Int(v) =&gt; Element::Int(v),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
             </span>Element::BigInt(v) =&gt; Element::BigInt(v),
             Element::Float(v) =&gt; Element::Float(v),
             Element::Double(v) =&gt; Element::Double(v),
             Element::Bool(v) =&gt; Element::Bool(v),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
             </span>Element::Uuid(v) =&gt; Element::Uuid(v),
             Element::Versionstamp(v) =&gt; Element::Versionstamp(v),
         }
@@ -398,7 +399,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>as_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[Element&lt;<span class="lifetime">&#39;a</span>&gt;]&gt; {
+    <span class="kw">pub fn </span>as_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[Element&lt;<span class="lifetime">'a</span>&gt;]&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Element::Tuple(v) =&gt; <span class="prelude-val">Some</span>(v.as_slice()),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -408,13 +409,13 @@
     <span class="kw">pub fn </span>as_i64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;i64&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Element::Int(v) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>v),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+            <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
             </span>Element::BigInt(v) =&gt; i64::try_from(v).ok(),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;num-bigint&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
     </span><span class="kw">pub fn </span>as_bigint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>num_bigint::BigInt&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Element::BigInt(v) =&gt; <span class="prelude-val">Some</span>(v),
@@ -443,7 +444,7 @@
         }
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;uuid&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
     </span><span class="kw">pub fn </span>as_uuid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>uuid::Uuid&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Element::Uuid(v) =&gt; <span class="prelude-val">Some</span>(v),

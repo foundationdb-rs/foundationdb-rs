@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-gen/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_gen" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-gen/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_gen" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -416,10 +417,10 @@
 <span class="kw">use </span>xml::attribute::OwnedAttribute;
 <span class="kw">use </span>xml::reader::{EventReader, XmlEvent};
 
-<span class="kw">const </span>TAB1: <span class="kw-2">&amp;</span>str = <span class="string">&quot;    &quot;</span>;
-<span class="kw">const </span>TAB2: <span class="kw-2">&amp;</span>str = <span class="string">&quot;        &quot;</span>;
-<span class="kw">const </span>TAB3: <span class="kw-2">&amp;</span>str = <span class="string">&quot;            &quot;</span>;
-<span class="kw">const </span>TAB4: <span class="kw-2">&amp;</span>str = <span class="string">&quot;                &quot;</span>;
+<span class="kw">const </span>TAB1: <span class="kw-2">&amp;</span>str = <span class="string">"    "</span>;
+<span class="kw">const </span>TAB2: <span class="kw-2">&amp;</span>str = <span class="string">"        "</span>;
+<span class="kw">const </span>TAB3: <span class="kw-2">&amp;</span>str = <span class="string">"            "</span>;
+<span class="kw">const </span>TAB4: <span class="kw-2">&amp;</span>str = <span class="string">"                "</span>;
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>FdbScope {
@@ -431,35 +432,35 @@
         <span class="kw">let </span>with_ty = <span class="self">self</span>.with_ty();
 
         <span class="kw">if </span>with_ty {
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;#[derive(Clone, Debug)]&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"#[derive(Clone, Debug)]"</span>)<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;#[derive(Clone, Copy, Debug)]&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"#[derive(Clone, Copy, Debug)]"</span>)<span class="question-mark">?</span>;
         }
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;#[non_exhaustive]&quot;</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;pub enum {name} {{&quot;</span>, name = <span class="self">self</span>.name)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"#[non_exhaustive]"</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"pub enum {name} {{"</span>, name = <span class="self">self</span>.name)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>with_ty = <span class="self">self</span>.with_ty();
         <span class="kw">for </span>option <span class="kw">in </span><span class="self">self</span>.options.iter() {
             option.gen_ty(w, with_ty)<span class="question-mark">?</span>;
         }
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;}}&quot;</span>)
+        <span class="macro">writeln!</span>(w, <span class="string">"}}"</span>)
     }
 
     <span class="kw">fn </span>gen_impl&lt;W: fmt::Write&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; fmt::Result {
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;impl {name} {{&quot;</span>, name = <span class="self">self</span>.name)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"impl {name} {{"</span>, name = <span class="self">self</span>.name)<span class="question-mark">?</span>;
         <span class="self">self</span>.gen_code(w)<span class="question-mark">?</span>;
         <span class="self">self</span>.gen_apply(w)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;}}&quot;</span>)
+        <span class="macro">writeln!</span>(w, <span class="string">"}}"</span>)
     }
 
     <span class="kw">fn </span>gen_code&lt;W: fmt::Write&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; fmt::Result {
         <span class="macro">writeln!</span>(
             w,
-            <span class="string">&quot;{t}pub fn code(&amp;self) -&gt; fdb_sys::FDB{name} {{&quot;</span>,
+            <span class="string">"{t}pub fn code(&amp;self) -&gt; fdb_sys::FDB{name} {{"</span>,
             t = TAB1,
             name = <span class="self">self</span>.name,
         )<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}match *self {{&quot;</span>, t = TAB2)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}match *self {{"</span>, t = TAB2)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>enum_prefix = <span class="self">self</span>.c_enum_prefix();
         <span class="kw">let </span>with_ty = <span class="self">self</span>.with_ty();
@@ -467,22 +468,22 @@
         <span class="kw">for </span>option <span class="kw">in </span><span class="self">self</span>.options.iter() {
             <span class="macro">writeln!</span>(
                 w,
-                <span class="string">&quot;{t}{scope}::{name}{param} =&gt; fdb_sys::{enum_prefix}{code},&quot;</span>,
+                <span class="string">"{t}{scope}::{name}{param} =&gt; fdb_sys::{enum_prefix}{code},"</span>,
                 t = TAB3,
                 scope = <span class="self">self</span>.name,
                 name = option.name,
                 param = <span class="kw">if let </span>(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(..)) = (with_ty, option.get_ty()) {
-                    <span class="string">&quot;(..)&quot;
+                    <span class="string">"(..)"
                 </span>} <span class="kw">else </span>{
-                    <span class="string">&quot;&quot;
+                    <span class="string">""
                 </span>},
                 enum_prefix = enum_prefix,
                 code = option.c_name,
             )<span class="question-mark">?</span>;
         }
 
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}}&quot;</span>, t = TAB2)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}}&quot;</span>, t = TAB1)
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}}}"</span>, t = TAB2)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}}}"</span>, t = TAB1)
     }
 
     <span class="kw">fn </span>gen_apply&lt;W: fmt::Write&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; fmt::Result {
@@ -492,115 +493,115 @@
         };
 
         <span class="kw">let </span>first_arg = <span class="kw">match </span><span class="self">self</span>.apply_arg_name() {
-            <span class="prelude-val">Some</span>(name) =&gt; <span class="macro">format!</span>(<span class="string">&quot;, target: *mut fdb_sys::{}&quot;</span>, name),
+            <span class="prelude-val">Some</span>(name) =&gt; <span class="macro">format!</span>(<span class="string">", target: *mut fdb_sys::{}"</span>, name),
             <span class="prelude-val">None </span>=&gt; String::new(),
         };
 
         <span class="macro">writeln!</span>(
             w,
-            <span class="string">&quot;{t}pub unsafe fn apply(&amp;self{args}) -&gt; FdbResult&lt;()&gt; {{&quot;</span>,
+            <span class="string">"{t}pub unsafe fn apply(&amp;self{args}) -&gt; FdbResult&lt;()&gt; {{"</span>,
             t = TAB1,
             args = first_arg
         )<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}let code = self.code();&quot;</span>, t = TAB2)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}let err = match *self {{&quot;</span>, t = TAB2)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}let code = self.code();"</span>, t = TAB2)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}let err = match *self {{"</span>, t = TAB2)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>args = <span class="kw">if </span>first_arg.is_empty() {
-            <span class="string">&quot;code&quot;
+            <span class="string">"code"
         </span>} <span class="kw">else </span>{
-            <span class="string">&quot;target, code&quot;
+            <span class="string">"target, code"
         </span>};
 
         <span class="kw">for </span>option <span class="kw">in </span><span class="self">self</span>.options.iter() {
-            <span class="macro">write!</span>(w, <span class="string">&quot;{}{}::{}&quot;</span>, TAB3, <span class="self">self</span>.name, option.name)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(w, <span class="string">"{}{}::{}"</span>, TAB3, <span class="self">self</span>.name, option.name)<span class="question-mark">?</span>;
             <span class="kw">match </span>option.param_type {
                 FdbOptionTy::Empty =&gt; {
                     <span class="macro">writeln!</span>(
                         w,
-                        <span class="string">&quot; =&gt; fdb_sys::{}({}, std::ptr::null(), 0),&quot;</span>,
+                        <span class="string">" =&gt; fdb_sys::{}({}, std::ptr::null(), 0),"</span>,
                         fn_name, args
                     )<span class="question-mark">?</span>;
                 }
                 FdbOptionTy::Int =&gt; {
-                    <span class="macro">writeln!</span>(w, <span class="string">&quot;(v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"(v) =&gt; {{"</span>)<span class="question-mark">?</span>;
                     <span class="macro">writeln!</span>(
                         w,
-                        <span class="string">&quot;{}let data: [u8;8] = std::mem::transmute(v as i64);&quot;</span>,
+                        <span class="string">"{}let data: [u8;8] = std::mem::transmute(v as i64);"</span>,
                         TAB4,
                     )<span class="question-mark">?</span>;
                     <span class="macro">writeln!</span>(
                         w,
-                        <span class="string">&quot;{}fdb_sys::{}({}, data.as_ptr() as *const u8, 8)&quot;</span>,
+                        <span class="string">"{}fdb_sys::{}({}, data.as_ptr() as *const u8, 8)"</span>,
                         TAB4, fn_name, args
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}}&quot;</span>, t = TAB3)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"{t}}}"</span>, t = TAB3)<span class="question-mark">?</span>;
                 }
                 FdbOptionTy::Bytes =&gt; {
-                    <span class="macro">writeln!</span>(w, <span class="string">&quot;(ref v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"(ref v) =&gt; {{"</span>)<span class="question-mark">?</span>;
                     <span class="macro">writeln!</span>(
                         w,
-                        <span class="string">&quot;{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
-                         i32::try_from(v.len()).expect(\&quot;len to fit in i32\&quot;))\n&quot;</span>,
+                        <span class="string">"{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
+                         i32::try_from(v.len()).expect(\"len to fit in i32\"))\n"</span>,
                         TAB4, fn_name, args
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}}&quot;</span>, t = TAB3)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"{t}}}"</span>, t = TAB3)<span class="question-mark">?</span>;
                 }
                 FdbOptionTy::Str =&gt; {
-                    <span class="macro">writeln!</span>(w, <span class="string">&quot;(ref v) =&gt; {{&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"(ref v) =&gt; {{"</span>)<span class="question-mark">?</span>;
                     <span class="macro">writeln!</span>(
                         w,
-                        <span class="string">&quot;{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
-                         i32::try_from(v.len()).expect(\&quot;len to fit in i32\&quot;))\n&quot;</span>,
+                        <span class="string">"{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
+                         i32::try_from(v.len()).expect(\"len to fit in i32\"))\n"</span>,
                         TAB4, fn_name, args
                     )<span class="question-mark">?</span>;
-                    <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}}&quot;</span>, t = TAB3)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"{t}}}"</span>, t = TAB3)<span class="question-mark">?</span>;
                 }
             }
         }
 
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}};&quot;</span>, t = TAB2)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}}};"</span>, t = TAB2)<span class="question-mark">?</span>;
         <span class="macro">writeln!</span>(
             w,
-            <span class="string">&quot;{t}if err != 0 {{ Err(FdbError::from_code(err)) }} else {{ Ok(()) }}&quot;</span>,
+            <span class="string">"{t}if err != 0 {{ Err(FdbError::from_code(err)) }} else {{ Ok(()) }}"</span>,
             t = TAB2,
         )<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}}}&quot;</span>, t = TAB1)
+        <span class="macro">writeln!</span>(w, <span class="string">"{t}}}"</span>, t = TAB1)
     }
 
     <span class="kw">fn </span>with_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.apply_fn_name().is_some()
     }
 
-    <span class="kw">fn </span>c_enum_prefix(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">fn </span>c_enum_prefix(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self</span>.name.as_str() {
-            <span class="string">&quot;NetworkOption&quot; </span>=&gt; <span class="string">&quot;FDBNetworkOption_FDB_NET_OPTION_&quot;</span>,
-            <span class="string">&quot;ClusterOption&quot; </span>=&gt; <span class="string">&quot;FDBClusterOption_FDB_CLUSTER_OPTION_&quot;</span>,
-            <span class="string">&quot;DatabaseOption&quot; </span>=&gt; <span class="string">&quot;FDBDatabaseOption_FDB_DB_OPTION_&quot;</span>,
-            <span class="string">&quot;TransactionOption&quot; </span>=&gt; <span class="string">&quot;FDBTransactionOption_FDB_TR_OPTION_&quot;</span>,
-            <span class="string">&quot;StreamingMode&quot; </span>=&gt; <span class="string">&quot;FDBStreamingMode_FDB_STREAMING_MODE_&quot;</span>,
-            <span class="string">&quot;MutationType&quot; </span>=&gt; <span class="string">&quot;FDBMutationType_FDB_MUTATION_TYPE_&quot;</span>,
-            <span class="string">&quot;ConflictRangeType&quot; </span>=&gt; <span class="string">&quot;FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_&quot;</span>,
-            <span class="string">&quot;ErrorPredicate&quot; </span>=&gt; <span class="string">&quot;FDBErrorPredicate_FDB_ERROR_PREDICATE_&quot;</span>,
-            ty =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unknown Scope name: `{}`&quot;</span>, ty),
+            <span class="string">"NetworkOption" </span>=&gt; <span class="string">"FDBNetworkOption_FDB_NET_OPTION_"</span>,
+            <span class="string">"ClusterOption" </span>=&gt; <span class="string">"FDBClusterOption_FDB_CLUSTER_OPTION_"</span>,
+            <span class="string">"DatabaseOption" </span>=&gt; <span class="string">"FDBDatabaseOption_FDB_DB_OPTION_"</span>,
+            <span class="string">"TransactionOption" </span>=&gt; <span class="string">"FDBTransactionOption_FDB_TR_OPTION_"</span>,
+            <span class="string">"StreamingMode" </span>=&gt; <span class="string">"FDBStreamingMode_FDB_STREAMING_MODE_"</span>,
+            <span class="string">"MutationType" </span>=&gt; <span class="string">"FDBMutationType_FDB_MUTATION_TYPE_"</span>,
+            <span class="string">"ConflictRangeType" </span>=&gt; <span class="string">"FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_"</span>,
+            <span class="string">"ErrorPredicate" </span>=&gt; <span class="string">"FDBErrorPredicate_FDB_ERROR_PREDICATE_"</span>,
+            ty =&gt; <span class="macro">panic!</span>(<span class="string">"unknown Scope name: `{}`"</span>, ty),
         }
     }
 
-    <span class="kw">fn </span>apply_arg_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+    <span class="kw">fn </span>apply_arg_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
         <span class="kw">let </span>s = <span class="kw">match </span><span class="self">self</span>.name.as_str() {
-            <span class="string">&quot;ClusterOption&quot; </span>=&gt; <span class="string">&quot;FDBCluster&quot;</span>,
-            <span class="string">&quot;DatabaseOption&quot; </span>=&gt; <span class="string">&quot;FDBDatabase&quot;</span>,
-            <span class="string">&quot;TransactionOption&quot; </span>=&gt; <span class="string">&quot;FDBTransaction&quot;</span>,
+            <span class="string">"ClusterOption" </span>=&gt; <span class="string">"FDBCluster"</span>,
+            <span class="string">"DatabaseOption" </span>=&gt; <span class="string">"FDBDatabase"</span>,
+            <span class="string">"TransactionOption" </span>=&gt; <span class="string">"FDBTransaction"</span>,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Some</span>(s)
     }
 
-    <span class="kw">fn </span>apply_fn_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+    <span class="kw">fn </span>apply_fn_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
         <span class="kw">let </span>s = <span class="kw">match </span><span class="self">self</span>.name.as_str() {
-            <span class="string">&quot;NetworkOption&quot; </span>=&gt; <span class="string">&quot;fdb_network_set_option&quot;</span>,
-            <span class="string">&quot;ClusterOption&quot; </span>=&gt; <span class="string">&quot;fdb_cluster_set_option&quot;</span>,
-            <span class="string">&quot;DatabaseOption&quot; </span>=&gt; <span class="string">&quot;fdb_database_set_option&quot;</span>,
-            <span class="string">&quot;TransactionOption&quot; </span>=&gt; <span class="string">&quot;fdb_transaction_set_option&quot;</span>,
+            <span class="string">"NetworkOption" </span>=&gt; <span class="string">"fdb_network_set_option"</span>,
+            <span class="string">"ClusterOption" </span>=&gt; <span class="string">"fdb_cluster_set_option"</span>,
+            <span class="string">"DatabaseOption" </span>=&gt; <span class="string">"fdb_database_set_option"</span>,
+            <span class="string">"TransactionOption" </span>=&gt; <span class="string">"fdb_transaction_set_option"</span>,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Some</span>(s)
@@ -632,26 +633,26 @@
 <span class="kw">impl </span>FdbOption {
     <span class="kw">fn </span>gen_ty&lt;W: fmt::Write&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W, with_ty: bool) -&gt; fmt::Result {
         <span class="kw">if </span>!<span class="self">self</span>.param_description.is_empty() {
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}/// {desc}&quot;</span>, t = TAB1, desc = <span class="self">self</span>.param_description)<span class="question-mark">?</span>;
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}///&quot;</span>, t = TAB1)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"{t}/// {desc}"</span>, t = TAB1, desc = <span class="self">self</span>.param_description)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"{t}///"</span>, t = TAB1)<span class="question-mark">?</span>;
         }
         <span class="kw">if </span>!<span class="self">self</span>.description.is_empty() {
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}/// {desc}&quot;</span>, t = TAB1, desc = <span class="self">self</span>.description)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"{t}/// {desc}"</span>, t = TAB1, desc = <span class="self">self</span>.description)<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span>(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(ty)) = (with_ty, <span class="self">self</span>.get_ty()) {
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}{name}({ty}),&quot;</span>, t = TAB1, name = <span class="self">self</span>.name, ty = ty)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"{t}{name}({ty}),"</span>, t = TAB1, name = <span class="self">self</span>.name, ty = ty)<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;{t}{name},&quot;</span>, t = TAB1, name = <span class="self">self</span>.name)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"{t}{name},"</span>, t = TAB1, name = <span class="self">self</span>.name)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>get_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+    <span class="kw">fn </span>get_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
         <span class="kw">match </span><span class="self">self</span>.param_type {
-            FdbOptionTy::Int =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;i32&quot;</span>),
-            FdbOptionTy::Str =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;String&quot;</span>),
-            FdbOptionTy::Bytes =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;Vec&lt;u8&gt;&quot;</span>),
+            FdbOptionTy::Int =&gt; <span class="prelude-val">Some</span>(<span class="string">"i32"</span>),
+            FdbOptionTy::Str =&gt; <span class="prelude-val">Some</span>(<span class="string">"String"</span>),
+            FdbOptionTy::Bytes =&gt; <span class="prelude-val">Some</span>(<span class="string">"Vec&lt;u8&gt;"</span>),
             FdbOptionTy::Empty =&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -661,7 +662,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>is_start_of_word = <span class="bool-val">true</span>;
     v.chars()
         .filter_map(|c| {
-            <span class="kw">if </span>c == <span class="string">&#39;_&#39; </span>{
+            <span class="kw">if </span>c == <span class="string">'_' </span>{
                 is_start_of_word = <span class="bool-val">true</span>;
                 <span class="prelude-val">None
             </span>} <span class="kw">else if </span>is_start_of_word {
@@ -680,43 +681,43 @@
         <span class="kw">for </span>attr <span class="kw">in </span>attrs {
             <span class="kw">let </span>v = attr.value;
             <span class="kw">match </span>attr.name.local_name.as_str() {
-                <span class="string">&quot;name&quot; </span>=&gt; {
+                <span class="string">"name" </span>=&gt; {
                     opt.name = to_rs_enum_name(v.as_str());
                     opt.c_name = v.to_uppercase();
                 }
-                <span class="string">&quot;code&quot; </span>=&gt; {
-                    opt.code = v.parse().expect(<span class="string">&quot;code to be a i32&quot;</span>);
+                <span class="string">"code" </span>=&gt; {
+                    opt.code = v.parse().expect(<span class="string">"code to be a i32"</span>);
                 }
-                <span class="string">&quot;paramType&quot; </span>=&gt; {
+                <span class="string">"paramType" </span>=&gt; {
                     opt.param_type = <span class="kw">match </span>v.as_str() {
-                        <span class="string">&quot;Int&quot; </span>=&gt; FdbOptionTy::Int,
-                        <span class="string">&quot;String&quot; </span>=&gt; FdbOptionTy::Str,
-                        <span class="string">&quot;Bytes&quot; </span>=&gt; FdbOptionTy::Bytes,
-                        <span class="string">&quot;&quot; </span>=&gt; FdbOptionTy::Empty,
-                        ty =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected param_type: {}&quot;</span>, ty),
+                        <span class="string">"Int" </span>=&gt; FdbOptionTy::Int,
+                        <span class="string">"String" </span>=&gt; FdbOptionTy::Str,
+                        <span class="string">"Bytes" </span>=&gt; FdbOptionTy::Bytes,
+                        <span class="string">"" </span>=&gt; FdbOptionTy::Empty,
+                        ty =&gt; <span class="macro">panic!</span>(<span class="string">"unexpected param_type: {}"</span>, ty),
                     };
                 }
-                <span class="string">&quot;paramDescription&quot; </span>=&gt; {
+                <span class="string">"paramDescription" </span>=&gt; {
                     opt.param_description = v;
                 }
-                <span class="string">&quot;description&quot; </span>=&gt; {
+                <span class="string">"description" </span>=&gt; {
                     opt.description = v;
                 }
-                <span class="string">&quot;hidden&quot; </span>=&gt; <span class="kw">match </span>v.as_str() {
-                    <span class="string">&quot;true&quot; </span>=&gt; opt.hidden = <span class="bool-val">true</span>,
-                    <span class="string">&quot;false&quot; </span>=&gt; opt.hidden = <span class="bool-val">false</span>,
-                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected boolean value in &#39;hidden&#39;: {}&quot;</span>, v),
+                <span class="string">"hidden" </span>=&gt; <span class="kw">match </span>v.as_str() {
+                    <span class="string">"true" </span>=&gt; opt.hidden = <span class="bool-val">true</span>,
+                    <span class="string">"false" </span>=&gt; opt.hidden = <span class="bool-val">false</span>,
+                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"unexpected boolean value in 'hidden': {}"</span>, v),
                 },
-                <span class="string">&quot;defaultFor&quot; </span>=&gt; {
-                    opt.default_for = <span class="prelude-val">Some</span>(v.parse().expect(<span class="string">&quot;defaultFor to be a i32&quot;</span>));
+                <span class="string">"defaultFor" </span>=&gt; {
+                    opt.default_for = <span class="prelude-val">Some</span>(v.parse().expect(<span class="string">"defaultFor to be a i32"</span>));
                 }
-                <span class="string">&quot;persistent&quot; </span>=&gt; <span class="kw">match </span>v.as_str() {
-                    <span class="string">&quot;true&quot; </span>=&gt; opt.persistent = <span class="bool-val">true</span>,
-                    <span class="string">&quot;false&quot; </span>=&gt; opt.persistent = <span class="bool-val">false</span>,
-                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected boolean value in &#39;persistent&#39;: {}&quot;</span>, v),
+                <span class="string">"persistent" </span>=&gt; <span class="kw">match </span>v.as_str() {
+                    <span class="string">"true" </span>=&gt; opt.persistent = <span class="bool-val">true</span>,
+                    <span class="string">"false" </span>=&gt; opt.persistent = <span class="bool-val">false</span>,
+                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"unexpected boolean value in 'persistent': {}"</span>, v),
                 },
                 attr =&gt; {
-                    <span class="macro">panic!</span>(<span class="string">&quot;unexpected option attribute: {}&quot;</span>, attr);
+                    <span class="macro">panic!</span>(<span class="string">"unexpected option attribute: {}"</span>, attr);
                 }
             }
         }
@@ -735,7 +736,7 @@
             XmlEvent::StartElement {
                 name, attributes, ..
             } =&gt; {
-                <span class="macro">assert_eq!</span>(name.local_name, <span class="string">&quot;Option&quot;</span>, <span class="string">&quot;unexpected token&quot;</span>);
+                <span class="macro">assert_eq!</span>(name.local_name, <span class="string">"Option"</span>, <span class="string">"unexpected token"</span>);
 
                 <span class="kw">let </span>option = FdbOption::from(attributes.clone());
                 <span class="kw">if </span>!option.hidden {
@@ -743,7 +744,7 @@
                 }
             }
             XmlEvent::EndElement { name, .. } =&gt; {
-                <span class="kw">if </span>name.local_name == <span class="string">&quot;Scope&quot; </span>{
+                <span class="kw">if </span>name.local_name == <span class="string">"Scope" </span>{
                     <span class="kw">return </span>options;
                 }
             }
@@ -751,35 +752,35 @@
         }
     }
 
-    <span class="macro">panic!</span>(<span class="string">&quot;unexpected end of token&quot;</span>);
+    <span class="macro">panic!</span>(<span class="string">"unexpected end of token"</span>);
 }
 
-<span class="attr">#[cfg(all(not(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>), target_os = <span class="string">&quot;linux&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;/usr/include/foundationdb/fdb.options&quot;</span>);
+<span class="attr">#[cfg(all(not(feature = <span class="string">"embedded-fdb-include"</span>), target_os = <span class="string">"linux"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"/usr/include/foundationdb/fdb.options"</span>);
 
-<span class="attr">#[cfg(all(not(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>), target_os = <span class="string">&quot;macos&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;/usr/local/include/foundationdb/fdb.options&quot;</span>);
+<span class="attr">#[cfg(all(not(feature = <span class="string">"embedded-fdb-include"</span>), target_os = <span class="string">"macos"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"/usr/local/include/foundationdb/fdb.options"</span>);
 
-<span class="attr">#[cfg(all(not(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>), target_os = <span class="string">&quot;windows&quot;</span>))]
+<span class="attr">#[cfg(all(not(feature = <span class="string">"embedded-fdb-include"</span>), target_os = <span class="string">"windows"</span>))]
 </span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] =
-    <span class="macro">include_bytes!</span>(<span class="string">&quot;C:/Program Files/foundationdb/include/foundationdb/fdb.options&quot;</span>);
+    <span class="macro">include_bytes!</span>(<span class="string">"C:/Program Files/foundationdb/include/foundationdb/fdb.options"</span>);
 
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-5_1&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/510/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/520/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/600/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-6_1&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/610/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-6_2&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/620/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-6_3&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/630/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-7_0&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/700/fdb.options&quot;</span>);
-<span class="attr">#[cfg(all(feature = <span class="string">&quot;embedded-fdb-include&quot;</span>, feature = <span class="string">&quot;fdb-7_1&quot;</span>))]
-</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">&quot;../include/710/fdb.options&quot;</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-5_1"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/510/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-5_2"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/520/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-6_0"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/600/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-6_1"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/610/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-6_2"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/620/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-6_3"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/630/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-7_0"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/700/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-7_1"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/710/fdb.options"</span>);
 
 <span class="kw">pub fn </span>emit(w: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>fmt::Write) -&gt; fmt::Result {
     <span class="kw">let </span><span class="kw-2">mut </span>reader = OPTIONS_DATA;
@@ -792,10 +793,10 @@
             XmlEvent::StartElement {
                 name, attributes, ..
             } =&gt; {
-                <span class="kw">if </span>name.local_name == <span class="string">&quot;Scope&quot; </span>{
+                <span class="kw">if </span>name.local_name == <span class="string">"Scope" </span>{
                     <span class="kw">let </span>scope_name = attributes
                         .into_iter()
-                        .find(|attr| attr.name.local_name == <span class="string">&quot;name&quot;</span>)
+                        .find(|attr| attr.name.local_name == <span class="string">"name"</span>)
                         .unwrap();
 
                     <span class="kw">let </span>options = on_scope(<span class="kw-2">&amp;mut </span>iter);
@@ -812,9 +813,9 @@
         }
     }
 
-    <span class="macro">writeln!</span>(w, <span class="string">&quot;use std::convert::TryFrom;&quot;</span>)<span class="question-mark">?</span>;
-    <span class="macro">writeln!</span>(w, <span class="string">&quot;use crate::{{FdbError, FdbResult}};&quot;</span>)<span class="question-mark">?</span>;
-    <span class="macro">writeln!</span>(w, <span class="string">&quot;use foundationdb_sys as fdb_sys;&quot;</span>)<span class="question-mark">?</span>;
+    <span class="macro">writeln!</span>(w, <span class="string">"use std::convert::TryFrom;"</span>)<span class="question-mark">?</span>;
+    <span class="macro">writeln!</span>(w, <span class="string">"use crate::{{FdbError, FdbResult}};"</span>)<span class="question-mark">?</span>;
+    <span class="macro">writeln!</span>(w, <span class="string">"use foundationdb_sys as fdb_sys;"</span>)<span class="question-mark">?</span>;
     <span class="kw">for </span>scope <span class="kw">in </span>scopes.iter() {
         scope.gen_ty(w)<span class="question-mark">?</span>;
         scope.gen_impl(w)<span class="question-mark">?</span>;

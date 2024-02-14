@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/future.rs`."><title>future.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/future.rs`."><title>future.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -553,6 +554,7 @@
 
 <span class="attr">#[cfg_api_versions(min = <span class="number">700</span>)]
 </span><span class="kw">pub use </span><span class="kw">crate</span>::fdb_keys::FdbKeys;
+<span class="kw">use </span><span class="kw">crate</span>::from_raw_fdb_slice;
 <span class="attr">#[cfg_api_versions(min = <span class="number">710</span>)]
 </span><span class="kw">pub use </span><span class="kw">crate</span>::mapped_key_values::MappedKeyValues;
 <span class="kw">use </span>foundationdb_macros::cfg_api_versions;
@@ -574,7 +576,7 @@
 <span class="kw">unsafe impl </span>Send <span class="kw">for </span>FdbFutureHandle {}
 <span class="kw">impl </span>Drop <span class="kw">for </span>FdbFutureHandle {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="comment">// `fdb_future_destroy` cancels the future, so we don&#39;t need to call
+        <span class="comment">// `fdb_future_destroy` cancels the future, so we don't need to call
         // `fdb_future_cancel` explicitly.
         </span><span class="kw">unsafe </span>{ fdb_sys::fdb_future_destroy(<span class="self">self</span>.as_ptr()) }
     }
@@ -597,7 +599,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(f: <span class="kw-2">*mut </span>fdb_sys::FDBFuture) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             f: <span class="prelude-val">Some</span>(FdbFutureHandle(
-                NonNull::new(f).expect(<span class="string">&quot;FDBFuture to not be null&quot;</span>),
+                NonNull::new(f).expect(<span class="string">"FDBFuture to not be null"</span>),
             )),
             waker: <span class="prelude-val">None</span>,
             phantom: std::marker::PhantomData,
@@ -612,7 +614,7 @@
     <span class="kw">type </span>Output = FdbResult&lt;T&gt;;
 
     <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, cx: <span class="kw-2">&amp;mut </span>Context) -&gt; Poll&lt;FdbResult&lt;T&gt;&gt; {
-        <span class="kw">let </span>f = <span class="self">self</span>.f.as_ref().expect(<span class="string">&quot;cannot poll after resolve&quot;</span>);
+        <span class="kw">let </span>f = <span class="self">self</span>.f.as_ref().expect(<span class="string">"cannot poll after resolve"</span>);
         <span class="kw">let </span>ready = <span class="kw">unsafe </span>{ fdb_sys::fdb_future_is_ready(f.as_ptr()) };
         <span class="kw">if </span>ready == <span class="number">0 </span>{
             <span class="kw">let </span>f_ptr = f.as_ptr();
@@ -637,7 +639,7 @@
         } <span class="kw">else </span>{
             Poll::Ready(
                 error::eval(<span class="kw">unsafe </span>{ fdb_sys::fdb_future_get_error(f.as_ptr()) })
-                    .and_then(|()| T::try_from(<span class="self">self</span>.f.take().expect(<span class="string">&quot;self.f.is_some()&quot;</span>))),
+                    .and_then(|()| T::try_from(<span class="self">self</span>.f.take().expect(<span class="string">"self.f.is_some()"</span>))),
             )
         }
     }
@@ -645,7 +647,7 @@
 
 <span class="comment">// The callback from fdb C API can be called from multiple threads. so this callback should be
 // thread-safe.
-</span><span class="kw">extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>fdb_future_callback(
+</span><span class="kw">extern </span><span class="string">"C" </span><span class="kw">fn </span>fdb_future_callback(
     _f: <span class="kw-2">*mut </span>fdb_sys::FDBFuture,
     callback_parameter: <span class="kw-2">*mut </span>::std::os::raw::c_void,
 ) {
@@ -665,7 +667,7 @@
 <span class="kw">impl </span>Deref <span class="kw">for </span>FdbSlice {
     <span class="kw">type </span>Target = [u8];
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
-        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.value, <span class="self">self</span>.len <span class="kw">as </span>usize) }
+        from_raw_fdb_slice(<span class="self">self</span>.value, <span class="self">self</span>.len <span class="kw">as </span>usize)
     }
 }
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>FdbSlice {
@@ -741,7 +743,7 @@
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="macro">assert_eq_size!</span>(FdbAddress, <span class="kw-2">*const </span>c_char);
         <span class="macro">assert_eq_align!</span>(FdbAddress, u8);
-        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.strings, <span class="self">self</span>.len <span class="kw">as </span>usize) }
+        from_raw_fdb_slice(<span class="self">self</span>.strings, <span class="self">self</span>.len <span class="kw">as </span>usize)
     }
 }
 <span class="kw">impl </span>AsRef&lt;[FdbAddress]&gt; <span class="kw">for </span>FdbAddresses {
@@ -821,7 +823,8 @@
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="macro">assert_eq_size!</span>(FdbKeyValue, fdb_sys::FDBKeyValue);
         <span class="macro">assert_eq_align!</span>(FdbKeyValue, u8);
-        <span class="kw">unsafe </span>{ std::slice::from_raw_parts(<span class="self">self</span>.keyvalues, <span class="self">self</span>.len <span class="kw">as </span>usize) }
+
+        from_raw_fdb_slice(<span class="self">self</span>.keyvalues, <span class="self">self</span>.len <span class="kw">as </span>usize)
     }
 }
 <span class="kw">impl </span>AsRef&lt;[FdbKeyValue]&gt; <span class="kw">for </span>FdbValues {
@@ -830,9 +833,9 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FdbValues {
-    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FdbKeyValue;
-    <span class="kw">type </span>IntoIter = std::slice::Iter&lt;<span class="lifetime">&#39;a</span>, FdbKeyValue&gt;;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>FdbValues {
+    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>FdbKeyValue;
+    <span class="kw">type </span>IntoIter = std::slice::Iter&lt;<span class="lifetime">'a</span>, FdbKeyValue&gt;;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
         <span class="self">self</span>.deref().iter()
@@ -969,16 +972,14 @@
 <span class="kw">impl </span>FdbKeyValue {
     <span class="doccomment">/// key
     </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="comment">// This cast to `*const u8` isn&#39;t unnecessary in all configurations.
+        <span class="comment">// This cast to `*const u8` isn't unnecessary in all configurations.
         </span><span class="attr">#[allow(clippy::unnecessary_cast)]
-        </span><span class="kw">unsafe </span>{
-            std::slice::from_raw_parts(<span class="self">self</span>.<span class="number">0</span>.key <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="self">self</span>.<span class="number">0</span>.key_length <span class="kw">as </span>usize)
-        }
+        </span>from_raw_fdb_slice(<span class="self">self</span>.<span class="number">0</span>.key <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="self">self</span>.<span class="number">0</span>.key_length <span class="kw">as </span>usize)
     }
 
     <span class="doccomment">/// value
     </span><span class="kw">pub fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="comment">// This cast to `*const u8` isn&#39;t unnecessary in all configurations.
+        <span class="comment">// This cast to `*const u8` isn't unnecessary in all configurations.
         </span><span class="attr">#[allow(clippy::unnecessary_cast)]
         </span><span class="kw">unsafe </span>{
             std::slice::from_raw_parts(<span class="self">self</span>.<span class="number">0</span>.value <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="self">self</span>.<span class="number">0</span>.value_length <span class="kw">as </span>usize)
@@ -996,7 +997,7 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
         <span class="macro">write!</span>(
             f,
-            <span class="string">&quot;({:?}, {:?})&quot;</span>,
+            <span class="string">"({:?}, {:?})"</span>,
             <span class="kw">crate</span>::tuple::Bytes::from(<span class="self">self</span>.key()),
             <span class="kw">crate</span>::tuple::Bytes::from(<span class="self">self</span>.value())
         )
@@ -1010,19 +1011,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>version: i64 = <span class="number">0</span>;
         error::eval(<span class="kw">unsafe </span>{
             <span class="attr">#[cfg(any(
-                feature = <span class="string">&quot;fdb-6_2&quot;</span>,
-                feature = <span class="string">&quot;fdb-6_3&quot;</span>,
-                feature = <span class="string">&quot;fdb-7_0&quot;</span>,
-                feature = <span class="string">&quot;fdb-7_1&quot;
+                feature = <span class="string">"fdb-6_2"</span>,
+                feature = <span class="string">"fdb-6_3"</span>,
+                feature = <span class="string">"fdb-7_0"</span>,
+                feature = <span class="string">"fdb-7_1"
             </span>))]
             </span>{
                 fdb_sys::fdb_future_get_int64(f.as_ptr(), <span class="kw-2">&amp;mut </span>version)
             }
             <span class="attr">#[cfg(not(any(
-                feature = <span class="string">&quot;fdb-6_2&quot;</span>,
-                feature = <span class="string">&quot;fdb-6_3&quot;</span>,
-                feature = <span class="string">&quot;fdb-7_0&quot;</span>,
-                feature = <span class="string">&quot;fdb-7_1&quot;
+                feature = <span class="string">"fdb-6_2"</span>,
+                feature = <span class="string">"fdb-6_3"</span>,
+                feature = <span class="string">"fdb-7_0"</span>,
+                feature = <span class="string">"fdb-7_1"
             </span>)))]
             </span>{
                 fdb_sys::fdb_future_get_version(f.as_ptr(), <span class="kw-2">&amp;mut </span>version)

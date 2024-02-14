@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -95,40 +96,52 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
 // http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
-</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../README.md&quot;</span>)]
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"../README.md"</span>)]
 
 #[macro_use]
 </span><span class="kw">extern crate </span>static_assertions;
 
 <span class="kw">pub mod </span>api;
-<span class="attr">#[cfg(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
+<span class="attr">#[cfg(any(feature = <span class="string">"fdb-5_1"</span>, feature = <span class="string">"fdb-5_2"</span>, feature = <span class="string">"fdb-6_0"</span>))]
 </span><span class="kw">pub mod </span>cluster;
 <span class="kw">mod </span>database;
 <span class="kw">pub mod </span>directory;
 <span class="kw">mod </span>error;
-<span class="attr">#[cfg(any(feature = <span class="string">&quot;fdb-7_0&quot;</span>, feature = <span class="string">&quot;fdb-7_1&quot;</span>))]
+<span class="attr">#[cfg(any(feature = <span class="string">"fdb-7_0"</span>, feature = <span class="string">"fdb-7_1"</span>))]
 #[deny(missing_docs)]
 </span><span class="kw">pub mod </span>fdb_keys;
 <span class="kw">pub mod </span>future;
 <span class="kw">mod </span>keyselector;
-<span class="attr">#[cfg(feature = <span class="string">&quot;fdb-7_1&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"fdb-7_1"</span>)]
 #[deny(missing_docs)]
 </span><span class="kw">pub mod </span>mapped_key_values;
 <span class="doccomment">/// Generated configuration types for use with the various `set_option` functions
 </span><span class="attr">#[allow(clippy::all)]
 </span><span class="kw">pub mod </span>options;
-<span class="attr">#[cfg(any(feature = <span class="string">&quot;fdb-7_1&quot;</span>, feature = <span class="string">&quot;tenant-experimental&quot;</span>))]
+<span class="attr">#[cfg(any(feature = <span class="string">"fdb-7_1"</span>, feature = <span class="string">"tenant-experimental"</span>))]
 </span><span class="kw">pub mod </span>tenant;
 <span class="kw">mod </span>transaction;
 <span class="kw">pub mod </span>tuple;
 
-<span class="attr">#[cfg(any(feature = <span class="string">&quot;fdb-5_1&quot;</span>, feature = <span class="string">&quot;fdb-5_2&quot;</span>, feature = <span class="string">&quot;fdb-6_0&quot;</span>))]
+<span class="attr">#[cfg(any(feature = <span class="string">"fdb-5_1"</span>, feature = <span class="string">"fdb-5_2"</span>, feature = <span class="string">"fdb-6_0"</span>))]
 </span><span class="kw">pub use </span><span class="kw">crate</span>::cluster::Cluster;
 
 <span class="kw">pub use </span><span class="kw">crate</span>::database::<span class="kw-2">*</span>;
@@ -171,25 +184,37 @@
 </span><span class="kw">pub unsafe fn </span>boot() -&gt; api::NetworkAutoStop {
     <span class="kw">let </span>network_builder = api::FdbApiBuilder::default()
         .build()
-        .expect(<span class="string">&quot;foundationdb API to be initialized&quot;</span>);
-    network_builder.boot().expect(<span class="string">&quot;fdb network running&quot;</span>)
+        .expect(<span class="string">"foundationdb API to be initialized"</span>);
+    network_builder.boot().expect(<span class="string">"fdb network running"</span>)
 }
 
 <span class="doccomment">/// Returns the default Fdb cluster configuration file path
-</span><span class="attr">#[cfg(target_os = <span class="string">&quot;linux&quot;</span>)]
-</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-    <span class="string">&quot;/etc/foundationdb/fdb.cluster&quot;
+</span><span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
+</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+    <span class="string">"/etc/foundationdb/fdb.cluster"
 </span>}
 
 <span class="doccomment">/// Returns the default Fdb cluster configuration file path
-</span><span class="attr">#[cfg(target_os = <span class="string">&quot;macos&quot;</span>)]
-</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-    <span class="string">&quot;/usr/local/etc/foundationdb/fdb.cluster&quot;
+</span><span class="attr">#[cfg(target_os = <span class="string">"macos"</span>)]
+</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+    <span class="string">"/usr/local/etc/foundationdb/fdb.cluster"
 </span>}
 
 <span class="doccomment">/// Returns the default Fdb cluster configuration file path
-</span><span class="attr">#[cfg(target_os = <span class="string">&quot;windows&quot;</span>)]
-</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-    <span class="string">&quot;C:/ProgramData/foundationdb/fdb.cluster&quot;
+</span><span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+</span><span class="kw">pub fn </span>default_config_path() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+    <span class="string">"C:/ProgramData/foundationdb/fdb.cluster"
 </span>}
+
+<span class="doccomment">/// slice::from_raw_parts assumes the pointer to be aligned and non-null.
+/// Since Rust nightly (mid-February 2024), it is enforced with debug asserts,
+/// but the FDBServer can return a null pointer if the slice is empty:
+/// ptr: 0x0, len: 0
+/// To avoid the assert, an empty slice is directly returned in that situation
+</span><span class="kw">fn </span>from_raw_fdb_slice&lt;T, U: Into&lt;usize&gt;&gt;(ptr: <span class="kw-2">*const </span>T, len: U) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[T] {
+    <span class="kw">if </span>ptr.is_null() {
+        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
+    }
+    <span class="kw">unsafe </span>{ std::slice::from_raw_parts(ptr, len.into()) }
+}
 </code></pre></div></section></main></body></html>

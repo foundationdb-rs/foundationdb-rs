@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-bindingtester/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="bindingtester" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-bindingtester/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="bindingtester" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2912,22 +2913,22 @@
 <span class="kw">use </span>futures::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>num_bigint::BigInt;
 
-<span class="kw">static </span>WAITED_FOR_EMPTY: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;WAITED_FOR_EMPTY&quot;</span>)));
-<span class="kw">static </span>RESULT_NOT_PRESENT: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;RESULT_NOT_PRESENT&quot;</span>)));
-<span class="kw">static </span>GOT_READ_VERSION: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;GOT_READ_VERSION&quot;</span>)));
+<span class="kw">static </span>WAITED_FOR_EMPTY: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"WAITED_FOR_EMPTY"</span>)));
+<span class="kw">static </span>RESULT_NOT_PRESENT: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"RESULT_NOT_PRESENT"</span>)));
+<span class="kw">static </span>GOT_READ_VERSION: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"GOT_READ_VERSION"</span>)));
 <span class="kw">static </span>GOT_COMMITTED_VERSION: Element =
-    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;GOT_COMMITTED_VERSION&quot;</span>)));
+    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"GOT_COMMITTED_VERSION"</span>)));
 
-<span class="kw">static </span>ERROR_NONE: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;ERROR: NONE&quot;</span>)));
-<span class="kw">static </span>ERROR_MULTIPLE: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;ERROR: MULTIPLE&quot;</span>)));
-<span class="kw">static </span>OK: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;OK&quot;</span>)));
-<span class="kw">static </span>ERROR_DIRECTORY: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;DIRECTORY_ERROR&quot;</span>)));
+<span class="kw">static </span>ERROR_NONE: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"ERROR: NONE"</span>)));
+<span class="kw">static </span>ERROR_MULTIPLE: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"ERROR: MULTIPLE"</span>)));
+<span class="kw">static </span>OK: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"OK"</span>)));
+<span class="kw">static </span>ERROR_DIRECTORY: Element = Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"DIRECTORY_ERROR"</span>)));
 <span class="kw">static </span>ESTIMATE_RANGE_RESPONSE: Element =
-    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;GOT_ESTIMATED_RANGE_SIZE&quot;</span>)));
+    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"GOT_ESTIMATED_RANGE_SIZE"</span>)));
 <span class="kw">static </span>GOT_APPROXIMATE_SIZE_RESPONSE: Element =
-    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;GOT_APPROXIMATE_SIZE&quot;</span>)));
+    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"GOT_APPROXIMATE_SIZE"</span>)));
 <span class="kw">static </span>GET_RANGE_SPLIT_POINTS_RESPONSE: Element =
-    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b&quot;GOT_RANGE_SPLIT_POINTS&quot;</span>)));
+    Element::Bytes(Bytes(Cow::Borrowed(<span class="string">b"GOT_RANGE_SPLIT_POINTS"</span>)));
 
 <span class="kw">use </span><span class="kw">crate</span>::fdb::options::{MutationType, StreamingMode};
 
@@ -2941,22 +2942,22 @@
 
 <span class="kw">fn </span>mutation_from_str(s: <span class="kw-2">&amp;</span>str) -&gt; MutationType {
     <span class="kw">match </span>s {
-        <span class="string">&quot;ADD&quot; </span>=&gt; MutationType::Add,
-        <span class="string">&quot;AND&quot; </span>=&gt; MutationType::And,
-        <span class="string">&quot;BIT_AND&quot; </span>=&gt; MutationType::BitAnd,
-        <span class="string">&quot;OR&quot; </span>=&gt; MutationType::Or,
-        <span class="string">&quot;BIT_OR&quot; </span>=&gt; MutationType::BitOr,
-        <span class="string">&quot;XOR&quot; </span>=&gt; MutationType::Xor,
-        <span class="string">&quot;BIT_XOR&quot; </span>=&gt; MutationType::BitXor,
-        <span class="string">&quot;APPEND_IF_FITS&quot; </span>=&gt; MutationType::AppendIfFits,
-        <span class="string">&quot;MAX&quot; </span>=&gt; MutationType::Max,
-        <span class="string">&quot;MIN&quot; </span>=&gt; MutationType::Min,
-        <span class="string">&quot;SET_VERSIONSTAMPED_KEY&quot; </span>=&gt; MutationType::SetVersionstampedKey,
-        <span class="string">&quot;SET_VERSIONSTAMPED_VALUE&quot; </span>=&gt; MutationType::SetVersionstampedValue,
-        <span class="string">&quot;BYTE_MIN&quot; </span>=&gt; MutationType::ByteMin,
-        <span class="string">&quot;BYTE_MAX&quot; </span>=&gt; MutationType::ByteMax,
-        <span class="string">&quot;COMPARE_AND_CLEAR&quot; </span>=&gt; MutationType::CompareAndClear,
-        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(<span class="string">&quot;mutation_from_str({})&quot;</span>, s),
+        <span class="string">"ADD" </span>=&gt; MutationType::Add,
+        <span class="string">"AND" </span>=&gt; MutationType::And,
+        <span class="string">"BIT_AND" </span>=&gt; MutationType::BitAnd,
+        <span class="string">"OR" </span>=&gt; MutationType::Or,
+        <span class="string">"BIT_OR" </span>=&gt; MutationType::BitOr,
+        <span class="string">"XOR" </span>=&gt; MutationType::Xor,
+        <span class="string">"BIT_XOR" </span>=&gt; MutationType::BitXor,
+        <span class="string">"APPEND_IF_FITS" </span>=&gt; MutationType::AppendIfFits,
+        <span class="string">"MAX" </span>=&gt; MutationType::Max,
+        <span class="string">"MIN" </span>=&gt; MutationType::Min,
+        <span class="string">"SET_VERSIONSTAMPED_KEY" </span>=&gt; MutationType::SetVersionstampedKey,
+        <span class="string">"SET_VERSIONSTAMPED_VALUE" </span>=&gt; MutationType::SetVersionstampedValue,
+        <span class="string">"BYTE_MIN" </span>=&gt; MutationType::ByteMin,
+        <span class="string">"BYTE_MAX" </span>=&gt; MutationType::ByteMax,
+        <span class="string">"COMPARE_AND_CLEAR" </span>=&gt; MutationType::CompareAndClear,
+        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(<span class="string">"mutation_from_str({})"</span>, s),
     }
 }
 
@@ -2969,7 +2970,7 @@
         fdb_sys::FDBStreamingMode_FDB_STREAMING_MODE_MEDIUM =&gt; StreamingMode::Medium,
         fdb_sys::FDBStreamingMode_FDB_STREAMING_MODE_LARGE =&gt; StreamingMode::Large,
         fdb_sys::FDBStreamingMode_FDB_STREAMING_MODE_SERIAL =&gt; StreamingMode::Serial,
-        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(<span class="string">&quot;streaming_from_value({})&quot;</span>, val),
+        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(<span class="string">"streaming_from_value({})"</span>, val),
     }
 }
 
@@ -2984,23 +2985,23 @@
 
 <span class="kw">impl </span>std::fmt::Debug <span class="kw">for </span>Instr {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, fmt: <span class="kw-2">&amp;mut </span>std::fmt::Formatter) -&gt; std::fmt::Result {
-        <span class="macro">write!</span>(fmt, <span class="string">&quot;[{:?}&quot;</span>, <span class="self">self</span>.code)<span class="question-mark">?</span>;
+        <span class="macro">write!</span>(fmt, <span class="string">"[{:?}"</span>, <span class="self">self</span>.code)<span class="question-mark">?</span>;
         <span class="kw">if </span><span class="self">self</span>.database {
-            <span class="macro">write!</span>(fmt, <span class="string">&quot; db&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(fmt, <span class="string">" db"</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">if </span><span class="self">self</span>.tenant {
-            <span class="macro">write!</span>(fmt, <span class="string">&quot; tenant&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(fmt, <span class="string">" tenant"</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">if </span><span class="self">self</span>.snapshot {
-            <span class="macro">write!</span>(fmt, <span class="string">&quot; snapshot&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(fmt, <span class="string">" snapshot"</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">if </span><span class="self">self</span>.starts_with {
-            <span class="macro">write!</span>(fmt, <span class="string">&quot; starts_with&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(fmt, <span class="string">" starts_with"</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">if </span><span class="self">self</span>.selector {
-            <span class="macro">write!</span>(fmt, <span class="string">&quot; selector&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(fmt, <span class="string">" selector"</span>)<span class="question-mark">?</span>;
         }
-        <span class="macro">write!</span>(fmt, <span class="string">&quot;]&quot;</span>)
+        <span class="macro">write!</span>(fmt, <span class="string">"]"</span>)
     }
 }
 
@@ -3063,7 +3064,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>InstrCode {
     <span class="comment">// data operations
-    </span>Push(Element&lt;<span class="lifetime">&#39;static</span>&gt;),
+    </span>Push(Element&lt;<span class="lifetime">'static</span>&gt;),
     Dup,
     EmptyStack,
     Swap,
@@ -3158,7 +3159,7 @@
     TenantList,
 }
 
-<span class="kw">fn </span>has_opt&lt;<span class="lifetime">&#39;a</span>&gt;(cmd: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, opt: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, bool) {
+<span class="kw">fn </span>has_opt&lt;<span class="lifetime">'a</span>&gt;(cmd: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, opt: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; (<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, bool) {
     <span class="kw">if </span>cmd.ends_with(opt) {
         (<span class="kw-2">&amp;</span>cmd[<span class="number">0</span>..(cmd.len() - opt.len())], <span class="bool-val">true</span>)
     } <span class="kw">else </span>{
@@ -3171,103 +3172,103 @@
         <span class="kw">use </span><span class="kw">crate</span>::InstrCode::<span class="kw-2">*</span>;
 
         <span class="kw">let </span>data = Bytes::from(data);
-        <span class="macro">trace!</span>(<span class="string">&quot;inst {:?}&quot;</span>, data);
+        <span class="macro">trace!</span>(<span class="string">"inst {:?}"</span>, data);
         <span class="kw">let </span>tup: Vec&lt;Element&gt; = unpack(<span class="kw-2">&amp;</span>data).unwrap();
         <span class="kw">let </span>cmd = tup[<span class="number">0</span>].as_str().unwrap();
 
-        <span class="kw">let </span>(cmd, database) = has_opt(cmd, <span class="string">&quot;_DATABASE&quot;</span>);
-        <span class="kw">let </span>(cmd, tenant) = has_opt(cmd, <span class="string">&quot;_TENANT&quot;</span>);
-        <span class="kw">let </span>(cmd, snapshot) = has_opt(cmd, <span class="string">&quot;_SNAPSHOT&quot;</span>);
-        <span class="kw">let </span>(cmd, starts_with) = has_opt(cmd, <span class="string">&quot;_STARTS_WITH&quot;</span>);
-        <span class="kw">let </span>(cmd, selector) = has_opt(cmd, <span class="string">&quot;_SELECTOR&quot;</span>);
+        <span class="kw">let </span>(cmd, database) = has_opt(cmd, <span class="string">"_DATABASE"</span>);
+        <span class="kw">let </span>(cmd, tenant) = has_opt(cmd, <span class="string">"_TENANT"</span>);
+        <span class="kw">let </span>(cmd, snapshot) = has_opt(cmd, <span class="string">"_SNAPSHOT"</span>);
+        <span class="kw">let </span>(cmd, starts_with) = has_opt(cmd, <span class="string">"_STARTS_WITH"</span>);
+        <span class="kw">let </span>(cmd, selector) = has_opt(cmd, <span class="string">"_SELECTOR"</span>);
 
         <span class="kw">let </span>code = <span class="kw">match </span>cmd {
-            <span class="string">&quot;PUSH&quot; </span>=&gt; Push(tup[<span class="number">1</span>].clone().into_owned()),
-            <span class="string">&quot;DUP&quot; </span>=&gt; Dup,
-            <span class="string">&quot;EMPTY_STACK&quot; </span>=&gt; EmptyStack,
-            <span class="string">&quot;SWAP&quot; </span>=&gt; Swap,
-            <span class="string">&quot;POP&quot; </span>=&gt; Pop,
-            <span class="string">&quot;SUB&quot; </span>=&gt; Sub,
-            <span class="string">&quot;CONCAT&quot; </span>=&gt; Concat,
-            <span class="string">&quot;LOG_STACK&quot; </span>=&gt; LogStack,
+            <span class="string">"PUSH" </span>=&gt; Push(tup[<span class="number">1</span>].clone().into_owned()),
+            <span class="string">"DUP" </span>=&gt; Dup,
+            <span class="string">"EMPTY_STACK" </span>=&gt; EmptyStack,
+            <span class="string">"SWAP" </span>=&gt; Swap,
+            <span class="string">"POP" </span>=&gt; Pop,
+            <span class="string">"SUB" </span>=&gt; Sub,
+            <span class="string">"CONCAT" </span>=&gt; Concat,
+            <span class="string">"LOG_STACK" </span>=&gt; LogStack,
 
-            <span class="string">&quot;NEW_TRANSACTION&quot; </span>=&gt; NewTransaction,
-            <span class="string">&quot;USE_TRANSACTION&quot; </span>=&gt; UseTransaction,
-            <span class="string">&quot;ON_ERROR&quot; </span>=&gt; OnError,
-            <span class="string">&quot;GET&quot; </span>=&gt; Get,
-            <span class="string">&quot;GET_KEY&quot; </span>=&gt; GetKey,
-            <span class="string">&quot;GET_RANGE&quot; </span>=&gt; GetRange,
-            <span class="string">&quot;GET_READ_VERSION&quot; </span>=&gt; GetReadVersion,
-            <span class="string">&quot;GET_VERSIONSTAMP&quot; </span>=&gt; GetVersionstamp,
+            <span class="string">"NEW_TRANSACTION" </span>=&gt; NewTransaction,
+            <span class="string">"USE_TRANSACTION" </span>=&gt; UseTransaction,
+            <span class="string">"ON_ERROR" </span>=&gt; OnError,
+            <span class="string">"GET" </span>=&gt; Get,
+            <span class="string">"GET_KEY" </span>=&gt; GetKey,
+            <span class="string">"GET_RANGE" </span>=&gt; GetRange,
+            <span class="string">"GET_READ_VERSION" </span>=&gt; GetReadVersion,
+            <span class="string">"GET_VERSIONSTAMP" </span>=&gt; GetVersionstamp,
 
-            <span class="string">&quot;SET&quot; </span>=&gt; Set,
-            <span class="string">&quot;SET_READ_VERSION&quot; </span>=&gt; SetReadVersion,
-            <span class="string">&quot;CLEAR&quot; </span>=&gt; Clear,
-            <span class="string">&quot;CLEAR_RANGE&quot; </span>=&gt; ClearRange,
-            <span class="string">&quot;ATOMIC_OP&quot; </span>=&gt; AtomicOp,
-            <span class="string">&quot;READ_CONFLICT_RANGE&quot; </span>=&gt; ReadConflictRange,
-            <span class="string">&quot;WRITE_CONFLICT_RANGE&quot; </span>=&gt; WriteConflictRange,
-            <span class="string">&quot;READ_CONFLICT_KEY&quot; </span>=&gt; ReadConflictKey,
-            <span class="string">&quot;WRITE_CONFLICT_KEY&quot; </span>=&gt; WriteConflictKey,
-            <span class="string">&quot;DISABLE_WRITE_CONFLICT&quot; </span>=&gt; DisableWriteConflict,
-            <span class="string">&quot;COMMIT&quot; </span>=&gt; Commit,
-            <span class="string">&quot;RESET&quot; </span>=&gt; Reset,
-            <span class="string">&quot;CANCEL&quot; </span>=&gt; Cancel,
-            <span class="string">&quot;GET_COMMITTED_VERSION&quot; </span>=&gt; GetCommittedVersion,
-            <span class="string">&quot;GET_APPROXIMATE_SIZE&quot; </span>=&gt; GetApproximateSize,
-            <span class="string">&quot;WAIT_FUTURE&quot; </span>=&gt; WaitFuture,
-            <span class="string">&quot;GET_ESTIMATED_RANGE_SIZE&quot; </span>=&gt; GetEstimatedRangeSize,
-            <span class="string">&quot;GET_RANGE_SPLIT_POINTS&quot; </span>=&gt; GetRangeSplitPoints,
+            <span class="string">"SET" </span>=&gt; Set,
+            <span class="string">"SET_READ_VERSION" </span>=&gt; SetReadVersion,
+            <span class="string">"CLEAR" </span>=&gt; Clear,
+            <span class="string">"CLEAR_RANGE" </span>=&gt; ClearRange,
+            <span class="string">"ATOMIC_OP" </span>=&gt; AtomicOp,
+            <span class="string">"READ_CONFLICT_RANGE" </span>=&gt; ReadConflictRange,
+            <span class="string">"WRITE_CONFLICT_RANGE" </span>=&gt; WriteConflictRange,
+            <span class="string">"READ_CONFLICT_KEY" </span>=&gt; ReadConflictKey,
+            <span class="string">"WRITE_CONFLICT_KEY" </span>=&gt; WriteConflictKey,
+            <span class="string">"DISABLE_WRITE_CONFLICT" </span>=&gt; DisableWriteConflict,
+            <span class="string">"COMMIT" </span>=&gt; Commit,
+            <span class="string">"RESET" </span>=&gt; Reset,
+            <span class="string">"CANCEL" </span>=&gt; Cancel,
+            <span class="string">"GET_COMMITTED_VERSION" </span>=&gt; GetCommittedVersion,
+            <span class="string">"GET_APPROXIMATE_SIZE" </span>=&gt; GetApproximateSize,
+            <span class="string">"WAIT_FUTURE" </span>=&gt; WaitFuture,
+            <span class="string">"GET_ESTIMATED_RANGE_SIZE" </span>=&gt; GetEstimatedRangeSize,
+            <span class="string">"GET_RANGE_SPLIT_POINTS" </span>=&gt; GetRangeSplitPoints,
 
-            <span class="string">&quot;TUPLE_PACK&quot; </span>=&gt; TuplePack,
-            <span class="string">&quot;TUPLE_PACK_WITH_VERSIONSTAMP&quot; </span>=&gt; TuplePackWithVersionstamp,
-            <span class="string">&quot;TUPLE_UNPACK&quot; </span>=&gt; TupleUnpack,
-            <span class="string">&quot;TUPLE_RANGE&quot; </span>=&gt; TupleRange,
-            <span class="string">&quot;TUPLE_SORT&quot; </span>=&gt; TupleSort,
-            <span class="string">&quot;ENCODE_FLOAT&quot; </span>=&gt; EncodeFloat,
-            <span class="string">&quot;ENCODE_DOUBLE&quot; </span>=&gt; EncodeDouble,
-            <span class="string">&quot;DECODE_FLOAT&quot; </span>=&gt; DecodeFloat,
-            <span class="string">&quot;DECODE_DOUBLE&quot; </span>=&gt; DecodeDouble,
+            <span class="string">"TUPLE_PACK" </span>=&gt; TuplePack,
+            <span class="string">"TUPLE_PACK_WITH_VERSIONSTAMP" </span>=&gt; TuplePackWithVersionstamp,
+            <span class="string">"TUPLE_UNPACK" </span>=&gt; TupleUnpack,
+            <span class="string">"TUPLE_RANGE" </span>=&gt; TupleRange,
+            <span class="string">"TUPLE_SORT" </span>=&gt; TupleSort,
+            <span class="string">"ENCODE_FLOAT" </span>=&gt; EncodeFloat,
+            <span class="string">"ENCODE_DOUBLE" </span>=&gt; EncodeDouble,
+            <span class="string">"DECODE_FLOAT" </span>=&gt; DecodeFloat,
+            <span class="string">"DECODE_DOUBLE" </span>=&gt; DecodeDouble,
 
-            <span class="string">&quot;START_THREAD&quot; </span>=&gt; StartThread,
-            <span class="string">&quot;WAIT_EMPTY&quot; </span>=&gt; WaitEmpty,
+            <span class="string">"START_THREAD" </span>=&gt; StartThread,
+            <span class="string">"WAIT_EMPTY" </span>=&gt; WaitEmpty,
 
-            <span class="string">&quot;UNIT_TESTS&quot; </span>=&gt; UnitTests,
+            <span class="string">"UNIT_TESTS" </span>=&gt; UnitTests,
 
-            <span class="string">&quot;DIRECTORY_CREATE_SUBSPACE&quot; </span>=&gt; DirectoryCreateSubspace,
-            <span class="string">&quot;DIRECTORY_CREATE_LAYER&quot; </span>=&gt; DirectoryCreateLayer,
-            <span class="string">&quot;DIRECTORY_CREATE_OR_OPEN&quot; </span>=&gt; DirectoryCreateOrOpen,
-            <span class="string">&quot;DIRECTORY_CREATE&quot; </span>=&gt; DirectoryCreate,
-            <span class="string">&quot;DIRECTORY_OPEN&quot; </span>=&gt; DirectoryOpen,
+            <span class="string">"DIRECTORY_CREATE_SUBSPACE" </span>=&gt; DirectoryCreateSubspace,
+            <span class="string">"DIRECTORY_CREATE_LAYER" </span>=&gt; DirectoryCreateLayer,
+            <span class="string">"DIRECTORY_CREATE_OR_OPEN" </span>=&gt; DirectoryCreateOrOpen,
+            <span class="string">"DIRECTORY_CREATE" </span>=&gt; DirectoryCreate,
+            <span class="string">"DIRECTORY_OPEN" </span>=&gt; DirectoryOpen,
 
-            <span class="string">&quot;DIRECTORY_CHANGE&quot; </span>=&gt; DirectoryChange,
-            <span class="string">&quot;DIRECTORY_SET_ERROR_INDEX&quot; </span>=&gt; DirectorySetErrorIndex,
+            <span class="string">"DIRECTORY_CHANGE" </span>=&gt; DirectoryChange,
+            <span class="string">"DIRECTORY_SET_ERROR_INDEX" </span>=&gt; DirectorySetErrorIndex,
 
-            <span class="string">&quot;DIRECTORY_MOVE&quot; </span>=&gt; DirectoryMove,
-            <span class="string">&quot;DIRECTORY_MOVE_TO&quot; </span>=&gt; DirectoryMoveTo,
-            <span class="string">&quot;DIRECTORY_REMOVE&quot; </span>=&gt; DirectoryRemove,
-            <span class="string">&quot;DIRECTORY_REMOVE_IF_EXISTS&quot; </span>=&gt; DirectoryRemoveIfExists,
-            <span class="string">&quot;DIRECTORY_LIST&quot; </span>=&gt; DirectoryList,
-            <span class="string">&quot;DIRECTORY_EXISTS&quot; </span>=&gt; DirectoryExists,
+            <span class="string">"DIRECTORY_MOVE" </span>=&gt; DirectoryMove,
+            <span class="string">"DIRECTORY_MOVE_TO" </span>=&gt; DirectoryMoveTo,
+            <span class="string">"DIRECTORY_REMOVE" </span>=&gt; DirectoryRemove,
+            <span class="string">"DIRECTORY_REMOVE_IF_EXISTS" </span>=&gt; DirectoryRemoveIfExists,
+            <span class="string">"DIRECTORY_LIST" </span>=&gt; DirectoryList,
+            <span class="string">"DIRECTORY_EXISTS" </span>=&gt; DirectoryExists,
 
-            <span class="string">&quot;DIRECTORY_PACK_KEY&quot; </span>=&gt; DirectoryPackKey,
-            <span class="string">&quot;DIRECTORY_UNPACK_KEY&quot; </span>=&gt; DirectoryUnpackKey,
-            <span class="string">&quot;DIRECTORY_RANGE&quot; </span>=&gt; DirectoryRange,
-            <span class="string">&quot;DIRECTORY_CONTAINS&quot; </span>=&gt; DirectoryContains,
-            <span class="string">&quot;DIRECTORY_OPEN_SUBSPACE&quot; </span>=&gt; DirectoryOpenSubspace,
+            <span class="string">"DIRECTORY_PACK_KEY" </span>=&gt; DirectoryPackKey,
+            <span class="string">"DIRECTORY_UNPACK_KEY" </span>=&gt; DirectoryUnpackKey,
+            <span class="string">"DIRECTORY_RANGE" </span>=&gt; DirectoryRange,
+            <span class="string">"DIRECTORY_CONTAINS" </span>=&gt; DirectoryContains,
+            <span class="string">"DIRECTORY_OPEN_SUBSPACE" </span>=&gt; DirectoryOpenSubspace,
 
-            <span class="string">&quot;DIRECTORY_LOG_SUBSPACE&quot; </span>=&gt; DirectoryLogSubspace,
-            <span class="string">&quot;DIRECTORY_LOG_DIRECTORY&quot; </span>=&gt; DirectoryLogDirectory,
+            <span class="string">"DIRECTORY_LOG_SUBSPACE" </span>=&gt; DirectoryLogSubspace,
+            <span class="string">"DIRECTORY_LOG_DIRECTORY" </span>=&gt; DirectoryLogDirectory,
 
-            <span class="string">&quot;DIRECTORY_STRIP_PREFIX&quot; </span>=&gt; DirectoryStripPrefix,
+            <span class="string">"DIRECTORY_STRIP_PREFIX" </span>=&gt; DirectoryStripPrefix,
 
-            <span class="string">&quot;TENANT_CREATE&quot; </span>=&gt; TenantCreate,
-            <span class="string">&quot;TENANT_DELETE&quot; </span>=&gt; TenantDelete,
-            <span class="string">&quot;TENANT_SET_ACTIVE&quot; </span>=&gt; TenantSetActive,
-            <span class="string">&quot;TENANT_CLEAR_ACTIVE&quot; </span>=&gt; TenantClearActive,
-            <span class="string">&quot;TENANT_LIST&quot; </span>=&gt; TenantList,
+            <span class="string">"TENANT_CREATE" </span>=&gt; TenantCreate,
+            <span class="string">"TENANT_DELETE" </span>=&gt; TenantDelete,
+            <span class="string">"TENANT_SET_ACTIVE" </span>=&gt; TenantSetActive,
+            <span class="string">"TENANT_CLEAR_ACTIVE" </span>=&gt; TenantClearActive,
+            <span class="string">"TENANT_LIST" </span>=&gt; TenantList,
 
-            name =&gt; <span class="macro">unimplemented!</span>(<span class="string">&quot;inimplemented instr: {}&quot;</span>, name),
+            name =&gt; <span class="macro">unimplemented!</span>(<span class="string">"inimplemented instr: {}"</span>, name),
         };
         Instr {
             code,
@@ -3281,8 +3282,8 @@
 }
 
 <span class="kw">struct </span>StackResult {
-    state: <span class="prelude-ty">Option</span>&lt;(Bytes&lt;<span class="lifetime">&#39;static</span>&gt;, TransactionState)&gt;,
-    data: FdbResult&lt;Element&lt;<span class="lifetime">&#39;static</span>&gt;&gt;,
+    state: <span class="prelude-ty">Option</span>&lt;(Bytes&lt;<span class="lifetime">'static</span>&gt;, TransactionState)&gt;,
+    data: FdbResult&lt;Element&lt;<span class="lifetime">'static</span>&gt;&gt;,
 }
 <span class="kw">impl </span>From&lt;FdbError&gt; <span class="kw">for </span>StackResult {
     <span class="kw">fn </span>from(err: FdbError) -&gt; <span class="self">Self </span>{
@@ -3292,8 +3293,8 @@
         }
     }
 }
-<span class="kw">impl </span>From&lt;Element&lt;<span class="lifetime">&#39;static</span>&gt;&gt; <span class="kw">for </span>StackResult {
-    <span class="kw">fn </span>from(data: Element&lt;<span class="lifetime">&#39;static</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>From&lt;Element&lt;<span class="lifetime">'static</span>&gt;&gt; <span class="kw">for </span>StackResult {
+    <span class="kw">fn </span>from(data: Element&lt;<span class="lifetime">'static</span>&gt;) -&gt; <span class="self">Self </span>{
         StackResult {
             state: <span class="prelude-val">None</span>,
             data: <span class="prelude-val">Ok</span>(data),
@@ -3301,8 +3302,8 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;FdbResult&lt;Element&lt;<span class="lifetime">&#39;static</span>&gt;&gt;&gt; <span class="kw">for </span>StackResult {
-    <span class="kw">fn </span>from(data: FdbResult&lt;Element&lt;<span class="lifetime">&#39;static</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>From&lt;FdbResult&lt;Element&lt;<span class="lifetime">'static</span>&gt;&gt;&gt; <span class="kw">for </span>StackResult {
+    <span class="kw">fn </span>from(data: FdbResult&lt;Element&lt;<span class="lifetime">'static</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
         StackResult { state: <span class="prelude-val">None</span>, data }
     }
 }
@@ -3310,18 +3311,18 @@
 <span class="kw">type </span>StackFuture = Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = StackResult&gt;&gt;&gt;;
 <span class="kw">struct </span>StackItem {
     number: usize,
-    data: <span class="prelude-ty">Option</span>&lt;Element&lt;<span class="lifetime">&#39;static</span>&gt;&gt;,
+    data: <span class="prelude-ty">Option</span>&lt;Element&lt;<span class="lifetime">'static</span>&gt;&gt;,
     fut: <span class="prelude-ty">Option</span>&lt;(usize, StackFuture)&gt;,
 }
 
 <span class="kw">impl </span>StackItem {
-    <span class="kw">async fn </span>await_fut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(Bytes&lt;<span class="lifetime">&#39;static</span>&gt;, TransactionState)&gt; {
+    <span class="kw">async fn </span>await_fut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(Bytes&lt;<span class="lifetime">'static</span>&gt;, TransactionState)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ret = <span class="prelude-val">None</span>;
         <span class="kw">if let </span><span class="prelude-val">Some</span>((_id, fut)) = <span class="self">self</span>.fut.take() {
             <span class="kw">let </span>StackResult { state, <span class="kw-2">mut </span>data } = fut.<span class="kw">await</span>;
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>((name, state)) = state {
-                <span class="macro">trace!</span>(<span class="string">&quot;{:?} = {:?}&quot;</span>, name, state);
+                <span class="macro">trace!</span>(<span class="string">"{:?} = {:?}"</span>, name, state);
                 <span class="kw">match </span>state {
                     TransactionState::TransactionCommitError(e) =&gt; {
                         <span class="kw">let </span>err = FdbError::from_code(e.code());
@@ -3335,10 +3336,10 @@
             }
 
             <span class="kw">let </span>data = data.unwrap_or_else(|err| {
-                <span class="macro">trace!</span>(<span class="string">&quot;ERROR {:?}&quot;</span>, err);
+                <span class="macro">trace!</span>(<span class="string">"ERROR {:?}"</span>, err);
                 <span class="kw">let </span>packed = pack(<span class="kw-2">&amp;</span>(
-                    Bytes::from(<span class="string">b&quot;ERROR&quot;</span>.as_ref()),
-                    Bytes::from(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, err.code()).into_bytes()),
+                    Bytes::from(<span class="string">b"ERROR"</span>.as_ref()),
+                    Bytes::from(<span class="macro">format!</span>(<span class="string">"{}"</span>, err.code()).into_bytes()),
                 ));
                 Element::Bytes(packed.into())
             });
@@ -3352,7 +3353,7 @@
 <span class="kw">impl </span>Clone <span class="kw">for </span>StackItem {
     <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span><span class="self">self</span>.fut.is_some() {
-            <span class="macro">panic!</span>(<span class="string">&quot;cannot clone future stack item&quot;</span>);
+            <span class="macro">panic!</span>(<span class="string">"cannot clone future stack item"</span>);
         }
         <span class="self">Self </span>{
             number: <span class="self">self</span>.number,
@@ -3364,11 +3365,11 @@
 
 <span class="kw">impl </span>std::fmt::Debug <span class="kw">for </span>StackItem {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, fmt: <span class="kw-2">&amp;mut </span>std::fmt::Formatter) -&gt; std::fmt::Result {
-        <span class="macro">write!</span>(fmt, <span class="string">&quot;[item num={}, data={:?}]&quot;</span>, <span class="self">self</span>.number, <span class="self">self</span>.data)
+        <span class="macro">write!</span>(fmt, <span class="string">"[item num={}, data={:?}]"</span>, <span class="self">self</span>.number, <span class="self">self</span>.data)
     }
 }
 
-<span class="kw">fn </span>range(prefix: Bytes) -&gt; (Bytes&lt;<span class="lifetime">&#39;static</span>&gt;, Bytes&lt;<span class="lifetime">&#39;static</span>&gt;) {
+<span class="kw">fn </span>range(prefix: Bytes) -&gt; (Bytes&lt;<span class="lifetime">'static</span>&gt;, Bytes&lt;<span class="lifetime">'static</span>&gt;) {
     <span class="kw">let </span>begin = prefix.clone().into_owned();
     <span class="kw">let </span>end = strinc(prefix).into_owned();
 
@@ -3388,12 +3389,12 @@
         <span class="kw">use </span>TransactionState <span class="kw">as </span>S;
 
         <span class="kw">match </span><span class="self">self </span>{
-            S::Transaction(..) =&gt; <span class="string">&quot;Transaction&quot;</span>,
-            S::TransactionCancelled(..) =&gt; <span class="string">&quot;TransactionCancelled&quot;</span>,
-            S::TransactionCommitted(..) =&gt; <span class="string">&quot;TransactionCommitted&quot;</span>,
-            S::TransactionCommitError(..) =&gt; <span class="string">&quot;TransactionCommitError&quot;</span>,
-            S::Pending(..) =&gt; <span class="string">&quot;Pending&quot;</span>,
-            S::Dead =&gt; <span class="string">&quot;Dead&quot;</span>,
+            S::Transaction(..) =&gt; <span class="string">"Transaction"</span>,
+            S::TransactionCancelled(..) =&gt; <span class="string">"TransactionCancelled"</span>,
+            S::TransactionCommitted(..) =&gt; <span class="string">"TransactionCommitted"</span>,
+            S::TransactionCommitError(..) =&gt; <span class="string">"TransactionCommitError"</span>,
+            S::Pending(..) =&gt; <span class="string">"Pending"</span>,
+            S::Dead =&gt; <span class="string">"Dead"</span>,
         }
         .fmt(f)
     }
@@ -3419,7 +3420,7 @@
                 <span class="comment">// rust binding prevent accessing cancelled transaction
                 </span><span class="kw-2">&amp;mut *</span>(tr <span class="kw">as </span><span class="kw-2">*mut </span>TransactionCancelled <span class="kw">as </span><span class="kw-2">*mut </span>Transaction)
             },
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;transaction is owned by a future that is still not done&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"transaction is owned by a future that is still not done"</span>),
         }
     }
 
@@ -3439,17 +3440,17 @@
                     </span>std::mem::transmute(tr)
                 }
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;transaction is owned by a future that is still not done&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"transaction is owned by a future that is still not done"</span>),
         }
     }
 }
 
 <span class="kw">struct </span>StackMachine {
-    prefix: Bytes&lt;<span class="lifetime">&#39;static</span>&gt;,
+    prefix: Bytes&lt;<span class="lifetime">'static</span>&gt;,
 
     <span class="comment">// A global transaction map from byte string to Transactions. This map is shared by all tester
-    // &#39;threads&#39;.
-    </span>transactions: HashMap&lt;Bytes&lt;<span class="lifetime">&#39;static</span>&gt;, TransactionState&gt;,
+    // 'threads'.
+    </span>transactions: HashMap&lt;Bytes&lt;<span class="lifetime">'static</span>&gt;, TransactionState&gt;,
 
     <span class="comment">// A stack of data items of mixed types and their associated metadata. At a minimum, each item
     // should be stored with the 0-based instruction number which resulted in it being put onto the
@@ -3459,7 +3460,7 @@
 
     <span class="comment">// A current FDB transaction name (stored as a byte string). The transaction name should be
     // initialized to the prefix that instructions are being read from.
-    </span>cur_transaction: Bytes&lt;<span class="lifetime">&#39;static</span>&gt;,
+    </span>cur_transaction: Bytes&lt;<span class="lifetime">'static</span>&gt;,
 
     <span class="comment">// A last seen FDB version, which is a 64-bit integer.
     </span>last_version: i64,
@@ -3486,11 +3487,11 @@
             </span>key.remove(i);
         }
     }
-    <span class="macro">panic!</span>(<span class="string">&quot;failed to strinc&quot;</span>);
+    <span class="macro">panic!</span>(<span class="string">"failed to strinc"</span>);
 }
 
 <span class="kw">impl </span>StackMachine {
-    <span class="kw">fn </span>new(db: <span class="kw-2">&amp;</span>Database, prefix: Bytes&lt;<span class="lifetime">&#39;static</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(db: <span class="kw-2">&amp;</span>Database, prefix: Bytes&lt;<span class="lifetime">'static</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>cur_transaction = prefix.clone();
         <span class="kw">let </span><span class="kw-2">mut </span>transactions = HashMap::new();
         transactions.insert(
@@ -3521,7 +3522,7 @@
 
     <span class="kw">async fn </span>fetch_instr(<span class="kw-2">&amp;</span><span class="self">self</span>, trx: <span class="kw-2">&amp;</span>Transaction) -&gt; FdbResult&lt;Vec&lt;Instr&gt;&gt; {
         <span class="kw">let </span>opt = RangeOption::from(<span class="kw-2">&amp;</span>Subspace::from(<span class="kw-2">&amp;</span><span class="self">self</span>.prefix));
-        <span class="macro">debug!</span>(<span class="string">&quot;opt = {:?}&quot;</span>, opt);
+        <span class="macro">debug!</span>(<span class="string">"opt = {:?}"</span>, opt);
         <span class="kw">let </span>instrs = Vec::new();
         trx.get_ranges(opt, <span class="bool-val">false</span>)
             .try_fold(instrs, |<span class="kw-2">mut </span>instrs, res| {
@@ -3535,7 +3536,7 @@
     </span>}
 
     <span class="kw">async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; StackItem {
-        <span class="kw">let </span><span class="kw-2">mut </span>item = <span class="self">self</span>.stack.pop().expect(<span class="string">&quot;stack empty&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>item = <span class="self">self</span>.stack.pop().expect(<span class="string">"stack empty"</span>);
         <span class="kw">if let </span><span class="prelude-val">Some</span>((name, state)) = item.await_fut().<span class="kw">await </span>{
             <span class="self">self</span>.transactions.insert(name, state);
         }
@@ -3554,36 +3555,36 @@
         <span class="kw">let </span>element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
         <span class="kw">match </span>element {
             Element::Int(v) =&gt; v,
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;i64 was expected, found {:?}&quot;</span>, element),
+            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"i64 was expected, found {:?}"</span>, element),
         }
     }
 
     <span class="kw">async fn </span>pop_i32(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; i32 {
-        i32::try_from(<span class="self">self</span>.pop_i64().<span class="kw">await</span>).expect(<span class="string">&quot;i64 to fit in i32&quot;</span>)
+        i32::try_from(<span class="self">self</span>.pop_i64().<span class="kw">await</span>).expect(<span class="string">"i64 to fit in i32"</span>)
     }
 
     <span class="kw">async fn </span>pop_usize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; usize {
-        usize::try_from(<span class="self">self</span>.pop_i64().<span class="kw">await</span>).expect(<span class="string">&quot;i64 to fit in usize&quot;</span>)
+        usize::try_from(<span class="self">self</span>.pop_i64().<span class="kw">await</span>).expect(<span class="string">"i64 to fit in usize"</span>)
     }
 
     <span class="kw">async fn </span>pop_str(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; String {
         <span class="kw">let </span>element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
         <span class="kw">match </span>element {
             Element::String(v) =&gt; v.into_owned(),
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;string was expected, found {:?}&quot;</span>, element),
+            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"string was expected, found {:?}"</span>, element),
         }
     }
 
-    <span class="kw">async fn </span>pop_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Bytes&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">async fn </span>pop_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Bytes&lt;<span class="lifetime">'static</span>&gt; {
         <span class="kw">let </span>element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
         <span class="kw">match </span>element {
             Element::Bytes(v) =&gt; v,
             <span class="comment">// checking nested bytes in a Tuple as well
             </span>Element::Tuple(elements) =&gt; <span class="kw">match </span>elements.get(<span class="number">0</span>) {
                 <span class="prelude-val">Some</span>(Element::Bytes(b)) =&gt; b.clone(),
-                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;bytes were expected, found a Tuple with no Bytes in it&quot;</span>),
+                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"bytes were expected, found a Tuple with no Bytes in it"</span>),
             },
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;bytes were expected, found {:?}&quot;</span>, element),
+            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"bytes were expected, found {:?}"</span>, element),
         }
     }
 
@@ -3613,15 +3614,15 @@
         result
     }
 
-    <span class="kw">async fn </span>pop_element(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Element&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">async fn </span>pop_element(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Element&lt;<span class="lifetime">'static</span>&gt; {
         <span class="kw">let </span>item = <span class="self">self</span>.pop().<span class="kw">await</span>;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = item.data {
             <span class="kw">return </span>data;
         }
-        <span class="macro">panic!</span>(<span class="string">&quot;no data&quot;</span>);
+        <span class="macro">panic!</span>(<span class="string">"no data"</span>);
     }
 
-    <span class="kw">async fn </span>pop_selector(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; KeySelector&lt;<span class="lifetime">&#39;static</span>&gt; {
+    <span class="kw">async fn </span>pop_selector(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; KeySelector&lt;<span class="lifetime">'static</span>&gt; {
         <span class="kw">let </span>key: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
         <span class="kw">let </span>or_equal: i32 = i32::try_from(<span class="self">self</span>.pop_i64().<span class="kw">await</span>).unwrap();
         <span class="kw">let </span>offset: i32 = i32::try_from(<span class="self">self</span>.pop_i64().<span class="kw">await</span>).unwrap();
@@ -3629,7 +3630,7 @@
         KeySelector::new(key.<span class="number">0</span>, or_equal != <span class="number">0</span>, offset)
     }
 
-    <span class="kw">fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, number: usize, data: Element&lt;<span class="lifetime">&#39;static</span>&gt;) {
+    <span class="kw">fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, number: usize, data: Element&lt;<span class="lifetime">'static</span>&gt;) {
         <span class="self">self</span>.stack.push(StackItem {
             number,
             data: <span class="prelude-val">Some</span>(data),
@@ -3654,7 +3655,7 @@
     }
 
     <span class="kw">fn </span>push_directory_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, code: <span class="kw-2">&amp;</span>InstrCode, number: usize, err: DirectoryError) {
-        <span class="macro">debug!</span>(<span class="string">&quot;[{}] DIRECTORY_ERROR during {:?}: {:?}&quot;</span>, number, code, err);
+        <span class="macro">debug!</span>(<span class="string">"[{}] DIRECTORY_ERROR during {:?}: {:?}"</span>, number, code, err);
         <span class="self">self</span>.push(number, Element::Tuple(<span class="macro">vec!</span>[ERROR_DIRECTORY.clone()]));
 
         <span class="kw">if </span><span class="macro">matches!</span>(
@@ -3669,7 +3670,7 @@
                 | InstrCode::DirectoryOpenSubspace
         ) {
             <span class="macro">debug!</span>(
-                <span class="string">&quot;pushed NULL in the directory_stack at index {} because of the error&quot;</span>,
+                <span class="string">"pushed NULL in the directory_stack at index {} because of the error"</span>,
                 <span class="self">self</span>.directory_stack.len()
             );
             <span class="self">self</span>.directory_stack.push(DirectoryStackItem::Null);
@@ -3677,10 +3678,10 @@
     }
 
     <span class="kw">fn </span>push_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, number: usize, err: FdbError) {
-        <span class="macro">trace!</span>(<span class="string">&quot;ERROR {:?}&quot;</span>, err);
+        <span class="macro">trace!</span>(<span class="string">"ERROR {:?}"</span>, err);
         <span class="kw">let </span>packed = pack(<span class="kw-2">&amp;</span>Element::Tuple(<span class="macro">vec!</span>[
-            Element::Bytes(Bytes::from(<span class="string">b&quot;ERROR&quot;</span>.as_ref())),
-            Element::Bytes(Bytes::from(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, err.code()).into_bytes())),
+            Element::Bytes(Bytes::from(<span class="string">b"ERROR"</span>.as_ref())),
+            Element::Bytes(Bytes::from(<span class="macro">format!</span>(<span class="string">"{}"</span>, err.code()).into_bytes())),
         ]));
         <span class="self">self</span>.push(number, Element::Bytes(packed.into()));
     }
@@ -3707,7 +3708,7 @@
         <span class="kw">let </span>is_db = instr.pop_database();
         <span class="kw">let </span>is_tenant = instr.pop_tenant();
         <span class="kw">if </span>is_tenant {
-            <span class="macro">unimplemented!</span>(<span class="string">&quot;{}&quot;</span>, is_tenant);
+            <span class="macro">unimplemented!</span>(<span class="string">"{}"</span>, is_tenant);
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>mutation = <span class="bool-val">false</span>;
@@ -3722,7 +3723,7 @@
             <span class="kw">let </span><span class="kw-2">mut </span>trx = <span class="self">self
                 </span>.transactions
                 .remove(<span class="kw-2">&amp;</span><span class="self">self</span>.cur_transaction) <span class="comment">// some instr requires transaction ownership
-                </span>.expect(<span class="string">&quot;failed to find trx&quot;</span>);
+                </span>.expect(<span class="string">"failed to find trx"</span>);
             <span class="kw">if let </span>TransactionState::Pending(id) = trx {
                 <span class="kw">let </span>stack_item = <span class="self">self</span>.stack.iter_mut().find(|s| <span class="kw">match </span>s.fut {
                     <span class="prelude-val">Some</span>((trx_id, ..)) =&gt; trx_id == id,
@@ -3741,20 +3742,20 @@
         <span class="kw">match </span>instr.code {
             <span class="comment">// Pushes the provided item onto the stack.
             </span>Push(<span class="kw-2">ref </span>element) =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;push {:?}&quot;</span>, element);
+                <span class="macro">debug!</span>(<span class="string">"push {:?}"</span>, element);
                 <span class="self">self</span>.push(number, element.clone())
             }
             <span class="comment">// Duplicates the top item on the stack. The instruction number for
             // the duplicate item should be the same as the original.
             </span>Dup =&gt; {
                 <span class="kw">let </span>top = <span class="self">self</span>.pop().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;dup {:?}&quot;</span>, top);
+                <span class="macro">debug!</span>(<span class="string">"dup {:?}"</span>, top);
                 <span class="self">self</span>.stack.push(top.clone());
                 <span class="self">self</span>.stack.push(top);
             }
             <span class="comment">// Discards all items in the stack.
             </span>EmptyStack =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;empty_stack&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"empty_stack"</span>);
                 <span class="self">self</span>.stack.clear()
             }
             <span class="comment">// Pops the top item off of the stack as INDEX.
@@ -3764,18 +3765,18 @@
                 <span class="kw">let </span>depth: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
                 <span class="macro">assert!</span>(
                     depth &lt; <span class="self">self</span>.stack.len(),
-                    <span class="string">&quot;swap index invalid {} &gt;= {}&quot;</span>,
+                    <span class="string">"swap index invalid {} &gt;= {}"</span>,
                     depth,
                     <span class="self">self</span>.stack.len()
                 );
                 <span class="kw">let </span>depth_0 = <span class="self">self</span>.stack.len() - <span class="number">1</span>;
                 <span class="kw">let </span>depth = depth_0 - depth;
-                <span class="macro">debug!</span>(<span class="string">&quot;swap {} {}&quot;</span>, depth_0, depth);
+                <span class="macro">debug!</span>(<span class="string">"swap {} {}"</span>, depth_0, depth);
                 <span class="self">self</span>.stack.swap(depth_0, depth);
             }
             <span class="comment">// Pops and discards the top item on the stack.
             </span>Pop =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;pop&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"pop"</span>);
                 <span class="self">self</span>.pop().<span class="kw">await</span>;
             }
             <span class="comment">// Pops the top two items off of the stack as A and B and then
@@ -3784,7 +3785,7 @@
             </span>Sub =&gt; {
                 <span class="kw">let </span>a = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
                 <span class="kw">let </span>b = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;sub {:?} - {:?}&quot;</span>, a, b);
+                <span class="macro">debug!</span>(<span class="string">"sub {:?} - {:?}"</span>, a, b);
                 <span class="kw">let </span>c = <span class="kw">match </span>(a, b) {
                     <span class="comment">// checking for possible overflow
                     </span>(Element::Int(a), Element::Int(b)) =&gt; <span class="kw">match </span>a.checked_sub(b) {
@@ -3796,7 +3797,7 @@
                     (Element::BigInt(a), Element::BigInt(b)) =&gt; Element::BigInt(a - b),
                     (Element::Int(a), Element::BigInt(b)) =&gt; Element::BigInt(a - b),
                     (Element::BigInt(a), Element::Int(b)) =&gt; Element::BigInt(a - b),
-                    (a, b) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;sub between invalid elements {:?} {:?}&quot;</span>, a, b),
+                    (a, b) =&gt; <span class="macro">panic!</span>(<span class="string">"sub between invalid elements {:?} {:?}"</span>, a, b),
                 };
                 <span class="self">self</span>.push(number, c);
             }
@@ -3807,10 +3808,10 @@
             </span>Concat =&gt; {
                 <span class="kw">let </span>a = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
                 <span class="kw">let </span>b = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;concat {:?} {:?}&quot;</span>, a, b);
+                <span class="macro">debug!</span>(<span class="string">"concat {:?} {:?}"</span>, a, b);
                 <span class="kw">let </span>c = <span class="kw">match </span>(a, b) {
                     (Element::String(a), Element::String(b)) =&gt; {
-                        Element::String(<span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>, a, b).into())
+                        Element::String(<span class="macro">format!</span>(<span class="string">"{}{}"</span>, a, b).into())
                     }
                     (Element::Bytes(a), Element::Bytes(b)) =&gt; {
                         <span class="kw">let </span><span class="kw-2">mut </span>bytes = Vec::new();
@@ -3818,7 +3819,7 @@
                         bytes.extend_from_slice(<span class="kw-2">&amp;</span>b);
                         Element::Bytes(bytes.into())
                     }
-                    (a, b) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;concat between invalid elements {:?} {:?}&quot;</span>, a, b),
+                    (a, b) =&gt; <span class="macro">panic!</span>(<span class="string">"concat between invalid elements {:?} {:?}"</span>, a, b),
                 };
                 <span class="self">self</span>.push(number, c);
             }
@@ -3866,14 +3867,14 @@
             // under the currently used transaction name.
             </span>NewTransaction =&gt; {
                 <span class="kw">let </span>name = <span class="self">self</span>.cur_transaction.clone();
-                <span class="macro">debug!</span>(<span class="string">&quot;create_trx {:?} tenant={}&quot;</span>, name, <span class="self">self</span>.tenant.is_some());
+                <span class="macro">debug!</span>(<span class="string">"create_trx {:?} tenant={}"</span>, name, <span class="self">self</span>.tenant.is_some());
 
                 <span class="kw">let </span>trx = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.tenant {
                     <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.check(number, db.create_trx())<span class="question-mark">?</span>,
                     <span class="prelude-val">Some</span>(tenant) =&gt; <span class="self">self</span>.check(number, tenant.create_trx())<span class="question-mark">?</span>,
                 };
                 trx.set_option(fdb::options::TransactionOption::DebugTransactionIdentifier(
-                    <span class="string">&quot;RUST&quot;</span>.to_string(),
+                    <span class="string">"RUST"</span>.to_string(),
                 ))
                 .unwrap();
                 trx.set_option(fdb::options::TransactionOption::LogTransaction)
@@ -3888,7 +3889,7 @@
             // transaction should be inserted.
             </span>UseTransaction =&gt; {
                 <span class="kw">let </span>name: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;use_transaction {:?}&quot;</span>, name);
+                <span class="macro">debug!</span>(<span class="string">"use_transaction {:?}"</span>, name);
                 <span class="kw">if </span>!<span class="self">self</span>.transactions.contains_key(<span class="kw-2">&amp;</span>name) {
                     <span class="kw">let </span>trx = <span class="self">self</span>.check(number, db.create_trx())<span class="question-mark">?</span>;
                     <span class="self">self</span>.transactions
@@ -3905,7 +3906,7 @@
                 <span class="kw">let </span>trx_name = trx_name.cloned();
                 <span class="kw">let </span>error_code: i32 = <span class="self">self</span>.pop_i32().<span class="kw">await</span>;
                 <span class="kw">let </span>error = FdbError::from_code(error_code);
-                <span class="macro">debug!</span>(<span class="string">&quot;on_error {:?}&quot;</span>, error);
+                <span class="macro">debug!</span>(<span class="string">"on_error {:?}"</span>, error);
                 <span class="kw">let </span>trx_id = <span class="self">self</span>.next_trx_id();
                 <span class="kw">let </span>f = trx
                     .take(trx_id)
@@ -3927,7 +3928,7 @@
             // stack.
             </span>Get =&gt; {
                 <span class="kw">let </span>key: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;get {:?}&quot;</span>, key);
+                <span class="macro">debug!</span>(<span class="string">"get {:?}"</span>, key);
                 <span class="kw">let </span>f = trx
                     .as_mut()
                     .get(<span class="kw-2">&amp;</span>key, instr.pop_snapshot())
@@ -3950,7 +3951,7 @@
             </span>GetKey =&gt; {
                 <span class="kw">let </span>selector = <span class="self">self</span>.pop_selector().<span class="kw">await</span>;
                 <span class="kw">let </span>prefix: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;get_key {:?}, prefix = {:?}&quot;</span>, selector, prefix);
+                <span class="macro">debug!</span>(<span class="string">"get_key {:?}, prefix = {:?}"</span>, selector, prefix);
 
                 <span class="kw">let </span>f = trx
                     .as_mut()
@@ -4024,7 +4025,7 @@
                 <span class="kw">let </span>streaming_mode: i32 = <span class="self">self</span>.pop_i32().<span class="kw">await</span>;
                 <span class="kw">let </span>mode = streaming_from_value(streaming_mode);
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;get_range begin={:?}\n, begin={:?}\n, end={:?}\n,end={:?}\n, limit={:?}, rev={:?}, mode={:?}&quot;</span>,
+                    <span class="string">"get_range begin={:?}\n, begin={:?}\n, end={:?}\n,end={:?}\n, limit={:?}, rev={:?}, mode={:?}"</span>,
                     begin,
                     unpack::&lt;Element&gt;(begin.key()),
                     end,
@@ -4059,7 +4060,7 @@
                         <span class="kw">for </span>kv <span class="kw">in </span>kvs.iter() {
                             <span class="kw">let </span>key = kv.key();
                             <span class="kw">let </span>value = kv.value();
-                            <span class="macro">debug!</span>(<span class="string">&quot; - {:?} {:?}&quot;</span>, Bytes::from(key), Bytes::from(value));
+                            <span class="macro">debug!</span>(<span class="string">" - {:?} {:?}"</span>, Bytes::from(key), Bytes::from(value));
                             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>prefix) = prefix {
                                 <span class="kw">if </span>!key.starts_with(prefix) {
                                     <span class="kw">continue</span>;
@@ -4079,7 +4080,7 @@
             }
 
             <span class="comment">// Gets the current read version and stores it in the internal stack machine
-            // state as the last seen version. Pushed the string &quot;GOT_READ_VERSION&quot; onto
+            // state as the last seen version. Pushed the string "GOT_READ_VERSION" onto
             // the stack.
             </span>GetReadVersion =&gt; {
                 <span class="kw">let </span>_snapshot = instr.pop_snapshot();
@@ -4111,7 +4112,7 @@
             </span>Set =&gt; {
                 <span class="kw">let </span>key: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>value: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;set {:?} {:?}&quot;</span>, key, value);
+                <span class="macro">debug!</span>(<span class="string">"set {:?} {:?}"</span>, key, value);
                 trx.as_mut().set(<span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>value);
                 mutation = <span class="bool-val">true</span>;
             }
@@ -4119,7 +4120,7 @@
             <span class="comment">// Sets the current transaction read version to the internal state machine last
             // seen version.
             </span>SetReadVersion =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;set_read_version {:?}&quot;</span>, <span class="self">self</span>.last_version);
+                <span class="macro">debug!</span>(<span class="string">"set_read_version {:?}"</span>, <span class="self">self</span>.last_version);
                 trx.as_mut().set_read_version(<span class="self">self</span>.last_version);
             }
 
@@ -4127,7 +4128,7 @@
             // database. A CLEAR_DATABASE call may optionally push a future onto the stack.
             </span>Clear =&gt; {
                 <span class="kw">let </span>key: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;clear {:?}&quot;</span>, key);
+                <span class="macro">debug!</span>(<span class="string">"clear {:?}"</span>, key);
                 trx.as_mut().clear(<span class="kw-2">&amp;</span>key);
                 mutation = <span class="bool-val">true</span>;
             }
@@ -4151,7 +4152,7 @@
                     <span class="kw">let </span>end: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                     (begin, end)
                 };
-                <span class="macro">debug!</span>(<span class="string">&quot;clear_range {:?} {:?}&quot;</span>, begin, end);
+                <span class="macro">debug!</span>(<span class="string">"clear_range {:?} {:?}"</span>, begin, end);
                 trx.as_mut().clear_range(<span class="kw-2">&amp;</span>begin, <span class="kw-2">&amp;</span>end);
                 mutation = <span class="bool-val">true</span>;
             }
@@ -4163,7 +4164,7 @@
                 <span class="kw">let </span>optype: String = <span class="self">self</span>.pop_str().<span class="kw">await</span>;
                 <span class="kw">let </span>key: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>value: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;atomic_op {:?} {:?} {:?}&quot;</span>, key, value, optype);
+                <span class="macro">debug!</span>(<span class="string">"atomic_op {:?} {:?} {:?}"</span>, key, value, optype);
 
                 <span class="kw">let </span>op = mutation_from_str(<span class="kw-2">&amp;</span>optype);
                 trx.as_mut().atomic_op(<span class="kw-2">&amp;</span>key, <span class="kw-2">&amp;</span>value, op);
@@ -4172,60 +4173,60 @@
 
             <span class="comment">// Pops the top two items off of the stack as BEGIN_KEY and END_KEY. Adds a
             // read conflict range or write conflict range from BEGIN_KEY to END_KEY.
-            // Pushes the byte string &quot;SET_CONFLICT_RANGE&quot; onto the stack.
+            // Pushes the byte string "SET_CONFLICT_RANGE" onto the stack.
             </span>ReadConflictRange =&gt; {
                 <span class="kw">let </span>begin: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>end: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;read_conflict_range {:?} {:?}&quot;</span>, begin, end);
+                <span class="macro">debug!</span>(<span class="string">"read_conflict_range {:?} {:?}"</span>, begin, end);
                 <span class="self">self</span>.push_res(
                     number,
                     trx.as_mut()
                         .add_conflict_range(<span class="kw-2">&amp;</span>begin, <span class="kw-2">&amp;</span>end, ConflictRangeType::Read),
-                    <span class="string">b&quot;SET_CONFLICT_RANGE&quot;</span>,
+                    <span class="string">b"SET_CONFLICT_RANGE"</span>,
                 );
             }
             WriteConflictRange =&gt; {
                 <span class="kw">let </span>begin: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>end: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;write_conflict_range {:?} {:?}&quot;</span>, begin, end);
+                <span class="macro">debug!</span>(<span class="string">"write_conflict_range {:?} {:?}"</span>, begin, end);
                 <span class="self">self</span>.push_res(
                     number,
                     trx.as_mut()
                         .add_conflict_range(<span class="kw-2">&amp;</span>begin, <span class="kw-2">&amp;</span>end, ConflictRangeType::Write),
-                    <span class="string">b&quot;SET_CONFLICT_RANGE&quot;</span>,
+                    <span class="string">b"SET_CONFLICT_RANGE"</span>,
                 );
             }
             <span class="comment">// Pops the top item off of the stack as KEY. Adds KEY as a read conflict key
-            // or write conflict key. Pushes the byte string &quot;SET_CONFLICT_KEY&quot; onto the
+            // or write conflict key. Pushes the byte string "SET_CONFLICT_KEY" onto the
             // stack.
             </span>ReadConflictKey =&gt; {
                 <span class="kw">let </span>begin: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>end = begin.clone().into_owned();
                 end.push(<span class="number">0</span>);
-                <span class="macro">debug!</span>(<span class="string">&quot;read_conflict_key {:?} {:?}&quot;</span>, begin, end);
+                <span class="macro">debug!</span>(<span class="string">"read_conflict_key {:?} {:?}"</span>, begin, end);
                 <span class="self">self</span>.push_res(
                     number,
                     trx.as_mut()
                         .add_conflict_range(<span class="kw-2">&amp;</span>begin, <span class="kw-2">&amp;</span>end, ConflictRangeType::Read),
-                    <span class="string">b&quot;SET_CONFLICT_KEY&quot;</span>,
+                    <span class="string">b"SET_CONFLICT_KEY"</span>,
                 );
             }
             WriteConflictKey =&gt; {
                 <span class="kw">let </span>begin: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>end = begin.clone().into_owned();
                 end.push(<span class="number">0</span>);
-                <span class="macro">debug!</span>(<span class="string">&quot;write_conflict_key {:?} {:?}&quot;</span>, begin, end);
+                <span class="macro">debug!</span>(<span class="string">"write_conflict_key {:?} {:?}"</span>, begin, end);
                 <span class="self">self</span>.push_res(
                     number,
                     trx.as_mut()
                         .add_conflict_range(<span class="kw-2">&amp;</span>begin, <span class="kw-2">&amp;</span>end, ConflictRangeType::Write),
-                    <span class="string">b&quot;SET_CONFLICT_KEY&quot;</span>,
+                    <span class="string">b"SET_CONFLICT_KEY"</span>,
                 );
             }
             <span class="comment">// Sets the NEXT_WRITE_NO_WRITE_CONFLICT_RANGE transaction option on the
             // current transaction. Does not modify the stack.
             </span>DisableWriteConflict =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;disable_write_conflict&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"disable_write_conflict"</span>);
                 <span class="self">self</span>.check(
                     number,
                     trx.as_mut()
@@ -4235,7 +4236,7 @@
             <span class="comment">// Commits the current transaction (with no retry behavior). May optionally
             // push a future onto the stack.
             </span>Commit =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;commit&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"commit"</span>);
                 <span class="kw">let </span>trx_name = trx_name.cloned();
                 <span class="kw">let </span>trx_id = <span class="self">self</span>.next_trx_id();
                 <span class="kw">let </span>f = trx
@@ -4261,48 +4262,48 @@
             }
             <span class="comment">// Resets the current transaction.
             </span>Reset =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;reset&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"reset"</span>);
                 trx.as_mut().reset();
             }
             <span class="comment">// Cancels the current transaction.
             </span>Cancel =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;cancel&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"cancel"</span>);
                 <span class="kw">let </span>cancelled = trx.take(<span class="number">0</span>).cancel();
                 trx = TransactionState::TransactionCancelled(cancelled);
             }
 
             <span class="comment">// Gets the committed version from the current transaction and stores it in the
             // internal stack machine state as the last seen version. Pushes the byte
-            // string &quot;GOT_COMMITTED_VERSION&quot; onto the stack.
+            // string "GOT_COMMITTED_VERSION" onto the stack.
             </span>GetCommittedVersion =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;committed_version&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"committed_version"</span>);
                 <span class="kw">if let </span>TransactionState::TransactionCommitted(t) = <span class="kw-2">&amp;</span>trx {
                     <span class="kw">let </span>last_version = t
                         .committed_version()
-                        .expect(<span class="string">&quot;failed to get committed version&quot;</span>);
+                        .expect(<span class="string">"failed to get committed version"</span>);
                     <span class="self">self</span>.last_version = last_version;
                     <span class="self">self</span>.push(number, GOT_COMMITTED_VERSION.clone().into_owned());
                 } <span class="kw">else </span>{
-                    <span class="macro">warn!</span>(<span class="string">&quot;committed_version() called on a non commited transaction&quot;</span>);
+                    <span class="macro">warn!</span>(<span class="string">"committed_version() called on a non commited transaction"</span>);
                     <span class="self">self</span>.last_version = -<span class="number">1</span>;
                     <span class="self">self</span>.push(number, GOT_COMMITTED_VERSION.clone().into_owned());
                 }
             }
 
-            <span class="comment">// Calls get_approximate_size and pushes the byte string &quot;GOT_APPROXIMATE_SIZE&quot;
+            <span class="comment">// Calls get_approximate_size and pushes the byte string "GOT_APPROXIMATE_SIZE"
             // onto the stack. Note bindings may issue GET_RANGE calls with different
             // limits, so these bindings can obtain different sizes back.
             </span>GetApproximateSize =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;get_approximate_size&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"get_approximate_size"</span>);
                 trx.as_mut()
                     .get_approximate_size()
                     .<span class="kw">await
-                    </span>.expect(<span class="string">&quot;failed to get approximate size&quot;</span>);
+                    </span>.expect(<span class="string">"failed to get approximate size"</span>);
                 <span class="self">self</span>.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned());
             }
 
             GetRangeSplitPoints =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;get_range_split_points&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"get_range_split_points"</span>);
                 <span class="kw">let </span>begin: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>end: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>chunk_size = <span class="self">self</span>.pop_i64().<span class="kw">await</span>;
@@ -4324,7 +4325,7 @@
             // result of the future and pushing the result on the stack. Does not change
             // the instruction number of the item.
             </span>WaitFuture =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;wait_future&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"wait_future"</span>);
                 <span class="kw">let </span>item = <span class="self">self</span>.pop().<span class="kw">await</span>;
                 <span class="self">self</span>.stack.push(item);
             }
@@ -4332,9 +4333,9 @@
             <span class="comment">// Pops the top two items off of the stack as BEGIN_KEY and END_KEY to
             // construct a key range. Then call the `getEstimatedRangeSize` API of
             // the language binding. Make sure the API returns without error. Finally
-            // push the string &quot;GOT_ESTIMATED_RANGE_SIZE&quot; onto the stack.
+            // push the string "GOT_ESTIMATED_RANGE_SIZE" onto the stack.
             </span>GetEstimatedRangeSize =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;get estimated range size&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"get estimated range size"</span>);
                 <span class="kw">let </span>begin = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>end = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
 
@@ -4344,7 +4345,7 @@
                     .<span class="kw">await
                 </span>{
                     <span class="prelude-val">Ok</span>(estimate) =&gt; {
-                        <span class="macro">debug!</span>(<span class="string">&quot;got an estimate of {} bytes&quot;</span>, estimate);
+                        <span class="macro">debug!</span>(<span class="string">"got an estimate of {} bytes"</span>, estimate);
                         <span class="self">self</span>.push(number, ESTIMATE_RANGE_RESPONSE.clone().into_owned());
                     }
                     <span class="prelude-val">Err</span>(error) =&gt; {
@@ -4358,11 +4359,11 @@
             // this single packed value onto the stack.
             </span>TuplePack =&gt; {
                 <span class="kw">let </span>n: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;tuple_pack {}&quot;</span>, n);
+                <span class="macro">debug!</span>(<span class="string">"tuple_pack {}"</span>, n);
                 <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::new();
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>element: Element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                    <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                     buf.push(element);
                 }
                 <span class="kw">let </span>tuple = Element::Tuple(buf);
@@ -4375,19 +4376,19 @@
             // append the position of the first incomplete versionstamp as if the byte
             // string were to be used as a key in a SET_VERSIONSTAMP_KEY atomic op. If there
             // are no incomplete versionstamp instances, then this pushes the literal byte
-            // string &#39;ERROR: NONE&#39; to the stack. If there is more than one, then this pushes
-            // the literal byte string &#39;ERROR: MULTIPLE&#39;. If there is exactly one, then it pushes
-            // the literal byte string &#39;OK&#39; and then pushes the packed tuple. (Languages that
-            // do not contain a &#39;Versionstamp&#39; tuple-type do not have to implement this
+            // string 'ERROR: NONE' to the stack. If there is more than one, then this pushes
+            // the literal byte string 'ERROR: MULTIPLE'. If there is exactly one, then it pushes
+            // the literal byte string 'OK' and then pushes the packed tuple. (Languages that
+            // do not contain a 'Versionstamp' tuple-type do not have to implement this
             // operation.)
             </span>TuplePackWithVersionstamp =&gt; {
                 <span class="kw">let </span>prefix = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>n: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;tuple_pack_with_versionstamp {:?} {}&quot;</span>, prefix, n);
+                <span class="macro">debug!</span>(<span class="string">"tuple_pack_with_versionstamp {:?} {}"</span>, prefix, n);
                 <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::new();
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>element: Element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                    <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                     buf.push(element);
                 }
 
@@ -4418,10 +4419,10 @@
             // onto the stack.
             </span>TupleUnpack =&gt; {
                 <span class="kw">let </span>data = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;tuple_unpack {:?}&quot;</span>, data);
+                <span class="macro">debug!</span>(<span class="string">"tuple_unpack {:?}"</span>, data);
                 <span class="kw">let </span>data: Vec&lt;Element&gt; = unpack(<span class="kw-2">&amp;</span>data).unwrap();
                 <span class="kw">for </span>element <span class="kw">in </span>data {
-                    <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                     <span class="self">self</span>.push(number, Element::Bytes(pack(<span class="kw-2">&amp;</span>(element,)).into()));
                 }
             }
@@ -4431,7 +4432,7 @@
             // the returned range onto the stack.
             </span>TupleRange =&gt; {
                 <span class="kw">let </span>n: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;tuple_range {:?}&quot;</span>, n);
+                <span class="macro">debug!</span>(<span class="string">"tuple_range {:?}"</span>, n);
                 <span class="kw">let </span><span class="kw-2">mut </span>tup = Vec::new();
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
@@ -4453,18 +4454,18 @@
             // their byte representation. The choice of function should not affect final sort order.
             </span>TupleSort =&gt; {
                 <span class="kw">let </span>n: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;tuple_sort {:?}&quot;</span>, n);
+                <span class="macro">debug!</span>(<span class="string">"tuple_sort {:?}"</span>, n);
                 <span class="kw">let </span><span class="kw-2">mut </span>tup = Vec::&lt;Element&gt;::new();
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>packed = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                     <span class="kw">let </span>element: Element = unpack(<span class="kw-2">&amp;</span>packed).unwrap();
-                    <span class="macro">debug!</span>(<span class="string">&quot;- {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">"- {:?}"</span>, element);
                     tup.push(element.into_owned());
                 }
                 tup.sort();
-                <span class="macro">debug!</span>(<span class="string">&quot;tuple_sorted&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"tuple_sorted"</span>);
                 <span class="kw">for </span>element <span class="kw">in </span>tup {
-                    <span class="macro">debug!</span>(<span class="string">&quot;- {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">"- {:?}"</span>, element);
                     <span class="self">self</span>.push(number, Element::Bytes(pack(<span class="kw-2">&amp;</span>element).into()));
                 }
             }
@@ -4474,7 +4475,7 @@
             // This is then converted into a float and pushed onto the stack.
             </span>EncodeFloat =&gt; {
                 <span class="kw">let </span>bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;encode_float {:?}&quot;</span>, bytes);
+                <span class="macro">debug!</span>(<span class="string">"encode_float {:?}"</span>, bytes);
                 <span class="kw">let </span><span class="kw-2">mut </span>arr = [<span class="number">0</span>; <span class="number">4</span>];
                 arr.copy_from_slice(<span class="kw-2">&amp;</span>bytes);
                 <span class="kw">let </span>f = f32::from_bits(u32::from_be_bytes(arr));
@@ -4485,7 +4486,7 @@
             // This is then converted into a double and pushed onto the stack.
             </span>EncodeDouble =&gt; {
                 <span class="kw">let </span>bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;encode_double {:?}&quot;</span>, bytes);
+                <span class="macro">debug!</span>(<span class="string">"encode_double {:?}"</span>, bytes);
                 <span class="kw">let </span><span class="kw-2">mut </span>arr = [<span class="number">0</span>; <span class="number">8</span>];
                 arr.copy_from_slice(<span class="kw-2">&amp;</span>bytes);
                 <span class="kw">let </span>f = f64::from_bits(u64::from_be_bytes(arr));
@@ -4497,9 +4498,9 @@
             </span>DecodeFloat =&gt; {
                 <span class="kw">let </span>f: f32 = <span class="kw">match </span><span class="self">self</span>.pop_element().<span class="kw">await </span>{
                     Element::Float(v) =&gt; v,
-                    element =&gt; <span class="macro">panic!</span>(<span class="string">&quot;float was expected, found {:?}&quot;</span>, element),
+                    element =&gt; <span class="macro">panic!</span>(<span class="string">"float was expected, found {:?}"</span>, element),
                 };
-                <span class="macro">debug!</span>(<span class="string">&quot;decode_float {}&quot;</span>, f);
+                <span class="macro">debug!</span>(<span class="string">"decode_float {}"</span>, f);
                 <span class="self">self</span>.push(
                     number,
                     Element::Bytes(f.to_bits().to_be_bytes().to_vec().into()),
@@ -4511,9 +4512,9 @@
             </span>DecodeDouble =&gt; {
                 <span class="kw">let </span>f: f64 = <span class="kw">match </span><span class="self">self</span>.pop_element().<span class="kw">await </span>{
                     Element::Double(v) =&gt; v,
-                    element =&gt; <span class="macro">panic!</span>(<span class="string">&quot;double was expected, found {:?}&quot;</span>, element),
+                    element =&gt; <span class="macro">panic!</span>(<span class="string">"double was expected, found {:?}"</span>, element),
                 };
-                <span class="macro">debug!</span>(<span class="string">&quot;decode_double {}&quot;</span>, f);
+                <span class="macro">debug!</span>(<span class="string">"decode_double {}"</span>, f);
                 <span class="self">self</span>.push(
                     number,
                     Element::Bytes(f.to_bits().to_be_bytes().to_vec().into()),
@@ -4527,16 +4528,16 @@
             // with the current stack machine through a language-appropriate mechanism.
             </span>StartThread =&gt; {
                 <span class="kw">let </span>prefix = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;start_thread {:?}&quot;</span>, prefix);
+                <span class="macro">debug!</span>(<span class="string">"start_thread {:?}"</span>, prefix);
                 <span class="kw">let </span>db = db.clone();
                 <span class="self">self</span>.threads.push(
                     thread::Builder::new()
-                        .name(<span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, prefix))
+                        .name(<span class="macro">format!</span>(<span class="string">"{:?}"</span>, prefix))
                         .spawn(<span class="kw">move </span>|| {
                             <span class="kw">let </span><span class="kw-2">mut </span>sm = StackMachine::new(<span class="kw-2">&amp;</span>db, prefix.clone());
                             futures::executor::block_on(sm.run(db)).unwrap();
                             sm.join();
-                            <span class="macro">debug!</span>(<span class="string">&quot;thread {:?} exit&quot;</span>, prefix);
+                            <span class="macro">debug!</span>(<span class="string">"thread {:?} exit"</span>, prefix);
                         })
                         .unwrap(),
                 );
@@ -4546,11 +4547,11 @@
             // range with prefix PREFIX is not present in the database. This should be
             // implemented as a polling loop inside of a language- and binding-appropriate
             // retryable construct which synthesizes FoundationDB error 1020 when the range
-            // is not empty. Pushes the string &quot;WAITED_FOR_EMPTY&quot; onto the stack when
+            // is not empty. Pushes the string "WAITED_FOR_EMPTY" onto the stack when
             // complete.
             </span>WaitEmpty =&gt; {
                 <span class="kw">let </span>prefix = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;wait_empty {:?}&quot;</span>, prefix);
+                <span class="macro">debug!</span>(<span class="string">"wait_empty {:?}"</span>, prefix);
                 <span class="kw">let </span>(begin, end) = range(prefix);
 
                 <span class="kw">async fn </span>wait_for_empty(
@@ -4562,7 +4563,7 @@
                         .get_range(<span class="kw-2">&amp;</span>RangeOption::from((begin, end)), <span class="number">1</span>, <span class="bool-val">false</span>)
                         .<span class="kw">await</span><span class="question-mark">?</span>;
 
-                    <span class="macro">debug!</span>(<span class="string">&quot;wait_empty {:?} range {}&quot;</span>, Bytes::from(begin), range.len());
+                    <span class="macro">debug!</span>(<span class="string">"wait_empty {:?} range {}"</span>, Bytes::from(begin), range.len());
                     <span class="kw">if </span>range.len() != <span class="number">0 </span>{
                         <span class="kw">return </span><span class="prelude-val">Err</span>(FdbError::from_code(<span class="number">1020</span>));
                     }
@@ -4583,8 +4584,8 @@
                 <span class="kw">async fn </span>unit_test(db: <span class="kw-2">&amp;</span>fdb::Database, tr: <span class="kw-2">&amp;mut </span>fdb::Transaction) -&gt; FdbResult&lt;()&gt; {
                     db.set_option(DatabaseOption::LocationCacheSize(<span class="number">100_001</span>))<span class="question-mark">?</span>;
                     db.set_option(DatabaseOption::MaxWatches(<span class="number">100_001</span>))<span class="question-mark">?</span>;
-                    db.set_option(DatabaseOption::DatacenterId(<span class="string">&quot;dc_id&quot;</span>.to_string()))<span class="question-mark">?</span>;
-                    db.set_option(DatabaseOption::MachineId(<span class="string">&quot;machine_id&quot;</span>.to_string()))<span class="question-mark">?</span>;
+                    db.set_option(DatabaseOption::DatacenterId(<span class="string">"dc_id"</span>.to_string()))<span class="question-mark">?</span>;
+                    db.set_option(DatabaseOption::MachineId(<span class="string">"machine_id"</span>.to_string()))<span class="question-mark">?</span>;
                     db.set_option(DatabaseOption::TransactionTimeout(<span class="number">100_000</span>))<span class="question-mark">?</span>;
                     db.set_option(DatabaseOption::TransactionTimeout(<span class="number">0</span>))<span class="question-mark">?</span>;
                     db.set_option(DatabaseOption::TransactionTimeout(<span class="number">0</span>))<span class="question-mark">?</span>;
@@ -4606,13 +4607,13 @@
                     tr.set_option(TransactionOption::MaxRetryDelay(<span class="number">100</span>))<span class="question-mark">?</span>;
                     tr.set_option(TransactionOption::UsedDuringCommitProtectionDisable)<span class="question-mark">?</span>;
                     tr.set_option(TransactionOption::DebugTransactionIdentifier(
-                        <span class="string">&quot;my_transaction&quot;</span>.to_string(),
+                        <span class="string">"my_transaction"</span>.to_string(),
                     ))<span class="question-mark">?</span>;
                     tr.set_option(TransactionOption::LogTransaction)<span class="question-mark">?</span>;
                     tr.set_option(TransactionOption::ReadLockAware)<span class="question-mark">?</span>;
                     tr.set_option(TransactionOption::LockAware)<span class="question-mark">?</span>;
 
-                    tr.get(<span class="string">b&quot;\xff&quot;</span>, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+                    tr.get(<span class="string">b"\xff"</span>, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
 
                     <span class="prelude-val">Ok</span>(())
                 }
@@ -4639,7 +4640,7 @@
                 <span class="kw">let </span>subspace = Subspace::from_bytes(raw_prefix.into_owned())
                     .subspace(tuple_prefix.get(<span class="number">0</span>).unwrap());
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;pushing a new subspace {:?} at index {}&quot;</span>,
+                    <span class="string">"pushing a new subspace {:?} at index {}"</span>,
                     <span class="kw-2">&amp;</span>subspace,
                     <span class="self">self</span>.directory_stack.len()
                 );
@@ -4666,7 +4667,7 @@
 
                 <span class="kw">if </span>node_subspace.is_none() || content_subspace.is_none() {
                     <span class="macro">error!</span>(
-                        <span class="string">&quot;pushing null on the directory list: {}, {}&quot;</span>,
+                        <span class="string">"pushing null on the directory list: {}, {}"</span>,
                         node_subspace.is_some(),
                         content_subspace.is_some()
                     );
@@ -4674,15 +4675,15 @@
                 } <span class="kw">else </span>{
                     <span class="kw">let </span>node_subspace = <span class="kw">match </span>node_subspace.unwrap() {
                         DirectoryStackItem::Subspace(s) =&gt; s.to_owned(),
-                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;expecting subspace&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"expecting subspace"</span>),
                     };
 
                     <span class="kw">let </span>content_subspace = <span class="kw">match </span>content_subspace.unwrap() {
                         DirectoryStackItem::Subspace(s) =&gt; s.to_owned(),
-                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;expecting subspace&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"expecting subspace"</span>),
                     };
 
-                    <span class="macro">debug!</span>(<span class="string">&quot;pushed a directory at index {}&quot;</span>, <span class="self">self</span>.directory_stack.len());
+                    <span class="macro">debug!</span>(<span class="string">"pushed a directory at index {}"</span>, <span class="self">self</span>.directory_stack.len());
 
                     <span class="self">self</span>.directory_stack
                         .push(DirectoryStackItem::Directory(DirectoryLayer::new(
@@ -4696,7 +4697,7 @@
             <span class="comment">// Pop 1 tuple off the stack as [path]. Pop 2 additional items as
             // [layer, prefix]. create a directory with the specified path, layer,
             // and prefix. If either of layer or prefix is null, use the default value for
-            // that parameter (layer=&#39;&#39;, prefix=null).
+            // that parameter (layer='', prefix=null).
             </span>DirectoryCreate =&gt; {
                 <span class="kw">let </span>path = <span class="self">self</span>.pop_string_tuple(<span class="number">1</span>).<span class="kw">await</span>;
                 <span class="kw">let </span>layer = <span class="self">self</span>.pop_optional_bytes().<span class="kw">await</span>;
@@ -4704,7 +4705,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -4712,13 +4713,13 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;creating path {:?} with layer {:?} and prefix {:?} using directory at index {}&quot;</span>,
+                    <span class="string">"creating path {:?} with layer {:?} and prefix {:?} using directory at index {}"</span>,
                     path.get(<span class="number">0</span>).unwrap(),
                     <span class="kw-2">&amp;</span>layer,
                     <span class="kw-2">&amp;</span>prefix,
@@ -4736,14 +4737,14 @@
                 </span>{
                     <span class="prelude-val">Ok</span>(directory_subspace) =&gt; {
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;pushing DirectoryOutput at index {}&quot;</span>,
+                            <span class="string">"pushing DirectoryOutput at index {}"</span>,
                             <span class="self">self</span>.directory_stack.len()
                         );
                         <span class="self">self</span>.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(directory_subspace));
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -4754,7 +4755,7 @@
 
             <span class="comment">// Pop 1 tuple off the stack as [path]. Pop 1 additional item as [layer]. Open
             // a directory with the specified path and layer. If layer is null, use the
-            // default value (layer=&#39;&#39;).
+            // default value (layer='').
             </span>DirectoryOpen =&gt; {
                 <span class="kw">let </span>path = <span class="self">self</span>.pop_string_tuple(<span class="number">1</span>).<span class="kw">await</span>;
                 <span class="kw">let </span>bytes_layer = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
@@ -4767,7 +4768,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -4775,13 +4776,13 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;opening path {:?} with layer {:?} with index {}&quot;</span>,
+                    <span class="string">"opening path {:?} with layer {:?} with index {}"</span>,
                     path.get(<span class="number">0</span>).unwrap(),
                     <span class="kw-2">&amp;</span>layer,
                     <span class="self">self</span>.directory_index
@@ -4793,15 +4794,15 @@
                 </span>{
                     <span class="prelude-val">Ok</span>(directory_subspace) =&gt; {
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;pushing newly opened DirectoryOutput at index {}&quot;</span>,
+                            <span class="string">"pushing newly opened DirectoryOutput at index {}"</span>,
                             <span class="self">self</span>.directory_stack.len()
                         );
                         <span class="self">self</span>.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(directory_subspace));
 
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -4814,7 +4815,7 @@
             //
             // Pop 1 tuple off the stack as [path]. Pop 1 additional item as [layer]. Open
             // a directory with the specified path and layer. If layer is null, use the
-            // default value (layer=&#39;&#39;).
+            // default value (layer='').
             </span>DirectoryCreateOrOpen =&gt; {
                 <span class="kw">let </span>path = <span class="self">self</span>.pop_string_tuple(<span class="number">1</span>).<span class="kw">await</span>;
                 <span class="kw">let </span>bytes_layer = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
@@ -4827,7 +4828,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -4835,13 +4836,13 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;create_or_open path {:?} with layer {:?} with index {}&quot;</span>,
+                    <span class="string">"create_or_open path {:?} with layer {:?} with index {}"</span>,
                     path.get(<span class="number">0</span>).unwrap(),
                     <span class="kw-2">&amp;</span>layer,
                     <span class="self">self</span>.directory_index
@@ -4852,15 +4853,15 @@
                 </span>{
                     <span class="prelude-val">Ok</span>(directory_subspace) =&gt; {
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;pushing created_or_opened {:?} at index {}&quot;</span>,
+                            <span class="string">"pushing created_or_opened {:?} at index {}"</span>,
                             <span class="kw-2">&amp;</span>directory_subspace,
                             <span class="self">self</span>.directory_stack.len()
                         );
                         <span class="self">self</span>.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(directory_subspace));
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; <span class="self">self</span>.push_directory_err(<span class="kw-2">&amp;</span>instr.code, number, e),
@@ -4873,12 +4874,12 @@
             // error index.
             </span>DirectoryChange =&gt; {
                 <span class="self">self</span>.directory_index = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;setting directory_index to {}&quot;</span>, <span class="self">self</span>.directory_index);
+                <span class="macro">debug!</span>(<span class="string">"setting directory_index to {}"</span>, <span class="self">self</span>.directory_index);
                 <span class="kw">match </span><span class="self">self</span>.directory_stack.get(<span class="self">self</span>.directory_index) {
                     <span class="prelude-val">None </span>=&gt; {
                         <span class="self">self</span>.directory_index = <span class="self">self</span>.error_index;
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;setting directory_index to error index {}: no directory found&quot;</span>,
+                            <span class="string">"setting directory_index to error index {}: no directory found"</span>,
                             <span class="self">self</span>.directory_index
                         );
                     }
@@ -4886,7 +4887,7 @@
                         <span class="kw">if let </span>DirectoryStackItem::Null = d {
                             <span class="self">self</span>.directory_index = <span class="self">self</span>.error_index;
                             <span class="macro">debug!</span>(
-                                <span class="string">&quot;setting directory_index to error index {}: because it is Null&quot;</span>,
+                                <span class="string">"setting directory_index to error index {}: because it is Null"</span>,
                                 <span class="self">self</span>.directory_index
                             );
                         }
@@ -4909,7 +4910,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -4917,13 +4918,13 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;moving {:?} to {:?} using directory at index {}&quot;</span>,
+                    <span class="string">"moving {:?} to {:?} using directory at index {}"</span>,
                     paths.get(<span class="number">0</span>).unwrap(),
                     paths.get(<span class="number">1</span>).unwrap(),
                     <span class="self">self</span>.directory_index
@@ -4935,15 +4936,15 @@
                 </span>{
                     <span class="prelude-val">Ok</span>(s) =&gt; {
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;pushing moved directory {:?} at index {}&quot;</span>,
+                            <span class="string">"pushing moved directory {:?} at index {}"</span>,
                             <span class="kw-2">&amp;</span>s,
                             <span class="self">self</span>.directory_stack.len()
                         );
                         <span class="self">self</span>.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(s));
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -4961,7 +4962,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -4969,31 +4970,31 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;moving directory {:?} to {:?}&quot;</span>,
+                    <span class="string">"moving directory {:?} to {:?}"</span>,
                     <span class="self">self</span>.directory_index, <span class="kw-2">&amp;</span>paths
                 );
 
                 <span class="kw">match </span>directory
-                    .move_directory(txn, paths.get(<span class="number">0</span>).expect(<span class="string">&quot;popped tuple has no item&quot;</span>))
+                    .move_directory(txn, paths.get(<span class="number">0</span>).expect(<span class="string">"popped tuple has no item"</span>))
                     .<span class="kw">await
                 </span>{
                     <span class="prelude-val">Ok</span>(s) =&gt; {
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;pushing moved directory {:?} at index {}&quot;</span>,
+                            <span class="string">"pushing moved directory {:?} at index {}"</span>,
                             <span class="kw-2">&amp;</span>s,
                             <span class="self">self</span>.directory_stack.len()
                         );
                         <span class="self">self</span>.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(s));
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -5013,7 +5014,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -5021,14 +5022,14 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
-                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">&quot;could not retrieve a path&quot;</span>);
+                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>);
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;removing path {:?} using directory at index {}&quot;</span>,
+                    <span class="string">"removing path {:?} using directory at index {}"</span>,
                     paths, <span class="self">self</span>.directory_index
                 );
                 <span class="kw">match </span>directory.remove(txn, paths).<span class="kw">await </span>{
@@ -5037,10 +5038,10 @@
                             <span class="self">self</span>.push_directory_err(
                                 <span class="kw-2">&amp;</span>instr.code,
                                 number,
-                                DirectoryError::Other(String::from(<span class="string">&quot;directory does not exists&quot;</span>)),
+                                DirectoryError::Other(String::from(<span class="string">"directory does not exists"</span>)),
                             );
                         } <span class="kw">else if </span>is_db {
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -5060,7 +5061,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -5068,16 +5069,16 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
-                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">&quot;could not retrieve a path&quot;</span>);
+                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>);
                 <span class="kw">match </span>directory.remove_if_exists(txn, paths).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
                         <span class="kw">if </span>is_db {
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="self">self</span>.push_directory_err(<span class="kw-2">&amp;</span>instr.code, number, err),
@@ -5095,7 +5096,7 @@
                 <span class="kw">let </span>paths = <span class="kw">match </span>count {
                     <span class="number">1 </span>=&gt; {
                         <span class="kw">let </span>paths = <span class="self">self</span>.pop_string_tuple(count).<span class="kw">await</span>;
-                        paths.get(<span class="number">0</span>).expect(<span class="string">&quot;could not retrieve a path&quot;</span>).clone()
+                        paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>).clone()
                     }
                     <span class="number">0 </span>=&gt; <span class="macro">vec!</span>[],
                     <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(),
@@ -5103,17 +5104,17 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db
                     .create_trx()
-                    .expect(<span class="string">&quot;could not create a local transaction&quot;</span>);
+                    .expect(<span class="string">"could not create a local transaction"</span>);
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
                     <span class="bool-val">true </span>=&gt; <span class="kw-2">&amp;</span>local_trx,
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
@@ -5122,21 +5123,21 @@
                     <span class="prelude-val">Ok</span>(children) =&gt; {
                         <span class="kw">let </span><span class="kw-2">mut </span>elements: Vec&lt;Element&gt; = <span class="macro">vec!</span>[];
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;found {} items under path {:?} with directory at index {}:&quot;</span>,
+                            <span class="string">"found {} items under path {:?} with directory at index {}:"</span>,
                             children.len(),
                             paths,
                             <span class="self">self</span>.directory_index
                         );
                         <span class="kw">for </span>child <span class="kw">in </span>children {
-                            <span class="macro">debug!</span>(<span class="string">&quot;\t - {}&quot;</span>, <span class="kw-2">&amp;</span>child);
+                            <span class="macro">debug!</span>(<span class="string">"\t - {}"</span>, <span class="kw-2">&amp;</span>child);
                             <span class="kw">let </span>element = Element::String(Cow::from(child));
                             elements.push(element);
                         }
                         <span class="kw">let </span>tuple = Element::Tuple(elements);
                         <span class="self">self</span>.push(number, Element::Bytes(Bytes::from(tuple.pack_to_vec())));
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -5157,7 +5158,7 @@
 
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>local_trx = db.create_trx().unwrap();
                 <span class="kw">let </span>txn = <span class="kw">match </span>is_db {
@@ -5165,18 +5166,18 @@
                     <span class="bool-val">false </span>=&gt; <span class="kw">match </span>trx {
                         TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                         <span class="kw">_ </span>=&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                            <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                         }
                     },
                 };
 
-                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">&quot;could not retrieve a path&quot;</span>);
+                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>);
                 <span class="kw">match </span>directory.exists(txn, paths).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(exists) =&gt; {
                         <span class="self">self</span>.push(number, Element::Int(i64::from(exists)));
                         <span class="kw">if </span>is_db {
-                            <span class="macro">debug!</span>(<span class="string">&quot;commiting local trx&quot;</span>);
-                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">&quot;could not commit&quot;</span>);
+                            <span class="macro">debug!</span>(<span class="string">"commiting local trx"</span>);
+                            local_trx.commit().<span class="kw">await</span>.expect(<span class="string">"could not commit"</span>);
                         }
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
@@ -5191,11 +5192,11 @@
             // onto the stack.
             </span>DirectoryPackKey =&gt; {
                 <span class="kw">let </span>n: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;DirectoryPackKey {}&quot;</span>, n);
+                <span class="macro">debug!</span>(<span class="string">"DirectoryPackKey {}"</span>, n);
                 <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::with_capacity(n);
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>element: Element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                    <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                     buf.push(element);
                 }
 
@@ -5205,7 +5206,7 @@
                     <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.push_directory_err(
                         <span class="kw-2">&amp;</span>instr.code,
                         number,
-                        DirectoryError::Other(String::from(<span class="string">&quot;cannot pack with current item&quot;</span>)),
+                        DirectoryError::Other(String::from(<span class="string">"cannot pack with current item"</span>)),
                     ),
                     <span class="prelude-val">Some</span>(bytes) =&gt; {
                         <span class="self">self</span>.push(number, Element::Bytes(bytes.into()));
@@ -5220,19 +5221,19 @@
             </span>DirectoryUnpackKey =&gt; {
                 <span class="kw">let </span>data = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>data = data.to_vec();
-                <span class="macro">debug!</span>(<span class="string">&quot;directory_unpack {:?}&quot;</span>, data);
+                <span class="macro">debug!</span>(<span class="string">"directory_unpack {:?}"</span>, data);
                 <span class="kw">match </span><span class="self">self</span>.unpack_with_current_subspace(<span class="kw-2">&amp;</span>data) {
                     <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.push_directory_err(
                         <span class="kw-2">&amp;</span>instr.code,
                         number,
                         DirectoryError::Other(String::from(
-                            <span class="string">&quot;Cannot unpack with Directory Partition&quot;</span>,
+                            <span class="string">"Cannot unpack with Directory Partition"</span>,
                         )),
                     ),
                     <span class="prelude-val">Some</span>(packed) =&gt; {
                         <span class="kw">let </span>data: Vec&lt;Element&gt; = packed.unwrap();
                         <span class="kw">for </span>element <span class="kw">in </span>data {
-                            <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                            <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                             <span class="self">self</span>.push(number, Element::Tuple(<span class="macro">vec!</span>[element.into_owned()]));
                         }
                     }
@@ -5248,7 +5249,7 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::with_capacity(n);
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>element: Element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                    <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                     buf.push(element);
                 }
 
@@ -5260,7 +5261,7 @@
                             <span class="kw-2">&amp;</span>instr.code,
                             number,
                             DirectoryError::Other(String::from(
-                                <span class="string">&quot;operation not allowed on directoryPartition&quot;</span>,
+                                <span class="string">"operation not allowed on directoryPartition"</span>,
                             )),
                         );
                     }
@@ -5272,7 +5273,7 @@
                                     <span class="kw-2">&amp;</span>instr.code,
                                     number,
                                     DirectoryError::Other(String::from(
-                                        <span class="string">&quot;operation not allowed on directoryPartition&quot;</span>,
+                                        <span class="string">"operation not allowed on directoryPartition"</span>,
                                     )),
                                 );
                             }
@@ -5289,7 +5290,7 @@
             <span class="comment">// Use the current directory for this operation.
             //
             // Pop 1 item off the stack as [key]. Check if the current directory contains
-            // the specified key. Push 1 if it does and 0 if it doesn&#39;t.
+            // the specified key. Push 1 if it does and 0 if it doesn't.
             </span>DirectoryContains =&gt; {
                 <span class="kw">let </span>raw_prefix = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>maybe_contains = <span class="kw">match </span><span class="self">self</span>.get_current_directory_item() {
@@ -5304,7 +5305,7 @@
                     <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.push_directory_err(
                         <span class="kw-2">&amp;</span>instr.code,
                         number,
-                        DirectoryError::Other(String::from(<span class="string">&quot;cannot perform contains&quot;</span>)),
+                        DirectoryError::Other(String::from(<span class="string">"cannot perform contains"</span>)),
                     ),
                     <span class="prelude-val">Some</span>(bool) =&gt; <span class="self">self</span>.push(number, Element::Int(bool <span class="kw">as </span>i64)),
                 }
@@ -5316,11 +5317,11 @@
             // directory specified by tuple and push it onto the directory list.
             </span>DirectoryOpenSubspace =&gt; {
                 <span class="kw">let </span>n: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;DirectoryRange {}&quot;</span>, n);
+                <span class="macro">debug!</span>(<span class="string">"DirectoryRange {}"</span>, n);
                 <span class="kw">let </span><span class="kw-2">mut </span>buf = Vec::with_capacity(n);
                 <span class="kw">for _ in </span><span class="number">0</span>..n {
                     <span class="kw">let </span>element: Element = <span class="self">self</span>.pop_element().<span class="kw">await</span>;
-                    <span class="macro">debug!</span>(<span class="string">&quot; - {:?}&quot;</span>, element);
+                    <span class="macro">debug!</span>(<span class="string">" - {:?}"</span>, element);
                     buf.push(element);
                 }
 
@@ -5329,7 +5330,7 @@
                     <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.push_directory_err(
                         <span class="kw-2">&amp;</span>instr.code,
                         number,
-                        DirectoryError::Other(String::from(<span class="string">&quot;Cannot subspace with current item&quot;</span>)),
+                        DirectoryError::Other(String::from(<span class="string">"Cannot subspace with current item"</span>)),
                     ),
                     <span class="prelude-val">Some</span>(s) =&gt; <span class="self">self</span>.directory_stack.push(DirectoryStackItem::Subspace(s)),
                 }
@@ -5342,7 +5343,7 @@
             // directory.key() in the current transaction.
             </span>DirectoryLogSubspace =&gt; {
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;logging subspace {}/{}&quot;</span>,
+                    <span class="string">"logging subspace {}/{}"</span>,
                     <span class="self">self</span>.directory_index,
                     <span class="self">self</span>.directory_stack.len()
                 );
@@ -5350,23 +5351,23 @@
                 <span class="kw">let </span>txn = <span class="kw">match </span>trx {
                     TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                     <span class="kw">_ </span>=&gt; {
-                        <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                        <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                     }
                 };
                 <span class="kw">let </span>key = Subspace::from_bytes(raw_prefix.into_owned()).pack(<span class="kw-2">&amp;</span><span class="self">self</span>.directory_index);
 
                 <span class="kw">match </span><span class="self">self</span>.directory_stack.get(<span class="self">self</span>.directory_index) {
-                    <span class="prelude-val">None </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;nothing in the stack&quot;</span>),
-                    <span class="prelude-val">Some</span>(DirectoryStackItem::Null) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Directory is NULL&quot;</span>),
+                    <span class="prelude-val">None </span>=&gt; <span class="macro">panic!</span>(<span class="string">"nothing in the stack"</span>),
+                    <span class="prelude-val">Some</span>(DirectoryStackItem::Null) =&gt; <span class="macro">panic!</span>(<span class="string">"Directory is NULL"</span>),
                     <span class="prelude-val">Some</span>(DirectoryStackItem::Directory(<span class="kw">_</span>)) =&gt; {
-                        <span class="macro">panic!</span>(<span class="string">&quot;trying to get a subspace, got a Directory&quot;</span>)
+                        <span class="macro">panic!</span>(<span class="string">"trying to get a subspace, got a Directory"</span>)
                     }
                     <span class="prelude-val">Some</span>(DirectoryStackItem::DirectoryOutput(
                         DirectoryOutput::DirectorySubspace(d),
                     )) =&gt; {
                         txn.set(<span class="kw-2">&amp;</span>key, d.bytes());
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;logging subspace [{}] {:?}={:?}&quot;</span>,
+                            <span class="string">"logging subspace [{}] {:?}={:?}"</span>,
                             <span class="self">self</span>.directory_index,
                             unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>key).unwrap(),
                             d.bytes(),
@@ -5379,14 +5380,14 @@
                             <span class="kw-2">&amp;</span>instr.code,
                             number,
                             DirectoryError::Other(String::from(
-                                <span class="string">&quot;cannot get key for the root of a directory partition&quot;</span>,
+                                <span class="string">"cannot get key for the root of a directory partition"</span>,
                             )),
                         );
                     }
                     <span class="prelude-val">Some</span>(DirectoryStackItem::Subspace(s)) =&gt; {
                         txn.set(<span class="kw-2">&amp;</span>key, s.bytes());
                         <span class="macro">debug!</span>(
-                            <span class="string">&quot;logging subspace [{}] {:?}={:?}&quot;</span>,
+                            <span class="string">"logging subspace [{}] {:?}={:?}"</span>,
                             <span class="self">self</span>.directory_index,
                             unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>key).unwrap(),
                             s.bytes(),
@@ -5400,28 +5401,28 @@
             // Pop 1 item off the stack as [raw_prefix]. Create a subspace log_subspace
             // with path (dir_index) and the specified raw_prefix. Set:
             //
-            // tr[log_subspace[u&#39;path&#39;]] = the tuple packed path of the directory.
+            // tr[log_subspace[u'path']] = the tuple packed path of the directory.
             //
-            // tr[log_subspace[u&#39;layer&#39;]] = the tuple packed layer of the directory.
+            // tr[log_subspace[u'layer']] = the tuple packed layer of the directory.
             //
-            // tr[log_subspace[u&#39;exists&#39;]] = the packed tuple containing a 1 if the
-            // directory exists and 0 if it doesn&#39;t.
+            // tr[log_subspace[u'exists']] = the packed tuple containing a 1 if the
+            // directory exists and 0 if it doesn't.
             //
-            // tr[log_subspace[u&#39;children&#39;]] the tuple packed list of children of the
+            // tr[log_subspace[u'children']] the tuple packed list of children of the
             // directory.
             //
             // Where log_subspace[u&lt;str&gt;] is the subspace packed tuple containing only the
             // single specified unicode string &lt;str&gt;.
             </span>DirectoryLogDirectory =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;logging directory {}&quot;</span>, <span class="self">self</span>.directory_index);
+                <span class="macro">debug!</span>(<span class="string">"logging directory {}"</span>, <span class="self">self</span>.directory_index);
                 <span class="kw">let </span>directory = <span class="self">self
                     </span>.get_current_directory()
-                    .expect(<span class="string">&quot;could not find a directory&quot;</span>);
+                    .expect(<span class="string">"could not find a directory"</span>);
 
                 <span class="kw">let </span>txn = <span class="kw">match </span>trx {
                     TransactionState::Transaction(<span class="kw-2">ref </span>t) =&gt; t,
                     <span class="kw">_ </span>=&gt; {
-                        <span class="macro">panic!</span>(<span class="string">&quot;could not find an active transaction&quot;</span>);
+                        <span class="macro">panic!</span>(<span class="string">"could not find an active transaction"</span>);
                     }
                 };
 
@@ -5429,18 +5430,18 @@
                 <span class="kw">let </span>subspace =
                     Subspace::from_bytes(raw_prefix.into_owned()).subspace(<span class="kw-2">&amp;</span><span class="self">self</span>.directory_index);
 
-                <span class="kw">let </span>key_path = subspace.pack(<span class="kw-2">&amp;</span><span class="string">&quot;path&quot;</span>);
+                <span class="kw">let </span>key_path = subspace.pack(<span class="kw-2">&amp;</span><span class="string">"path"</span>);
                 <span class="kw">let </span>value_path = pack(<span class="kw-2">&amp;</span><span class="self">self</span>.get_path_for_current_directory().unwrap());
 
-                <span class="kw">let </span>key_layer = subspace.pack(<span class="kw-2">&amp;</span><span class="string">&quot;layer&quot;</span>);
+                <span class="kw">let </span>key_layer = subspace.pack(<span class="kw-2">&amp;</span><span class="string">"layer"</span>);
                 <span class="kw">let </span>value_layer = pack(<span class="kw-2">&amp;</span><span class="self">self</span>.get_layer_for_current_directory().unwrap());
 
                 <span class="kw">let </span>exists = directory
                     .exists(txn, <span class="kw-2">&amp;</span>[])
                     .<span class="kw">await
-                    </span>.expect(<span class="string">&quot;could not list directory&quot;</span>);
+                    </span>.expect(<span class="string">"could not list directory"</span>);
 
-                <span class="kw">let </span>key_exists = subspace.pack(<span class="kw-2">&amp;</span><span class="string">&quot;exists&quot;</span>);
+                <span class="kw">let </span>key_exists = subspace.pack(<span class="kw-2">&amp;</span><span class="string">"exists"</span>);
                 <span class="kw">let </span>value_exists = pack(<span class="kw-2">&amp;</span>Element::Tuple(<span class="macro">vec!</span>[Element::Int(exists.into())]));
 
                 <span class="kw">let </span>children = <span class="kw">if </span>exists {
@@ -5456,33 +5457,33 @@
                         .collect(),
                 );
 
-                <span class="kw">let </span>key_children = subspace.pack(<span class="kw-2">&amp;</span><span class="string">&quot;children&quot;</span>);
+                <span class="kw">let </span>key_children = subspace.pack(<span class="kw-2">&amp;</span><span class="string">"children"</span>);
                 <span class="kw">let </span>value_children = pack(<span class="kw-2">&amp;</span>tuple_children);
 
                 txn.set(<span class="kw-2">&amp;</span>key_path, <span class="kw-2">&amp;</span>value_path);
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;[{}] {:?}={:?}&quot;</span>,
+                    <span class="string">"[{}] {:?}={:?}"</span>,
                     <span class="self">self</span>.directory_index,
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>key_path).unwrap(),
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>value_path).unwrap(),
                 );
                 txn.set(<span class="kw-2">&amp;</span>key_layer, <span class="kw-2">&amp;</span>value_layer);
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;[{}] {:?}={:?}&quot;</span>,
+                    <span class="string">"[{}] {:?}={:?}"</span>,
                     <span class="self">self</span>.directory_index,
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>key_layer).unwrap(),
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>value_layer).unwrap(),
                 );
                 txn.set(<span class="kw-2">&amp;</span>key_exists, <span class="kw-2">&amp;</span>value_exists);
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;[{}] {:?}={:?}&quot;</span>,
+                    <span class="string">"[{}] {:?}={:?}"</span>,
                     <span class="self">self</span>.directory_index,
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>key_exists).unwrap(),
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>value_exists).unwrap(),
                 );
                 txn.set(<span class="kw-2">&amp;</span>key_children, <span class="kw-2">&amp;</span>value_children);
                 <span class="macro">debug!</span>(
-                    <span class="string">&quot;[{}] {:?}={:?}&quot;</span>,
+                    <span class="string">"[{}] {:?}={:?}"</span>,
                     <span class="self">self</span>.directory_index,
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>key_children).unwrap(),
                     unpack::&lt;Vec&lt;Element&gt;&gt;(<span class="kw-2">&amp;</span>value_children).unwrap(),
@@ -5500,7 +5501,7 @@
                     <span class="self">self</span>.push_directory_err(
                         <span class="kw-2">&amp;</span>instr.code,
                         number,
-                        DirectoryError::Other(String::from(<span class="string">&quot;bad input on bytes&quot;</span>)),
+                        DirectoryError::Other(String::from(<span class="string">"bad input on bytes"</span>)),
                     );
                 }
                 <span class="prelude-val">Some</span>(raw_prefix) =&gt; <span class="kw">match </span><span class="self">self</span>.get_bytes_for_current_directory() {
@@ -5508,7 +5509,7 @@
                         <span class="kw-2">&amp;</span>instr.code,
                         number,
                         DirectoryError::Version(String::from(
-                            <span class="string">&quot;cannot get bytes for DirectoryPartition&quot;</span>,
+                            <span class="string">"cannot get bytes for DirectoryPartition"</span>,
                         )),
                     ),
                     <span class="prelude-val">Some</span>(ssb) =&gt; {
@@ -5517,7 +5518,7 @@
                                 <span class="kw-2">&amp;</span>instr.code,
                                 number,
                                 DirectoryError::Version(String::from(
-                                    <span class="string">&quot;String does not start with raw prefix&quot;</span>,
+                                    <span class="string">"String does not start with raw prefix"</span>,
                                 )),
                             );
                         } <span class="kw">else </span>{
@@ -5534,7 +5535,7 @@
             // onto the stack.
             </span>TenantCreate =&gt; {
                 <span class="kw">let </span>tenant_name = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;creating tenant {}&quot;</span>, tenant_name);
+                <span class="macro">debug!</span>(<span class="string">"creating tenant {}"</span>, tenant_name);
                 <span class="kw">match </span>TenantManagement::create_tenant(<span class="kw-2">&amp;</span>db, <span class="kw-2">&amp;</span>tenant_name.<span class="number">0</span>).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(()) =&gt; <span class="self">self</span>.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="self">self</span>.push_err(number, err),
@@ -5545,7 +5546,7 @@
             // the stack.
             </span>TenantDelete =&gt; {
                 <span class="kw">let </span>tenant_name = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;deleting tenant {}&quot;</span>, tenant_name);
+                <span class="macro">debug!</span>(<span class="string">"deleting tenant {}"</span>, tenant_name);
                 <span class="kw">match </span>TenantManagement::delete_tenant(<span class="kw-2">&amp;</span>db, <span class="kw-2">&amp;</span>tenant_name.<span class="number">0</span>).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(()) =&gt; <span class="self">self</span>.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="self">self</span>.push_err(number, err),
@@ -5555,7 +5556,7 @@
             // name TENANT_NAME and stores it as the active tenant.
             </span>TenantSetActive =&gt; {
                 <span class="kw">let </span>tenant_name = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
-                <span class="macro">debug!</span>(<span class="string">&quot;set active tenant {}&quot;</span>, tenant_name);
+                <span class="macro">debug!</span>(<span class="string">"set active tenant {}"</span>, tenant_name);
                 <span class="kw">match </span>db.open_tenant(<span class="kw-2">&amp;</span>tenant_name.<span class="number">0</span>) {
                     <span class="prelude-val">Ok</span>(tenant) =&gt; <span class="self">self</span>.tenant = <span class="prelude-val">Some</span>(tenant),
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="self">self</span>.push_err(number, err),
@@ -5570,7 +5571,7 @@
             // is pushed onto the stack.
             // Note: as of 30 of September, this is NOT used in branch release-7.1
             </span>TenantList =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;list tenants&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"list tenants"</span>);
                 <span class="kw">let </span>begin = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>end = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>limit: usize = <span class="self">self</span>.pop_usize().<span class="kw">await</span>;
@@ -5580,7 +5581,7 @@
                         <span class="kw">for </span>tenant <span class="kw">in </span>tenants {
                             <span class="kw">match </span>tenant {
                                 <span class="prelude-val">Err</span>(_err) =&gt; {
-                                    <span class="macro">unimplemented!</span>(<span class="string">&quot;received an tenant that cannot be deserialized&quot;</span>)
+                                    <span class="macro">unimplemented!</span>(<span class="string">"received an tenant that cannot be deserialized"</span>)
                                 }
                                 <span class="prelude-val">Ok</span>(tenant) =&gt; results.push(Element::Int(tenant.id)),
                             }
@@ -5606,19 +5607,19 @@
         }
 
         <span class="kw">if </span>instr.has_flags() {
-            <span class="macro">panic!</span>(<span class="string">&quot;flag not handled for instr: {:?}&quot;</span>, instr);
+            <span class="macro">panic!</span>(<span class="string">"flag not handled for instr: {:?}"</span>, instr);
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">async fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>, db: Arc&lt;Database&gt;) -&gt; FdbResult&lt;()&gt; {
-        <span class="macro">info!</span>(<span class="string">&quot;Fetching instructions...&quot;</span>);
+        <span class="macro">info!</span>(<span class="string">"Fetching instructions..."</span>);
         <span class="kw">let </span>instrs = <span class="self">self</span>.fetch_instr(<span class="kw-2">&amp;</span>db.create_trx()<span class="question-mark">?</span>).<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="macro">info!</span>(<span class="string">&quot;{} instructions found&quot;</span>, instrs.len());
+        <span class="macro">info!</span>(<span class="string">"{} instructions found"</span>, instrs.len());
 
         <span class="kw">for </span>(i, instr) <span class="kw">in </span>instrs.into_iter().enumerate() {
-            <span class="macro">trace!</span>(<span class="string">&quot;{}/{}, {:?}&quot;</span>, i, <span class="self">self</span>.stack.len(), instr);
+            <span class="macro">trace!</span>(<span class="string">"{}/{}, {:?}"</span>, i, <span class="self">self</span>.stack.len(), instr);
             <span class="kw">let _ </span>= <span class="self">self</span>.run_step(db.clone(), i, instr).<span class="kw">await</span>;
         }
 
@@ -5627,7 +5628,7 @@
 
     <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">for </span>handle <span class="kw">in </span><span class="self">self</span>.threads.drain(<span class="number">0</span>..) {
-            handle.join().expect(<span class="string">&quot;joined thread to not panic&quot;</span>);
+            handle.join().expect(<span class="string">"joined thread to not panic"</span>);
         }
     }
 
@@ -5660,9 +5661,9 @@
     }
 
     <span class="comment">// It can return a None if it is a DirectoryPartition
-    </span><span class="kw">fn </span>unpack_with_current_subspace&lt;<span class="lifetime">&#39;de</span>, T: TupleUnpack&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(
+    </span><span class="kw">fn </span>unpack_with_current_subspace&lt;<span class="lifetime">'de</span>, T: TupleUnpack&lt;<span class="lifetime">'de</span>&gt;&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        key: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de </span>[u8],
+        key: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>[u8],
     ) -&gt; <span class="prelude-ty">Option</span>&lt;PackResult&lt;T&gt;&gt; {
         <span class="kw">match </span><span class="self">self</span>.directory_stack.get(<span class="self">self</span>.directory_index) {
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
@@ -5736,10 +5737,10 @@
     env_logger::Builder::from_default_env()
         .format(<span class="kw">move </span>|buf, record| {
             <span class="kw">let </span>current_thread = thread::current();
-            <span class="kw">let </span>thread_name = current_thread.name().unwrap_or(<span class="string">&quot;?&quot;</span>);
+            <span class="kw">let </span>thread_name = current_thread.name().unwrap_or(<span class="string">"?"</span>);
             <span class="macro">writeln!</span>(
                 buf,
-                <span class="string">&quot;{} {} {} - {}&quot;</span>,
+                <span class="string">"{} {} {} - {}"</span>,
                 (std::time::Instant::now() - now).as_millis(),
                 thread_name,
                 record.level(),
@@ -5759,29 +5760,29 @@
         <span class="prelude-val">None
     </span>};
 
-    <span class="kw">let </span>api_version = args[<span class="number">2</span>].parse::&lt;i32&gt;().expect(<span class="string">&quot;failed to parse api version&quot;</span>);
+    <span class="kw">let </span>api_version = args[<span class="number">2</span>].parse::&lt;i32&gt;().expect(<span class="string">"failed to parse api version"</span>);
 
     <span class="macro">info!</span>(
-        <span class="string">&quot;Starting rust bindingtester with api_version {}&quot;</span>,
+        <span class="string">"Starting rust bindingtester with api_version {}"</span>,
         api_version
     );
     <span class="kw">let </span>builder = api::FdbApiBuilder::default()
         .set_runtime_version(api_version)
         .build()
-        .expect(<span class="string">&quot;failed to initialize FoundationDB API&quot;</span>);
+        .expect(<span class="string">"failed to initialize FoundationDB API"</span>);
     <span class="kw">let </span>_network = <span class="kw">unsafe </span>{ builder.boot() };
 
     <span class="kw">let </span>db = Arc::new(
         futures::executor::block_on(fdb::Database::new_compat(cluster_path))
-            .expect(<span class="string">&quot;failed to get database&quot;</span>),
+            .expect(<span class="string">"failed to get database"</span>),
     );
 
     <span class="kw">let </span><span class="kw-2">mut </span>sm = StackMachine::new(<span class="kw-2">&amp;</span>db, Bytes::from(prefix.to_owned().into_bytes()));
     futures::executor::block_on(sm.run(db)).unwrap();
     sm.join();
 
-    <span class="macro">info!</span>(<span class="string">&quot;Closing...&quot;</span>);
+    <span class="macro">info!</span>(<span class="string">"Closing..."</span>);
 
-    <span class="macro">info!</span>(<span class="string">&quot;Done.&quot;</span>);
+    <span class="macro">info!</span>(<span class="string">"Done."</span>);
 }
 </code></pre></div></section></main></body></html>

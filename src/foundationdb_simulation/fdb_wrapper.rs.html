@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-simulation/src/fdb_wrapper.rs`."><title>fdb_wrapper.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_simulation" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-simulation/src/fdb_wrapper.rs`."><title>fdb_wrapper.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_simulation" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -356,7 +357,7 @@
 };
 
 <span class="comment">// -----------------------------------------------------------------------------
-// FFI safe &quot;binding&quot; structs
+// FFI safe "binding" structs
 
 </span><span class="doccomment">/// Contain all opaque types used by Rust to cover C++ types of unknown layout.
 /// They are all equivalent to a `u8` and should always be used through a pointer or reference.
@@ -436,12 +437,12 @@
 ///
 /// ```rs
 /// let details1 = vec![
-///     (&quot;key1&quot;.into(), &quot;val1&quot;.into()),
-///     (&quot;key2&quot;.into(), format!(&quot;key{}&quot;, 2)),
+///     ("key1".into(), "val1".into()),
+///     ("key2".into(), format!("key{}", 2)),
 /// ];
 /// let details2 = details[
-///     &quot;key1&quot; =&gt; &quot;val1&quot;,
-///     &quot;key2&quot; =&gt; format!(&quot;key{}&quot;, 2),
+///     "key1" =&gt; "val1",
+///     "key2" =&gt; format!("key{}", 2),
 /// ];
 /// assert_eq!(details1, details2);
 /// ```
@@ -459,9 +460,9 @@
 <span class="comment">// -----------------------------------------------------------------------------
 // Rust to C++ bindings
 
-</span><span class="kw">extern </span><span class="string">&quot;C&quot; </span>{
-    <span class="doccomment">/// Redirect FoundationDB call to symbol &quot;workloadFactory&quot; (in Rust) to the C++
-    /// symbol &quot;CPPWorkloadFactory&quot;, it instantiate and returns a pointer to the C++
+</span><span class="kw">extern </span><span class="string">"C" </span>{
+    <span class="doccomment">/// Redirect FoundationDB call to symbol "workloadFactory" (in Rust) to the C++
+    /// symbol "CPPWorkloadFactory", it instantiate and returns a pointer to the C++
     /// class `RustWorkloadFactory`.
     ///
     /// This should only be called by `#[simulation_entrypoint]`.
@@ -506,13 +507,13 @@
 </span><span class="attr">#[allow(clippy::not_unsafe_ptr_arg_deref)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>str_from_c(c_buf: <span class="kw-2">*const </span>c_char) -&gt; String {
     <span class="kw">let </span>c_str = <span class="kw">unsafe </span>{ CStr::from_ptr(c_buf) };
-    c_str.to_str().expect(<span class="string">&quot;c_str&quot;</span>).to_string()
+    c_str.to_str().expect(<span class="string">"c_str"</span>).to_string()
 }
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>str_for_c&lt;T&gt;(buf: T) -&gt; CString
 <span class="kw">where
     </span>T: Into&lt;Vec&lt;u8&gt;&gt;,
 {
-    CString::new(buf).expect(<span class="string">&quot;CString::new failed&quot;</span>)
+    CString::new(buf).expect(<span class="string">"CString::new failed"</span>)
 }
 
 <span class="comment">// -----------------------------------------------------------------------------
@@ -580,7 +581,7 @@
             .and_then(|value| value.parse::&lt;T&gt;().ok())
     }
     <span class="kw">fn </span>get_option_raw(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-        <span class="kw">let </span>null = <span class="string">&quot;null&quot;</span>;
+        <span class="kw">let </span>null = <span class="string">"null"</span>;
         <span class="kw">let </span>name = str_for_c(name);
         <span class="kw">let </span>default_value = str_for_c(null);
         <span class="kw">let </span><span class="kw-2">mut </span>cpp_tmp_string_ptr = std::ptr::null();
@@ -654,7 +655,7 @@
     {
         <span class="self">Self </span>{
             name: name.into(),
-            value: value.try_into().ok().expect(<span class="string">&quot;convertion failed&quot;</span>),
+            value: value.try_into().ok().expect(<span class="string">"convertion failed"</span>),
             averaged: <span class="bool-val">true</span>,
             format_code: <span class="prelude-val">None</span>,
         }
@@ -672,7 +673,7 @@
                  averaged,
                  format_code,
              }| {
-                <span class="kw">let </span>default_format_code = <span class="string">&quot;0.3g&quot;</span>.to_string();
+                <span class="kw">let </span>default_format_code = <span class="string">"0.3g"</span>.to_string();
                 <span class="kw">let </span>name = str_for_c(name);
                 <span class="kw">let </span>format_code = str_for_c(format_code.unwrap_or(default_format_code));
                 (name, value, averaged, format_code)
