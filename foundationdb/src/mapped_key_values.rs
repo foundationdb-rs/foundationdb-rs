@@ -14,6 +14,7 @@
 //!
 //! More info can be found in the [relevant documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange).
 
+use crate::from_raw_fdb_slice;
 use crate::future::{FdbFutureHandle, FdbKeyValue};
 use crate::{error, KeySelector};
 use crate::{FdbError, FdbResult};
@@ -90,32 +91,28 @@ impl fmt::Debug for FdbMappedKeyValue {
 impl FdbMappedKeyValue {
     /// Retrieves the "parent" key that generated the secondary scan.
     pub fn parent_key(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.key.key, self.0.key.key_length as usize) }
+        from_raw_fdb_slice(self.0.key.key, self.0.key.key_length as usize)
     }
 
     /// Retrieves the "parent" value that generated the secondary scan.
     pub fn parent_value(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.value.key, self.0.value.key_length as usize) }
+        from_raw_fdb_slice(self.0.value.key, self.0.value.key_length as usize)
     }
 
     /// Retrieves the beginning of the range
     pub fn begin_range(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.0.getRange.begin.key.key,
-                self.0.getRange.begin.key.key_length as usize,
-            )
-        }
+        from_raw_fdb_slice(
+            self.0.getRange.begin.key.key,
+            self.0.getRange.begin.key.key_length as usize,
+        )
     }
 
     /// Retrieves the end of the range
     pub fn end_range(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.0.getRange.end.key.key,
-                self.0.getRange.end.key.key_length as usize,
-            )
-        }
+        from_raw_fdb_slice(
+            self.0.getRange.end.key.key,
+            self.0.getRange.end.key.key_length as usize,
+        )
     }
 
     /// Retrieves the beginning of the range as a [`KeySelector`]
@@ -130,12 +127,10 @@ impl FdbMappedKeyValue {
 
     /// retrieves the associated slice of [`FdbKeyValue`]
     pub fn key_values(&self) -> &[FdbKeyValue] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.0.getRange.data as *const FdbKeyValue,
-                self.0.getRange.m_size as usize,
-            )
-        }
+        from_raw_fdb_slice(
+            self.0.getRange.data as *const FdbKeyValue,
+            self.0.getRange.m_size as usize,
+        )
     }
 }
 
@@ -145,7 +140,7 @@ impl Deref for MappedKeyValues {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbMappedKeyValue, fdb_sys::FDBMappedKeyValue);
         assert_eq_align!(FdbMappedKeyValue, u8);
-        unsafe { std::slice::from_raw_parts(self.mapped_keyvalues, self.len as usize) }
+        from_raw_fdb_slice(self.mapped_keyvalues, self.len as usize)
     }
 }
 

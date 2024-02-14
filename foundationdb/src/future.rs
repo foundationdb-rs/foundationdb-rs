@@ -33,6 +33,7 @@ use std::sync::Arc;
 
 #[cfg_api_versions(min = 700)]
 pub use crate::fdb_keys::FdbKeys;
+use crate::from_raw_fdb_slice;
 #[cfg_api_versions(min = 710)]
 pub use crate::mapped_key_values::MappedKeyValues;
 use foundationdb_macros::cfg_api_versions;
@@ -145,7 +146,7 @@ unsafe impl Send for FdbSlice {}
 impl Deref for FdbSlice {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        unsafe { std::slice::from_raw_parts(self.value, self.len as usize) }
+        from_raw_fdb_slice(self.value, self.len as usize)
     }
 }
 impl AsRef<[u8]> for FdbSlice {
@@ -221,7 +222,7 @@ impl Deref for FdbAddresses {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbAddress, *const c_char);
         assert_eq_align!(FdbAddress, u8);
-        unsafe { std::slice::from_raw_parts(self.strings, self.len as usize) }
+        from_raw_fdb_slice(self.strings, self.len as usize)
     }
 }
 impl AsRef<[FdbAddress]> for FdbAddresses {
@@ -301,7 +302,8 @@ impl Deref for FdbValues {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKeyValue, fdb_sys::FDBKeyValue);
         assert_eq_align!(FdbKeyValue, u8);
-        unsafe { std::slice::from_raw_parts(self.keyvalues, self.len as usize) }
+
+        from_raw_fdb_slice(self.keyvalues, self.len as usize)
     }
 }
 impl AsRef<[FdbKeyValue]> for FdbValues {
@@ -451,9 +453,7 @@ impl FdbKeyValue {
     pub fn key(&self) -> &[u8] {
         // This cast to `*const u8` isn't unnecessary in all configurations.
         #[allow(clippy::unnecessary_cast)]
-        unsafe {
-            std::slice::from_raw_parts(self.0.key as *const u8, self.0.key_length as usize)
-        }
+        from_raw_fdb_slice(self.0.key as *const u8, self.0.key_length as usize)
     }
 
     /// value

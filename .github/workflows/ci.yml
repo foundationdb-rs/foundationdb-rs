@@ -27,6 +27,11 @@ jobs:
         run: rpm -i /tmp/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
         working-directory: /tmp
 
+      # TODO: use what is included in the image
+      - name: rm fdb clients
+        run: rm /tmp/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
+        working-directory: /tmp
+
       - name: install jq
         run: yum install -y jq
 
@@ -36,6 +41,15 @@ jobs:
 
       - name: Build simulation example
         run: source /opt/rh/devtoolset-11/enable && source /root/.cargo/env && cargo build -p foundationdb-simulation --release --example atomic
+
+      - name: disk space
+        run: df -h /
+
+      - name: get disk space by removing rust toolchains
+        run:  /root/.cargo/bin/rustup toolchain uninstall stable
+
+      - name: disk space
+        run: df -h /
 
       - name: Run atomic simulation example
         run: /opt/foundationdb/old/7.1.23/bin/fdbserver-7.1.23  -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json

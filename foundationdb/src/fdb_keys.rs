@@ -9,6 +9,7 @@
 //! Definitions of FDBKeys, used in api version 700 and more.
 
 use crate::error;
+use crate::from_raw_fdb_slice;
 use crate::future::FdbFutureHandle;
 use crate::{FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
@@ -46,7 +47,7 @@ impl Deref for FdbKeys {
     fn deref(&self) -> &Self::Target {
         assert_eq_size!(FdbKey, fdb_sys::FDBKey);
         assert_eq_align!(FdbKey, u8);
-        unsafe { std::slice::from_raw_parts(self.keys, self.len as usize) }
+        from_raw_fdb_slice(self.keys, self.len as usize)
     }
 }
 
@@ -161,7 +162,7 @@ pub struct FdbKey(fdb_sys::FDBKey);
 impl FdbKey {
     /// retrieves the associated key
     pub fn key(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.key, self.0.key_length as usize) }
+        from_raw_fdb_slice(self.0.key, self.0.key_length as usize)
     }
 }
 
