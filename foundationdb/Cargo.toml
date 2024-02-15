@@ -22,13 +22,13 @@ keywords = ["foundationdb", "kv"]
 categories = ["database"]
 
 [package.metadata.docs.rs]
-features = ["embedded-fdb-include", "fdb-7_1", "uuid"]
+features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
 
 [badges]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
 
 [features]
-default = ["fdb-7_1", "uuid"]
+default = ["uuid"]
 # Use the locally embedded foundationdb fdb_c.h and fdb.options files
 embedded-fdb-include = [
     "foundationdb-sys/embedded-fdb-include",
@@ -42,6 +42,7 @@ fdb-6_2 = ["foundationdb-sys/fdb-6_2", "foundationdb-gen/fdb-6_2"]
 fdb-6_3 = ["foundationdb-sys/fdb-6_3", "foundationdb-gen/fdb-6_3"]
 fdb-7_0 = ["foundationdb-sys/fdb-7_0", "foundationdb-gen/fdb-7_0"]
 fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1", "serde", "serde_json", "serde_bytes"]
+fdb-7_3 = ["foundationdb-sys/fdb-7_3", "foundationdb-gen/fdb-7_3", "serde", "serde_json", "serde_bytes"]
 tenant-experimental = []
 
 [build-dependencies]
@@ -49,7 +50,7 @@ foundationdb-gen = { version = "0.8.0", path = "../foundationdb-gen", default-fe
 
 [dependencies]
 foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", default-features = false }
-foundationdb-macros = { version = "0.2.0", path = "../foundationdb-macros" }
+foundationdb-macros = { version = "0.3.0", path = "../foundationdb-macros" }
 futures = "0.3.30"
 memchr = "2.7.1"
 rand = { version = "0.8.5", features = ["default", "small_rng"] }

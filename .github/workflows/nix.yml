@@ -13,4 +13,4 @@ jobs:
       - uses: cachix/install-nix-action@v15
       - run: nix flake check
       - name: Building crate with Nix
-        run: nix develop -c cargo build --features=fdb-7_1,embedded-fdb-include
+        run: nix develop -c cargo build -p bindingtester

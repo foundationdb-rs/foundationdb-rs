@@ -493,7 +493,8 @@ impl TryFrom<FdbFutureHandle> for i64 {
                 feature = "fdb-6_2",
                 feature = "fdb-6_3",
                 feature = "fdb-7_0",
-                feature = "fdb-7_1"
+                feature = "fdb-7_1",
+                feature = "fdb-7_3"
             ))]
             {
                 fdb_sys::fdb_future_get_int64(f.as_ptr(), &mut version)
@@ -502,7 +503,8 @@ impl TryFrom<FdbFutureHandle> for i64 {
                 feature = "fdb-6_2",
                 feature = "fdb-6_3",
                 feature = "fdb-7_0",
-                feature = "fdb-7_1"
+                feature = "fdb-7_1",
+                feature = "fdb-7_3"
             )))]
             {
                 fdb_sys::fdb_future_get_version(f.as_ptr(), &mut version)

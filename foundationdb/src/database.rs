@@ -26,7 +26,7 @@ use crate::{error, FdbError, FdbResult};
 use crate::error::FdbBindingError;
 use futures::prelude::*;
 
-#[cfg(feature = "fdb-7_1")]
+#[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
 
@@ -116,6 +116,18 @@ impl Database {
             inner: NonNull::new(ptr)
                 .expect("fdb_database_open_tenant to not return null if there is no error"),
             name: tenant_name.to_owned(),
+        })
+    }
+}
+
+#[cfg_api_versions(min = 730)]
+impl Database {
+    /// Retrieve a client-side status information in a JSON format.
+    pub fn get_client_status(
+        &self,
+    ) -> impl Future<Output = FdbResult<crate::future::FdbSlice>> + Send + Sync + Unpin {
+        crate::future::FdbFuture::new(unsafe {
+            fdb_sys::fdb_database_get_client_status(self.inner.as_ptr())
         })
     }
 }

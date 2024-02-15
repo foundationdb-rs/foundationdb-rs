@@ -23,8 +23,15 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+#[cfg(feature = "fdb-7_1")]
 const TENANT_MAP_PREFIX: &[u8] = b"\xFF\xFF/management/tenant_map/";
+#[cfg(feature = "fdb-7_1")]
 const TENANT_MAP_PREFIX_END: &[u8] = b"\xFF\xFF/management/tenant_map0";
+
+#[cfg(feature = "fdb-7_3")]
+const TENANT_MAP_PREFIX: &[u8] = b"\xFF\xFF/management/tenant/map/";
+#[cfg(feature = "fdb-7_3")]
+const TENANT_MAP_PREFIX_END: &[u8] = b"\xFF\xFF/management/tenant/map0";
 
 /// A `FdbTenant` represents a named key-space within a database that can be interacted with transactionally.
 pub struct FdbTenant {
@@ -201,38 +208,82 @@ impl FdbTenant {
     }
 }
 
+#[cfg(feature = "fdb-7_1")]
 /// Holds the information about a tenant
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TenantInfo {
-    pub name: Vec<u8>,
     pub id: i64,
     pub prefix: Vec<u8>,
+    pub name: Vec<u8>,
+}
+
+#[cfg(feature = "fdb-7_3")]
+/// Holds the information about a tenant
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TenantInfo {
+    pub id: i64,
+    pub prefix: FDBTenantPrintableInfo,
+    pub name: FDBTenantPrintableInfo,
 }
 
 impl TryFrom<(&[u8], &[u8])> for TenantInfo {
     type Error = Error;
 
     fn try_from(k_v: (&[u8], &[u8])) -> Result<Self, Self::Error> {
-        let key = k_v.0;
         let value = k_v.1;
-        let tenant_name = key.split_at(TENANT_MAP_PREFIX.len()).1;
         match serde_json::from_slice::<FDBTenantInfo>(value) {
+            #[cfg(feature = "fdb-7_1")]
             Ok(tenant_info) => Ok(TenantInfo {
-                name: tenant_name.to_vec(),
+                name: k_v.0.split_at(TENANT_MAP_PREFIX.len()).1.to_vec(),
                 id: tenant_info.id,
                 prefix: tenant_info.prefix,
             }),
+
+            #[cfg(feature = "fdb-7_3")]
+            Ok(tenant_info) => Ok(TenantInfo {
+                name: tenant_info.name,
+                id: tenant_info.id,
+                prefix: tenant_info.prefix,
+            }),
+
             Err(err) => Err(err),
         }
     }
 }
 
 /// Holds the information about a tenant. This is the struct that is stored in FDB
+#[cfg(feature = "fdb-7_1")]
 #[derive(Serialize, Deserialize, Debug)]
 struct FDBTenantInfo {
     id: i64,
     #[serde(with = "serde_bytes")]
     prefix: Vec<u8>,
+}
+
+#[cfg(feature = "fdb-7_3")]
+#[derive(Serialize, Deserialize, Debug)]
+struct FDBTenantInfo {
+    id: i64,
+    lock_state: TenantLockState,
+    name: FDBTenantPrintableInfo,
+    prefix: FDBTenantPrintableInfo,
+}
+
+#[cfg(feature = "fdb-7_3")]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+enum TenantLockState {
+    Unlocked,
+    Locked,
+    ReadOnly,
+}
+
+#[cfg(feature = "fdb-7_3")]
+/// Display a printable version of bytes
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FDBTenantPrintableInfo {
+    base64: String,
+    printable: String,
 }
 
 /// The FoundationDB API includes function to manage the set of tenants in a cluster.

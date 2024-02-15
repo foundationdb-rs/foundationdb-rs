@@ -65,7 +65,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest"]
         toolchain: ["1.70.0", "stable"]
-        fdb_feature_version: ["fdb-7_1", "fdb-7_0", "fdb-6_3", "fdb-6_2", "fdb-6_1"]
+        fdb_feature_version: ["fdb-7_3", "fdb-7_1", "fdb-7_0", "fdb-6_3", "fdb-6_2", "fdb-6_1"]
 
     runs-on: ${{ matrix.os }}
 
@@ -80,7 +80,7 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.3.27"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -113,7 +113,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.3.27"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -124,7 +124,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Run all tests
-        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
 
   lint:
     name: Rustfmt / Clippy
@@ -137,7 +137,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.3.27"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -151,7 +151,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy
+        run: cargo clippy --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
 
   coverage:
     name: Code coverage
@@ -168,7 +168,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          version: "7.1.37"
+          version: "7.3.27"
 
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
@@ -182,7 +182,7 @@ jobs:
 
       - name: Test
         # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-        run: cargo test -p foundationdb --tests --no-fail-fast --target x86_64-unknown-linux-gnu
+        run: cargo test -p foundationdb --tests --no-fail-fast --target x86_64-unknown-linux-gnu --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/debug/bindingtester

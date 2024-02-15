@@ -215,6 +215,7 @@ struct FdbOption {
     hidden: bool,
     default_for: Option<i32>,
     persistent: bool,
+    sensitive: bool,
 }
 
 impl FdbOption {
@@ -303,6 +304,11 @@ impl From<Vec<OwnedAttribute>> for FdbOption {
                     "false" => opt.persistent = false,
                     _ => panic!("unexpected boolean value in 'persistent': {}", v),
                 },
+                "sensitive" => match v.as_str() {
+                    "true" => opt.sensitive = true,
+                    "false" => opt.sensitive = false,
+                    _ => panic!("unexpected boolean value in 'sensitive': {}", v),
+                },
                 attr => {
                     panic!("unexpected option attribute: {}", attr);
                 }
@@ -368,6 +374,8 @@ const OPTIONS_DATA: &[u8] = include_bytes!("../include/630/fdb.options");
 const OPTIONS_DATA: &[u8] = include_bytes!("../include/700/fdb.options");
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_1"))]
 const OPTIONS_DATA: &[u8] = include_bytes!("../include/710/fdb.options");
+#[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_3"))]
+const OPTIONS_DATA: &[u8] = include_bytes!("../include/730/fdb.options");
 
 pub fn emit(w: &mut impl fmt::Write) -> fmt::Result {
     let mut reader = OPTIONS_DATA;

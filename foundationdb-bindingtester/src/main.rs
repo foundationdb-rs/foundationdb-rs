@@ -686,7 +686,7 @@ impl StackMachine {
         match element {
             Element::Bytes(v) => v,
             // checking nested bytes in a Tuple as well
-            Element::Tuple(elements) => match elements.get(0) {
+            Element::Tuple(elements) => match elements.first() {
                 Some(Element::Bytes(b)) => b.clone(),
                 _ => panic!("bytes were expected, found a Tuple with no Bytes in it"),
             },
@@ -1401,11 +1401,10 @@ impl StackMachine {
             // limits, so these bindings can obtain different sizes back.
             GetApproximateSize => {
                 debug!("get_approximate_size");
-                trx.as_mut()
-                    .get_approximate_size()
-                    .await
-                    .expect("failed to get approximate size");
-                self.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned());
+                match trx.as_mut().get_approximate_size().await {
+                    Ok(_) => self.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned()),
+                    Err(error) => self.push_err(number, error),
+                }
             }
 
             GetRangeSplitPoints => {
@@ -1744,7 +1743,7 @@ impl StackMachine {
                 let tuple_prefix = self.pop_string_tuple(1).await;
                 let raw_prefix = self.pop_bytes().await;
                 let subspace = Subspace::from_bytes(raw_prefix.into_owned())
-                    .subspace(tuple_prefix.get(0).unwrap());
+                    .subspace(tuple_prefix.first().unwrap());
                 debug!(
                     "pushing a new subspace {:?} at index {}",
                     &subspace,
@@ -1826,7 +1825,7 @@ impl StackMachine {
 
                 debug!(
                     "creating path {:?} with layer {:?} and prefix {:?} using directory at index {}",
-                    path.get(0).unwrap(),
+                    path.first().unwrap(),
                     &layer,
                     &prefix,
                     self.directory_index,
@@ -1835,7 +1834,7 @@ impl StackMachine {
                 match directory
                     .create(
                         txn,
-                        path.get(0).unwrap(),
+                        path.first().unwrap(),
                         prefix.as_deref(),
                         layer.as_deref(),
                     )
@@ -1889,13 +1888,13 @@ impl StackMachine {
 
                 debug!(
                     "opening path {:?} with layer {:?} with index {}",
-                    path.get(0).unwrap(),
+                    path.first().unwrap(),
                     &layer,
                     self.directory_index
                 );
 
                 match directory
-                    .open(txn, path.get(0).unwrap(), layer.as_deref())
+                    .open(txn, path.first().unwrap(), layer.as_deref())
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -1949,12 +1948,12 @@ impl StackMachine {
 
                 debug!(
                     "create_or_open path {:?} with layer {:?} with index {}",
-                    path.get(0).unwrap(),
+                    path.first().unwrap(),
                     &layer,
                     self.directory_index
                 );
                 match directory
-                    .create_or_open(txn, path.get(0).unwrap(), None, layer.as_deref())
+                    .create_or_open(txn, path.first().unwrap(), None, layer.as_deref())
                     .await
                 {
                     Ok(directory_subspace) => {
@@ -2031,13 +2030,13 @@ impl StackMachine {
 
                 debug!(
                     "moving {:?} to {:?} using directory at index {}",
-                    paths.get(0).unwrap(),
+                    paths.first().unwrap(),
                     paths.get(1).unwrap(),
                     self.directory_index
                 );
 
                 match directory
-                    .move_to(txn, paths.get(0).unwrap(), paths.get(1).unwrap())
+                    .move_to(txn, paths.first().unwrap(), paths.get(1).unwrap())
                     .await
                 {
                     Ok(s) => {
@@ -2087,7 +2086,7 @@ impl StackMachine {
                 );
 
                 match directory
-                    .move_directory(txn, paths.get(0).expect("popped tuple has no item"))
+                    .move_directory(txn, paths.first().expect("popped tuple has no item"))
                     .await
                 {
                     Ok(s) => {
@@ -2133,7 +2132,7 @@ impl StackMachine {
                     },
                 };
 
-                let paths = paths.get(0).expect("could not retrieve a path");
+                let paths = paths.first().expect("could not retrieve a path");
                 debug!(
                     "removing path {:?} using directory at index {}",
                     paths, self.directory_index
@@ -2180,7 +2179,7 @@ impl StackMachine {
                     },
                 };
 
-                let paths = paths.get(0).expect("could not retrieve a path");
+                let paths = paths.first().expect("could not retrieve a path");
                 match directory.remove_if_exists(txn, paths).await {
                     Ok(_) => {
                         if is_db {
@@ -2202,7 +2201,7 @@ impl StackMachine {
                 let paths = match count {
                     1 => {
                         let paths = self.pop_string_tuple(count).await;
-                        paths.get(0).expect("could not retrieve a path").clone()
+                        paths.first().expect("could not retrieve a path").clone()
                     }
                     0 => vec![],
                     _ => panic!(),
@@ -2277,7 +2276,7 @@ impl StackMachine {
                     },
                 };
 
-                let paths = paths.get(0).expect("could not retrieve a path");
+                let paths = paths.first().expect("could not retrieve a path");
                 match directory.exists(txn, paths).await {
                     Ok(exists) => {
                         self.push(number, Element::Int(i64::from(exists)));
