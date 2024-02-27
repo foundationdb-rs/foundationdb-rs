@@ -11,8 +11,9 @@ foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", default-fe
 cc = "1.0.83"
 
 [features]
-default = ["embedded-fdb-include", "fdb-7_1"]
+default = ["embedded-fdb-include"]
 fdb-7_1 = ["foundationdb/fdb-7_1", "foundationdb-sys/fdb-7_1"]
+fdb-7_3 = ["foundationdb/fdb-7_3", "foundationdb-sys/fdb-7_3"]
 embedded-fdb-include = [
     "foundationdb/embedded-fdb-include",
     "foundationdb-sys/embedded-fdb-include",

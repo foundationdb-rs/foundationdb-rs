@@ -1,7 +1,11 @@
 // C++ to Rust bindings
 
 #include "headers/ClientWorkload.h"
-#include "headers/fdb_c.h"
+#if FDB_API_VERSION == 730
+#include "headers/730/fdb_c.h"
+#elif FDB_API_VERSION == 710
+#include "headers/710/fdb_c.h"
+#endif
 #include <iostream>
 
 // Opaque type covering a Rust `Box<dyn RustWorkload>`
