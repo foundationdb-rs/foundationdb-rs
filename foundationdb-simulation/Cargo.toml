@@ -23,6 +23,7 @@ embedded-fdb-include = [
 name = "atomic"
 path = "examples/atomic/lib.rs"
 crate-type = ["cdylib"]
+required-features = ["fdb-7_3"]
 
 [dev-dependencies]
 foundationdb-macros = { version = "0.3.0", path = "../foundationdb-macros", default-features = false }

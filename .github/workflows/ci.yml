@@ -12,24 +12,36 @@ jobs:
     name: "Simulation framework"
     runs-on: ubuntu-latest
     container:
-      image: foundationdb/build:centos7-20230825040255-3a1d89d918
+      image: foundationdb/build:centos7-20240228040135-fc272dd89b
+    env:
+      FDB_VERSION: 7.3.27
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # FDB 7.3 is not yet included as an old binary, so we need to download it. The following steps are mostly a copy-paste from the Dockerfile
+      - name: Create old folder
+        run: mkdir -p /opt/foundationdb/old/${FDB_VERSION}/bin
+
+      - name: Download fdbserver
+        run: curl -ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/fdbserver.x86_64 -o /opt/foundationdb/old/${FDB_VERSION}/bin/fdbserver-${FDB_VERSION}
+
+      - name: chmod fdbserver
+        run: chmod +x /opt/foundationdb/old/${FDB_VERSION}/bin/fdbserver-${FDB_VERSION};
+
       # TODO: use what is included in the image
       - name: Download fdb clients
-        run: wget https://github.com/apple/foundationdb/releases/download/7.1.23/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
+        run: wget https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm
         working-directory: /tmp
 
       # TODO: use what is included in the image
       - name: install fdb clients
-        run: rpm -i /tmp/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
+        run: rpm -i /tmp/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm
         working-directory: /tmp
 
       # TODO: use what is included in the image
       - name: rm fdb clients
-        run: rm /tmp/foundationdb-clients-7.1.23-1.el7.x86_64.rpm
+        run: rm /tmp/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm
         working-directory: /tmp
 
       - name: install jq
@@ -40,7 +52,7 @@ jobs:
           toolchain: stable
 
       - name: Build simulation example
-        run: source /opt/rh/devtoolset-11/enable && source /root/.cargo/env && cargo build -p foundationdb-simulation --release --example atomic
+        run: source /opt/rh/devtoolset-11/enable && source /root/.cargo/env && cargo build -p foundationdb-simulation --release --example atomic --features="fdb-7_3"
 
       - name: disk space
         run: df -h /
@@ -52,7 +64,7 @@ jobs:
         run: df -h /
 
       - name: Run atomic simulation example
-        run: /opt/foundationdb/old/7.1.23/bin/fdbserver-7.1.23  -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json
+        run: /opt/foundationdb/old/${FDB_VERSION}/bin/fdbserver-${FDB_VERSION} -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json
 
       - name: Retrieve severity logs
         if: ${{ failure() }}
