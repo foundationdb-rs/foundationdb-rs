@@ -11,63 +11,63 @@ jobs:
   simulation:
     name: "Simulation framework"
     runs-on: ubuntu-latest
-    container:
-      image: foundationdb/build:centos7-20240228040135-fc272dd89b
-    env:
-      FDB_VERSION: 7.3.27
     steps:
+      - name: disk space
+        run: df -h /
+
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+
+      - name: disk space
+        run: df -h /
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # FDB 7.3 is not yet included as an old binary, so we need to download it. The following steps are mostly a copy-paste from the Dockerfile
-      - name: Create old folder
-        run: mkdir -p /opt/foundationdb/old/${FDB_VERSION}/bin
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Download fdbserver
-        run: curl -ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/fdbserver.x86_64 -o /opt/foundationdb/old/${FDB_VERSION}/bin/fdbserver-${FDB_VERSION}
+      # We are using a Docker below to build the example to be able to run the maximize-build-space step
+      - name: docker build
+        run: docker build -t builder . -f foundationdb-simulation/examples/atomic/Dockerfile
 
-      - name: chmod fdbserver
-        run: chmod +x /opt/foundationdb/old/${FDB_VERSION}/bin/fdbserver-${FDB_VERSION};
+      # Create the container to be able to cp the file
+      - name: docker create
+        run: docker create --name builder builder:latest
 
-      # TODO: use what is included in the image
-      - name: Download fdb clients
-        run: wget https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm
-        working-directory: /tmp
+      # Retrieve the file
+      - name: docker cp
+        run: mkdir -p target/release/examples && docker cp builder:/root/fdb-rs/target/release/examples/libatomic.so ./target/release/examples
 
-      # TODO: use what is included in the image
-      - name: install fdb clients
-        run: rpm -i /tmp/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm
-        working-directory: /tmp
+      - name: disk space
+        run: df -h /
 
-      # TODO: use what is included in the image
-      - name: rm fdb clients
-        run: rm /tmp/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm
-        working-directory: /tmp
+      # Reclaim disk space
+      - name: Cleanup docker
+        run: docker system prune --all -f
 
-      - name: install jq
-        run: yum install -y jq
+      - name: install jq to retrieve logs
+        run: apt update && apt install -y jq
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup FoundationDB
+        uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
-          toolchain: stable
+          version: "7.3.27"
 
-      - name: Build simulation example
-        run: source /opt/rh/devtoolset-11/enable && source /root/.cargo/env && cargo build -p foundationdb-simulation --release --example atomic --features="fdb-7_3"
+      - name: Run simulation
+        run: fdbserver -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json
 
-      - name: disk space
-        run: df -h /
-
-      - name: get disk space by removing rust toolchains
-        run:  /root/.cargo/bin/rustup toolchain uninstall stable
-
-      - name: disk space
-        run: df -h /
-
-      - name: Run atomic simulation example
-        run: /opt/foundationdb/old/${FDB_VERSION}/bin/fdbserver-${FDB_VERSION} -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json
+      - name: Retrieve logs from the layer
+        if: always()
+        run: "jq 'select(has(\"Layer\"))' *.json"
 
       - name: Retrieve severity logs
-        if: ${{ failure() }}
+        if: always()
         run: "jq 'select( .Severity | tonumber > 30)' *.json"
 
   compatibility:
