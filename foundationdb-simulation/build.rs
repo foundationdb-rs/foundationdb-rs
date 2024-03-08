@@ -15,6 +15,8 @@ fn main() {
     let stringified_api_version = format!("{}", api_version);
 
     cc::Build::new()
+        .compiler("clang")
+        .cpp_set_stdlib("c++")
         .cpp(true)
         .define("FDB_API_VERSION", stringified_api_version.as_str())
         .file("src/FDBWrapper.cpp")
