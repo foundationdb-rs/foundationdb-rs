@@ -31,4 +31,4 @@ RUN cd /root/fdb-rs && \
 # RUN gzip -d /tmp/fdbserver.debug.x86_64.gz
 
 WORKDIR /root/fdb-rs
-CMD ["/root/fdb-rs/scripts/simulation_entrypoint.sh"]
+CMD ["/root/fdb-rs/scripts/simulation_entrypoint.sh", "20"]

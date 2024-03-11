@@ -4,7 +4,7 @@
 export LD_LIBRARY_PATH=/usr/local/lib/x86_64-unknown-linux-gnu
 
 START=1
-END=10
+END=${1-1}
 for i in $(eval echo "{$START..$END}")
 do
   echo "----------------------"
