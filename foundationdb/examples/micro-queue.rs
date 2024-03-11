@@ -1,27 +1,24 @@
-use foundationdb::{future::FdbValue, tuple::Subspace, Database};
+use foundationdb::{future::FdbValue, tuple::Subspace, Database, FdbBindingError};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 // Clears subspaces of a database.
-pub async fn clear_subspace(db: &Database, subspace: &Subspace) {
+pub async fn clear_subspace(db: &Database, subspace: &Subspace) -> Result<(), FdbBindingError> {
     db.run(|trx, _maybe_committed| async move {
         trx.clear_subspace_range(subspace);
         Ok(())
     })
     .await
-    .expect("Unable to commit transaction")
 }
 
 // Get the last index in the queue.
-async fn last_index(db: &Database, queue: &Subspace) -> usize {
+async fn last_index(db: &Database, queue: &Subspace) -> Result<usize, FdbBindingError> {
     db.run(|trx, _maybe_committed| async move {
-        Ok(trx
-            .get_range(&queue.range().into(), 1, true)
+        trx.get_range(&queue.range().into(), 1, true)
             .await
-            .expect("Failed to get range")
-            .len())
+            .map_err(Into::into)
+            .map(|x| x.len())
     })
     .await
-    .expect("Unable to commit transaction")
 }
 
 // Add an element to the queue.
@@ -30,9 +27,9 @@ pub async fn enqueue(
     rng: &mut impl RngCore,
     queue: &Subspace,
     value: impl AsRef<str>,
-) {
+) -> Result<(), FdbBindingError> {
     let next_index = last_index(db, queue)
-        .await
+        .await?
         .checked_add(1)
         .expect("Queue is too long");
 
@@ -48,34 +45,33 @@ pub async fn enqueue(
         Ok(())
     })
     .await
-    .expect("Unable to commit transaction")
 }
 
 // Get the top element of the queue.
-async fn first_item(db: &Database, queue: &Subspace) -> Option<FdbValue> {
+async fn first_item(db: &Database, queue: &Subspace) -> Result<Option<FdbValue>, FdbBindingError> {
     db.run(|trx, _maybe_committed| async move {
-        Ok(trx
-            .get_range(&queue.range().into(), 1, true)
+        trx.get_range(&queue.range().into(), 1, true)
             .await
-            .expect("Failed to get range")
-            .into_iter()
-            .next_back())
+            .map_err(Into::into)
+            .map(|x| x.into_iter().next_back())
     })
     .await
-    .expect("Unable to commit transaction")
 }
 
 // Remove the top element from the queue.
-pub async fn dequeue(db: &Database, queue: &Subspace) -> Option<String> {
-    let fdb_value = first_item(db, queue).await?;
-    let key = fdb_value.key();
-    let value = std::str::from_utf8(fdb_value.value()).expect("valid UTF-8");
-    db.run(|trx, _maybe_committed| async move {
-        trx.clear(key);
-        Ok(Some(value.to_owned()))
-    })
-    .await
-    .expect("Unable to commit transaction")
+pub async fn dequeue(db: &Database, queue: &Subspace) -> Result<Option<String>, FdbBindingError> {
+    match first_item(db, queue).await? {
+        None => Ok(None),
+        Some(fdb_value) => {
+            let key = fdb_value.key();
+            let value = std::str::from_utf8(fdb_value.value()).expect("valid UTF-8");
+            db.run(|trx, _maybe_committed| async move {
+                trx.clear(key);
+                Ok(Some(value.to_owned()))
+            })
+            .await
+        }
+    }
 }
 
 const LINE: [&'static str; 13] = [
@@ -84,21 +80,23 @@ const LINE: [&'static str; 13] = [
 ];
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), FdbBindingError> {
     let fdb = unsafe { foundationdb::boot() };
     let db = &Database::default().expect("Failed to create database");
     let queue = &Subspace::from_bytes("Q");
     let rng = &mut SmallRng::from_entropy();
 
-    clear_subspace(db, queue).await;
+    clear_subspace(db, queue).await?;
 
     for value in LINE {
-        enqueue(db, rng, queue, value).await;
+        enqueue(db, rng, queue, value).await?;
     }
 
-    while let Some(value) = dequeue(db, queue).await {
+    while let Some(value) = dequeue(db, queue).await? {
         println!("{value}");
     }
 
     drop(fdb);
+
+    Ok(())
 }
