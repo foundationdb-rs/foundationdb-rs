@@ -1,3 +1,5 @@
+use futures::StreamExt;
+
 use foundationdb::{future::FdbValue, tuple::Subspace, Database, FdbBindingError};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
@@ -13,10 +15,7 @@ pub async fn clear_subspace(db: &Database, subspace: &Subspace) -> Result<(), Fd
 // Get the last index in the queue.
 async fn last_index(db: &Database, queue: &Subspace) -> Result<usize, FdbBindingError> {
     db.run(|trx, _maybe_committed| async move {
-        trx.get_range(&queue.range().into(), 1, true)
-            .await
-            .map_err(Into::into)
-            .map(|x| x.len())
+        Ok(trx.get_ranges(queue.range().into(), true).count().await)
     })
     .await
 }
