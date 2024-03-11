@@ -91,7 +91,7 @@ impl fmt::Display for FdbError {
 impl std::error::Error for FdbError {}
 
 /// Alias for `Result<..., FdbError>`
-pub type FdbResult<T> = Result<T, FdbError>;
+pub type FdbResult<T = ()> = Result<T, FdbError>;
 
 /// This error represent all errors that can be throwed by `db.run`.
 /// Layer developers may use the `CustomError`.
