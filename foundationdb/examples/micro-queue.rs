@@ -1,8 +1,8 @@
 use core::fmt;
 use std::error;
 
-use foundationdb::{tuple::Subspace, Database, FdbBindingError};
-use futures::{StreamExt, TryStreamExt};
+use foundationdb::{future::FdbValue, tuple::Subspace, Database, FdbBindingError, RangeOption};
+use futures::StreamExt;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 /// Clears subspaces of a database.
@@ -10,11 +10,8 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 /// # Errors
 ///
 /// If client failed to commit transaction.
-async fn clear_subspace<'a>(
-    db: &'a Database,
-    subspace: &'a Subspace,
-) -> Result<(), FdbBindingError> {
-    db.run(move |trx, _| async move {
+async fn clear_subspace(db: &Database, subspace: &Subspace) -> Result<(), FdbBindingError> {
+    db.run(|trx, _| async move {
         trx.clear_subspace_range(subspace);
         Ok(())
     })
@@ -34,6 +31,8 @@ impl fmt::Display for Overflow {
 
 impl error::Error for Overflow {}
 
+/// First-in-first-out (FIFO) queue of UTF-8 strings, implemented as a layer on
+/// top of `FoundationDB`, after the [Java recipe](https://github.com/apple/foundationdb/blob/main/recipes/java-recipes/MicroQueue.java).
 pub struct MicroQueue {
     db: Database,
     queue: Subspace,
@@ -70,7 +69,7 @@ impl MicroQueue {
     /// * If client failed to commit transaction.
     async fn last_index(&self) -> Result<usize, FdbBindingError> {
         self.db
-            .run(move |trx, _maybe_committed| async move {
+            .run(|trx, _maybe_committed| async move {
                 Ok(trx
                     .get_ranges_keyvalues(self.queue.range().into(), true)
                     .count()
@@ -84,10 +83,10 @@ impl MicroQueue {
     /// # Errors
     ///
     /// * If client failed to get [`FdbValues`](foundationdb::future::FdbValues)
-    ///   stored under `prefix Subspace`].
+    ///   stored under `prefix` [`Subspace`].
     /// * If client failed to commit transaction.
     /// * If the capacity of the queue is [`usize::MAX`].
-    pub async fn enqueue<'a, 'b>(&'a mut self, value: &'b str) -> Result<(), FdbBindingError> {
+    pub async fn enqueue(&mut self, value: &str) -> Result<(), FdbBindingError> {
         let index = self
             .last_index()
             .await?
@@ -111,18 +110,16 @@ impl MicroQueue {
     ///
     /// # Errors
     ///
-    /// * Upon failure to convert stream into a collection.
+    /// * Upon failure to collect stream.
     /// * If client failed to commit transaction.
-    async fn first_item(&self) -> Result<Option<(Vec<u8>, Vec<u8>)>, FdbBindingError> {
+    async fn first_item(&self) -> Result<Option<FdbValue>, FdbBindingError> {
         self.db
             .run(|trx, _maybe_committed| async move {
-                Ok(trx
-                    .get_ranges_keyvalues(self.queue.range().into(), true)
-                    .map_ok(|fdb_value| (fdb_value.key().to_vec(), fdb_value.value().to_vec()))
-                    .try_collect::<Vec<(Vec<u8>, Vec<u8>)>>()
-                    .await?
-                    .drain(..)
-                    .next())
+                trx.get_ranges_keyvalues(RangeOption::from(&self.queue).rev(), true)
+                    .next()
+                    .await
+                    .transpose()
+                    .map_err(Into::into)
             })
             .await
     }
@@ -131,18 +128,18 @@ impl MicroQueue {
     ///
     /// # Errors
     ///
-    /// * Upon failure to convert stream into a collection.
+    /// * Upon failure to collect the stream of key values in `prefix` [`Subspace`].
     /// * If client failed to commit transaction.
     ///
     /// # Panics
     ///
-    /// If value is corrupted (invalid UTF-8)
+    /// * If value is corrupted (invalid UTF-8).
     pub async fn dequeue(&mut self) -> Result<Option<String>, FdbBindingError> {
         match self.first_item().await? {
             None => Ok(None),
-            Some((key, value)) => {
-                let key = &key;
-                let value = std::str::from_utf8(&value).expect("valid UTF-8");
+            Some(fdb_value) => {
+                let key = fdb_value.key();
+                let value = std::str::from_utf8(fdb_value.value()).expect("valid UTF-8");
                 self.db
                     .run(|trx, _maybe_committed| async move {
                         trx.clear(key);
@@ -163,7 +160,7 @@ const LINE: [&str; 13] = [
 async fn main() -> Result<(), FdbBindingError> {
     // initialize FoundationDB Client API
     let fdb = unsafe {
-        // SAFETY: only called once
+        // SAFETY: only called once and will be dropped before the program exits
         foundationdb::boot()
     };
 
@@ -178,7 +175,7 @@ async fn main() -> Result<(), FdbBindingError> {
         q.enqueue(value).await?;
     }
 
-    // pop values from the back of the queue
+    // pop values from the front of the queue
     while let Some(value) = q.dequeue().await? {
         println!("{value}");
     }
