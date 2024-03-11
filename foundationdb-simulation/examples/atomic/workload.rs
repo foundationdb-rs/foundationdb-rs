@@ -1,3 +1,4 @@
+use foundationdb::options::TransactionOption;
 use foundationdb::{options, tuple::Subspace};
 use foundationdb_simulation::{
     details, fdb_spawn, Metric, Promise, RustWorkload, Severity, SimDatabase, WorkloadContext,
@@ -46,6 +47,11 @@ impl RustWorkload for AtomicWorkload {
             if self.client_id == 0 {
                 for _ in 0..self.expected_count {
                     let trx = db.create_trx().expect("Could not create transaction");
+
+                    // Enable idempotent txn
+                    trx.set_option(TransactionOption::AutomaticIdempotency)
+                        .expect("could not setup automatic idempotency");
+
                     let buf: [u8; 8] = 1i64.to_le_bytes();
 
                     trx.atomic_op(
@@ -59,8 +65,8 @@ impl RustWorkload for AtomicWorkload {
                         Err(err) => {
                             if err.is_maybe_committed() {
                                 self.context.trace(
-                                    Severity::Info,
-                                    "Detected an maybe_committed transactions",
+                                    Severity::Warn,
+                                    "Detected an maybe_committed transactions with idempotency",
                                     details![
                                         "Layer" => "Rust",
                                         "Client" => self.client_id
@@ -96,11 +102,8 @@ impl RustWorkload for AtomicWorkload {
                     Ok(Some(fdb_slice)) => {
                         let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
                         let count = count as usize;
-                        // We don't know how much maybe_committed transactions has succeeded,
-                        // so we are checking the possible  range
-                        if self.success_count <= count
-                            && count <= self.expected_count + self.maybe_committed_count
-                        {
+
+                        if self.success_count == count {
                             self.context.trace(
                                 Severity::Info,
                                 "Atomic count match",

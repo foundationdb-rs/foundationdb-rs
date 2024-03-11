@@ -27,7 +27,8 @@ RUN cd /root/fdb-rs && \
     cargo build -p foundationdb-simulation --release --example atomic --features ${FDB_RS_FEATURE_VERSION}
 
 # In case you are running a seg fault, uncomment this to have the fdbserver debug
-ADD https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/fdbserver.debug.x86_64.gz /tmp/fdbserver.debug.x86_64.gz
-RUN gzip -d /tmp/fdbserver.debug.x86_64.gz
+# ADD https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/fdbserver.debug.x86_64.gz /tmp/fdbserver.debug.x86_64.gz
+# RUN gzip -d /tmp/fdbserver.debug.x86_64.gz
 
 WORKDIR /root/fdb-rs
+CMD ["/root/fdb-rs/scripts/simulation_entrypoint.sh"]
