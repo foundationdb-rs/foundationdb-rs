@@ -46,6 +46,9 @@
           # bindingTester part
           python3
           virtualenv
+
+          # https://github.com/NixOS/nixpkgs/issues/59209
+          pkgs.bashInteractive
         ];
 
         # https://github.com/NixOS/nixpkgs/issues/52447#issuecomment-853429315
