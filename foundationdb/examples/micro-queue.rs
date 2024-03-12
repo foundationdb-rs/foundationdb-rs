@@ -37,7 +37,6 @@ pub struct MicroQueue {
     db: Database,
     queue: Subspace,
     rng: SmallRng,
-    rands: [u8; 20],
 }
 
 impl MicroQueue {
@@ -56,7 +55,6 @@ impl MicroQueue {
             db,
             queue,
             rng: SmallRng::from_entropy(),
-            rands: [0; 20],
         })
     }
 
@@ -93,10 +91,14 @@ impl MicroQueue {
             .checked_add(1)
             .ok_or_else(|| FdbBindingError::new_custom_error(Box::new(Overflow)))?;
 
-        // Create random seed to avoid conflicts.
-        self.rng.fill_bytes(&mut self.rands);
+        let rands = {
+            // Create random seed to avoid conflicts.
+            let mut rands = [0_u8; 20];
+            self.rng.fill_bytes(&mut rands);
+            rands
+        };
 
-        let key = &self.queue.subspace(&(index, self.rands.as_slice()));
+        let key = &self.queue.subspace(&(index, rands.as_slice()));
 
         self.db
             .run(|trx, _maybe_committed| async move {
