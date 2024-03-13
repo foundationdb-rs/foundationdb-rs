@@ -13,11 +13,15 @@ This crate contains 4 types of wrappers:
 - Rust that maps behavior to C bindings
 - C++ that implements C bindings from Rust (Rust to C++ bridge)
 
-They are respectively contained in the files:
-- `src/FDBWorkload.cpp`
-- `src/lib.rs`
-- `src/fdb_wrapper.rs`
-- `src/FDBWrapper.cpp`
+## Warning
+
+Due to the high level of coupling between this crate and FoundationDB, please note that:
+
+- we are supporting only 7.1 and 7.3 for now
+- it needs to be build within [the official Docker image](https://hub.docker.com/r/foundationdb/build)
+- linker needs to be set to `clang` for 7.3
+
+It is highly recommanded to follow the [provided example](/foundationdb-simulation/examples/atomic) to setup everything correctly.
 
 ## Setup
 Create a new Rust project following the library file structure:
@@ -35,10 +39,13 @@ Write a lib section as follow:
 [lib]
 name = "myworkload"
 crate-type = ["cdylib"]
+required-features = ["fdb-7_3", "fdb-docker"]
 ```
 
 It is necessary that the crate-type is set to `cdylib` as the FoundationDB simulation expects a
 shared object. You can replace `myworkload` by the name of your workload.
+
+Please use the associated [Dockerfile](/foundationdb-simulation/examples/atomic/Dockerfile) to have the right build setup.
 
 ## Workload
 We abstracted the FoundationDB workloads with the following trait:

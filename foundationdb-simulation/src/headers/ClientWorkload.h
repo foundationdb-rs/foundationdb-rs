@@ -67,11 +67,7 @@ public:
 };
 
 struct FDBPromise {
-#if !defined(FDB_API_VERSION)
-#error You must #define FDB_API_VERSION
-#elif FDB_API_VERSION >= 710
 	virtual ~FDBPromise() = default;
-#endif
 	virtual void send(void*) = 0;
 };
 

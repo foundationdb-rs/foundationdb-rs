@@ -125,6 +125,7 @@ typedef struct getrangereqandresult {
 } FDBGetRangeReqAndResult;
 
 /* Memory layout of MappedKeyValueRef.
+
 Total 112 bytes
 - key (12 bytes)
 :74:8F:8E:5F:AE:7F:00:00

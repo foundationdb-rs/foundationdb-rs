@@ -1,5 +1,5 @@
 [[test]]
-testTitle = 'LogicalDBWorkload'
+testTitle = 'AtomicWorkload'
 
   [[test.workload]]
     testName = 'External'

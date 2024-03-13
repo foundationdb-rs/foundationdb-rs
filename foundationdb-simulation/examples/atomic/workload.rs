@@ -1,4 +1,5 @@
-use foundationdb::{options, tuple::Subspace};
+use foundationdb::options::TransactionOption;
+use foundationdb::{options, tuple::Subspace, FdbResult};
 use foundationdb_simulation::{
     details, fdb_spawn, Metric, Promise, RustWorkload, Severity, SimDatabase, WorkloadContext,
 };
@@ -46,6 +47,11 @@ impl RustWorkload for AtomicWorkload {
             if self.client_id == 0 {
                 for _ in 0..self.expected_count {
                     let trx = db.create_trx().expect("Could not create transaction");
+
+                    // Enable idempotent txn
+                    trx.set_option(TransactionOption::AutomaticIdempotency)
+                        .expect("could not setup automatic idempotency");
+
                     let buf: [u8; 8] = 1i64.to_le_bytes();
 
                     trx.atomic_op(
@@ -59,8 +65,8 @@ impl RustWorkload for AtomicWorkload {
                         Err(err) => {
                             if err.is_maybe_committed() {
                                 self.context.trace(
-                                    Severity::Info,
-                                    "Detected an maybe_committed transactions",
+                                    Severity::Warn,
+                                    "Detected an maybe_committed transactions with idempotency",
                                     details![
                                         "Layer" => "Rust",
                                         "Client" => self.client_id
@@ -90,54 +96,46 @@ impl RustWorkload for AtomicWorkload {
         println!("rust_check({})", self.client_id);
         fdb_spawn(async move {
             if self.client_id == 0 {
-                let trx = db.create_trx().expect("Could not create transaction");
-
-                match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
-                    Ok(Some(fdb_slice)) => {
+                // even if buggify is off in checks, transactions can failed because of the randomized knob,
+                // so we need to wrap the check in a txn
+                let count = db
+                    .run(|trx, maybe_committed| async move {
+                        let fdb_slice = trx
+                            .get(&Subspace::all().pack(&COUNT_KEY), true)
+                            .await?
+                            .unwrap();
                         let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
-                        let count = count as usize;
-                        // We don't know how much maybe_committed transactions has succeeded,
-                        // so we are checking the possible  range
-                        if self.success_count <= count
-                            && count <= self.expected_count + self.maybe_committed_count
-                        {
-                            self.context.trace(
-                                Severity::Info,
-                                "Atomic count match",
-                                details![
-                                    "Layer" => "Rust",
-                                    "Client" => self.client_id,
-                                    "Expected" => self.expected_count,
-                                    "Found" => count,
-                                    "CommittedCount" => self.success_count,
-                                    "MaybeCommitted" => self.maybe_committed_count,
-                                ],
-                            );
-                        } else {
-                            self.context.trace(
-                                Severity::Error,
-                                "Atomic count doesn't match",
-                                details![
-                                    "Layer" => "Rust",
-                                    "Client" => self.client_id,
-                                    "Expected" => self.expected_count,
-                                    "Found" => count,
-                                    "CommittedCount" => self.success_count,
-                                    "MaybeCommitted" => self.maybe_committed_count,
-                                ],
-                            );
-                        }
-                    }
-                    _ => {
-                        self.context.trace(
-                            Severity::Error,
-                            "Could not get Atomic count",
-                            details![
-                                "Layer" => "Rust",
-                                "Client" => self.client_id
-                            ],
-                        );
-                    }
+                        Ok(count as usize)
+                    })
+                    .await
+                    .expect("could not check using db.run");
+
+                if self.success_count == count {
+                    self.context.trace(
+                        Severity::Info,
+                        "Atomic count match",
+                        details![
+                            "Layer" => "Rust",
+                            "Client" => self.client_id,
+                            "Expected" => self.expected_count,
+                            "Found" => count,
+                            "CommittedCount" => self.success_count,
+                            "MaybeCommitted" => self.maybe_committed_count,
+                        ],
+                    );
+                } else {
+                    self.context.trace(
+                        Severity::Error,
+                        "Atomic count doesn't match",
+                        details![
+                            "Layer" => "Rust",
+                            "Client" => self.client_id,
+                            "Expected" => self.expected_count,
+                            "Found" => count,
+                            "CommittedCount" => self.success_count,
+                            "MaybeCommitted" => self.maybe_committed_count,
+                        ],
+                    );
                 }
             }
             done.send(true);
