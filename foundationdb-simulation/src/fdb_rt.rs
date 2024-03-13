@@ -3,6 +3,8 @@
 //! This module defines the `fdb_spawn` method to run to completion asynchronous tasks containing
 //! FoundationDB futures
 
+#![doc = include_str!("../docs/fdb_rt.md")]
+
 use std::{
     cell::UnsafeCell,
     future::Future,

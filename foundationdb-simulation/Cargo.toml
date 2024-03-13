@@ -14,6 +14,7 @@ cc = "1.0.83"
 default = ["embedded-fdb-include"]
 fdb-7_1 = ["foundationdb/fdb-7_1", "foundationdb-sys/fdb-7_1"]
 fdb-7_3 = ["foundationdb/fdb-7_3", "foundationdb-sys/fdb-7_3"]
+fdb-docker = []
 embedded-fdb-include = [
     "foundationdb/embedded-fdb-include",
     "foundationdb-sys/embedded-fdb-include",
@@ -23,7 +24,7 @@ embedded-fdb-include = [
 name = "atomic"
 path = "examples/atomic/lib.rs"
 crate-type = ["cdylib"]
-required-features = ["fdb-7_3"]
+required-features = ["fdb-7_3", "fdb-docker"]
 
 [dev-dependencies]
 foundationdb-macros = { version = "0.3.0", path = "../foundationdb-macros", default-features = false }
