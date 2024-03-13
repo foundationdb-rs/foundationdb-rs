@@ -57,10 +57,14 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Asynchronous runtime module
 //!
 //! This module defines the `fdb_spawn` method to run to completion asynchronous tasks containing
 //! FoundationDB futures
+
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"../docs/fdb_rt.md"</span>)]
 
 </span><span class="kw">use </span>std::{
     cell::UnsafeCell,

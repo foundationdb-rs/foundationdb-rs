@@ -1203,13 +1203,13 @@
         <span class="comment">// checking range
         </span><span class="kw">let </span>fdb_values = trx.get_range(<span class="kw-2">&amp;</span>range_option, <span class="number">1</span>, snapshot).<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="kw">match </span>fdb_values.get(<span class="number">0</span>) {
+        <span class="kw">match </span>fdb_values.first() {
             <span class="prelude-val">None </span>=&gt; {}
             <span class="prelude-val">Some</span>(fdb_key_value) =&gt; {
                 <span class="kw">let </span>previous_prefix: Vec&lt;Element&gt; =
                     <span class="self">self</span>.node_subspace.unpack(fdb_key_value.key())<span class="question-mark">?</span>;
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(Element::Bytes(previous_prefix)) = previous_prefix.get(<span class="number">0</span>) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(Element::Bytes(previous_prefix)) = previous_prefix.first() {
                     <span class="kw">if </span>key.starts_with(previous_prefix) {
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.node_with_prefix(previous_prefix)));
                     };

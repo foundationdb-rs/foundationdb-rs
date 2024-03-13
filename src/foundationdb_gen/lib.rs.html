@@ -411,6 +411,14 @@
 <a href="#410" id="410">410</a>
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
 </pre></div><pre class="rust"><code><span class="kw">extern crate </span>xml;
 
 <span class="kw">use </span>std::fmt;
@@ -628,6 +636,7 @@
     hidden: bool,
     default_for: <span class="prelude-ty">Option</span>&lt;i32&gt;,
     persistent: bool,
+    sensitive: bool,
 }
 
 <span class="kw">impl </span>FdbOption {
@@ -716,6 +725,11 @@
                     <span class="string">"false" </span>=&gt; opt.persistent = <span class="bool-val">false</span>,
                     <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"unexpected boolean value in 'persistent': {}"</span>, v),
                 },
+                <span class="string">"sensitive" </span>=&gt; <span class="kw">match </span>v.as_str() {
+                    <span class="string">"true" </span>=&gt; opt.sensitive = <span class="bool-val">true</span>,
+                    <span class="string">"false" </span>=&gt; opt.sensitive = <span class="bool-val">false</span>,
+                    <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"unexpected boolean value in 'sensitive': {}"</span>, v),
+                },
                 attr =&gt; {
                     <span class="macro">panic!</span>(<span class="string">"unexpected option attribute: {}"</span>, attr);
                 }
@@ -781,6 +795,8 @@
 </span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/700/fdb.options"</span>);
 <span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-7_1"</span>))]
 </span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/710/fdb.options"</span>);
+<span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-7_3"</span>))]
+</span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/730/fdb.options"</span>);
 
 <span class="kw">pub fn </span>emit(w: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>fmt::Write) -&gt; fmt::Result {
     <span class="kw">let </span><span class="kw-2">mut </span>reader = OPTIONS_DATA;

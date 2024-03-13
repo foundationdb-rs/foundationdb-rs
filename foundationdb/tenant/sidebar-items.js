@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["FdbTenant","TenantInfo","TenantManagement"]};
+window.SIDEBAR_ITEMS = {"struct":["FDBTenantPrintableInfo","FdbTenant","TenantInfo","TenantManagement"]};

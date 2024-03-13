@@ -108,6 +108,10 @@
 <a href="#107" id="107">107</a>
 <a href="#108" id="108">108</a>
 <a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -125,18 +129,22 @@
 <span class="kw">mod </span>database;
 <span class="kw">pub mod </span>directory;
 <span class="kw">mod </span>error;
-<span class="attr">#[cfg(any(feature = <span class="string">"fdb-7_0"</span>, feature = <span class="string">"fdb-7_1"</span>))]
+<span class="attr">#[cfg(any(feature = <span class="string">"fdb-7_0"</span>, feature = <span class="string">"fdb-7_1"</span>, feature = <span class="string">"fdb-7_3"</span>))]
 #[deny(missing_docs)]
 </span><span class="kw">pub mod </span>fdb_keys;
 <span class="kw">pub mod </span>future;
 <span class="kw">mod </span>keyselector;
-<span class="attr">#[cfg(feature = <span class="string">"fdb-7_1"</span>)]
+<span class="attr">#[cfg(any(feature = <span class="string">"fdb-7_1"</span>, feature = <span class="string">"fdb-7_3"</span>))]
 #[deny(missing_docs)]
 </span><span class="kw">pub mod </span>mapped_key_values;
 <span class="doccomment">/// Generated configuration types for use with the various `set_option` functions
 </span><span class="attr">#[allow(clippy::all)]
 </span><span class="kw">pub mod </span>options;
-<span class="attr">#[cfg(any(feature = <span class="string">"fdb-7_1"</span>, feature = <span class="string">"tenant-experimental"</span>))]
+<span class="attr">#[cfg(any(
+    feature = <span class="string">"fdb-7_1"</span>,
+    feature = <span class="string">"fdb-7_3"</span>,
+    feature = <span class="string">"tenant-experimental"
+</span>))]
 </span><span class="kw">pub mod </span>tenant;
 <span class="kw">mod </span>transaction;
 <span class="kw">pub mod </span>tuple;

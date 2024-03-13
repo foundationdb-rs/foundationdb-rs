@@ -255,6 +255,14 @@
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
 <a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Macro definitions used to maintain the crate
 </span><span class="kw">use </span>proc_macro::TokenStream;
 <span class="kw">use </span>quote::quote;
@@ -349,7 +357,8 @@
 
 <span class="comment">// TODO: Should we import something like lazy_static?
 </span><span class="kw">fn </span>get_version_mapping() -&gt; HashMap&lt;String, i32&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>version_mapping = HashMap::with_capacity(<span class="number">8</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>version_mapping = HashMap::with_capacity(<span class="number">9</span>);
+    version_mapping.insert(<span class="string">"fdb-7_3"</span>.into(), <span class="number">730</span>);
     version_mapping.insert(<span class="string">"fdb-7_1"</span>.into(), <span class="number">710</span>);
     version_mapping.insert(<span class="string">"fdb-7_0"</span>.into(), <span class="number">700</span>);
     version_mapping.insert(<span class="string">"fdb-6_3"</span>.into(), <span class="number">630</span>);
@@ -396,9 +405,10 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_create_supported_list() {
         <span class="kw">let </span>v = get_supported_feature_range(<span class="number">700</span>, <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(v.len(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(v.len(), <span class="number">3</span>);
         <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-7_0"</span>)));
         <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-7_1"</span>)));
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-7_3"</span>)));
 
         <span class="kw">let </span>v = get_supported_feature_range(<span class="number">600</span>, <span class="prelude-val">Some</span>(<span class="number">700</span>));
         <span class="macro">assert_eq!</span>(v.len(), <span class="number">5</span>);
@@ -417,7 +427,8 @@
         <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-5_0"</span>)));
 
         <span class="kw">let </span>v = get_supported_feature_range(<span class="number">500</span>, <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(v.len(), <span class="number">9</span>);
+        <span class="macro">assert_eq!</span>(v.len(), <span class="number">10</span>);
+        <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-7_3"</span>)));
         <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-7_1"</span>)));
         <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-7_0"</span>)));
         <span class="macro">assert!</span>(v.contains(<span class="kw-2">&amp;</span>String::from(<span class="string">"fdb-6_3"</span>)));
@@ -445,7 +456,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_min_700_no_max_version() {
-        <span class="kw">let </span>data = <span class="macro">quote!</span>(feature = <span class="string">"fdb-7_0"</span>, feature = <span class="string">"fdb-7_1"</span>);
+        <span class="kw">let </span>data = <span class="macro">quote!</span>(
+            feature = <span class="string">"fdb-7_0"</span>,
+            feature = <span class="string">"fdb-7_1"</span>,
+            feature = <span class="string">"fdb-7_3"
+        </span>);
 
         <span class="kw">let </span>attrs = <span class="macro">quote!</span>(min = <span class="number">700</span>);
 
@@ -493,7 +508,8 @@
             feature = <span class="string">"fdb-6_2"</span>,
             feature = <span class="string">"fdb-6_3"</span>,
             feature = <span class="string">"fdb-7_0"</span>,
-            feature = <span class="string">"fdb-7_1"
+            feature = <span class="string">"fdb-7_1"</span>,
+            feature = <span class="string">"fdb-7_3"
         </span>);
 
         <span class="kw">let </span>attrs = <span class="macro">quote!</span>(min = <span class="number">500</span>);

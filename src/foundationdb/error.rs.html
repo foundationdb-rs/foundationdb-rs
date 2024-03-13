@@ -271,7 +271,7 @@
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>FdbError {}
 
 <span class="doccomment">/// Alias for `Result&lt;..., FdbError&gt;`
-</span><span class="kw">pub type </span>FdbResult&lt;T&gt; = <span class="prelude-ty">Result</span>&lt;T, FdbError&gt;;
+</span><span class="kw">pub type </span>FdbResult&lt;T = ()&gt; = <span class="prelude-ty">Result</span>&lt;T, FdbError&gt;;
 
 <span class="doccomment">/// This error represent all errors that can be throwed by `db.run`.
 /// Layer developers may use the `CustomError`.

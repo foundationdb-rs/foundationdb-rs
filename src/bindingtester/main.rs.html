@@ -2891,7 +2891,6 @@
 <a href="#2890" id="2890">2890</a>
 <a href="#2891" id="2891">2891</a>
 <a href="#2892" id="2892">2892</a>
-<a href="#2893" id="2893">2893</a>
 </pre></div><pre class="rust"><code><span class="attr">#[macro_use]
 </span><span class="kw">extern crate </span>log;
 
@@ -3580,7 +3579,7 @@
         <span class="kw">match </span>element {
             Element::Bytes(v) =&gt; v,
             <span class="comment">// checking nested bytes in a Tuple as well
-            </span>Element::Tuple(elements) =&gt; <span class="kw">match </span>elements.get(<span class="number">0</span>) {
+            </span>Element::Tuple(elements) =&gt; <span class="kw">match </span>elements.first() {
                 <span class="prelude-val">Some</span>(Element::Bytes(b)) =&gt; b.clone(),
                 <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"bytes were expected, found a Tuple with no Bytes in it"</span>),
             },
@@ -4295,11 +4294,10 @@
             // limits, so these bindings can obtain different sizes back.
             </span>GetApproximateSize =&gt; {
                 <span class="macro">debug!</span>(<span class="string">"get_approximate_size"</span>);
-                trx.as_mut()
-                    .get_approximate_size()
-                    .<span class="kw">await
-                    </span>.expect(<span class="string">"failed to get approximate size"</span>);
-                <span class="self">self</span>.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned());
+                <span class="kw">match </span>trx.as_mut().get_approximate_size().<span class="kw">await </span>{
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="self">self</span>.push(number, GOT_APPROXIMATE_SIZE_RESPONSE.clone().into_owned()),
+                    <span class="prelude-val">Err</span>(error) =&gt; <span class="self">self</span>.push_err(number, error),
+                }
             }
 
             GetRangeSplitPoints =&gt; {
@@ -4638,7 +4636,7 @@
                 <span class="kw">let </span>tuple_prefix = <span class="self">self</span>.pop_string_tuple(<span class="number">1</span>).<span class="kw">await</span>;
                 <span class="kw">let </span>raw_prefix = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="kw">let </span>subspace = Subspace::from_bytes(raw_prefix.into_owned())
-                    .subspace(tuple_prefix.get(<span class="number">0</span>).unwrap());
+                    .subspace(tuple_prefix.first().unwrap());
                 <span class="macro">debug!</span>(
                     <span class="string">"pushing a new subspace {:?} at index {}"</span>,
                     <span class="kw-2">&amp;</span>subspace,
@@ -4720,7 +4718,7 @@
 
                 <span class="macro">debug!</span>(
                     <span class="string">"creating path {:?} with layer {:?} and prefix {:?} using directory at index {}"</span>,
-                    path.get(<span class="number">0</span>).unwrap(),
+                    path.first().unwrap(),
                     <span class="kw-2">&amp;</span>layer,
                     <span class="kw-2">&amp;</span>prefix,
                     <span class="self">self</span>.directory_index,
@@ -4729,7 +4727,7 @@
                 <span class="kw">match </span>directory
                     .create(
                         txn,
-                        path.get(<span class="number">0</span>).unwrap(),
+                        path.first().unwrap(),
                         prefix.as_deref(),
                         layer.as_deref(),
                     )
@@ -4783,13 +4781,13 @@
 
                 <span class="macro">debug!</span>(
                     <span class="string">"opening path {:?} with layer {:?} with index {}"</span>,
-                    path.get(<span class="number">0</span>).unwrap(),
+                    path.first().unwrap(),
                     <span class="kw-2">&amp;</span>layer,
                     <span class="self">self</span>.directory_index
                 );
 
                 <span class="kw">match </span>directory
-                    .open(txn, path.get(<span class="number">0</span>).unwrap(), layer.as_deref())
+                    .open(txn, path.first().unwrap(), layer.as_deref())
                     .<span class="kw">await
                 </span>{
                     <span class="prelude-val">Ok</span>(directory_subspace) =&gt; {
@@ -4843,12 +4841,12 @@
 
                 <span class="macro">debug!</span>(
                     <span class="string">"create_or_open path {:?} with layer {:?} with index {}"</span>,
-                    path.get(<span class="number">0</span>).unwrap(),
+                    path.first().unwrap(),
                     <span class="kw-2">&amp;</span>layer,
                     <span class="self">self</span>.directory_index
                 );
                 <span class="kw">match </span>directory
-                    .create_or_open(txn, path.get(<span class="number">0</span>).unwrap(), <span class="prelude-val">None</span>, layer.as_deref())
+                    .create_or_open(txn, path.first().unwrap(), <span class="prelude-val">None</span>, layer.as_deref())
                     .<span class="kw">await
                 </span>{
                     <span class="prelude-val">Ok</span>(directory_subspace) =&gt; {
@@ -4925,13 +4923,13 @@
 
                 <span class="macro">debug!</span>(
                     <span class="string">"moving {:?} to {:?} using directory at index {}"</span>,
-                    paths.get(<span class="number">0</span>).unwrap(),
+                    paths.first().unwrap(),
                     paths.get(<span class="number">1</span>).unwrap(),
                     <span class="self">self</span>.directory_index
                 );
 
                 <span class="kw">match </span>directory
-                    .move_to(txn, paths.get(<span class="number">0</span>).unwrap(), paths.get(<span class="number">1</span>).unwrap())
+                    .move_to(txn, paths.first().unwrap(), paths.get(<span class="number">1</span>).unwrap())
                     .<span class="kw">await
                 </span>{
                     <span class="prelude-val">Ok</span>(s) =&gt; {
@@ -4981,7 +4979,7 @@
                 );
 
                 <span class="kw">match </span>directory
-                    .move_directory(txn, paths.get(<span class="number">0</span>).expect(<span class="string">"popped tuple has no item"</span>))
+                    .move_directory(txn, paths.first().expect(<span class="string">"popped tuple has no item"</span>))
                     .<span class="kw">await
                 </span>{
                     <span class="prelude-val">Ok</span>(s) =&gt; {
@@ -5027,7 +5025,7 @@
                     },
                 };
 
-                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>);
+                <span class="kw">let </span>paths = paths.first().expect(<span class="string">"could not retrieve a path"</span>);
                 <span class="macro">debug!</span>(
                     <span class="string">"removing path {:?} using directory at index {}"</span>,
                     paths, <span class="self">self</span>.directory_index
@@ -5074,7 +5072,7 @@
                     },
                 };
 
-                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>);
+                <span class="kw">let </span>paths = paths.first().expect(<span class="string">"could not retrieve a path"</span>);
                 <span class="kw">match </span>directory.remove_if_exists(txn, paths).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
                         <span class="kw">if </span>is_db {
@@ -5096,7 +5094,7 @@
                 <span class="kw">let </span>paths = <span class="kw">match </span>count {
                     <span class="number">1 </span>=&gt; {
                         <span class="kw">let </span>paths = <span class="self">self</span>.pop_string_tuple(count).<span class="kw">await</span>;
-                        paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>).clone()
+                        paths.first().expect(<span class="string">"could not retrieve a path"</span>).clone()
                     }
                     <span class="number">0 </span>=&gt; <span class="macro">vec!</span>[],
                     <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(),
@@ -5171,7 +5169,7 @@
                     },
                 };
 
-                <span class="kw">let </span>paths = paths.get(<span class="number">0</span>).expect(<span class="string">"could not retrieve a path"</span>);
+                <span class="kw">let </span>paths = paths.first().expect(<span class="string">"could not retrieve a path"</span>);
                 <span class="kw">match </span>directory.exists(txn, paths).<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(exists) =&gt; {
                         <span class="self">self</span>.push(number, Element::Int(i64::from(exists)));

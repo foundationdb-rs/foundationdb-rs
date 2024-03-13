@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-96caaa1efe533eb4/out/options.rs`."><title>options.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../../../../../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-78acdbd86f697423/out/options.rs`."><title>options.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../../../../../../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../../../../../../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../../../../../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../../../../../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -815,6 +815,102 @@
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
 <a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use crate</span>::{FdbError, FdbResult};
 <span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
@@ -857,6 +953,10 @@
     ///
     /// Once provided, this string will be used to replace the port/PID in the log file names.
     </span>TraceFileIdentifier(String),
+    <span class="doccomment">/// Use the same base trace file name for all client threads as it did before version 7.2. The current default behavior is to use distinct trace file names for client threads by including their version and thread index.
+    </span>TraceShareAmongClientThreads,
+    <span class="doccomment">/// Initialize trace files on network setup, determine the local IP later. Otherwise tracing is initialized when opening the first database.
+    </span>TraceInitializeOnSetup,
     <span class="doccomment">/// Append this suffix to partially written log files. When a log file is complete, it is renamed to remove the suffix. No separator is added between the file and the suffix. If you want to add a file extension, you should include the separator - e.g. '.tmp' instead of 'tmp' to add the 'tmp' extension.
     ///
     /// Set file suffix for partially written log files.
@@ -929,12 +1029,24 @@
     ///
     /// Spawns multiple worker threads for each version of the client that is loaded.  Setting this to a number greater than one implies disable_local_client.
     </span>ClientThreadsPerVersion(i32),
+    <span class="doccomment">/// path to client library
+    ///
+    /// Adds an external client library to be used with a future version protocol. This option can be used testing purposes only!
+    </span>FutureVersionClientLibrary(String),
+    <span class="doccomment">/// Retain temporary external client library copies that are created for enabling multi-threading.
+    </span>RetainClientLibraryCopies,
+    <span class="doccomment">/// Ignore the failure to initialize some of the external clients
+    </span>IgnoreExternalClientFailures,
+    <span class="doccomment">/// Fail with an error if there is no client matching the server version the client is connecting to
+    </span>FailIncompatibleClient,
     <span class="doccomment">/// Disables logging of client statistics, such as sampled transaction activity.
     </span>DisableClientStatisticsLogging,
     <span class="doccomment">/// Deprecated
     </span>EnableSlowTaskProfiling,
     <span class="doccomment">/// Enables debugging feature to perform run loop profiling. Requires trace logging to be enabled. WARNING: this feature is not recommended for use in production.
     </span>EnableRunLoopProfiling,
+    <span class="doccomment">/// Prevents the multi-version client API from being disabled, even if no external clients are configured. This option is required to use GRV caching.
+    </span>DisableClientBypass,
     <span class="doccomment">/// Enable client buggify - will make requests randomly fail (intended for client testing)
     </span>ClientBuggifyEnable,
     <span class="doccomment">/// Disable client buggify
@@ -951,6 +1063,10 @@
     ///
     /// Set a tracer to run on the client. Should be set to the same value as the tracer set on the server.
     </span>DistributedClientTracer(String),
+    <span class="doccomment">/// Client directory for temporary files. 
+    ///
+    /// Sets the directory for storing temporary files created by FDB client, such as temporary copies of client libraries. Defaults to /tmp
+    </span>ClientTmpDir(String),
 }
 <span class="kw">impl </span>NetworkOption {
     <span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fdb_sys::FDBNetworkOption {
@@ -964,6 +1080,8 @@
             NetworkOption::TraceFormat(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TRACE_FORMAT,
             NetworkOption::TraceClockSource(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TRACE_CLOCK_SOURCE,
             NetworkOption::TraceFileIdentifier(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TRACE_FILE_IDENTIFIER,
+            NetworkOption::TraceShareAmongClientThreads =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TRACE_SHARE_AMONG_CLIENT_THREADS,
+            NetworkOption::TraceInitializeOnSetup =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TRACE_INITIALIZE_ON_SETUP,
             NetworkOption::TracePartialFileSuffix(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TRACE_PARTIAL_FILE_SUFFIX,
             NetworkOption::Knob(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_KNOB,
             NetworkOption::TLSPlugin(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_TLS_PLUGIN,
@@ -985,14 +1103,20 @@
             NetworkOption::ExternalClientDirectory(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_EXTERNAL_CLIENT_DIRECTORY,
             NetworkOption::DisableLocalClient =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_DISABLE_LOCAL_CLIENT,
             NetworkOption::ClientThreadsPerVersion(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_CLIENT_THREADS_PER_VERSION,
+            NetworkOption::FutureVersionClientLibrary(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_FUTURE_VERSION_CLIENT_LIBRARY,
+            NetworkOption::RetainClientLibraryCopies =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_RETAIN_CLIENT_LIBRARY_COPIES,
+            NetworkOption::IgnoreExternalClientFailures =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_IGNORE_EXTERNAL_CLIENT_FAILURES,
+            NetworkOption::FailIncompatibleClient =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_FAIL_INCOMPATIBLE_CLIENT,
             NetworkOption::DisableClientStatisticsLogging =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_DISABLE_CLIENT_STATISTICS_LOGGING,
             NetworkOption::EnableSlowTaskProfiling =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_ENABLE_SLOW_TASK_PROFILING,
             NetworkOption::EnableRunLoopProfiling =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_ENABLE_RUN_LOOP_PROFILING,
+            NetworkOption::DisableClientBypass =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_DISABLE_CLIENT_BYPASS,
             NetworkOption::ClientBuggifyEnable =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_ENABLE,
             NetworkOption::ClientBuggifyDisable =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_DISABLE,
             NetworkOption::ClientBuggifySectionActivatedProbability(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_SECTION_ACTIVATED_PROBABILITY,
             NetworkOption::ClientBuggifySectionFiredProbability(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_CLIENT_BUGGIFY_SECTION_FIRED_PROBABILITY,
             NetworkOption::DistributedClientTracer(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_DISTRIBUTED_CLIENT_TRACER,
+            NetworkOption::ClientTmpDir(..) =&gt; fdb_sys::FDBNetworkOption_FDB_NET_OPTION_CLIENT_TMP_DIR,
         }
     }
     <span class="kw">pub unsafe fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FdbResult&lt;()&gt; {
@@ -1034,6 +1158,8 @@
                 fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
+            NetworkOption::TraceShareAmongClientThreads =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
+            NetworkOption::TraceInitializeOnSetup =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::TracePartialFileSuffix(<span class="kw-2">ref </span>v) =&gt; {
                 fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
@@ -1103,9 +1229,17 @@
                 <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
+            NetworkOption::FutureVersionClientLibrary(<span class="kw-2">ref </span>v) =&gt; {
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
+
+            }
+            NetworkOption::RetainClientLibraryCopies =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
+            NetworkOption::IgnoreExternalClientFailures =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
+            NetworkOption::FailIncompatibleClient =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::DisableClientStatisticsLogging =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::EnableSlowTaskProfiling =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::EnableRunLoopProfiling =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
+            NetworkOption::DisableClientBypass =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ClientBuggifyEnable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ClientBuggifyDisable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ClientBuggifySectionActivatedProbability(v) =&gt; {
@@ -1117,6 +1251,10 @@
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::DistributedClientTracer(<span class="kw-2">ref </span>v) =&gt; {
+                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
+
+            }
+            NetworkOption::ClientTmpDir(<span class="kw-2">ref </span>v) =&gt; {
                 fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
             }
@@ -1171,12 +1309,20 @@
     </span>TransactionCausalReadRisky,
     <span class="doccomment">/// Deprecated. Addresses returned by get_addresses_for_key include the port when enabled. As of api version 630, this option is enabled by default and setting this has no effect.
     </span>TransactionIncludePortInAddress,
+    <span class="doccomment">/// Set a random idempotency id for all transactions. See the transaction option description for more information. This feature is in development and not ready for general use.
+    </span>TransactionAutomaticIdempotency,
     <span class="doccomment">/// Allows ``get`` operations to read from sections of keyspace that have become unreadable because of versionstamp operations. This sets the ``bypass_unreadable`` option of each transaction created by this database. See the transaction option description for more information.
     </span>TransactionBypassUnreadable,
+    <span class="doccomment">/// By default, operations that are performed on a transaction while it is being committed will not only fail themselves, but they will attempt to fail other in-flight operations (such as the commit) as well. This behavior is intended to help developers discover situations where operations could be unintentionally executed after the transaction has been reset. Setting this option removes that protection, causing only the offending operation to fail.
+    </span>TransactionUsedDuringCommitProtectionDisable,
+    <span class="doccomment">/// Enables conflicting key reporting on all transactions, allowing them to retrieve the keys that are conflicting with other transactions.
+    </span>TransactionReportConflictingKeys,
     <span class="doccomment">/// Use configuration database.
     </span>UseConfigDatabase,
-    <span class="doccomment">/// An integer between 0 and 100 (default is 0) expressing the probability that a client will verify it can't read stale data whenever it detects a recovery.
-    </span>TestCausalReadRisky,
+    <span class="doccomment">/// integer between 0 and 100 expressing the probability a client will verify it can't read stale data
+    ///
+    /// Enables verification of causal read risky by checking whether clients are able to read stale data when they detect a recovery, and logging an error if so.
+    </span>TestCausalReadRisky(i32),
 }
 <span class="kw">impl </span>DatabaseOption {
     <span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fdb_sys::FDBDatabaseOption {
@@ -1194,9 +1340,12 @@
             DatabaseOption::TransactionSizeLimit(..) =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_SIZE_LIMIT,
             DatabaseOption::TransactionCausalReadRisky =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_CAUSAL_READ_RISKY,
             DatabaseOption::TransactionIncludePortInAddress =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_INCLUDE_PORT_IN_ADDRESS,
+            DatabaseOption::TransactionAutomaticIdempotency =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_AUTOMATIC_IDEMPOTENCY,
             DatabaseOption::TransactionBypassUnreadable =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_BYPASS_UNREADABLE,
+            DatabaseOption::TransactionUsedDuringCommitProtectionDisable =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_USED_DURING_COMMIT_PROTECTION_DISABLE,
+            DatabaseOption::TransactionReportConflictingKeys =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TRANSACTION_REPORT_CONFLICTING_KEYS,
             DatabaseOption::UseConfigDatabase =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_USE_CONFIG_DATABASE,
-            DatabaseOption::TestCausalReadRisky =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TEST_CAUSAL_READ_RISKY,
+            DatabaseOption::TestCausalReadRisky(..) =&gt; fdb_sys::FDBDatabaseOption_FDB_DB_OPTION_TEST_CAUSAL_READ_RISKY,
         }
     }
     <span class="kw">pub unsafe fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">*mut </span>fdb_sys::FDBDatabase) -&gt; FdbResult&lt;()&gt; {
@@ -1242,9 +1391,15 @@
             }
             DatabaseOption::TransactionCausalReadRisky =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::TransactionIncludePortInAddress =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            DatabaseOption::TransactionAutomaticIdempotency =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::TransactionBypassUnreadable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            DatabaseOption::TransactionUsedDuringCommitProtectionDisable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            DatabaseOption::TransactionReportConflictingKeys =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::UseConfigDatabase =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
-            DatabaseOption::TestCausalReadRisky =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            DatabaseOption::TestCausalReadRisky(v) =&gt; {
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
+            }
         };
         <span class="kw">if </span>err != <span class="number">0 </span>{ <span class="prelude-val">Err</span>(FdbError::from_code(err)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
     }
@@ -1265,6 +1420,16 @@
     </span>ReadYourWritesDisable,
     <span class="doccomment">/// Deprecated
     </span>ReadAheadDisable,
+    <span class="doccomment">/// Storage server should cache disk blocks needed for subsequent read requests in this transaction.  This is the default behavior.
+    </span>ReadServerSideCacheEnable,
+    <span class="doccomment">/// Storage server should not cache disk blocks needed for subsequent read requests in this transaction.  This can be used to avoid cache pollution for reads not expected to be repeated.
+    </span>ReadServerSideCacheDisable,
+    <span class="doccomment">/// Use normal read priority for subsequent read requests in this transaction.  This is the default read priority.
+    </span>ReadPriorityNormal,
+    <span class="doccomment">/// Use low read priority for subsequent read requests in this transaction.
+    </span>ReadPriorityLow,
+    <span class="doccomment">/// Use high read priority for subsequent read requests in this transaction.
+    </span>ReadPriorityHigh,
     DurabilityDatacenter,
     DurabilityRisky,
     <span class="doccomment">/// Deprecated
@@ -1281,6 +1446,8 @@
     </span>ReadSystemKeys,
     <span class="doccomment">/// Allows this transaction to access the raw key-space when tenant mode is on.
     </span>RawAccess,
+    <span class="doccomment">/// Allows this transaction to bypass storage quota enforcement. Should only be used for transactions that directly or indirectly decrease the size of the tenant group's data.
+    </span>BypassStorageQuota,
     <span class="doccomment">/// Optional transaction name
     ///
     </span>DebugRetryLogging(String),
@@ -1316,6 +1483,8 @@
     ///
     /// Set the transaction size limit in bytes. The size is calculated by combining the sizes of all keys and values written or mutated, all key ranges cleared, and all read and write conflict ranges. (In other words, it includes the total size of all data included in the request to the cluster to commit the transaction.) Large transactions can cause performance problems on FoundationDB clusters, so setting this limit to a smaller value than the default can help prevent the client from accidentally degrading the cluster's performance. This value must be at least 32 and cannot be set to higher than 10,000,000, the default transaction size limit.
     </span>SizeLimit(i32),
+    <span class="doccomment">/// Automatically assign a random 16 byte idempotency id for this transaction. Prevents commits from failing with ``commit_unknown_result``. WARNING: If you are also using the multiversion client or transaction timeouts, if either cluster_version_changed or transaction_timed_out was thrown during a commit, then that commit may have already succeeded or may succeed in the future. This feature is in development and not ready for general use.
+    </span>AutomaticIdempotency,
     <span class="doccomment">/// Snapshot read operations will see the results of writes done in the same transaction. This is the default behavior.
     </span>SnapshotRywEnable,
     <span class="doccomment">/// Snapshot read operations will not see the results of writes done in the same transaction. This was the default behavior prior to API version 300.
@@ -1350,8 +1519,12 @@
     </span>ExpensiveClearCostEstimationEnable,
     <span class="doccomment">/// Allows ``get`` operations to read from sections of keyspace that have become unreadable because of versionstamp operations. These reads will view versionstamp operations as if they were set operations that did not fill in the versionstamp.
     </span>BypassUnreadable,
-    <span class="doccomment">/// Allows this transaction to use cached GRV from the database context. Defaults to off. Upon first usage, starts a background updater to periodically update the cache to avoid stale read versions.
+    <span class="doccomment">/// Allows this transaction to use cached GRV from the database context. Defaults to off. Upon first usage, starts a background updater to periodically update the cache to avoid stale read versions. The disable_client_bypass option must also be set.
     </span>UseGrvCache,
+    <span class="doccomment">/// A JSON Web Token authorized to access data belonging to one or more tenants, indicated by 'tenants' claim of the token's payload.
+    ///
+    /// Attach given authorization token to the transaction such that subsequent tenant-aware requests are authorized
+    </span>AuthorizationToken(String),
 }
 <span class="kw">impl </span>TransactionOption {
     <span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fdb_sys::FDBTransactionOption {
@@ -1363,6 +1536,11 @@
             TransactionOption::NextWriteNoWriteConflictRange =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_NEXT_WRITE_NO_WRITE_CONFLICT_RANGE,
             TransactionOption::ReadYourWritesDisable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_YOUR_WRITES_DISABLE,
             TransactionOption::ReadAheadDisable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_AHEAD_DISABLE,
+            TransactionOption::ReadServerSideCacheEnable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_SERVER_SIDE_CACHE_ENABLE,
+            TransactionOption::ReadServerSideCacheDisable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_SERVER_SIDE_CACHE_DISABLE,
+            TransactionOption::ReadPriorityNormal =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_PRIORITY_NORMAL,
+            TransactionOption::ReadPriorityLow =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_PRIORITY_LOW,
+            TransactionOption::ReadPriorityHigh =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_PRIORITY_HIGH,
             TransactionOption::DurabilityDatacenter =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_DURABILITY_DATACENTER,
             TransactionOption::DurabilityRisky =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_DURABILITY_RISKY,
             TransactionOption::DurabilityDevNullIsWebScale =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_DURABILITY_DEV_NULL_IS_WEB_SCALE,
@@ -1372,6 +1550,7 @@
             TransactionOption::AccessSystemKeys =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_ACCESS_SYSTEM_KEYS,
             TransactionOption::ReadSystemKeys =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_READ_SYSTEM_KEYS,
             TransactionOption::RawAccess =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_RAW_ACCESS,
+            TransactionOption::BypassStorageQuota =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_BYPASS_STORAGE_QUOTA,
             TransactionOption::DebugRetryLogging(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_DEBUG_RETRY_LOGGING,
             TransactionOption::TransactionLoggingEnable(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_TRANSACTION_LOGGING_ENABLE,
             TransactionOption::DebugTransactionIdentifier(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_DEBUG_TRANSACTION_IDENTIFIER,
@@ -1382,6 +1561,7 @@
             TransactionOption::RetryLimit(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_RETRY_LIMIT,
             TransactionOption::MaxRetryDelay(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_MAX_RETRY_DELAY,
             TransactionOption::SizeLimit(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_SIZE_LIMIT,
+            TransactionOption::AutomaticIdempotency =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_AUTOMATIC_IDEMPOTENCY,
             TransactionOption::SnapshotRywEnable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_SNAPSHOT_RYW_ENABLE,
             TransactionOption::SnapshotRywDisable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_SNAPSHOT_RYW_DISABLE,
             TransactionOption::LockAware =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_LOCK_AWARE,
@@ -1397,6 +1577,7 @@
             TransactionOption::ExpensiveClearCostEstimationEnable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_EXPENSIVE_CLEAR_COST_ESTIMATION_ENABLE,
             TransactionOption::BypassUnreadable =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_BYPASS_UNREADABLE,
             TransactionOption::UseGrvCache =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_USE_GRV_CACHE,
+            TransactionOption::AuthorizationToken(..) =&gt; fdb_sys::FDBTransactionOption_FDB_TR_OPTION_AUTHORIZATION_TOKEN,
         }
     }
     <span class="kw">pub unsafe fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">*mut </span>fdb_sys::FDBTransaction) -&gt; FdbResult&lt;()&gt; {
@@ -1409,6 +1590,11 @@
             TransactionOption::NextWriteNoWriteConflictRange =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::ReadYourWritesDisable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::ReadAheadDisable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::ReadServerSideCacheEnable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::ReadServerSideCacheDisable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::ReadPriorityNormal =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::ReadPriorityLow =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::ReadPriorityHigh =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::DurabilityDatacenter =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::DurabilityRisky =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::DurabilityDevNullIsWebScale =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1418,6 +1604,7 @@
             TransactionOption::AccessSystemKeys =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::ReadSystemKeys =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::RawAccess =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::BypassStorageQuota =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::DebugRetryLogging(<span class="kw-2">ref </span>v) =&gt; {
                 fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 
@@ -1452,6 +1639,7 @@
                 <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
+            TransactionOption::AutomaticIdempotency =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::SnapshotRywEnable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::SnapshotRywDisable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::LockAware =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1476,6 +1664,10 @@
             TransactionOption::ExpensiveClearCostEstimationEnable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::BypassUnreadable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::UseGrvCache =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
+            TransactionOption::AuthorizationToken(<span class="kw-2">ref </span>v) =&gt; {
+                fdb_sys::fdb_transaction_set_option(target, code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
+
+            }
         };
         <span class="kw">if </span>err != <span class="number">0 </span>{ <span class="prelude-val">Err</span>(FdbError::from_code(err)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
     }

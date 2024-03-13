@@ -145,8 +145,8 @@
 //!
 //! This module provides all necessary bindings for a FoundationDB's [ExternalWorkload](https://apple.github.io/foundationdb/client-testing.html#simulation-and-cluster-workloads)
 //! under a Rust trait, as well as a way to register a Workload in the simulation.
-
-</span><span class="attr">#![warn(missing_docs)]
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"../README.md"</span>)]
+#![warn(missing_docs)]
 </span><span class="kw">use </span>std::{mem::ManuallyDrop, os::raw::c_char, ptr::NonNull};
 
 <span class="kw">use </span>foundationdb::Database;
