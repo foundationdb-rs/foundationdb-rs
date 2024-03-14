@@ -60,16 +60,16 @@ num-bigint = { version = "0.4.4", optional = true }
 async-trait = "0.1.77"
 async-recursion = "1.0.5"
 # Required to deserialize tenant info
-serde = { version = "1.0.195", features = ["derive"], optional = true}
-serde_json = { version = "1.0.111", optional = true}
+serde = { version = "1.0.197", features = ["derive"], optional = true}
+serde_json = { version = "1.0.114", optional = true}
 serde_bytes = { version = "0.11.14", optional = true}
 
 [dev-dependencies]
 byteorder = "1.5.0"
 lazy_static = "1.4.0"
-log = "0.4.20"
-tokio = { version = "1.35.1", features = ["full"] }
-ring = "0.17.7"
+log = "0.4.21"
+tokio = { version = "1.36.0", features = ["full"] }
+ring = "0.17.8"
 data-encoding = "2.5.0"
 pretty-bytes = "0.2.2"
 uuid = { version = "1.7.0", features = ["v4"] }
