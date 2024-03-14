@@ -1,11 +1,11 @@
 [package]
 name = "foundationdb-simulation"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-foundationdb = { version = "0.8.0", path = "../foundationdb", default-features = false }
-foundationdb-sys = { version = "0.8.0", path = "../foundationdb-sys", default-features = false }
+foundationdb = { version = "0.9.0", path = "../foundationdb", default-features = false }
+foundationdb-sys = { version = "0.9.0", path = "../foundationdb-sys", default-features = false }
 
 [build-dependencies]
 cc = "1.0.90"
