@@ -40,6 +40,8 @@
           rust-bin.${rustChannel}.latest.rustfmt
           rust-bin.${rustChannel}.latest.clippy
 
+          git-cliff
+
           # FDB part
           libfdb73
 
