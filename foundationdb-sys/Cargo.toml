@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb-sys"
-version = "0.8.0"
+version = "0.9.0"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
@@ -46,4 +46,4 @@ fdb-7_3 = []
 libc = "0.2"
 
 [build-dependencies]
-bindgen = "0.69.2"
+bindgen = "0.69.4"
