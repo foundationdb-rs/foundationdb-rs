@@ -388,6 +388,15 @@ impl Database {
         trx.get_read_version().await?;
         Ok(())
     }
+
+    /// Returns a value where 0 indicates that the client is idle and 1 (or larger) indicates that the client is saturated.
+    /// By default, this value is updated every second.
+    #[cfg_api_versions(min = 710)]
+    pub async fn get_main_thread_busyness(&self) -> FdbResult<f64> {
+        let busyness =
+            unsafe { fdb_sys::fdb_database_get_main_thread_busyness(self.inner.as_ptr()) };
+        Ok(busyness)
+    }
 }
 pub trait DatabaseTransact: Sized {
     type Item;

@@ -2,11 +2,16 @@ use foundationdb_macros::cfg_api_versions;
 
 mod common;
 
-#[cfg_api_versions(min = 730)]
 #[test]
-fn test_get_client_status() {
+fn test_databse() {
     let _guard = unsafe { foundationdb::boot() };
+
+    #[cfg(any(feature = "fdb-7_3"))]
     futures::executor::block_on(test_status_async()).expect("failed to run");
+
+    #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
+    futures::executor::block_on(test_get_main_thread_busyness_async())
+        .expect("failed to get busyness");
 }
 
 #[cfg_api_versions(min = 730)]
@@ -22,5 +27,21 @@ async fn test_status_async() -> foundationdb::FdbResult<()> {
         format!("{}", status)
     );
 
+    Ok(())
+}
+
+#[cfg_api_versions(min = 710)]
+async fn test_get_main_thread_busyness_async() -> foundationdb::FdbResult<()> {
+    let db = common::database().await?;
+
+    let busyness = db
+        .get_main_thread_busyness()
+        .await
+        .expect("could not get busyness");
+    assert!(
+        busyness == 0.0,
+        "{}",
+        format!("non-zero thread busyness: {}", busyness)
+    );
     Ok(())
 }
