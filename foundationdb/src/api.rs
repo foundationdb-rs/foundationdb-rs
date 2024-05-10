@@ -72,7 +72,19 @@ impl FdbApiBuilder {
                 self.runtime_version,
                 fdb_sys::FDB_API_VERSION as i32,
             )
-        })?;
+        }).map_err(|e| {
+                // 2203: api_version_not_supported
+                // generally mean the local libfdb doesn't support requested target version
+                if e.code() == 2203 {
+                    let max_api_version = unsafe { fdb_sys::fdb_get_max_api_version() };
+                    if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
+                        println!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
+                        println!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
+                    }
+                }
+                e
+            })?;
+
         Ok(NetworkBuilder { _private: () })
     }
 }
