@@ -74,5 +74,14 @@ async fn run_key_selector_tuple_example() -> FdbResult<()> {
         }
         Err(_) => eprintln!("cannot commit transaction"),
     }
+
+    // NOTE: KeySelector only works for `get_key` or to be used with `getRange`
+    // https://docs.rs/foundationdb/latest/foundationdb/struct.KeySelector.html
+    let result = db
+        .run(|trx, _maybe_committed| async move {
+            Ok(trx.get(&KeySelector::last_less_or_equal(&pack(&("orange", 5))).key(), true).await.unwrap())
+        })
+        .await.unwrap();
+    assert_eq!(result.is_none(), true);
     Ok(())
 }
