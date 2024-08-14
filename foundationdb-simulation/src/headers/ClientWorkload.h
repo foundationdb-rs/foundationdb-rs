@@ -47,7 +47,7 @@ class FDBLogger {
 public:
 	virtual void trace(FDBSeverity sev,
 	                   const std::string& name,
-	                   const std::vector<std::pair<std::string, std::string>>& details) = 0;
+	                   const std::vector<std::pair<std::string, std::string> >& details) = 0;
 };
 
 class FDBWorkloadContext : public FDBLogger {
