@@ -34,7 +34,7 @@ fn main() {
         display_build_warnings();
 
         // FDB is built with gcc
-        build_with_gcc(&stringified_api_version);
+        build_with_gcc(&api_version);
     }
 }
 
@@ -49,6 +49,7 @@ fn display_build_warnings() {
 fn build_with_gcc(api_version: &str) {
     cc::Build::new()
         .cpp(true)
+        .std("c++14")
         .define("FDB_API_VERSION", api_version)
         .file("src/FDBWrapper.cpp")
         .file("src/FDBWorkload.cpp")
@@ -60,6 +61,7 @@ fn build_with_clang(api_version: &str) {
         .compiler("clang")
         .cpp_set_stdlib("c++")
         .cpp(true)
+        .std("c++14")
         .define("FDB_API_VERSION", api_version)
         .file("src/FDBWrapper.cpp")
         .file("src/FDBWorkload.cpp")
