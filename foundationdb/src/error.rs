@@ -107,24 +107,13 @@ pub enum FdbBindingError {
 }
 
 impl FdbBindingError {
-    /// Return if the RunError is an FdbError
-    pub(crate) fn get_fdb_error(&self) -> Option<FdbError> {
-        match self {
-            FdbBindingError::NonRetryableFdbError(e) => Some(*e),
-            FdbBindingError::DirectoryError(directory_error) => {
-                if let DirectoryError::FdbError(e) = directory_error {
-                    Some(*e)
-                } else {
-                    None
-                }
-            }
-            FdbBindingError::HcaError(hca_error) => {
-                if let HcaError::FdbError(e) = hca_error {
-                    Some(*e)
-                } else {
-                    None
-                }
-            }
+    /// Returns the underlying `FdbError` if any.
+    pub fn get_fdb_error(&self) -> Option<FdbError> {
+        match *self {
+            Self::NonRetryableFdbError(error)
+            | Self::DirectoryError(DirectoryError::FdbError(error))
+            | Self::HcaError(HcaError::FdbError(error)) => Some(error),
+            Self::CustomError(ref error) => error.downcast_ref().copied(),
             _ => None,
         }
     }
