@@ -107,13 +107,21 @@ pub enum FdbBindingError {
 }
 
 impl FdbBindingError {
-    /// Returns the underlying `FdbError` if any.
+    /// Returns the underlying `FdbError`, if any.
     pub fn get_fdb_error(&self) -> Option<FdbError> {
         match *self {
             Self::NonRetryableFdbError(error)
             | Self::DirectoryError(DirectoryError::FdbError(error))
             | Self::HcaError(HcaError::FdbError(error)) => Some(error),
-            Self::CustomError(ref error) => error.downcast_ref().copied(),
+            Self::CustomError(ref error) => {
+                if let Some(e) = error.downcast_ref::<FdbError>() {
+                    Some(*e)
+                } else if let Some(e) = error.downcast_ref::<FdbBindingError>() {
+                    e.get_fdb_error()
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
