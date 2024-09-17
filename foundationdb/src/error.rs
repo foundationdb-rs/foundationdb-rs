@@ -103,28 +103,21 @@ pub enum FdbBindingError {
     /// A reference to the `RetryableTransaction` has been kept
     ReferenceToTransactionKept,
     /// A custom error that layer developers can use
-    CustomError(Box<dyn std::error::Error + Send + Sync>),
+    CustomError(Box<dyn GetFdbError + Send + Sync>),
 }
 
-impl FdbBindingError {
-    /// Return if the RunError is an FdbError
-    pub(crate) fn get_fdb_error(&self) -> Option<FdbError> {
-        match self {
-            FdbBindingError::NonRetryableFdbError(e) => Some(*e),
-            FdbBindingError::DirectoryError(directory_error) => {
-                if let DirectoryError::FdbError(e) = directory_error {
-                    Some(*e)
-                } else {
-                    None
-                }
-            }
-            FdbBindingError::HcaError(hca_error) => {
-                if let HcaError::FdbError(e) = hca_error {
-                    Some(*e)
-                } else {
-                    None
-                }
-            }
+pub trait GetFdbError: std::error::Error + Send + Sync {
+    /// Returns the underlying `FdbError`, if any.
+    fn get_fdb_error(&self) -> Option<FdbError>;
+}
+
+impl GetFdbError for FdbBindingError {
+    fn get_fdb_error(&self) -> Option<FdbError> {
+        match *self {
+            Self::NonRetryableFdbError(error)
+            | Self::DirectoryError(DirectoryError::FdbError(error))
+            | Self::HcaError(HcaError::FdbError(error)) => Some(error),
+            Self::CustomError(ref error) => error.get_fdb_error(),
             _ => None,
         }
     }
@@ -148,9 +141,15 @@ impl From<DirectoryError> for FdbBindingError {
     }
 }
 
+impl From<Box<dyn GetFdbError + Send + Sync>> for FdbBindingError {
+    fn from(value: Box<dyn GetFdbError + Send + Sync>) -> Self {
+        Self::CustomError(value)
+    }
+}
+
 impl FdbBindingError {
     /// create a new custom error
-    pub fn new_custom_error(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
+    pub const fn new_custom_error(e: Box<dyn GetFdbError + Send + Sync>) -> Self {
         Self::CustomError(e)
     }
 }

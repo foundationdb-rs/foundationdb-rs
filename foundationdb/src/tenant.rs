@@ -7,6 +7,7 @@
 //! Tenants are currently experimental and are not recommended for use in production. Please note that
 //! currently, we [cannot upgrade a cluster with tenants enabled](https://forums.foundationdb.org/t/tenant-feature-metadata-changes-in-7-2-release/3459).
 
+use crate::error::GetFdbError;
 use crate::options::TransactionOption;
 use std::future::Future;
 

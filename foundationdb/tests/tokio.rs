@@ -40,6 +40,12 @@ impl Display for CustomError {
 
 impl std::error::Error for CustomError {}
 
+impl GetFdbError for CustomError {
+    fn get_fdb_error(&self) -> Option<FdbError> {
+        None
+    }
+}
+
 async fn do_run_with_custom_error() {
     let db = Arc::new(
         foundationdb::Database::new_compat(None)

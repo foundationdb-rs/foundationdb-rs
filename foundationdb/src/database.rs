@@ -23,7 +23,7 @@ use crate::options;
 use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
 
-use crate::error::FdbBindingError;
+use crate::error::{FdbBindingError, GetFdbError};
 use futures::prelude::*;
 
 #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]

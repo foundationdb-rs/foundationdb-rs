@@ -42,6 +42,7 @@ pub use crate::database::*;
 pub use crate::error::FdbBindingError;
 pub use crate::error::FdbError;
 pub use crate::error::FdbResult;
+pub use crate::error::GetFdbError;
 pub use crate::keyselector::*;
 pub use crate::transaction::*;
 

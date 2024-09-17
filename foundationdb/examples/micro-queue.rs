@@ -1,7 +1,10 @@
 use core::fmt;
 use std::error;
 
-use foundationdb::{future::FdbValue, tuple::Subspace, Database, FdbBindingError, RangeOption};
+use foundationdb::{
+    future::FdbValue, tuple::Subspace, Database, FdbBindingError, FdbError, GetFdbError,
+    RangeOption,
+};
 use futures::StreamExt;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
@@ -30,6 +33,12 @@ impl fmt::Display for Overflow {
 }
 
 impl error::Error for Overflow {}
+
+impl GetFdbError for Overflow {
+    fn get_fdb_error(&self) -> Option<FdbError> {
+        None
+    }
+}
 
 /// First-in-first-out (FIFO) queue of UTF-8 strings, implemented as a layer on
 /// top of `FoundationDB`, after the [Java recipe](https://github.com/apple/foundationdb/blob/main/recipes/java-recipes/MicroQueue.java).
