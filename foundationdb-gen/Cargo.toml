@@ -7,7 +7,7 @@ authors = [
     "Pierre Zemb <contact@pierrezemb.fr>"
 ]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.71"
 
 description = """
 Binding generation helper for FoundationDB.
