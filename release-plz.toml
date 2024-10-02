@@ -1,0 +1,24 @@
+[workspace]
+# https://release-plz.ieni.dev/docs/config#the-release_always-field
+# If false, release-plz release will try to release your packages only when you merge the release PR.
+# To do this, release-plz checks if the latest commit is associated to a release PR. To determine if a PR is a release-pr
+release_always = false
+
+# As we cannot regenerate the whole CHANGELOG, we fallback to cliff
+# https://github.com/MarcoIeni/release-plz/issues/1009
+changelog_config = "cliff.toml"
+
+[[package]]
+name = "foundationdb-macros"
+
+[[package]]
+name = "foundationdb-sys"
+
+[[package]]
+name = "foundationdb-gen"
+
+[[package]]
+name = "foundationdb"
+
+[[package]]
+name = "foundationdb-simulation"
