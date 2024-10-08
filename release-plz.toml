@@ -13,12 +13,15 @@ name = "foundationdb-macros"
 
 [[package]]
 name = "foundationdb-sys"
+publish_features = ["embedded-fdb-include", "fdb-7_3"]
 
 [[package]]
 name = "foundationdb-gen"
 
 [[package]]
 name = "foundationdb"
+publish_features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
 
 [[package]]
 name = "foundationdb-simulation"
+publish_features = ["embedded-fdb-include", "fdb-7_3"]
