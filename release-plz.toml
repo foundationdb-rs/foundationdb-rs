@@ -25,3 +25,11 @@ publish_features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
 [[package]]
 name = "foundationdb-simulation"
 publish_features = ["embedded-fdb-include", "fdb-7_3"]
+
+[[package]]
+name = "foundationdb-bench"
+publish = false
+
+[[package]]
+name = "bindingtester"
+publish = false
