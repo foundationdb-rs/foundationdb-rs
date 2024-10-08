@@ -4,6 +4,10 @@
 # To do this, release-plz checks if the latest commit is associated to a release PR. To determine if a PR is a release-pr
 release_always = false
 
+git_release_draft = true
+pr_draft = true
+pr_labels = ["release"]
+
 # As we cannot regenerate the whole CHANGELOG, we fallback to cliff
 # https://github.com/MarcoIeni/release-plz/issues/1009
 changelog_config = "cliff.toml"
