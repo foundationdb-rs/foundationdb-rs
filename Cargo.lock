@@ -289,7 +289,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -328,14 +328,14 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-gen"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "xml-rs",
 ]
 
 [[package]]
 name = "foundationdb-macros"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-simulation"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "cc",
  "foundationdb",
@@ -355,7 +355,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-sys"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "bindgen",
  "libc",
