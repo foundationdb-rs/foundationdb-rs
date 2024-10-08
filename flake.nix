@@ -41,6 +41,7 @@
           rust-bin.${rustChannel}.latest.clippy
 
           git-cliff
+	  release-plz
 
           # FDB part
           libfdb73

@@ -1,7 +1,6 @@
 /target
 **/*.rs.bk
 *.swp
-Cargo.lock
 
 .vscode
 .direnv
