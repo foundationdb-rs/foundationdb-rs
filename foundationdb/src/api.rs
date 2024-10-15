@@ -15,11 +15,11 @@
 
 use std::panic;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 
 use crate::options::NetworkOption;
-use crate::{error, FdbResult};
+use crate::{error, FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
 
 /// Returns the max api version of the underlying Fdb C API Client
@@ -28,6 +28,35 @@ pub fn get_max_api_version() -> i32 {
 }
 
 static VERSION_SELECTED: AtomicBool = AtomicBool::new(false);
+static INIT_VERSION_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+
+/// Set the api version that will be used. **Must be called before any other API functions**.
+/// Version must be less than or equal to FDB_API_VERSION (and should almost always be equal).
+/// THis function is thread-safe, and can be called multiple times, as it is protected with a OnceLock.
+/// Only the first version passed will be used. The error, if any, is kept throughout the different calls
+pub fn set_api_version(version: i32) -> Result<(), FdbError> {
+    match INIT_VERSION_ONCE.get_or_init(|| {
+        error::eval(unsafe {
+            fdb_sys::fdb_select_api_version_impl(version, fdb_sys::FDB_API_VERSION as i32)
+        })
+        .err()
+    }) {
+        None => Ok(()),
+        Some(err) => {
+            if err.code() == 2203 { // api_version_not_supported
+                let max_api_version = get_max_api_version();
+                if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
+                    eprintln!(
+                        "The version of FoundationDB binding requested '{}' is not supported",
+                        fdb_sys::FDB_API_VERSION
+                    );
+                    eprintln!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
+                }
+            };
+            Err(err.clone())
+        }
+    }
+}
 
 /// A Builder with which different versions of the Fdb C API can be initialized
 ///
@@ -78,8 +107,8 @@ impl FdbApiBuilder {
                 if e.code() == 2203 {
                     let max_api_version = unsafe { fdb_sys::fdb_get_max_api_version() };
                     if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
-                        println!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
-                        println!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
+                        eprintln!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
+                        eprintln!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
                     }
                 }
                 e
