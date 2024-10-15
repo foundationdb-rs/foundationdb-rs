@@ -13,8 +13,6 @@
 //! - [API versioning](https://apple.github.io/foundationdb/api-c.html#api-versioning)
 //! - [Network](https://apple.github.io/foundationdb/api-c.html#network)
 
-use std::panic;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 
@@ -27,8 +25,17 @@ pub fn get_max_api_version() -> i32 {
     unsafe { fdb_sys::fdb_get_max_api_version() }
 }
 
-static VERSION_SELECTED: AtomicBool = AtomicBool::new(false);
 static INIT_VERSION_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+static SETUP_NETWORK_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+
+fn setup_network_thread() -> Result<(), FdbError> {
+    match SETUP_NETWORK_ONCE
+        .get_or_init(|| unsafe { error::eval(fdb_sys::fdb_setup_network()).err() })
+    {
+        None => Ok(()),
+        Some(err) => Err(err.clone()),
+    }
+}
 
 /// Set the api version that will be used. **Must be called before any other API functions**.
 /// Version must be less than or equal to FDB_API_VERSION (and should almost always be equal).
@@ -36,26 +43,28 @@ static INIT_VERSION_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
 /// Only the first version passed will be used. The error, if any, is kept throughout the different calls
 pub fn set_api_version(version: i32) -> Result<(), FdbError> {
     match INIT_VERSION_ONCE.get_or_init(|| {
-        error::eval(unsafe {
+        match error::eval(unsafe {
             fdb_sys::fdb_select_api_version_impl(version, fdb_sys::FDB_API_VERSION as i32)
-        })
-        .err()
+        }) {
+            Ok(()) => None,
+            Err(err) => {
+                // api_version_not_supported
+                if err.code() == 2203 {
+                    let max_api_version = get_max_api_version();
+                    if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
+                        eprintln!(
+                            "The version of FoundationDB binding requested '{}' is not supported",
+                            fdb_sys::FDB_API_VERSION
+                        );
+                        eprintln!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
+                    }
+                };
+                Some(err)
+            }
+        }
     }) {
         None => Ok(()),
-        Some(err) => {
-            if err.code() == 2203 {
-                // api_version_not_supported
-                let max_api_version = get_max_api_version();
-                if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
-                    eprintln!(
-                        "The version of FoundationDB binding requested '{}' is not supported",
-                        fdb_sys::FDB_API_VERSION
-                    );
-                    eprintln!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
-                }
-            };
-            Err(err.clone())
-        }
+        Some(err) => Err(err.clone()),
     }
 }
 
@@ -91,35 +100,9 @@ impl FdbApiBuilder {
     }
 
     /// Initialize the foundationDB API and returns a `NetworkBuilder`
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if called more than once
+    /// This function is now thread-safe
     pub fn build(self) -> FdbResult<NetworkBuilder> {
-        if VERSION_SELECTED
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_err()
-        {
-            panic!("the fdb select api version can only be run once per process");
-        }
-        error::eval(unsafe {
-            fdb_sys::fdb_select_api_version_impl(
-                self.runtime_version,
-                fdb_sys::FDB_API_VERSION as i32,
-            )
-        }).map_err(|e| {
-                // 2203: api_version_not_supported
-                // generally mean the local libfdb doesn't support requested target version
-                if e.code() == 2203 {
-                    let max_api_version = unsafe { fdb_sys::fdb_get_max_api_version() };
-                    if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
-                        eprintln!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
-                        eprintln!("by the installed FoundationDB C library. Maximum supported version by the local library is {}", max_api_version);
-                    }
-                }
-                e
-            })?;
-
+        set_api_version(self.runtime_version)?;
         Ok(NetworkBuilder { _private: () })
     }
 }
@@ -192,7 +175,11 @@ impl NetworkBuilder {
     /// ```
     #[allow(clippy::mutex_atomic)]
     pub fn build(self) -> FdbResult<(NetworkRunner, NetworkWait)> {
-        unsafe { error::eval(fdb_sys::fdb_setup_network())? }
+        self.setup_network_thread()
+    }
+
+    fn setup_network_thread(self) -> Result<(NetworkRunner, NetworkWait), FdbError> {
+        setup_network_thread()?;
 
         let cond = Arc::new((Mutex::new(false), Condvar::new()));
         Ok((NetworkRunner { cond: cond.clone() }, NetworkWait { cond }))
