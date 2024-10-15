@@ -43,7 +43,8 @@ pub fn set_api_version(version: i32) -> Result<(), FdbError> {
     }) {
         None => Ok(()),
         Some(err) => {
-            if err.code() == 2203 { // api_version_not_supported
+            if err.code() == 2203 {
+                // api_version_not_supported
                 let max_api_version = get_max_api_version();
                 if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
                     eprintln!(
@@ -56,6 +57,11 @@ pub fn set_api_version(version: i32) -> Result<(), FdbError> {
             Err(err.clone())
         }
     }
+}
+
+/// Set network options.
+pub fn set_network_option(option: NetworkOption) -> Result<(), FdbError> {
+/// Set network options. Must be call **before** setup_network.
 }
 
 /// A Builder with which different versions of the Fdb C API can be initialized
