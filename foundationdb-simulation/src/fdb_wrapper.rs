@@ -215,7 +215,8 @@ impl WorkloadContext {
     pub fn set_process_id(&self) {
         unsafe { FDBContext_setProcessID(self.inner) }
     }
-    /// Get the current time
+    /// Returns the simulated time in seconds since the Epoch (January 1, 1970, 00:00:00 UTC).
+    /// Simulated time start at 0, and contains milliseconds, like this: `72.99856768895224`
     pub fn now(&self) -> f64 {
         unsafe { FDBContext_now(self.inner) }
     }
