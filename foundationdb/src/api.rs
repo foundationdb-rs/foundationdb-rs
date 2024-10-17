@@ -13,12 +13,12 @@
 //! - [API versioning](https://apple.github.io/foundationdb/api-c.html#api-versioning)
 //! - [Network](https://apple.github.io/foundationdb/api-c.html#network)
 
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
-use std::thread;
-
 use crate::options::NetworkOption;
 use crate::{error, FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::thread;
+use std::thread::JoinHandle;
 
 /// Returns the max api version of the underlying Fdb C API Client
 pub fn get_max_api_version() -> i32 {
@@ -26,16 +26,6 @@ pub fn get_max_api_version() -> i32 {
 }
 
 static INIT_VERSION_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
-static SETUP_NETWORK_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
-
-fn setup_network_thread() -> Result<(), FdbError> {
-    match SETUP_NETWORK_ONCE
-        .get_or_init(|| unsafe { error::eval(fdb_sys::fdb_setup_network()).err() })
-    {
-        None => Ok(()),
-        Some(err) => Err(err.clone()),
-    }
-}
 
 /// Set the api version that will be used. **Must be called before any other API functions**.
 /// Version must be less than or equal to FDB_API_VERSION (and should almost always be equal).
@@ -65,6 +55,47 @@ pub fn set_api_version(version: i32) -> Result<(), FdbError> {
     }) {
         None => Ok(()),
         Some(err) => Err(err.clone()),
+    }
+}
+
+static SETUP_NETWORK_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+
+/// Setup the network thread. Can be called multiple times.
+fn setup_network_thread() -> Result<(), FdbError> {
+    match SETUP_NETWORK_ONCE
+        .get_or_init(|| unsafe { error::eval(fdb_sys::fdb_setup_network()).err() })
+    {
+        None => Ok(()),
+        Some(err) => Err(err.clone()),
+    }
+}
+
+static NETWORK_HANDLE_ONCE: OnceLock<JoinHandle<()>> = OnceLock::new();
+static NETWORK_STARTED_LOCK: Mutex<bool> = Mutex::new(false);
+static NETWORK_STARTED_NOTIFIER: Condvar = Condvar::new();
+fn spawn_network_thread() {
+    NETWORK_HANDLE_ONCE.get_or_init(|| {
+        thread::spawn(move || {
+            {
+                let mut lock = NETWORK_STARTED_LOCK.lock().unwrap();
+                *lock = true;
+                // We notify the condvar that the value has changed.
+                NETWORK_STARTED_NOTIFIER.notify_one();
+            }
+
+            error::eval(unsafe { fdb_sys::fdb_run_network() })
+                .expect("could not run network thread");
+        })
+    });
+
+    wait_for_network_thread();
+}
+
+// wait for `run_network_thread` to actually run.
+fn wait_for_network_thread() {
+    let mut started = NETWORK_STARTED_LOCK.lock().unwrap();
+    while !*started {
+        started = NETWORK_STARTED_NOTIFIER.wait(started).unwrap();
     }
 }
 
@@ -227,127 +258,11 @@ impl NetworkBuilder {
     ///     drop(network);
     /// }
     /// ```
-    pub unsafe fn boot(self) -> FdbResult<NetworkAutoStop> {
-        let (runner, cond) = self.build()?;
-
-        let net_thread = runner.spawn();
-
-        let network = cond.wait();
-
-        Ok(NetworkAutoStop {
-            handle: Some(net_thread),
-            network: Some(network),
-        })
+    pub unsafe fn boot(self) -> FdbResult<()> {
+        unimplemented!()
     }
 }
 
-/// A foundationDB network event loop runner
-///
-/// Most of the time you should never need to use this directly and use `boot()`.
-pub struct NetworkRunner {
-    cond: Arc<(Mutex<bool>, Condvar)>,
-}
-
-impl NetworkRunner {
-    /// Start the foundationDB network event loop in the current thread.
-    ///
-    /// # Safety
-    ///
-    /// This method is unsafe because you **MUST** call the `stop` method on the
-    /// associated `NetworkStop` before the program exit.
-    ///
-    /// This will only returns once the `stop` method on the associated `NetworkStop`
-    /// object is called or if the foundationDB event loop return an error.
-    pub unsafe fn run(self) -> FdbResult<()> {
-        self._run()
-    }
-
-    fn _run(self) -> FdbResult<()> {
-        {
-            let (lock, cvar) = &*self.cond;
-            let mut started = lock.lock().unwrap();
-            *started = true;
-            // We notify the condvar that the value has changed.
-            cvar.notify_one();
-        }
-
-        error::eval(unsafe { fdb_sys::fdb_run_network() })
-    }
-
-    unsafe fn spawn(self) -> thread::JoinHandle<()> {
-        thread::spawn(move || {
-            self.run().expect("failed to run network thread");
-        })
-    }
-}
-
-/// A condition object that can wait for the associated `NetworkRunner` to actually run.
-///
-/// Most of the time you should never need to use this directly and use `boot()`.
-pub struct NetworkWait {
-    cond: Arc<(Mutex<bool>, Condvar)>,
-}
-
-impl NetworkWait {
-    /// Wait for the associated `NetworkRunner` to actually run.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal lock cannot is poisoned
-    pub fn wait(self) -> NetworkStop {
-        // Wait for the thread to start up.
-        {
-            let (lock, cvar) = &*self.cond;
-            let mut started = lock.lock().unwrap();
-            while !*started {
-                started = cvar.wait(started).unwrap();
-            }
-        }
-
-        NetworkStop { _private: () }
-    }
-}
-
-/// Allow to stop the associated and running `NetworkRunner`.
-///
-/// Most of the time you should never need to use this directly and use `boot()`.
-pub struct NetworkStop {
-    _private: (),
-}
-
-impl NetworkStop {
-    /// Signals the event loop invoked by `Network::run` to terminate.
-    pub fn stop(self) -> FdbResult<()> {
-        error::eval(unsafe { fdb_sys::fdb_stop_network() })
-    }
-}
-
-/// Stop the associated `NetworkRunner` and thread if dropped
-///
-/// If trying to stop the FoundationDB run loop results in an error.
-/// The error is printed in `stderr` and the process aborts.
-///
-/// # Panics
-///
-/// Panics if the network thread cannot be joined.
-pub struct NetworkAutoStop {
-    network: Option<NetworkStop>,
-    handle: Option<std::thread::JoinHandle<()>>,
-}
-impl Drop for NetworkAutoStop {
-    fn drop(&mut self) {
-        if let Err(err) = self.network.take().unwrap().stop() {
-            eprintln!("failed to stop network: {}", err);
-            // Not aborting can probably cause undefined behavior
-            std::process::abort();
-        }
-        self.handle
-            .take()
-            .unwrap()
-            .join()
-            .expect("failed to join fdb thread");
-    }
-}
 
 #[cfg(test)]
 mod tests {
