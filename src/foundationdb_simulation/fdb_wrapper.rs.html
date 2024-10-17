@@ -344,6 +344,7 @@
 <a href="#344" id="344">344</a>
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Wrapper module
 //!
 //! This module defines all C++ and Rust structures.
@@ -561,7 +562,8 @@
     </span><span class="kw">pub fn </span>set_process_id(<span class="kw-2">&amp;</span><span class="self">self</span>) {
         <span class="kw">unsafe </span>{ FDBContext_setProcessID(<span class="self">self</span>.inner) }
     }
-    <span class="doccomment">/// Get the current time
+    <span class="doccomment">/// Returns the simulated time in seconds since the Epoch (January 1, 1970, 00:00:00 UTC).
+    /// Simulated time start at 0, and contains milliseconds, like this: `72.99856768895224`
     </span><span class="kw">pub fn </span>now(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
         <span class="kw">unsafe </span>{ FDBContext_now(<span class="self">self</span>.inner) }
     }
