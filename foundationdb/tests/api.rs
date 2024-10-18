@@ -1,27 +1,23 @@
-use foundationdb::api::FdbApiBuilder;
-use std::thread;
+use foundationdb::api::{
+    check_api_version_set, get_max_api_version, is_network_setup, is_network_thread_running,
+    spawn_network_thread_if_needed, stop_network,
+};
 
 #[test]
-#[should_panic(expected = "the fdb select api version can only be run once per process")]
-fn test_run() {
-    let (runner, cond) = FdbApiBuilder::default()
-        .build()
-        .expect("could not initialize api")
-        .build()
-        .expect("could not initialize network");
+fn test_boot() {
+    foundationdb::boot().expect("could not boot fdb client");
+    assert!(check_api_version_set().is_ok());
+    assert!(is_network_setup());
+    assert!(is_network_thread_running());
 
-    let net_thread = thread::spawn(move || {
-        unsafe { runner.run() }.expect("failed to run");
-    });
-    let stopper = cond.wait();
+    // set_api_version can be called multiple times
+    foundationdb::api::set_api_version(get_max_api_version())
+        .expect("should be safe to call multiple times");
 
-    // network thread is running
+    spawn_network_thread_if_needed().expect("could not start network thread");
+    // can be called multiple times
+    spawn_network_thread_if_needed().expect("could not start network thread");
 
-    stopper.stop().expect("failed to stop");
-    net_thread.join().expect("failed to join net thread");
-    println!("stopped!");
-
-    // this should fail:
-    let _ = FdbApiBuilder::default().build();
-    panic!("previous line should have panicked!");
+    stop_network().expect("could not stop network");
+    stop_network().expect("could not stop network");
 }

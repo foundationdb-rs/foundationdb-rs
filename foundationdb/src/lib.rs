@@ -35,6 +35,7 @@ pub mod tenant;
 mod transaction;
 pub mod tuple;
 
+use crate::api::spawn_network_thread_if_needed;
 #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
 pub use crate::cluster::Cluster;
 
@@ -45,41 +46,36 @@ pub use crate::error::FdbResult;
 pub use crate::keyselector::*;
 pub use crate::transaction::*;
 
-/// Initialize the FoundationDB Client API, this can only be called once per process.
+/// Initialize the FoundationDB Client API with the embedded API version and boot the associated
+/// network thread.
 ///
-/// # Returns
-///
-/// A `NetworkAutoStop` handle which must be dropped before the program exits.
-///
-/// # Safety
-///
-/// You *MUST* ensure drop is called on the returned object before the program exits.
-/// This is not required if the program is aborted.
-///
-/// This method used to be safe in version `0.4`. But because `drop` on the returned object
-/// might not be called before the program exits, it was found unsafe.
+/// Users must call `stop_network` at the end of their program.
 ///
 /// # Examples
 ///
 /// ```rust
-/// let network = unsafe { foundationdb::boot() };
+/// // `boot` is calling set_api_version(current_api_version) for you
+/// foundationdb::boot().expect("could not boot FDB client API");
 /// // do some interesting things with the API...
-/// drop(network);
+/// foundationdb::stop_network().expect("could not stop network");
 /// ```
+///
+/// An alternative way to start fdb is to do this
 ///
 /// ```rust
 /// #[tokio::main]
 /// async fn main() {
-///     let network = unsafe { foundationdb::boot() };
+///     foundationdb::api::set_api_version(730).expect("could not set api version");
 ///     // do some interesting things with the API...
-///     drop(network);
+///     foundationdb::api::stop_network().expect("could not stop network thread");
 /// }
 /// ```
-pub unsafe fn boot() -> api::NetworkAutoStop {
-    let network_builder = api::FdbApiBuilder::default()
-        .build()
-        .expect("foundationdb API to be initialized");
-    network_builder.boot().expect("fdb network running")
+pub fn boot() -> Result<NetworkAutoStop, FdbError> {
+    api::FdbApiBuilder::default().build()?.boot()
+}
+
+pub fn shutdown() -> Result<(), FdbError> {
+    api::stop_network()
 }
 
 /// Returns the default Fdb cluster configuration file path

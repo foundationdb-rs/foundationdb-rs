@@ -16,16 +16,24 @@
 use crate::options::NetworkOption;
 use crate::{error, FdbError, FdbResult};
 use foundationdb_sys as fdb_sys;
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::thread::JoinHandle;
+
+static INIT_VERSION_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+static SETUP_NETWORK_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+static NETWORK_THREAD_HANDLER: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
+// this needs to be a Mutex and not an AtomicBool as it is required by the Condvar API
+static NETWORK_STARTED_LOCK: Mutex<bool> = Mutex::new(false);
+static NETWORK_STARTED_NOTIFIER: Condvar = Condvar::new();
+static NETWORK_STOPPED: AtomicBool = AtomicBool::new(false);
+pub static NETWORK_STOP_HANDLER_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Returns the max api version of the underlying Fdb C API Client
 pub fn get_max_api_version() -> i32 {
     unsafe { fdb_sys::fdb_get_max_api_version() }
 }
-
-static INIT_VERSION_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
 
 /// Set the api version that will be used. **Must be called before any other API functions**.
 /// Version must be less than or equal to FDB_API_VERSION (and should almost always be equal).
@@ -58,10 +66,19 @@ pub fn set_api_version(version: i32) -> Result<(), FdbError> {
     }
 }
 
-static SETUP_NETWORK_ONCE: OnceLock<Option<FdbError>> = OnceLock::new();
+/// Check if the API version is set. Will return fdb error 2200 for api_version_unset
+pub fn check_api_version_set() -> Result<(), FdbError> {
+    if INIT_VERSION_ONCE.get().is_some() {
+        Ok(())
+    } else {
+        Err(FdbError::new(2200)) // api_version_unset
+    }
+}
 
 /// Setup the network thread. Can be called multiple times.
 fn setup_network_thread() -> Result<(), FdbError> {
+    check_api_version_set()?;
+
     match SETUP_NETWORK_ONCE
         .get_or_init(|| unsafe { error::eval(fdb_sys::fdb_setup_network()).err() })
     {
@@ -70,38 +87,118 @@ fn setup_network_thread() -> Result<(), FdbError> {
     }
 }
 
-static NETWORK_HANDLE_ONCE: OnceLock<JoinHandle<()>> = OnceLock::new();
-static NETWORK_STARTED_LOCK: Mutex<bool> = Mutex::new(false);
-static NETWORK_STARTED_NOTIFIER: Condvar = Condvar::new();
-fn spawn_network_thread() {
-    NETWORK_HANDLE_ONCE.get_or_init(|| {
-        thread::spawn(move || {
-            {
-                let mut lock = NETWORK_STARTED_LOCK.lock().unwrap();
-                *lock = true;
-                // We notify the condvar that the value has changed.
-                NETWORK_STARTED_NOTIFIER.notify_one();
-            }
+/// Check if the API version is set
+pub fn is_network_setup() -> bool {
+    SETUP_NETWORK_ONCE.get().is_some()
+}
 
-            error::eval(unsafe { fdb_sys::fdb_run_network() })
-                .expect("could not run network thread");
-        })
-    });
+/// Spawn the network-thread if necessary. This will:
+///   * check if api version is set,
+///   * setup network thread if required
+///   * start and store the network thread internally.
+/// It is safe to call this function multiple time, even if the network thread have been stopped.
+pub fn spawn_network_thread_if_needed() -> Result<(), FdbError> {
+    check_api_version_set()?;
+
+    if !is_network_setup() {
+        setup_network_thread()?;
+    }
+
+    if is_network_thread_running() {
+        return Ok(());
+    }
+
+    is_network_thread_stopped()?;
+
+    {
+        let mut guard_thread = NETWORK_THREAD_HANDLER
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard_thread = Some(thread::spawn(run_network_thread));
+    }
 
     wait_for_network_thread();
+    Ok(())
+}
+
+// main function that call fdb_run_network. Needs to be spawned in a thread
+fn run_network_thread() {
+    {
+        let mut data: MutexGuard<bool> = NETWORK_STARTED_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *data = true;
+
+        // We notify the condvar that the value has changed.
+        NETWORK_STARTED_NOTIFIER.notify_all();
+    }
+
+    // Returns only when stopped
+    let _ = error::eval(unsafe { fdb_sys::fdb_run_network() });
+
+    {
+        let mut data: MutexGuard<bool> = NETWORK_STARTED_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *data = false;
+
+        NETWORK_STOPPED.store(true, Ordering::Release);
+    }
 }
 
 // wait for `run_network_thread` to actually run.
 fn wait_for_network_thread() {
-    let mut started = NETWORK_STARTED_LOCK.lock().unwrap();
+    let mut started = NETWORK_STARTED_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     while !*started {
         started = NETWORK_STARTED_NOTIFIER.wait(started).unwrap();
     }
 }
 
-/// Set network options.
-pub fn set_network_option(option: NetworkOption) -> Result<(), FdbError> {
+/// Returns a boolean if the network thread is running
+pub fn is_network_thread_running() -> bool {
+    let is_running = NETWORK_STARTED_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    *is_running
+}
+
+/// Return an Error if the network thread have been started then stopped, as it cannot be enabled back again.
+pub fn is_network_thread_stopped() -> Result<(), FdbError> {
+    if NETWORK_STOPPED.load(Ordering::Acquire) {
+        Ok(())
+    } else {
+        Err(FdbError::new(2025)) // network_cannot_be_restarted
+    }
+}
+
+/// Stop the network thread used by the bindings. This **must** be called at the end of your program.
+/// Once the network thread is stopped, it cannot be restarted, so you will need to restart your app.
+pub fn stop_network() -> Result<(), FdbError> {
+    if !is_network_thread_running() {
+        return Ok(());
+    }
+
+    error::eval(unsafe { fdb_sys::fdb_stop_network() })?;
+
+    if let Some(network_thread) = NETWORK_THREAD_HANDLER
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take()
+    {
+        network_thread
+            .join()
+            .expect("could not join network_thread");
+    };
+
+    Ok(())
+}
+
 /// Set network options. Must be call **before** setup_network.
+pub fn set_network_option(option: NetworkOption) -> Result<(), FdbError> {
+    unsafe { option.apply() }
 }
 
 /// A Builder with which different versions of the Fdb C API can be initialized
@@ -154,9 +251,9 @@ impl Default for FdbApiBuilder {
 /// use foundationdb::api::FdbApiBuilder;
 ///
 /// let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-/// let guard = unsafe { network_builder.boot() };
+/// network_builder.boot().expect("could not boot");
 /// // do some work with foundationDB
-/// drop(guard);
+/// foundationdb::api::stop_network().expect("could not stop network");
 /// ```
 pub struct NetworkBuilder {
     _private: (),
@@ -165,7 +262,7 @@ pub struct NetworkBuilder {
 impl NetworkBuilder {
     /// Set network options.
     pub fn set_option(self, option: NetworkOption) -> FdbResult<Self> {
-        unsafe { option.apply()? };
+        set_network_option(option)?;
         Ok(self)
     }
 
@@ -181,85 +278,55 @@ impl NetworkBuilder {
     /// In order for the sequence to be safe, you **MUST** as stated in the `NetworkRunner::run()` method
     /// ensure that `NetworkStop::stop()` is called before the process exit.
     /// Aborting the process is still safe.
-    ///
-    /// # Example
-    ///
     /// ```
-    /// use foundationdb::api::FdbApiBuilder;
-    ///
-    /// let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-    /// let (runner, cond) = network_builder.build().expect("fdb network runners");
-    ///
-    /// let net_thread = std::thread::spawn(move || {
-    ///     unsafe { runner.run() }.expect("failed to run");
-    /// });
-    ///
-    /// // Wait for the foundationDB network thread to start
-    /// let fdb_network = cond.wait();
-    ///
-    /// // do some work with foundationDB, if a panic occur you still **MUST** catch it and call
-    /// // fdb_network.stop();
-    ///
-    /// // You **MUST** call fdb_network.stop() before the process exit
-    /// fdb_network.stop().expect("failed to stop network");
-    /// net_thread.join().expect("failed to join fdb thread");
-    /// ```
-    #[allow(clippy::mutex_atomic)]
-    pub fn build(self) -> FdbResult<(NetworkRunner, NetworkWait)> {
-        self.setup_network_thread()
+    pub fn build(self) -> FdbResult<()> {
+        Ok(())
     }
 
-    fn setup_network_thread(self) -> Result<(NetworkRunner, NetworkWait), FdbError> {
-        setup_network_thread()?;
-
-        let cond = Arc::new((Mutex::new(false), Condvar::new()));
-        Ok((NetworkRunner { cond: cond.clone() }, NetworkWait { cond }))
+    /// Starts the FoundationDB network thread in a dedicated thread.
+    /// This finish initializing the FoundationDB Client API.
+    ///
+    /// You **must** call `stop_network` at the end of your program.
+    pub fn boot(self) -> FdbResult<NetworkAutoStop> {
+        spawn_network_thread_if_needed()?;
+        Ok(NetworkAutoStop::new())
     }
+}
 
-    /// Starts the FoundationDB run loop in a dedicated thread.
-    /// This finish initializing the FoundationDB Client API and can only be called once per process.
-    ///
-    /// # Returns
-    ///
-    /// A `NetworkAutoStop` handle which must be dropped before the program exits.
-    ///
-    /// # Safety
-    ///
-    /// You *MUST* ensure `drop` is called on the returned object before the program exits.
-    /// This is not required if the program is aborted.
-    ///
-    /// This method used to be safe in version `0.4`. But because `drop` on the returned object
-    /// might not be called before the program exits, it was found unsafe.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the dedicated thread cannot be spawned or the internal condition primitive is
-    /// poisonned.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use foundationdb::api::FdbApiBuilder;
-    ///
-    /// let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-    /// let network = unsafe { network_builder.boot() };
-    /// // do some interesting things with the API...
-    /// drop(network);
-    /// ```
-    ///
-    /// ```rust
-    /// use foundationdb::api::FdbApiBuilder;
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-    ///     let network = unsafe { network_builder.boot() };
-    ///     // do some interesting things with the API...
-    ///     drop(network);
-    /// }
-    /// ```
-    pub unsafe fn boot(self) -> FdbResult<()> {
-        unimplemented!()
+/// Allow to stop the associated and running `NetworkRunner`.
+///
+/// Most of the time you should never need to use this directly and use `boot()`.
+pub struct NetworkAutoStop {
+    _private: (),
+}
+
+impl Default for NetworkAutoStop {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NetworkAutoStop {
+    pub fn new() -> Self {
+        NETWORK_STOP_HANDLER_COUNTER.fetch_add(1, Ordering::Acquire);
+        Self { _private: () }
+    }
+}
+
+impl Clone for NetworkAutoStop {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for NetworkAutoStop {
+    fn drop(&mut self) {
+        let previous_count = NETWORK_STOP_HANDLER_COUNTER.fetch_sub(1, Ordering::Acquire);
+        dbg!(previous_count);
+        if dbg!(previous_count == 1 && is_network_thread_running()) {
+            stop_network().expect("could not stop network");
+        }
+
     }
 }
 
@@ -271,5 +338,17 @@ mod tests {
     #[test]
     fn test_max_api() {
         assert!(get_max_api_version() > 0);
+    }
+
+    #[test]
+    fn test_clone_network_stop() {
+        let _n1 = NetworkAutoStop::new();
+        dbg!(NETWORK_STOP_HANDLER_COUNTER.load(Ordering::Acquire));
+        let _n2 = _n1.clone();
+        {
+            let _n3 = NetworkAutoStop::new();
+
+            assert_eq!(3, NETWORK_STOP_HANDLER_COUNTER.load(Ordering::Acquire));
+        }
     }
 }
