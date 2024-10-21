@@ -16,7 +16,7 @@ mod common;
 #[test]
 // testing basic features of the Directory, everything is tracked using with the BindingTester.
 fn test_directory() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     let db = futures::executor::block_on(common::database()).expect("cannot open fdb");
 
     eprintln!("clearing all keys");

@@ -2,7 +2,7 @@ mod common;
 
 #[test]
 fn test_tenant() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     #[cfg(all(
         any(feature = "fdb-7_1", feature = "fdb-7_3"),
         feature = "tenant-experimental"

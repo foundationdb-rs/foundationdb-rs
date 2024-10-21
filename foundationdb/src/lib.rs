@@ -35,7 +35,7 @@ pub mod tenant;
 mod transaction;
 pub mod tuple;
 
-use crate::api::spawn_network_thread_if_needed;
+use crate::api::NetworkAutoStop;
 #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
 pub use crate::cluster::Cluster;
 
@@ -57,7 +57,7 @@ pub use crate::transaction::*;
 /// // `boot` is calling set_api_version(current_api_version) for you
 /// foundationdb::boot().expect("could not boot FDB client API");
 /// // do some interesting things with the API...
-/// foundationdb::stop_network().expect("could not stop network");
+/// foundationdb::api::stop_network().expect("could not stop network");
 /// ```
 ///
 /// An alternative way to start fdb is to do this

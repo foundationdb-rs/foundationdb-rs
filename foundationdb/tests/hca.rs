@@ -15,7 +15,7 @@ mod common;
 
 #[test]
 fn test_hca_many_sequential_allocations() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     futures::executor::block_on(test_hca_many_sequential_allocations_async())
         .expect("failed to run");
     futures::executor::block_on(test_hca_concurrent_allocations_async()).expect("failed to run");

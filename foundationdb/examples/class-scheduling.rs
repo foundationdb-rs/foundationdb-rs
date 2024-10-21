@@ -365,11 +365,12 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
 
 #[tokio::main]
 async fn main() {
-    let _guard = unsafe { fdb::boot() };
+    fdb::boot().expect("could not boot fdb");
     let db = fdb::Database::new_compat(None)
         .await
         .expect("failed to get database");
     init(&db, &ALL_CLASSES).await;
     println!("Initialized");
     run_sim(&db, 10, 10).await;
+    fdb::api::stop_network().expect("could not stop network");
 }

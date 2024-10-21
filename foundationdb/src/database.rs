@@ -65,6 +65,7 @@ impl Drop for Database {
 #[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
+    /// It will spawn the network thread if needed.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
         spawn_network_thread_if_needed()?;
 
@@ -88,12 +89,14 @@ impl Database {
         Self { inner: ptr }
     }
 
-    /// Create a database for the given configuration path
+    /// Create a database for the given configuration path.
+    /// It will spawn the network thread if needed.
     pub fn from_path(path: &str) -> FdbResult<Database> {
         Self::new(Some(path))
     }
 
     /// Create a database for the default configuration path
+    /// It will spawn the network thread if needed.
     #[allow(clippy::should_implement_trait)]
     pub fn default() -> FdbResult<Database> {
         Self::new(None)
@@ -135,7 +138,7 @@ impl Database {
 }
 
 impl Database {
-    /// Create a database for the given configuration path
+    /// Create a database for the given configuration path. It will spawn the network thread if needed.
     ///
     /// This is a compatibility api. If you only use API version ≥ 610 you should
     /// use `Database::new`, `Database::from_path` or  `Database::default`.

@@ -53,10 +53,10 @@
 //!     Ok(())
 //! }
 //!
-//! // Safe because drop is called before the program exits
-//! let network = unsafe { foundationdb::boot() };
+//! foundationdb::boot().expect("could not boot fdb client");
 //! futures::executor::block_on(async_main()).expect("failed to run");
-//! drop(network);
+//! foundationdb::api::stop_network().expect("could not stop fdb client");
+//!
 //! ```
 
 mod directory_layer;

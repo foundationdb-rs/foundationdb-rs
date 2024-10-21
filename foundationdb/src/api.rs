@@ -62,7 +62,7 @@ pub fn set_api_version(version: i32) -> Result<(), FdbError> {
         }
     }) {
         None => Ok(()),
-        Some(err) => Err(err.clone()),
+        Some(err) => Err(*err),
     }
 }
 
@@ -83,7 +83,7 @@ fn setup_network_thread() -> Result<(), FdbError> {
         .get_or_init(|| unsafe { error::eval(fdb_sys::fdb_setup_network()).err() })
     {
         None => Ok(()),
-        Some(err) => Err(err.clone()),
+        Some(err) => Err(*err),
     }
 }
 
@@ -108,7 +108,9 @@ pub fn spawn_network_thread_if_needed() -> Result<(), FdbError> {
         return Ok(());
     }
 
-    is_network_thread_stopped()?;
+    if is_network_thread_stopped() {
+        return Err(FdbError::new(2025)); // network_cannot_be_restarted
+    }
 
     {
         let mut guard_thread = NETWORK_THREAD_HANDLER
@@ -166,12 +168,8 @@ pub fn is_network_thread_running() -> bool {
 }
 
 /// Return an Error if the network thread have been started then stopped, as it cannot be enabled back again.
-pub fn is_network_thread_stopped() -> Result<(), FdbError> {
-    if NETWORK_STOPPED.load(Ordering::Acquire) {
-        Ok(())
-    } else {
-        Err(FdbError::new(2025)) // network_cannot_be_restarted
-    }
+pub fn is_network_thread_stopped() -> bool {
+    NETWORK_STOPPED.load(Ordering::Acquire)
 }
 
 /// Stop the network thread used by the bindings. This **must** be called at the end of your program.

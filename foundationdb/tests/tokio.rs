@@ -16,7 +16,7 @@ mod common;
 
 #[test]
 fn test_tokio_send() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         do_transact().await;
