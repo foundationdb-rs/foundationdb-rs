@@ -60,7 +60,7 @@ num-bigint = { version = "0.4.6", optional = true }
 async-trait = "0.1.83"
 async-recursion = "1.1.1"
 # Required to deserialize tenant info
-serde = { version = "1.0.210", features = ["derive"], optional = true}
+serde = { version = "1.0.213", features = ["derive"], optional = true}
 serde_json = { version = "1.0.132", optional = true}
 serde_bytes = { version = "0.11.15", optional = true}
 
