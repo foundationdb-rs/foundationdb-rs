@@ -68,7 +68,7 @@ serde_bytes = { version = "0.11.15", optional = true}
 byteorder = "1.5.0"
 lazy_static = "1.5.0"
 log = "0.4.22"
-tokio = { version = "1.40.0", features = ["full"] }
+tokio = { version = "1.41.0", features = ["full"] }
 ring = "0.17.8"
 data-encoding = "2.6.0"
 pretty-bytes = "0.2.2"
