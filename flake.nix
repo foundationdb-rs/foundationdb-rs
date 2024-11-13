@@ -32,16 +32,24 @@
           cargo-expand
           cargo-edit
           cargo-msrv
+          # uncomment when https://github.com/NixOS/nixpkgs/issues/354058 is fixed
+          # cargo-llvm-cov
           cargo-audit
           rust-analyzer
           (rust-bin.${rustChannel}.latest.default.override {
-            extensions = [ "rust-src" ];
+            extensions = [
+              "cargo"
+              "clippy"
+              "rust-src"
+              "rustc"
+              "rustfmt"
+              "rust-analyzer"
+              "llvm-tools-preview"
+            ];
           })
-          rust-bin.${rustChannel}.latest.rustfmt
-          rust-bin.${rustChannel}.latest.clippy
 
           git-cliff
-	  release-plz
+          release-plz
 
           # FDB part
           libfdb73
@@ -62,7 +70,7 @@
         RUST_TOOLCHAIN_PATH = "${pkgs.rust-bin.${rustChannel}.latest.default}/bin";
         RUST_SRC_PATH = "${pkgs.rust-bin.${rustChannel}.latest.rust-src}/lib/rustlib/src/rust/library";
 
-        RUST_BACKTRACE= "1";
+        RUST_BACKTRACE = "1";
       };
   };
 }
