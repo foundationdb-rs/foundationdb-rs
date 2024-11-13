@@ -298,6 +298,7 @@ dependencies = [
  "foundationdb-gen",
  "foundationdb-macros",
  "foundationdb-sys",
+ "foundationdb-tuple",
  "futures",
  "lazy_static",
  "log",
@@ -359,6 +360,31 @@ version = "0.9.1"
 dependencies = [
  "bindgen",
  "libc",
+]
+
+[[package]]
+name = "foundationdb-tuple"
+version = "0.9.1"
+dependencies = [
+ "async-recursion",
+ "async-trait",
+ "byteorder",
+ "data-encoding",
+ "foundationdb-macros",
+ "futures",
+ "lazy_static",
+ "log",
+ "memchr",
+ "num-bigint",
+ "pretty-bytes",
+ "rand",
+ "ring",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "static_assertions",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
