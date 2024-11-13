@@ -23,6 +23,10 @@ publish_features = ["embedded-fdb-include", "fdb-7_3"]
 name = "foundationdb-gen"
 
 [[package]]
+name = "foundationdb-tuple"
+publish_features = ["uuid", "num-bigint"]
+
+[[package]]
 name = "foundationdb"
 publish_features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
 

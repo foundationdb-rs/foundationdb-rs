@@ -4,13 +4,13 @@ version = "0.9.1"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
-    "Pierre Zemb <contact@pierrezemb.fr>"
+    "Pierre Zemb <contact@pierrezemb.fr>",
 ]
 edition = "2021"
 rust-version = "1.71"
 
 description = """
-Fdb tuple impl
+Foundationdb tuple pack/unpack implementation in rust
 """
 
 documentation = "https://docs.rs/foundationdb"
@@ -18,11 +18,11 @@ repository = "https://github.com/foundationdb-rs/foundationdb-rs"
 license = "MIT/Apache-2.0"
 
 readme = "README.md"
-keywords = ["foundationdb", "kv"]
+keywords = ["foundationdb", "kv", "tuple"]
 categories = ["database"]
 
 [package.metadata.docs.rs]
-features = ["uuid"]
+features = ["uuid", "num-bigint"]
 
 [badges]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
@@ -30,28 +30,7 @@ codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", ser
 [features]
 default = ["uuid"]
 
-
 [dependencies]
-foundationdb-macros = { version = "0.3.1", path = "../foundationdb-macros" }
-futures = "0.3.31"
 memchr = "2.7.4"
-rand = { version = "0.8.5", features = ["default", "small_rng"] }
-static_assertions = "1.1.0"
 uuid = { version = "1.11.0", optional = true }
 num-bigint = { version = "0.4.6", optional = true }
-async-trait = "0.1.83"
-async-recursion = "1.1.1"
-# Required to deserialize tenant info
-serde = { version = "1.0.210", features = ["derive"], optional = true}
-serde_json = { version = "1.0.132", optional = true}
-serde_bytes = { version = "0.11.15", optional = true}
-
-[dev-dependencies]
-byteorder = "1.5.0"
-lazy_static = "1.5.0"
-log = "0.4.22"
-tokio = { version = "1.41.0", features = ["full"] }
-ring = "0.17.8"
-data-encoding = "2.6.0"
-pretty-bytes = "0.2.2"
-uuid = { version = "1.11.0", features = ["v4"] }
