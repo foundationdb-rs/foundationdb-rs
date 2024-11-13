@@ -36,10 +36,9 @@ mod transaction;
 mod tuple_ext;
 
 pub mod tuple {
-    pub use foundationdb_tuple::*;
     pub use crate::tuple_ext::*;
+    pub use foundationdb_tuple::*;
 }
-
 
 #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
 pub use crate::cluster::Cluster;
