@@ -1,0 +1,61 @@
+name: Coverage
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  codecov:
+    name: Code coverage
+    runs-on: ubuntu-latest
+
+    env:
+      CARGO_INCREMENTAL: "0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FoundationDB
+        uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
+        with:
+          version: "7.3.27"
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
+
+      - name: Install Rust
+        run: rustup update stable
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install Rust
+        run: rustup update stable
+
+      - name: llvm-cov show-env
+        run: cargo llvm-cov show-env --export-prefix
+
+      - name: Build bindingTester
+        run: source <(cargo llvm-cov show-env --export-prefix) && cargo build -p bindingtester
+
+      - name: Test main crate
+        run: source <(cargo llvm-cov show-env --export-prefix) && cargo test -p foundationdb --tests --no-fail-fast --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
+
+      - name: Setup bindingtester
+        run: scripts/setup_bindingtester.sh target/debug/bindingtester
+
+      - name: Run bindingtester
+        run:  source <(cargo llvm-cov show-env --export-prefix) && scripts/run_bindingtester.sh 50
+
+      - name: Generate code coverage
+        run: source <(cargo llvm-cov show-env --export-prefix) && cargo llvm-cov report --lcov --output-path lcov.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true
