@@ -1,11 +1,12 @@
 [[test]]
-testTitle = 'AtomicWorkload'
+testTitle = 'Atomic_Test'
 
   [[test.workload]]
+    useCAPI = true
     testName = 'External'
-    libraryName = 'atomic'
     workloadName = 'AtomicWorkload'
     libraryPath = './target/release/examples'
+    libraryName = 'atomic'
     count = 50
 
   [[test.workload]]
