@@ -2,6 +2,9 @@
 name = "foundationdb-simulation"
 version = "0.2.1"
 edition = "2021"
+authors = [
+    "Eloi Démolis <eloi.demolis@gmail.com>",
+]
 description = """
 Embed Rust code within FoundationDB's simulation
 """
@@ -16,7 +19,7 @@ foundationdb = { version = "0.9.1", path = "../foundationdb", default-features =
 foundationdb-sys = { version = "0.9.1", path = "../foundationdb-sys", default-features = false }
 
 [build-dependencies]
-cc = "1.1.30"
+bindgen = "0.70.1"
 
 [features]
 default = ["embedded-fdb-include"]
@@ -32,7 +35,10 @@ embedded-fdb-include = [
 name = "atomic"
 path = "examples/atomic/lib.rs"
 crate-type = ["cdylib"]
-required-features = ["fdb-7_3", "fdb-docker"]
+required-features = ["fdb-7_3"]
 
-[dev-dependencies]
-foundationdb-macros = { version = "0.3.1", path = "../foundationdb-macros", default-features = false }
+[[example]]
+name = "noop"
+path = "examples/noop/lib.rs"
+crate-type = ["cdylib"]
+required-features = ["fdb-7_3"]
