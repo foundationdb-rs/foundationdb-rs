@@ -133,58 +133,6 @@ jobs:
       - name: Clippy
         run: cargo clippy --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
 
-  coverage:
-    name: Code coverage
-    runs-on: ubuntu-latest
-
-    env:
-      CARGO_INCREMENTAL: "0"
-      RUST_BACKTRACE: 1
-      RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install FoundationDB
-        uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
-        with:
-          version: "7.3.27"
-
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
-
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-
-      - name: Build bindingtester
-        run: cargo build -p bindingtester --target x86_64-unknown-linux-gnu
-
-      - name: Test
-        # doc tests are disabled fow now as they do not compile with -Cpanic=abort
-        run: cargo test -p foundationdb --tests --no-fail-fast --target x86_64-unknown-linux-gnu --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
-
-      - name: Setup bindingtester
-        run: scripts/setup_bindingtester.sh target/x86_64-unknown-linux-gnu/debug/bindingtester
-
-      - name: Run bindingtester
-        run: scripts/run_bindingtester.sh 50
-
-      - id: coverage
-        uses: actions-rs/grcov@v0.1
-
-      - name: Coveralls upload
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ${{ steps.coverage.outputs.report }}
-
-      - name: Codecov upload
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{ steps.coverage.outputs.report }}
-
   audit:
     name: Cargo audit
     runs-on: ubuntu-latest
