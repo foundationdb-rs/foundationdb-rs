@@ -12,7 +12,7 @@ mod common;
 
 #[test]
 fn test_atomic() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     futures::executor::block_on(test_atomic_async()).expect("failed to run");
 }
 

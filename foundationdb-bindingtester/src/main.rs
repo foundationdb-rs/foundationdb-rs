@@ -15,6 +15,7 @@ use std::thread;
 use fdb::options::{ConflictRangeType, DatabaseOption, TransactionOption};
 use fdb::tuple::{pack, pack_into, unpack, Bytes, Element, Subspace, TuplePack};
 use fdb::*;
+use foundationdb::api::stop_network;
 use futures::future;
 use futures::prelude::*;
 use num_bigint::BigInt;
@@ -2875,7 +2876,7 @@ fn main() {
         .set_runtime_version(api_version)
         .build()
         .expect("failed to initialize FoundationDB API");
-    let _network = unsafe { builder.boot() };
+    builder.boot().expect("failed to boot fdb api");
 
     let db = Arc::new(
         futures::executor::block_on(fdb::Database::new_compat(cluster_path))
@@ -2887,6 +2888,7 @@ fn main() {
     sm.join();
 
     info!("Closing...");
+    stop_network().expect("failed to stop network");
 
     info!("Done.");
 }

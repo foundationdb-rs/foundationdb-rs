@@ -4,7 +4,7 @@ mod common;
 
 #[test]
 fn test_databse() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
 
     #[cfg(any(feature = "fdb-7_3"))]
     futures::executor::block_on(test_status_async()).expect("failed to run");

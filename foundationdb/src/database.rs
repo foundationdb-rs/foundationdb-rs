@@ -23,12 +23,12 @@ use crate::options;
 use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
 
+use crate::api::spawn_network_thread_if_needed;
 use crate::error::FdbBindingError;
-use futures::prelude::*;
-
 #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
+use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
 /// previous transaction is still on fly
@@ -65,7 +65,10 @@ impl Drop for Database {
 #[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
+    /// It will spawn the network thread if needed.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
+        spawn_network_thread_if_needed()?;
+
         let path_str =
             path.map(|path| std::ffi::CString::new(path).expect("path to be convertible to CStr"));
         let path_ptr = path_str
@@ -86,12 +89,14 @@ impl Database {
         Self { inner: ptr }
     }
 
-    /// Create a database for the given configuration path
+    /// Create a database for the given configuration path.
+    /// It will spawn the network thread if needed.
     pub fn from_path(path: &str) -> FdbResult<Database> {
         Self::new(Some(path))
     }
 
     /// Create a database for the default configuration path
+    /// It will spawn the network thread if needed.
     #[allow(clippy::should_implement_trait)]
     pub fn default() -> FdbResult<Database> {
         Self::new(None)
@@ -133,11 +138,13 @@ impl Database {
 }
 
 impl Database {
-    /// Create a database for the given configuration path
+    /// Create a database for the given configuration path. It will spawn the network thread if needed.
     ///
     /// This is a compatibility api. If you only use API version ≥ 610 you should
     /// use `Database::new`, `Database::from_path` or  `Database::default`.
     pub async fn new_compat(path: Option<&str>) -> FdbResult<Database> {
+        spawn_network_thread_if_needed()?;
+
         #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
         {
             let cluster = crate::cluster::Cluster::new(path).await?;

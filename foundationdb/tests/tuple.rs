@@ -17,7 +17,7 @@ mod common;
 #[test]
 // testing subspace with versionstamps.
 fn test_tuples() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     let db = futures::executor::block_on(common::database()).expect("cannot open fdb");
 
     eprintln!("clearing all keys");

@@ -160,11 +160,7 @@ const LINE: [&str; 13] = [
 
 #[tokio::main]
 async fn main() -> Result<(), FdbBindingError> {
-    // initialize FoundationDB Client API
-    let fdb = unsafe {
-        // SAFETY: only called once and will be dropped before the program exits
-        foundationdb::boot()
-    };
+    foundationdb::boot().expect("could not boot fdb");
 
     // attempt connection to FoundationDB
     let db = Database::default()?;
@@ -182,8 +178,7 @@ async fn main() -> Result<(), FdbBindingError> {
         println!("{value}");
     }
 
-    // shutdown the client
-    drop(fdb);
-
+    // stopping the client
+    foundationdb::api::stop_network().expect("could not stop network thread");
     Ok(())
 }
