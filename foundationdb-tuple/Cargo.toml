@@ -1,0 +1,36 @@
+[package]
+name = "foundationdb-tuple"
+version = "0.9.1"
+authors = [
+    "Benjamin Fry <benjaminfry@me.com>",
+    "Vincent Rouillé <vincent@clikengo.com>",
+    "Pierre Zemb <contact@pierrezemb.fr>",
+]
+edition = "2021"
+rust-version = "1.71"
+
+description = """
+Foundationdb tuple pack/unpack implementation in rust
+"""
+
+documentation = "https://docs.rs/foundationdb"
+repository = "https://github.com/foundationdb-rs/foundationdb-rs"
+license = "MIT/Apache-2.0"
+
+readme = "README.md"
+keywords = ["foundationdb", "kv", "tuple"]
+categories = ["database"]
+
+[package.metadata.docs.rs]
+features = ["uuid", "num-bigint"]
+
+[badges]
+codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
+
+[features]
+default = ["uuid"]
+
+[dependencies]
+memchr = "2.7.4"
+uuid = { version = "1.11.0", optional = true }
+num-bigint = { version = "0.4.6", optional = true }
