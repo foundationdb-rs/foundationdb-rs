@@ -298,6 +298,7 @@ dependencies = [
  "foundationdb-gen",
  "foundationdb-macros",
  "foundationdb-sys",
+ "foundationdb-tuple",
  "futures",
  "lazy_static",
  "log",
@@ -359,6 +360,15 @@ version = "0.9.1"
 dependencies = [
  "bindgen",
  "libc",
+]
+
+[[package]]
+name = "foundationdb-tuple"
+version = "0.9.1"
+dependencies = [
+ "memchr",
+ "num-bigint",
+ "uuid",
 ]
 
 [[package]]
