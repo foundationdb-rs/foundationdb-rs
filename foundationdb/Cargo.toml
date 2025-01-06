@@ -29,6 +29,8 @@ codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", ser
 
 [features]
 default = ["uuid"]
+uuid = ["dep:uuid", "foundationdb-tuple/uuid"]
+num-bigint = ["dep:num-bigint", "foundationdb-tuple/num-bigint"]
 # Use the locally embedded foundationdb fdb_c.h and fdb.options files
 embedded-fdb-include = [
     "foundationdb-sys/embedded-fdb-include",
@@ -51,6 +53,7 @@ foundationdb-gen = { version = "0.9.1", path = "../foundationdb-gen", default-fe
 [dependencies]
 foundationdb-sys = { version = "0.9.1", path = "../foundationdb-sys", default-features = false }
 foundationdb-macros = { version = "0.3.1", path = "../foundationdb-macros" }
+foundationdb-tuple = { version = "0.9.1", path = "../foundationdb-tuple" }
 futures = "0.3.31"
 memchr = "2.7.4"
 rand = { version = "0.8.5", features = ["default", "small_rng"] }
