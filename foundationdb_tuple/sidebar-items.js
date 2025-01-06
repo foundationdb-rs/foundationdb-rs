@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Element","PackError","VersionstampOffset"],"fn":["pack","pack_into","pack_into_with_versionstamp","pack_with_versionstamp","unpack"],"struct":["Bytes","Subspace","TupleDepth","Uuid","Versionstamp"],"trait":["TuplePack","TupleUnpack"],"type":["PackResult"]};

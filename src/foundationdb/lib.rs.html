@@ -111,7 +111,12 @@
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
 <a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -146,7 +151,12 @@
 </span>))]
 </span><span class="kw">pub mod </span>tenant;
 <span class="kw">mod </span>transaction;
-<span class="kw">pub mod </span>tuple;
+<span class="kw">mod </span>tuple_ext;
+
+<span class="kw">pub mod </span>tuple {
+    <span class="kw">pub use </span><span class="kw">crate</span>::tuple_ext::<span class="kw-2">*</span>;
+    <span class="kw">pub use </span>foundationdb_tuple::<span class="kw-2">*</span>;
+}
 
 <span class="attr">#[cfg(any(feature = <span class="string">"fdb-5_1"</span>, feature = <span class="string">"fdb-5_2"</span>, feature = <span class="string">"fdb-6_0"</span>))]
 </span><span class="kw">pub use </span><span class="kw">crate</span>::cluster::Cluster;
