@@ -11,7 +11,7 @@ mod common;
 
 #[test]
 fn test_watch() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb client");
     futures::executor::block_on(test_watch_async()).expect("failed to run");
     futures::executor::block_on(test_watch_without_commit_async()).expect("failed to run");
 }

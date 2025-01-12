@@ -1,13 +1,11 @@
 #[tokio::main]
 async fn main() {
-    // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("could not boot fdb");
 
     // Have fun with the FDB API
     hello_world().await.expect("could not run the hello world");
 
-    // shutdown the client
-    drop(network);
+    foundationdb::api::stop_network().expect("could not stop network");
 }
 
 async fn hello_world() -> foundationdb::FdbResult<()> {

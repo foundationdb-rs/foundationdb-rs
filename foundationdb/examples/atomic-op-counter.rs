@@ -4,7 +4,7 @@ use foundationdb::{options, Database, FdbError, Transaction};
 
 #[tokio::main]
 async fn main() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("could not boot fdb client");
     let db = Database::new_compat(None)
         .await
         .expect("failed to get database");
@@ -35,6 +35,7 @@ async fn main() {
         .expect("could not read counter");
     dbg!(v2);
     assert_eq!(v1 - 1, v2);
+    println!("end");
 }
 
 fn increment(trx: &Transaction, key: &[u8], incr: i64) {

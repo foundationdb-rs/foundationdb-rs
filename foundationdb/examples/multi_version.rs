@@ -23,14 +23,14 @@ async fn main() {
     // You can either use FoundationDB network option through environment variables
     // or through network options in code.
     // directory specified should contain at least one libfdb.so
-    if !std::env::var(NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY).is_ok() {
+    if std::env::var(NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY).is_err() {
         network_builder = network_builder
             .set_option(NetworkOption::ExternalClientDirectory(
                 "/usr/lib/foundationdb/".to_string(),
             ))
             .expect("Failed to add external library directory");
     }
-    let _guard = unsafe { network_builder.boot() };
+    network_builder.boot().expect("could not boot fdb client");
 
     // You can replace `None` with an `Option` with the path to your `fdb.cluster` file
     let db = Database::new_compat(None)
@@ -77,4 +77,6 @@ async fn main() {
     let counter = byteorder::LE::read_i64(raw_counter.as_ref());
     dbg!(counter);
     assert!(counter > 0);
+
+    foundationdb::api::stop_network().expect("could not stop network");
 }
