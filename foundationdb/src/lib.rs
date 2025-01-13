@@ -50,6 +50,7 @@ pub use crate::error::FdbResult;
 pub use crate::keyselector::*;
 pub use crate::transaction::*;
 
+mod profiling_events;
 pub mod timekeeper;
 
 /// Initialize the FoundationDB Client API, this can only be called once per process.

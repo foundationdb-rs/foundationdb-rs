@@ -63,9 +63,13 @@ num-bigint = { version = "0.4.6", optional = true }
 async-trait = "0.1.84"
 async-recursion = "1.1.1"
 # Required to deserialize tenant info
-serde = { version = "1.0.217", features = ["derive"], optional = true}
-serde_json = { version = "1.0.132", optional = true}
-serde_bytes = { version = "0.11.15", optional = true}
+serde = { version = "1.0.217", features = ["derive"], optional = true }
+serde_json = { version = "1.0.132", optional = true }
+serde_bytes = { version = "0.11.15", optional = true }
+
+# Ease error handling
+thiserror = "2.0.11"
+futures-util = "0.3.31"
 
 [dev-dependencies]
 byteorder = "1.5.0"
