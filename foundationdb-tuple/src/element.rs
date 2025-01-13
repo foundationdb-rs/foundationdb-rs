@@ -98,7 +98,7 @@ impl<'a> Ord for Element<'a> {
 }
 
 impl<'a> Element<'a> {
-    fn code(&self) -> u8 {
+    pub fn code(&self) -> u8 {
         match self {
             Element::Nil => super::NIL,
             Element::Bytes(_) => super::BYTES,
