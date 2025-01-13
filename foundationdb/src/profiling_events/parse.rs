@@ -1,6 +1,7 @@
 use crate::profiling_events::errors::ParseError;
 use crate::profiling_events::protocol_version::ProtocolVersion;
 use crate::profiling_events::scanner::Scanner;
+use core::mem::size_of;
 use std::error::Error;
 
 const DOUBLE_BYTES_SIZE: usize = size_of::<f64>();
