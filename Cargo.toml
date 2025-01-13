@@ -8,6 +8,7 @@ members = [
     "foundationdb-bench",
     "foundationdb-bindingtester",
     "foundationdb-macros",
+    "foundationdb-profiling",
     "foundationdb-simulation",
 ]
 
