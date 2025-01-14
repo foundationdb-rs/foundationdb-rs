@@ -1,5 +1,5 @@
-use crate::profiling_events::parsed_key::TransactionId;
-use crate::tuple::Bytes;
+use crate::parsed_key::TransactionId;
+use foundationdb_tuple::Bytes;
 use std::fmt::{Debug, Formatter};
 
 pub struct RawEvent {

@@ -1,6 +1,6 @@
-use crate::profiling_events::errors::ParseError;
-use crate::profiling_events::parse::Parse;
-use crate::profiling_events::scanner::Scanner;
+use crate::errors::ParseError;
+use crate::parse::Parse;
+use crate::scanner::Scanner;
 #[cfg(feature = "to_bytes")]
 use arbitrary::Arbitrary;
 use futures_util::AsyncReadExt;
@@ -55,7 +55,7 @@ impl Parse for ProtocolVersion {
 
 #[cfg(test)]
 mod tests {
-    use crate::profiling_events::protocol_version::ProtocolVersion::*;
+    use crate::protocol_version::ProtocolVersion::*;
 
     #[test]
     fn test_version_greater_than_63() {

@@ -1,6 +1,6 @@
-use crate::profiling_events::errors::ParseError;
-use crate::profiling_events::protocol_version::ProtocolVersion;
-use crate::profiling_events::scanner::Scanner;
+use crate::errors::ParseError;
+use crate::protocol_version::ProtocolVersion;
+use crate::scanner::Scanner;
 use core::mem::size_of;
 use std::error::Error;
 

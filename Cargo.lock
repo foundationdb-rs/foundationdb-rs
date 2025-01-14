@@ -97,9 +97,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.84"
+version = "0.1.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1244b10dcd56c92219da4e14caa97e312079e185f04ba3eea25061561dc0a0"
+checksum = "3f934833b4b7233644e5848f235df3f57ed8c80f1528a26c3dfa13d2147fa056"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -300,6 +300,7 @@ dependencies = [
  "foundationdb-sys",
  "foundationdb-tuple",
  "futures",
+ "futures-util",
  "lazy_static",
  "log",
  "memchr",
@@ -311,6 +312,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "static_assertions",
+ "thiserror",
  "tokio",
  "uuid",
 ]
@@ -342,6 +344,16 @@ dependencies = [
  "quote",
  "syn 2.0.87",
  "try_map",
+]
+
+[[package]]
+name = "foundationdb-profiling"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "foundationdb-tuple",
+ "futures-util",
+ "thiserror",
 ]
 
 [[package]]
@@ -1026,6 +1038,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "unicode-width",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
-use crate::profiling_events::parse::Parse;
-use crate::profiling_events::scanner::Scanner;
-use crate::tuple::{Bytes, Versionstamp};
+use crate::parse::Parse;
+use crate::scanner::Scanner;
+use foundationdb_tuple::{Bytes, Versionstamp};
 use futures_util::AsyncReadExt;
 use std::error::Error;
 use std::fmt::{Debug, Formatter};

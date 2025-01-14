@@ -1,4 +1,4 @@
-use crate::profiling_events::parse::Parse;
+use foundationdb_profiling::parse::Parse;
 use futures_util::io::Cursor;
 use std::error::Error;
 use std::ops::{Deref, DerefMut};
@@ -39,7 +39,7 @@ impl<'a> DerefMut for Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    pub(crate) async fn parse<T: Parse>(&mut self) -> Result<T, Box<dyn Error + Send + Sync>> {
+    pub async fn parse<T: Parse>(&mut self) -> Result<T, Box<dyn Error + Send + Sync>> {
         T::parse(self).await
     }
 }
