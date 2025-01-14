@@ -1,4 +1,4 @@
-use foundationdb::timekeeper::hint_version_from_timestamp;
+use foundationdb::timekeeper::{hint_version_from_timestamp, HintMode};
 use std::cmp::{max, min};
 use std::time::SystemTime;
 
@@ -24,7 +24,7 @@ async fn timekeeper() {
     // timekeeper state.
     let trx = database.create_trx().expect("Unable to create transaction");
     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-    let result = hint_version_from_timestamp(&trx, now, false)
+    let result = hint_version_from_timestamp(&trx, now, HintMode::AfterTimestamp, true)
         .await
         .expect("Unable to get hint version");
 
@@ -43,4 +43,36 @@ async fn timekeeper() {
     } else {
         panic!("No hint version found")
     }
+
+    // create a new transaction to fail getting read version in the future
+    let trx = database.create_trx().expect("Unable to create transaction");
+    let future_date = now + 50;
+    let result = hint_version_from_timestamp(&trx, future_date, HintMode::AfterTimestamp, true)
+        .await
+        .expect("Unable to get hint version");
+    assert!(result.is_none());
+
+    // create a new transaction to get the first read version greater than a long past timestamp
+    let trx = database.create_trx().expect("Unable to create transaction");
+    let past_date = 0;
+    let result = hint_version_from_timestamp(&trx, past_date, HintMode::AfterTimestamp, true)
+        .await
+        .expect("Unable to get hint version");
+    assert!(result.is_some());
+
+    // create a new transaction to get the first available read version
+    let trx = database.create_trx().expect("Unable to create transaction");
+    let future_date = now + 50;
+    let result = hint_version_from_timestamp(&trx, future_date, HintMode::BeforeTimestamp, true)
+        .await
+        .expect("Unable to get hint version");
+    assert!(result.is_some());
+
+    // create a new transaction to fail getting older read version
+    let trx = database.create_trx().expect("Unable to create transaction");
+    let past_date = 0;
+    let result = hint_version_from_timestamp(&trx, past_date, HintMode::BeforeTimestamp, true)
+        .await
+        .expect("Unable to get hint version");
+    assert!(result.is_none());
 }

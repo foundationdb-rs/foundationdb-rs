@@ -22,6 +22,14 @@ use futures::StreamExt;
 /// Can be found in the [Java implementation](https://github.com/FoundationDB/fdb-record-layer/blob/main/fdb-extensions/src/main/java/com/apple/foundationdb/system/SystemKeyspace.java#L80)
 const TIME_KEEPER_PREFIX: &[u8] = b"\xff\x02/timeKeeper/map/";
 
+/// Flavor about the mode of scanning
+pub enum HintMode {
+    /// The read version is ensure to be before the timestamp
+    BeforeTimestamp,
+    /// The read version is ensured to be after the timestamp
+    AfterTimestamp,
+}
+
 /// Try to get a version ID closer as possible as the asked timestamp
 ///
 /// If no result are found, either your timestamp is in the future of the
@@ -38,7 +46,8 @@ const TIME_KEEPER_PREFIX: &[u8] = b"\xff\x02/timeKeeper/map/";
 pub async fn hint_version_from_timestamp(
     trx: &Transaction,
     timestamp: u64,
-    reversed: bool,
+    mode: HintMode,
+    snapshot: bool,
 ) -> Result<Option<u64>, FdbBindingError> {
     // Timekeeper range keys are stored in /0x00/0x02 system namespace
     // to be able to read this range, the transaction must have
@@ -58,9 +67,21 @@ pub async fn hint_version_from_timestamp(
     end_key_bytes.extend_from_slice(b"\xff");
     let end_key = KeySelector::first_greater_than(end_key_bytes);
 
+    let range = match mode {
+        HintMode::AfterTimestamp => RangeOption::from((start_key.clone(), end_key.clone())),
+        HintMode::BeforeTimestamp => {
+            let mut range = RangeOption::from((
+                KeySelector::first_greater_than(TIME_KEEPER_PREFIX),
+                start_key.clone(),
+            ));
+            range.reverse = true;
+            range
+        }
+    };
+
     // We get the first key matching our start range bound
     let results = trx
-        .get_ranges_keyvalues(RangeOption::from((start_key, end_key)), true)
+        .get_ranges_keyvalues(range, snapshot)
         .take(1)
         .collect::<Vec<FdbResult<FdbValue>>>()
         .await;
