@@ -1,4 +1,4 @@
-use foundationdb_profiling::parse::Parse;
+use crate::parse::Parse;
 use futures_util::io::Cursor;
 use std::error::Error;
 use std::ops::{Deref, DerefMut};
