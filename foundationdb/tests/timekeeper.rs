@@ -1,4 +1,3 @@
-use crate::common;
 use foundationdb::timekeeper::hint_version_from_timestamp;
 use std::cmp::{max, min};
 use std::time::SystemTime;
@@ -6,7 +5,9 @@ use std::time::SystemTime;
 #[tokio::test]
 async fn timekeeper() {
     let _guard = unsafe { foundationdb::boot() };
-    let database = common::database().await.expect("Unable to create database");
+    let database = foundationdb::Database::new_compat(None)
+        .await
+        .expect("Unable to create database");
     let trx_read = database.create_trx().expect("Unable to create transaction");
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
