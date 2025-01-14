@@ -1,0 +1,14 @@
+[package]
+name = "foundationdb-profiling"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+arbitrary = { version = "1.4.1", features = ["derive"], optional = true }
+foundationdb-tuple = { path = "../foundationdb-tuple" }
+thiserror = "2.0.11"
+async-trait = "0.1.85"
+futures-util = "0.3.31"
+
+[features]
+fuzzing = ["arbitrary"]
