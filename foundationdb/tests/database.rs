@@ -1,6 +1,7 @@
 use foundationdb_macros::cfg_api_versions;
 
 mod common;
+mod timekeeper;
 
 #[test]
 fn test_databse() {

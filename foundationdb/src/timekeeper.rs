@@ -14,7 +14,9 @@
 
 use crate::future::FdbValue;
 use crate::options::TransactionOption;
-use crate::{FdbBindingError, FdbResult, KeySelector, RangeOption, RetryableTransaction};
+use crate::{
+    FdbBindingError, FdbResult, KeySelector, RangeOption, Transaction,
+};
 use foundationdb_tuple::{pack, unpack};
 use futures::StreamExt;
 
@@ -36,8 +38,9 @@ const TIME_KEEPER_PREFIX: &[u8] = b"\xff\x02/timeKeeper/map/";
 /// Each key are associated to a pack read version on 8 bytes
 /// compatible with an i64.
 pub async fn hint_version_from_timestamp(
-    trx: RetryableTransaction,
+    trx: &Transaction,
     timestamp: u64,
+    reversed: bool,
 ) -> Result<Option<u64>, FdbBindingError> {
     // Timekeeper range keys are stored in /0x00/0x02 system namespace
     // to be able to read this range, the transaction must have
