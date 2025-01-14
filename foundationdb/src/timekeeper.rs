@@ -68,11 +68,11 @@ pub async fn hint_version_from_timestamp(
     let end_key = KeySelector::first_greater_than(end_key_bytes);
 
     let range = match mode {
-        HintMode::AfterTimestamp => RangeOption::from((start_key.clone(), end_key.clone())),
+        HintMode::AfterTimestamp => RangeOption::from((start_key, end_key)),
         HintMode::BeforeTimestamp => {
             let mut range = RangeOption::from((
                 KeySelector::first_greater_than(TIME_KEEPER_PREFIX),
-                start_key.clone(),
+                start_key,
             ));
             range.reverse = true;
             range
