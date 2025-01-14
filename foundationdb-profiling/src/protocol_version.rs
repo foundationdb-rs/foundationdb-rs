@@ -1,7 +1,7 @@
 use crate::errors::ParseError;
 use crate::parse::Parse;
 use crate::scanner::Scanner;
-#[cfg(feature = "to_bytes")]
+#[cfg(feature = "fuzzing")]
 use arbitrary::Arbitrary;
 use futures_util::AsyncReadExt;
 use std::error::Error;
@@ -9,7 +9,7 @@ use std::error::Error;
 const PROTOCOL_VERSION_BYTES_SIZE: usize = 8;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "to_bytes", derive(Arbitrary))]
+#[cfg_attr(feature = "fuzzing", derive(Arbitrary))]
 pub enum ProtocolVersion {
     ProtocolVersion52,
     ProtocolVersion60,
