@@ -32,6 +32,7 @@ pub mod options;
     feature = "tenant-experimental"
 ))]
 pub mod tenant;
+pub mod timekeeper;
 mod transaction;
 mod tuple_ext;
 
