@@ -17,13 +17,14 @@ async fn timekeeper() {
         .get_read_version()
         .await
         .expect("Unable to get read version") as u64;
+    // Let some time passed in order to create a new timekeeper entry
+    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     // A new transaction is needed because the one which get the read version has no
     // knowledge about the new System Namespace Keyspace thus, further timekeeper
     // keys are unknown for the first transaction.
     // Creating a new one, make the first to be commited. The second will have the right
     // timekeeper state.
     let trx = database.create_trx().expect("Unable to create transaction");
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     let result = hint_version_from_timestamp(&trx, now, HintMode::AfterTimestamp, true)
         .await
         .expect("Unable to get hint version");

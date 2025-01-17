@@ -33,7 +33,7 @@ pub enum HintMode {
 /// Try to get a version ID closer as possible as the asked timestamp
 ///
 /// If no result are found, either your timestamp is in the future of the
-/// Timekeeper or the data as been rolled by fresh ones.
+/// Timekeeper or the data has been rolled by fresh ones.
 ///
 /// The layout os follow:
 ///
@@ -43,9 +43,11 @@ pub enum HintMode {
 ///
 /// Each key are associated to a pack read version on 8 bytes
 /// compatible with an i64.
+///
+/// Timestamps are provided from unix time as seconds
 pub async fn hint_version_from_timestamp(
     trx: &Transaction,
-    timestamp: u64,
+    unix_timestamp_as_seconds: u64,
     mode: HintMode,
     snapshot: bool,
 ) -> Result<Option<u64>, FdbBindingError> {
@@ -53,10 +55,12 @@ pub async fn hint_version_from_timestamp(
     // to be able to read this range, the transaction must have
     // capabilities to read System Keys
     trx.set_option(TransactionOption::ReadSystemKeys)?;
+    // The profiling should be used even when the Database has been locked
+    trx.set_option(TransactionOption::ReadLockAware)?;
 
     // Timekeeper keys are defined has prefix/timestamp
     let mut start_key_bytes = TIME_KEEPER_PREFIX.to_vec();
-    start_key_bytes.extend_from_slice(&pack(&timestamp));
+    start_key_bytes.extend_from_slice(&pack(&unix_timestamp_as_seconds));
     // we get the first key greater than this value because timekeeper doesn't tick
     // each seconds but rather each 10 seconds but not each time
     let start_key = KeySelector::first_greater_or_equal(start_key_bytes.clone());
@@ -67,7 +71,7 @@ pub async fn hint_version_from_timestamp(
     end_key_bytes.extend_from_slice(b"\xff");
     let end_key = KeySelector::first_greater_than(end_key_bytes);
 
-    let range = match mode {
+    let mut range = match mode {
         HintMode::AfterTimestamp => RangeOption::from((start_key, end_key)),
         HintMode::BeforeTimestamp => {
             let mut range = RangeOption::from((
@@ -78,6 +82,8 @@ pub async fn hint_version_from_timestamp(
             range
         }
     };
+    // No need to scan further than the next and previous key
+    range.limit = Some(1);
 
     // We get the first key matching our start range bound
     let results = trx
