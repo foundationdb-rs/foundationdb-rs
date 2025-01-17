@@ -32,6 +32,12 @@ jobs:
         with:
           version: "7.3.27"
 
+      # Setting up a fixed Python version because of https://github.com/foundationdb-rs/foundationdb-rs/issues/226
+      - name: Setup fixed Python 3.11 version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Enable tenant
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 

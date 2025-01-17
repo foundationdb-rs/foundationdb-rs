@@ -9,6 +9,8 @@ pip install foundationdb==7.3.27
 fdboption_file="$(pip show foundationdb | grep Loca | awk '{print $2}')/fdb/fdboptions.py"
 echo "fdb option file: $fdboption_file"
 
+python3 --version
+
 ## build the python bindings
 (
   fdb_builddir=${fdb_rs_dir:?}/target/foundationdb_build
