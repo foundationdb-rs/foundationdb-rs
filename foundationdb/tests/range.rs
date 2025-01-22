@@ -17,12 +17,12 @@ use std::borrow::Cow;
 
 mod common;
 
-#[test]
-fn test_range() {
+#[tokio::test]
+async fn test_range() {
     let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_get_range_async()).expect("failed to run");
-    futures::executor::block_on(test_range_option_async()).expect("failed to run");
-    futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
+    test_get_range_async().await.expect("failed to run");
+    test_range_option_async().await.expect("failed to run");
+    test_get_ranges_async().await.expect("failed to run");
     #[cfg(any(
         feature = "fdb-6_3",
         feature = "fdb-7_0",
@@ -30,16 +30,16 @@ fn test_range() {
         feature = "fdb-7_3"
     ))]
     {
-        futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
+        test_get_estimate_range().await.expect("failed to run");
     }
     #[cfg(any(feature = "fdb-7_0", feature = "fdb-7_1", feature = "fdb-7_3"))]
     {
-        futures::executor::block_on(test_get_range_split_points()).expect("failed to run");
+        test_get_range_split_points().await.expect("failed to run");
     }
     #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
     {
-        futures::executor::block_on(test_mapped_value()).expect("failed to run");
-        futures::executor::block_on(test_mapped_values()).expect("failed to run");
+        test_mapped_value().await.expect("failed to run");
+        test_mapped_values().await.expect("failed to run");
     }
 }
 

@@ -65,7 +65,10 @@ impl Drop for Database {
 #[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
+    /// It will spawn the network thread if needed.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
+        spawn_network_thread()?;
+
         let path_str =
             path.map(|path| std::ffi::CString::new(path).expect("path to be convertible to CStr"));
         let path_ptr = path_str

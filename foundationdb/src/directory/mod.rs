@@ -54,7 +54,7 @@
 //! }
 //!
 //! // Safe because drop is called before the program exits
-//! let network = unsafe { foundationdb::boot() };
+//! let network = unsafe {foundationdb::boot()};
 //! futures::executor::block_on(async_main()).expect("failed to run");
 //! drop(network);
 //! ```

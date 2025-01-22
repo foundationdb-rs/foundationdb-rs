@@ -41,6 +41,7 @@ pub mod tuple {
     pub use foundationdb_tuple::*;
 }
 
+use crate::api::NetworkAutoStop;
 #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
 pub use crate::cluster::Cluster;
 
@@ -51,41 +52,36 @@ pub use crate::error::FdbResult;
 pub use crate::keyselector::*;
 pub use crate::transaction::*;
 
-/// Initialize the FoundationDB Client API, this can only be called once per process.
+/// Provides a convenient way to initialize the FoundationDB library. This function:
+/// - Sets the API version to the maximum available.
+/// - Sets up the network thread and returns a [NetworkAutoStop] guard to manage its lifecycle.
+///
+/// If you need to configure the database (e.g., by adding options), consider using [api::FdbApiBuilder]
+/// for more granular control over the initialization process.
+///
+/// For details on the boot and shutdown sequence and safety considerations, refer to the [api] documentation.
+///
+/// ## Example, with boot
+///
+/// This will boot using the max api version returned by your version of libfdb
+///
+/// ```rust
+/// // Initialize the FoundationDB library
+/// let guard = unsafe { foundationdb::boot() }.expect("Failed to boot FoundationDB library");
+///
+/// // Perform operations with FoundationDB
+/// // ...
+///
+/// // Ensure proper cleanup by stopping the network
+/// drop(guard);
+/// ```
 ///
 /// # Returns
 ///
-/// A `NetworkAutoStop` handle which must be dropped before the program exits.
-///
-/// # Safety
-///
-/// You *MUST* ensure drop is called on the returned object before the program exits.
-/// This is not required if the program is aborted.
-///
-/// This method used to be safe in version `0.4`. But because `drop` on the returned object
-/// might not be called before the program exits, it was found unsafe.
-///
-/// # Examples
-///
-/// ```rust
-/// let network = unsafe { foundationdb::boot() };
-/// // do some interesting things with the API...
-/// drop(network);
-/// ```
-///
-/// ```rust
-/// #[tokio::main]
-/// async fn main() {
-///     let network = unsafe { foundationdb::boot() };
-///     // do some interesting things with the API...
-///     drop(network);
-/// }
-/// ```
-pub unsafe fn boot() -> api::NetworkAutoStop {
-    let network_builder = api::FdbApiBuilder::default()
-        .build()
-        .expect("foundationdb API to be initialized");
-    network_builder.boot().expect("fdb network running")
+/// On success, returns a [NetworkAutoStop] guard that automatically stops the network
+/// when it goes out of scope. Returns an [FdbError] if the initialization fails.
+pub fn boot() -> Result<NetworkAutoStop, FdbError> {
+    api::FdbApiBuilder::default().build()?.boot()
 }
 
 /// Returns the default Fdb cluster configuration file path

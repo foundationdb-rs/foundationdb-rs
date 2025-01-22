@@ -161,10 +161,7 @@ const LINE: [&str; 13] = [
 #[tokio::main]
 async fn main() -> Result<(), FdbBindingError> {
     // initialize FoundationDB Client API
-    let fdb = unsafe {
-        // SAFETY: only called once and will be dropped before the program exits
-        foundationdb::boot()
-    };
+    let fdb = unsafe { foundationdb::boot() }?;
 
     // attempt connection to FoundationDB
     let db = Database::default()?;

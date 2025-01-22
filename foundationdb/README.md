@@ -88,8 +88,7 @@ use futures::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
+    let network = unsafe {foundationdb::boot()};
 
     // Have fun with the FDB API
     hello_world().await.expect("could not run the hello world");
