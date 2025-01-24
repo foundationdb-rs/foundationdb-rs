@@ -23,12 +23,12 @@ use crate::options;
 use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
 
+use crate::api::spawn_network_thread;
 use crate::error::FdbBindingError;
-use futures::prelude::*;
-
 #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
+use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
 /// previous transaction is still on fly
@@ -311,7 +311,7 @@ impl Database {
     ///         // Handle the problem if needed
     ///     }
     /// }).await;
-    ///```
+    /// ```
     pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
     where
         F: Fn(RetryableTransaction, MaybeCommitted) -> Fut,

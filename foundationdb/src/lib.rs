@@ -59,9 +59,9 @@ pub use crate::transaction::*;
 /// If you need to configure the database (e.g., by adding options), consider using [api::FdbApiBuilder]
 /// for more granular control over the initialization process.
 ///
-/// For details on the boot and shutdown sequence and safety considerations, refer to the [api] documentation.
+/// For details on the boot and shutdown sequence and safety considerations(and also other means to boot), refer to the [api] documentation.
 ///
-/// ## Example, with boot
+/// ## Example
 ///
 /// This will boot using the max api version returned by your version of libfdb
 ///
@@ -76,11 +76,17 @@ pub use crate::transaction::*;
 /// drop(guard);
 /// ```
 ///
-/// # Returns
+/// ## Returns
 ///
 /// On success, returns a [NetworkAutoStop] guard that automatically stops the network
-/// when it goes out of scope. Returns an [FdbError] if the initialization fails.
-pub fn boot() -> Result<NetworkAutoStop, FdbError> {
+/// when all instances go out of scope. Returns an [FdbError] if the initialization fails.
+///
+/// ## Safety
+///
+/// This function is `unsafe` because Rust cannot enforce
+/// that `stop_network` will be called at the end of your program.
+/// Using this function incorrectly may introduce undefined behavior.
+pub unsafe fn boot() -> Result<NetworkAutoStop, FdbError> {
     api::FdbApiBuilder::default().build()?.boot()
 }
 

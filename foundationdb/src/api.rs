@@ -59,7 +59,7 @@
 //!
 //! Manually managing the network lifecycle can be difficult, especially in scenarios like testing given cargo's behavior.
 //! The [NetworkAutoStop] struct simplifies this by automatically stopping the network when its last instance is dropped.
-//! This utility ensures proper cleanup and reduces the risk of forgetting to call [stop_network].
+//! This utility ensures proper cleanup and reduces the risk of forgetting to call [stop_network], which is **undefined behavior**.
 //!
 //! ## Testing with FoundationDB
 //!
@@ -259,9 +259,12 @@ pub fn stop_network() -> Result<(), FdbError> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .take()
     {
-        network_thread
-            .join()
-            .expect("could not join network_thread");
+        if let Err(err) = network_thread.join() {
+            eprintln!(
+                "Error during stop_network, cannot join network-thread: {:?}",
+                err
+            );
+        }
     };
 
     Ok(())
@@ -275,31 +278,9 @@ pub fn set_network_option(option: NetworkOption) -> Result<(), FdbError> {
     unsafe { option.apply() }
 }
 
-/// A Builder with which different versions of the Fdb C API can be initialized
+/// A Builder with which different versions of the Fdb C API can be initialized.
 ///
-/// The foundationDB C API can only be initialized once.
-///
-/// ## Example
-///
-/// ```rust
-/// use foundationdb::api::{get_max_api_version, FdbApiBuilder};
-/// use foundationdb::options::NetworkOption;
-///
-/// let network_builder = FdbApiBuilder::new(get_max_api_version())
-///     .build()
-///     .expect("could not set api version");
-/// let database_builder = network_builder
-///     .set_option(NetworkOption::TraceFormat("json".to_string()))
-///     .expect("could not set network option");
-/// let guard = database_builder
-///     .boot()
-///     .expect("could not boot network thread");
-///
-/// // Do stuff with fdb...
-///
-/// // Then safely tears down the library
-/// drop(guard);
-/// ```
+/// For details on the boot and shutdown sequence and safety considerations, refer to the [crate::api] documentation.
 pub struct FdbApiBuilder {
     runtime_version: i32,
 }
@@ -350,9 +331,9 @@ impl Default for FdbApiBuilder {
 /// let network_builder = FdbApiBuilder::default()
 ///     .build()
 ///     .expect("fdb api initialized");
-/// network_builder.boot().expect("could not boot");
-/// // do some work with foundationDB
-/// foundationdb::api::stop_network().expect("could not stop network");
+/// let guard = unsafe { network_builder.boot() }.expect("could not boot");
+/// // do some work with foundationDB, then drop the guard
+/// drop(guard);
 /// ```
 pub struct NetworkBuilder {
     _private: (),
@@ -366,17 +347,7 @@ impl NetworkBuilder {
     }
 
     /// Finalizes the initialization of the Network and returns a way to run/wait/stop the
-    /// FoundationDB run loop.
-    ///
-    /// It's not recommended to use this method directly, you probably want the `boot()` method.
-    ///
-    /// In order to start the network you have to:
-    ///  - call the unsafe `NetworkRunner::run()` method, most likely in a dedicated thread
-    ///  - wait for the thread to start `NetworkWait::wait`
-    ///
-    /// In order for the sequence to be safe, you **MUST** as stated in the `NetworkRunner::run()` method
-    /// ensure that `NetworkStop::stop()` is called before the process exit.
-    /// Aborting the process is still safe.
+    /// FoundationDB run loop. The call is now an noop, it has been kept for compatibility reason
     pub fn build(self) -> FdbResult<()> {
         Ok(())
     }
@@ -384,16 +355,52 @@ impl NetworkBuilder {
     /// Starts the FoundationDB network thread in a dedicated thread.
     /// This finish initializing the FoundationDB Client API.
     ///
-    /// You **must** call `stop_network` at the end of your program.
-    pub fn boot(self) -> FdbResult<NetworkAutoStop> {
+    /// You **must** call `stop_network` at the end of your program, or use the Drop feature of [NetworkAutoStop]
+    ///
+    /// ## Safety
+    ///
+    /// This function is `unsafe` because Rust cannot enforce
+    /// that `stop_network` will be called at the end of your program.
+    /// Using this function incorrectly may introduce undefined behavior.
+    pub unsafe fn boot(self) -> FdbResult<NetworkAutoStop> {
         spawn_network_thread()?;
         Ok(NetworkAutoStop::new())
     }
 }
 
-/// Allow to stop the associated and running `NetworkRunner`.
+#[allow(clippy::test_attr_in_doctest)]
+/// A utility for automatically stopping the FoundationDB network.
 ///
-/// Most of the time you should never need to use this directly and use `boot()`.
+/// `NetworkAutoStop` simplifies the management of the FoundationDB network lifecycle by automatically
+/// stopping the network when its last instance is dropped. This reduces the risk of undefined behavior
+/// caused by forgetting to call [`stop_network`] manually.
+///
+/// # Key Features
+///
+/// - Ensures [`stop_network`] is called when all instances of `NetworkAutoStop` are dropped.
+/// - Reference counting ensures that the network is only stopped once, even if multiple `NetworkAutoStop`
+///   instances are created or cloned.
+///
+/// # Usage
+///
+/// `NetworkAutoStop` is typically used during testing or in situations where manual network management
+/// would be error-prone. For example:
+///
+/// ```rust
+/// #[test]
+/// fn test_network_auto_stop() {
+///     // Acquire a `NetworkAutoStop` instance at the start of the test
+///     let guard = NetworkAutoStop::new();
+///
+///     // Initialize FoundationDB normally, skipping the auto-stop functionality provided by `boot`
+///     foundationdb::boot().expect("failed to initialize FoundationDB");
+///
+///     // Perform operations with FoundationDB
+///
+///     // Dropping the `guard` ensures the network is stopped automatically when no other instances exist
+///     drop(guard);
+/// }
+/// ```
 pub struct NetworkAutoStop {
     _private: (),
 }

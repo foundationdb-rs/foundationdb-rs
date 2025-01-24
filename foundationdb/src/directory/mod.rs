@@ -22,8 +22,8 @@
 //! Examples:
 //!
 //! ```rust
-//! use futures::prelude::*;
 //! use foundationdb::directory::Directory;
+//! use futures::prelude::*;
 //!
 //! async fn async_main() -> foundationdb::FdbResult<()> {
 //!     let db = foundationdb::Database::default()?;
@@ -34,17 +34,21 @@
 //!     // creates a directory
 //!     let directory = foundationdb::directory::DirectoryLayer::default();
 //!
-//!     let path = vec![String::from("my-awesome-app"), String::from("my-awesome-user")];
+//!     let path = vec![
+//!         String::from("my-awesome-app"),
+//!         String::from("my-awesome-user"),
+//!     ];
 //!
 //!     // use the directory to create a subspace to use
-//!     let content_subspace = directory.create_or_open(
-//!         // the transaction used to read/write the directory.
-//!         &trx,
-//!         // the path used, which can view as a UNIX path like `/app/my-app`.
-//!         &path,
-//!         // do not use any custom prefix or layer
-//!         None, None,
-//!     ).await;
+//!     let content_subspace = directory
+//!         .create_or_open(
+//!             // the transaction used to read/write the directory.
+//!             &trx,
+//!             // the path used, which can view as a UNIX path like `/app/my-app`.
+//!             &path, // do not use any custom prefix or layer
+//!             None, None,
+//!         )
+//!         .await;
 //!     assert_eq!(true, content_subspace.is_ok());
 //!
 //!     // Don't forget to commit your transaction to persist the subspace
