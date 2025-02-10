@@ -6,7 +6,7 @@ mod common;
 fn test_databse() {
     let _guard = unsafe { foundationdb::boot() };
 
-    #[cfg(any(feature = "fdb-7_3"))]
+    #[cfg(feature = "fdb-7_3")]
     futures::executor::block_on(test_status_async()).expect("failed to run");
 
     #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
@@ -24,7 +24,7 @@ async fn test_status_async() -> foundationdb::FdbResult<()> {
     assert!(
         status.contains("Healthy"),
         "Could not find healthy in '{}'",
-        format!("{}", status)
+        status
     );
 
     Ok(())

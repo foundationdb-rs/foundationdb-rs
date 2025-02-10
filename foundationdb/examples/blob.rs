@@ -5,7 +5,6 @@ use rand::Rng;
 
 /// The goal of this example is to store blob data as chunk of 1kB
 /// Retrieve these data then verify correctness
-
 async fn clear_subspace(db: &Database, subspace: &Subspace) {
     let transaction = db.create_trx().expect("Unable to create transaction");
     transaction.clear_subspace_range(subspace);

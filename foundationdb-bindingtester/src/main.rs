@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Write;
+use std::mem::transmute;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::thread;
@@ -543,7 +544,7 @@ impl TransactionState {
                 *self = S::Pending(id);
                 unsafe {
                     // rust binding prevent accessing cancelled transaction
-                    std::mem::transmute(tr)
+                    transmute::<TransactionCancelled, Transaction>(tr)
                 }
             }
             _ => panic!("transaction is owned by a future that is still not done"),
