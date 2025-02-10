@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-tuple/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_tuple" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">foundationdb_tuple/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-tuple/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_tuple" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.1 (e71f9a9a9 2025-01-27)" data-channel="1.84.1" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">foundationdb_tuple/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -648,25 +648,7 @@
 <a href="#647" id="647">647</a>
 <a href="#648" id="648">648</a>
 <a href="#649" id="649">649</a>
-<a href="#650" id="650">650</a>
-<a href="#651" id="651">651</a>
-<a href="#652" id="652">652</a>
-<a href="#653" id="653">653</a>
-<a href="#654" id="654">654</a>
-<a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a>
-<a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
-<a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a>
-<a href="#666" id="666">666</a>
-<a href="#667" id="667">667</a>
-<a href="#668" id="668">668</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of the official tuple layer typecodes
+<a href="#650" id="650">650</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of the official tuple layer typecodes
 //!
 //! The official specification can be found [here](https://github.com/apple/foundationdb/blob/master/design/tuple.md).
 
@@ -780,13 +762,13 @@
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 </span><span class="kw">pub struct </span>Bytes&lt;<span class="lifetime">'a</span>&gt;(<span class="kw">pub </span>Cow&lt;<span class="lifetime">'a</span>, [u8]&gt;);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Debug <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Bytes&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
         fmt::Display::fmt(<span class="self">self</span>, f)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Display <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Bytes&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, fmt: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
         <span class="macro">write!</span>(fmt, <span class="string">"b\""</span>)<span class="question-mark">?</span>;
         <span class="kw">for </span><span class="kw-2">&amp;</span>byte <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter() {
@@ -802,19 +784,19 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Bytes&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>Bytes&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="self">self</span>.<span class="number">0</span>.into_owned()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Deref <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>Deref <span class="kw">for </span>Bytes&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Target = [u8];
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; AsRef&lt;[u8]&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Bytes&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
@@ -958,62 +940,50 @@
         test_serde(-<span class="number">256</span>, <span class="string">b"\x12\xfe\xff"</span>);
         test_serde(<span class="number">65536</span>, <span class="string">b"\x17\x01\x00\x00"</span>);
         test_serde(-<span class="number">65536</span>, <span class="string">b"\x11\xfe\xff\xff"</span>);
-        test_serde(i64::max_value(), <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>);
+        test_serde(i64::MAX, <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>);
+        test_serde(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>, <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>);
+        test_serde(u64::MAX, <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>);
         test_serde(
-            i64::max_value() <span class="kw">as </span>u64 + <span class="number">1</span>,
-            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
-        );
-        test_serde(u64::max_value(), <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>);
-        test_serde(
-            u128::max_value(),
+            u128::MAX,
             <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>,
+            u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>,
             <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            u64::max_value() <span class="kw">as </span>i128 + <span class="number">1</span>,
+            u64::MAX <span class="kw">as </span>i128 + <span class="number">1</span>,
             <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            i64::min_value() <span class="kw">as </span>i128 + <span class="number">1</span>,
+            i64::MIN <span class="kw">as </span>i128 + <span class="number">1</span>,
             <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            i64::min_value() <span class="kw">as </span>i128 - <span class="number">1</span>,
+            i64::MIN <span class="kw">as </span>i128 - <span class="number">1</span>,
             <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
+        test_serde(-(u64::MAX <span class="kw">as </span>i128), <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>);
         test_serde(
-            -(u64::max_value() <span class="kw">as </span>i128),
-            <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-        );
-        test_serde(
-            -(u64::max_value() <span class="kw">as </span>i128) - <span class="number">1</span>,
+            -(u64::MAX <span class="kw">as </span>i128) - <span class="number">1</span>,
             <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            -(u64::max_value() <span class="kw">as </span>i128) - <span class="number">2</span>,
+            -(u64::MAX <span class="kw">as </span>i128) - <span class="number">2</span>,
             <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
-            (u64::max_value() <span class="kw">as </span>i128) * -<span class="number">2</span>,
+            (u64::MAX <span class="kw">as </span>i128) * -<span class="number">2</span>,
             <span class="string">b"\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
-            (u64::max_value() <span class="kw">as </span>i128) * <span class="number">2</span>,
+            (u64::MAX <span class="kw">as </span>i128) * <span class="number">2</span>,
             <span class="string">b"\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(-<span class="number">4294967295i64</span>, <span class="string">b"\x10\x00\x00\x00\x00"</span>);
-        test_serde(
-            i64::min_value() + <span class="number">2</span>,
-            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>,
-        );
-        test_serde(
-            i64::min_value() + <span class="number">1</span>,
-            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
-        );
-        test_serde(i64::min_value(), <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>);
+        test_serde(i64::MIN + <span class="number">2</span>, <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>);
+        test_serde(i64::MIN + <span class="number">1</span>, <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>);
+        test_serde(i64::MIN, <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>);
 
         test_serde(<span class="number">9252427359321063944i128</span>, <span class="string">b"\x1c\x80g9\xa9np\x02\x08"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
@@ -1030,26 +1000,20 @@
             PackError::UnsupportedIntLength
         ));
 
-        test_serde(
-            u64::max_value() <span class="kw">as </span>i128,
-            <span class="string">b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
-        );
+        test_serde(u64::MAX <span class="kw">as </span>i128, <span class="string">b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             unpack::&lt;i64&gt;(<span class="string">b"\x1c\xff\xff\xff\xff\xff\xff\xff\xff"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
-        test_serde(
-            -(u64::max_value() <span class="kw">as </span>i128),
-            <span class="string">b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-        );
+        test_serde(-(u64::MAX <span class="kw">as </span>i128), <span class="string">b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             unpack::&lt;i64&gt;(<span class="string">b"\x0c\x00\x00\x00\x00\x00\x00\x00\x00"</span>).unwrap_err(),
             PackError::UnsupportedIntLength
         ));
 
         test_serde(
-            (i64::max_value() <span class="kw">as </span>i128) + <span class="number">1</span>,
+            (i64::MAX <span class="kw">as </span>i128) + <span class="number">1</span>,
             <span class="string">b"\x1c\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
@@ -1058,7 +1022,7 @@
         ));
 
         test_serde(
-            (i64::min_value() <span class="kw">as </span>i128) - <span class="number">1</span>,
+            (i64::MIN <span class="kw">as </span>i128) - <span class="number">1</span>,
             <span class="string">b"\x0c\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
@@ -1108,92 +1072,92 @@
         test_serde(BigUint::from(<span class="number">65536u64</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
         test_serde(BigInt::from(-<span class="number">65536</span>), <span class="string">b"\x11\xfe\xff\xff"</span>);
         test_serde(
-            BigInt::from(i64::max_value()),
+            BigInt::from(i64::MAX),
             <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigUint::from(i64::max_value() <span class="kw">as </span>u64),
+            BigUint::from(i64::MAX <span class="kw">as </span>u64),
             <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigInt::from(i64::max_value() <span class="kw">as </span>u64 + <span class="number">1</span>),
+            BigInt::from(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>),
             <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigUint::from(i64::max_value() <span class="kw">as </span>u64 + <span class="number">1</span>),
+            BigUint::from(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>),
             <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigInt::from(u64::max_value()),
+            BigInt::from(u64::MAX),
             <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigUint::from(u64::max_value()),
+            BigUint::from(u64::MAX),
             <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigInt::from(u128::max_value()),
+            BigInt::from(u128::MAX),
             <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigUint::from(u128::max_value()),
+            BigUint::from(u128::MAX),
             <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigInt::from(u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>),
+            BigInt::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
             <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigUint::from(u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>),
+            BigUint::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
             <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigInt::from(u64::max_value() <span class="kw">as </span>i128 + <span class="number">1</span>),
+            BigInt::from(u64::MAX <span class="kw">as </span>i128 + <span class="number">1</span>),
             <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigUint::from(u64::max_value() <span class="kw">as </span>u128 + <span class="number">1</span>),
+            BigUint::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
             <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigInt::from(i64::min_value() <span class="kw">as </span>i128 + <span class="number">1</span>),
+            BigInt::from(i64::MIN <span class="kw">as </span>i128 + <span class="number">1</span>),
             <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigInt::from(i64::min_value() <span class="kw">as </span>i128 - <span class="number">1</span>),
+            BigInt::from(i64::MIN <span class="kw">as </span>i128 - <span class="number">1</span>),
             <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
-            BigInt::from(-(u64::max_value() <span class="kw">as </span>i128)),
+            BigInt::from(-(u64::MAX <span class="kw">as </span>i128)),
             <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigInt::from(-(u64::max_value() <span class="kw">as </span>i128) - <span class="number">1</span>),
+            BigInt::from(-(u64::MAX <span class="kw">as </span>i128) - <span class="number">1</span>),
             <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
         test_serde(
-            BigInt::from(-(u64::max_value() <span class="kw">as </span>i128) - <span class="number">2</span>),
+            BigInt::from(-(u64::MAX <span class="kw">as </span>i128) - <span class="number">2</span>),
             <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(
-            BigInt::from((u64::max_value() <span class="kw">as </span>i128) * -<span class="number">2</span>),
+            BigInt::from((u64::MAX <span class="kw">as </span>i128) * -<span class="number">2</span>),
             <span class="string">b"\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
-            BigInt::from((u64::max_value() <span class="kw">as </span>i128) * <span class="number">2</span>),
+            BigInt::from((u64::MAX <span class="kw">as </span>i128) * <span class="number">2</span>),
             <span class="string">b"\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
         );
         test_serde(BigInt::from(-<span class="number">4294967295i64</span>), <span class="string">b"\x10\x00\x00\x00\x00"</span>);
         test_serde(
-            BigInt::from(i64::min_value() + <span class="number">2</span>),
+            BigInt::from(i64::MIN + <span class="number">2</span>),
             <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>,
         );
         test_serde(
-            BigInt::from(i64::min_value() + <span class="number">1</span>),
+            BigInt::from(i64::MIN + <span class="number">1</span>),
             <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
         );
         test_serde(
-            BigInt::from(i64::min_value()),
+            BigInt::from(i64::MIN),
             <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
         );
 
