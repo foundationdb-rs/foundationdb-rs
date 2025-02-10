@@ -103,7 +103,6 @@ use uuid::Uuid;
 /// 3 - Write bytes to database
 /// 4 - Read bytes from database
 /// 5 - Compute checksum of output data and verify correctness
-
 async fn clear_subspace(db: &Database, subspaces: Vec<&Subspace>) {
     let transaction = db.create_trx().expect("Unable to create transaction");
 

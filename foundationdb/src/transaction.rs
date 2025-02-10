@@ -186,16 +186,12 @@ fn fdb_bool(v: bool) -> fdb_sys::fdb_bool_t {
 }
 #[inline]
 fn fdb_len(len: usize, context: &'static str) -> std::os::raw::c_int {
-    assert!(
-        len <= i32::max_value() as usize,
-        "{}.len() > i32::max_value()",
-        context
-    );
+    assert!(len <= i32::MAX as usize, "{}.len() > i32::MAX", context);
     len as i32
 }
 #[inline]
 fn fdb_iteration(iteration: usize) -> std::os::raw::c_int {
-    if iteration > i32::max_value() as usize {
+    if iteration > i32::MAX as usize {
         0 // this will cause client_invalid_operation
     } else {
         iteration as i32
@@ -203,8 +199,8 @@ fn fdb_iteration(iteration: usize) -> std::os::raw::c_int {
 }
 #[inline]
 fn fdb_limit(v: usize) -> std::os::raw::c_int {
-    if v > i32::max_value() as usize {
-        i32::max_value()
+    if v > i32::MAX as usize {
+        i32::MAX
     } else {
         v as i32
     }
@@ -245,7 +241,7 @@ pub struct RangeOption<'a> {
     pub __non_exhaustive: std::marker::PhantomData<()>,
 }
 
-impl<'a> RangeOption<'a> {
+impl RangeOption<'_> {
     /// Reverses the range direction.
     pub fn rev(mut self) -> Self {
         self.reverse = !self.reverse;
@@ -300,7 +296,7 @@ impl<'a> RangeOption<'a> {
     }
 }
 
-impl<'a> Default for RangeOption<'a> {
+impl Default for RangeOption<'_> {
     fn default() -> Self {
         Self {
             begin: KeySelector::first_greater_or_equal([].as_ref()),

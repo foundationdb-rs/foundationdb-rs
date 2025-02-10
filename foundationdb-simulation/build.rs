@@ -46,6 +46,7 @@ fn display_build_warnings() {
     println!("cargo:warning=Please follow the instructions in the associated README");
 }
 
+#[cfg(not(feature = "fdb-docker"))]
 fn build_with_gcc(api_version: &str) {
     cc::Build::new()
         .cpp(true)
@@ -56,6 +57,7 @@ fn build_with_gcc(api_version: &str) {
         .compile("libctx.a");
 }
 
+#[cfg(feature = "fdb-docker")]
 fn build_with_clang(api_version: &str) {
     cc::Build::new()
         .compiler("clang")

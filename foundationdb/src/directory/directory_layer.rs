@@ -336,7 +336,7 @@ impl DirectoryLayer {
         trx: &Transaction,
         path: &[String],
     ) -> Result<Subspace, DirectoryError> {
-        return match path.split_last() {
+        match path.split_last() {
             None => Ok(self.root_node.clone()),
             Some((_, remains)) => {
                 if remains.is_empty() {
@@ -348,7 +348,7 @@ impl DirectoryLayer {
 
                 Ok(self.node_with_prefix(&parent.bytes()?))
             }
-        };
+        }
     }
 
     async fn is_prefix_free(

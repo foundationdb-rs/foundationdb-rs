@@ -11,7 +11,6 @@ use foundationdb::{options, Database, FdbBindingError};
 /// this feature might lead to divergent behaviors.
 ///
 /// Ref: https://apple.github.io/foundationdb/api-general.html#multi-version-client-api
-
 const NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY: &str =
     "FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY";
 
@@ -23,7 +22,7 @@ async fn main() {
     // You can either use FoundationDB network option through environment variables
     // or through network options in code.
     // directory specified should contain at least one libfdb.so
-    if !std::env::var(NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY).is_ok() {
+    if std::env::var(NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY).is_err() {
         network_builder = network_builder
             .set_option(NetworkOption::ExternalClientDirectory(
                 "/usr/lib/foundationdb/".to_string(),

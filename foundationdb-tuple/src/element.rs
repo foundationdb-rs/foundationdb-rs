@@ -26,20 +26,20 @@ pub enum Element<'a> {
 
 struct CmpElement<'a, 'b>(&'a Element<'b>);
 
-impl<'a, 'b> PartialEq for CmpElement<'a, 'b> {
+impl PartialEq for CmpElement<'_, '_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == cmp::Ordering::Equal
     }
 }
-impl<'a, 'b> Eq for CmpElement<'a, 'b> {}
+impl Eq for CmpElement<'_, '_> {}
 
-impl<'a, 'b> PartialOrd for CmpElement<'a, 'b> {
+impl PartialOrd for CmpElement<'_, '_> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a, 'b> Ord for CmpElement<'a, 'b> {
+impl Ord for CmpElement<'_, '_> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.0
             .code()
@@ -79,19 +79,19 @@ impl<'a, 'b> Ord for CmpElement<'a, 'b> {
     }
 }
 
-impl<'a> PartialEq for Element<'a> {
+impl PartialEq for Element<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == cmp::Ordering::Equal
     }
 }
-impl<'a> Eq for Element<'a> {}
+impl Eq for Element<'_> {}
 
-impl<'a> PartialOrd for Element<'a> {
+impl PartialOrd for Element<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
-impl<'a> Ord for Element<'a> {
+impl Ord for Element<'_> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.cmp_at_root(other)
     }

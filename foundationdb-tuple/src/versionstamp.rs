@@ -51,7 +51,7 @@ impl From<[u8; 12]> for Versionstamp {
     }
 }
 
-impl<'a> Element<'a> {
+impl Element<'_> {
     pub fn count_incomplete_versionstamp(&self) -> usize {
         match self {
             Element::Versionstamp(v) if !v.is_complete() => 1,

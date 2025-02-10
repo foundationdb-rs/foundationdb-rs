@@ -2,7 +2,7 @@ use crate::{KeySelector, RangeOption, Transaction};
 use foundationdb_tuple::Subspace;
 use std::borrow::Cow;
 
-impl<'a> From<&'a Subspace> for RangeOption<'static> {
+impl From<&Subspace> for RangeOption<'static> {
     fn from(subspace: &Subspace) -> Self {
         let (begin, end) = subspace.range();
 

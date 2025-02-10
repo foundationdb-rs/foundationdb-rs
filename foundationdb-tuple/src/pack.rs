@@ -119,7 +119,7 @@ pub trait TupleUnpack<'de>: Sized {
     }
 }
 
-impl<'a, T> TuplePack for &'a T
+impl<T> TuplePack for &T
 where
     T: TuplePack,
 {
@@ -233,7 +233,7 @@ impl TuplePack for () {
     }
 }
 
-impl<'de> TupleUnpack<'de> for () {
+impl TupleUnpack<'_> for () {
     fn unpack(mut input: &[u8], tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
         if tuple_depth.depth() > 0 {
             input = parse_code(input, NESTED)?;
@@ -480,7 +480,7 @@ macro_rules! impl_fx {
         #[inline]
         pub(super) fn $fx_to_ux_be_bytes(f: $fx) -> [u8; $ux_width] {
             let u = if f.is_sign_negative() {
-                f.to_bits() ^ ::std::$ux::MAX
+                f.to_bits() ^ $ux::MAX
             } else {
                 f.to_bits() ^ sign_bit!($ux)
             };
@@ -514,7 +514,7 @@ macro_rules! impl_fx {
                 Ok((
                     input,
                     $fx::from_bits(if (u & sign_bit!($ux)) == 0 {
-                        u ^ ::std::$ux::MAX
+                        u ^ $ux::MAX
                     } else {
                         u ^ sign_bit!($ux)
                     }),
@@ -612,7 +612,7 @@ mod bigint {
         }
     }
 
-    impl<'de> TupleUnpack<'de> for BigInt {
+    impl TupleUnpack<'_> for BigInt {
         fn unpack(input: &[u8], _tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
             let (input, found) = parse_byte(input)?;
             if INTZERO <= found && found <= INTZERO + MAX_SZ as u8 {
@@ -668,7 +668,7 @@ mod bigint {
         }
     }
 
-    impl<'de> TupleUnpack<'de> for BigUint {
+    impl TupleUnpack<'_> for BigUint {
         fn unpack(input: &[u8], _tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
             let (input, found) = parse_byte(input)?;
             if INTZERO <= found && found <= INTZERO + MAX_SZ as u8 {
@@ -701,7 +701,7 @@ impl TuplePack for bool {
     }
 }
 
-impl<'de> TupleUnpack<'de> for bool {
+impl TupleUnpack<'_> for bool {
     fn unpack(input: &[u8], _tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
         let (input, v) = parse_byte(input)?;
         match v {
@@ -714,7 +714,7 @@ impl<'de> TupleUnpack<'de> for bool {
     }
 }
 
-impl<'a, T> TuplePack for &'a [T]
+impl<T> TuplePack for &[T]
 where
     T: TuplePack,
 {
@@ -790,7 +790,7 @@ where
     }
 }
 
-impl<'a> TuplePack for Bytes<'a> {
+impl TuplePack for Bytes<'_> {
     fn pack<W: io::Write>(
         &self,
         w: &mut W,
@@ -809,7 +809,7 @@ impl<'de> TupleUnpack<'de> for Bytes<'de> {
     }
 }
 
-impl<'a> TuplePack for &'a [u8] {
+impl TuplePack for &[u8] {
     fn pack<W: io::Write>(
         &self,
         w: &mut W,
@@ -836,7 +836,7 @@ impl<'de> TupleUnpack<'de> for Vec<u8> {
     }
 }
 
-impl<'a> TuplePack for &'a str {
+impl TuplePack for &str {
     fn pack<W: io::Write>(
         &self,
         w: &mut W,
@@ -857,7 +857,7 @@ impl TuplePack for String {
     }
 }
 
-impl<'a> TuplePack for Cow<'a, str> {
+impl TuplePack for Cow<'_, str> {
     fn pack<W: io::Write>(
         &self,
         w: &mut W,
@@ -875,7 +875,7 @@ impl<'de> TupleUnpack<'de> for Cow<'de, str> {
     }
 }
 
-impl<'de> TupleUnpack<'de> for String {
+impl TupleUnpack<'_> for String {
     fn unpack(input: &[u8], _tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
         let input = parse_code(input, STRING)?;
         let (input, v) = parse_string(input)?;
@@ -928,7 +928,7 @@ where
     }
 }
 
-impl<'a> TuplePack for Element<'a> {
+impl TuplePack for Element<'_> {
     fn pack<W: io::Write>(
         &self,
         w: &mut W,
@@ -1068,7 +1068,7 @@ impl TuplePack for Versionstamp {
     }
 }
 
-impl<'de> TupleUnpack<'de> for Versionstamp {
+impl TupleUnpack<'_> for Versionstamp {
     fn unpack(input: &[u8], _tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
         let input = parse_code(input, VERSIONSTAMP)?;
         let (input, slice) = parse_bytes(input, 12)?;
@@ -1095,7 +1095,7 @@ mod pack_uuid {
         }
     }
 
-    impl<'de> TupleUnpack<'de> for Uuid {
+    impl TupleUnpack<'_> for Uuid {
         fn unpack(input: &[u8], _tuple_depth: TupleDepth) -> PackResult<(&[u8], Self)> {
             let input = parse_code(input, UUID)?;
             let (input, slice) = parse_bytes(input, 16)?;
