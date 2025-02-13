@@ -173,8 +173,7 @@
 <a href="#172" id="172">172</a>
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#175" id="175">175</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -184,15 +183,14 @@
 
 </span><span class="doccomment">//! Error types for the Fdb crate
 
-</span><span class="kw">use </span>std::ffi::CStr;
-<span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::fmt::{Debug, Display, Formatter};
-
-<span class="kw">use </span><span class="kw">crate</span>::directory::DirectoryError;
+</span><span class="kw">use </span><span class="kw">crate</span>::directory::DirectoryError;
 <span class="kw">use </span><span class="kw">crate</span>::options;
 <span class="kw">use </span><span class="kw">crate</span>::tuple::hca::HcaError;
 <span class="kw">use </span><span class="kw">crate</span>::tuple::PackError;
 <span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
+<span class="kw">use </span>std::ffi::CStr;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::fmt::{Debug, Display, Formatter};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>eval(error_code: fdb_sys::fdb_error_t) -&gt; FdbResult&lt;()&gt; {
     <span class="kw">let </span>rust_code: i32 = error_code;

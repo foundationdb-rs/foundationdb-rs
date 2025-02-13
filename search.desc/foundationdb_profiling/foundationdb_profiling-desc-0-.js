@@ -1,0 +1,1 @@
+searchState.loadedDescShard("foundationdb_profiling", 0, "FoundationDB natively implements transaction profiling and …\nDefined by the following pattern\nRetrieves raw profiling datablocks stored in the database …")
