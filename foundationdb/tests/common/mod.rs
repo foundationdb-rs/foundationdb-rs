@@ -1,14 +1,14 @@
 use foundationdb as fdb;
-use rand::distributions::Alphanumeric;
-use rand::thread_rng;
-use rand::Rng;
+
+use rand::distr::Alphanumeric;
+use rand::{rng, Rng};
 
 /// generate random string. Foundationdb watch only fires when value changed, so updating with same
 /// value twice will not fire watches. To make examples work over multiple run, we use random
 /// string as a value.
 #[allow(unused)]
 pub fn random_str(len: usize) -> String {
-    thread_rng()
+    rng()
         .sample_iter(&Alphanumeric)
         .take(len)
         .map(char::from)

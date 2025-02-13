@@ -28,7 +28,7 @@ use std::fmt;
 use std::sync::{Mutex, PoisonError};
 
 use futures::future;
-use rand::{self, rngs::SmallRng, Error as RandError, Rng, SeedableRng};
+use rand::{self, rngs::SmallRng, Rng, SeedableRng};
 
 use crate::options::{ConflictRangeType, MutationType, TransactionOption};
 use crate::tuple::{PackError, Subspace};
@@ -41,7 +41,6 @@ pub enum HcaError {
     PackError(PackError),
     InvalidDirectoryLayerMetadata,
     PoisonError,
-    RandError(RandError),
 }
 
 impl fmt::Debug for HcaError {
@@ -53,7 +52,6 @@ impl fmt::Debug for HcaError {
                 write!(f, "invalid directory layer metadata")
             }
             HcaError::PoisonError => write!(f, "mutex poisoned"),
-            HcaError::RandError(err) => err.fmt(f),
         }
     }
 }
@@ -71,11 +69,6 @@ impl From<PackError> for HcaError {
 impl<T> From<PoisonError<T>> for HcaError {
     fn from(_err: PoisonError<T>) -> Self {
         Self::PoisonError
-    }
-}
-impl From<RandError> for HcaError {
-    fn from(err: RandError) -> Self {
-        Self::RandError(err)
     }
 }
 
@@ -121,7 +114,7 @@ impl HighContentionAllocator {
             reverse: true,
             ..RangeOption::default()
         };
-        let mut rng = SmallRng::from_rng(&mut rand::thread_rng())?;
+        let mut rng = SmallRng::from_rng(&mut rand::rng());
 
         loop {
             let kvs = trx.get_range(&counters_range, 1, true).await?;
@@ -176,7 +169,7 @@ impl HighContentionAllocator {
                 // full, so this should be expected to take 2 tries.  Under high
                 // contention (and when the window advances), there is an additional
                 // subsequent risk of conflict for this transaction.
-                let candidate: i64 = rng.gen_range(start..start + window);
+                let candidate: i64 = rng.random_range(start..start + window);
                 let recent_candidate = self.recent.subspace(&candidate);
 
                 let (latest_counter, candidate_value) = {
