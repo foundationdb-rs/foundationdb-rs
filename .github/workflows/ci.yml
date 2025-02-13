@@ -145,6 +145,6 @@ jobs:
         uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
         with:
           version: "7.1.37"
-      - uses: rustsec/audit-check@v1.4.1
+      - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
