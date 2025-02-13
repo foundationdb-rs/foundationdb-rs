@@ -71,6 +71,6 @@ byteorder = "1.5.0"
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = ["full"] }
 ring = "0.17.8"
-data-encoding = "2.6.0"
+data-encoding = "2.8.0"
 pretty-bytes = "0.2.2"
 uuid = { version = "1.11.1", features = ["v4"] }
