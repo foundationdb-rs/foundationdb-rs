@@ -23,12 +23,12 @@ use crate::options;
 use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
 
+use crate::api::spawn_network_thread;
 use crate::error::FdbBindingError;
-use futures::prelude::*;
-
 #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
+use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
 /// previous transaction is still on fly
@@ -65,7 +65,10 @@ impl Drop for Database {
 #[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
+    /// It will spawn the network thread if needed.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
+        spawn_network_thread()?;
+
         let path_str =
             path.map(|path| std::ffi::CString::new(path).expect("path to be convertible to CStr"));
         let path_ptr = path_str
@@ -308,7 +311,7 @@ impl Database {
     ///         // Handle the problem if needed
     ///     }
     /// }).await;
-    ///```
+    /// ```
     pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
     where
         F: Fn(RetryableTransaction, MaybeCommitted) -> Fut,
