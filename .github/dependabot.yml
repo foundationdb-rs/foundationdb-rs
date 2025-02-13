@@ -7,4 +7,16 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
+      interval: "daily"
+    allow:
+      - dependency-type: direct
+      - dependency-type: indirect
+    groups:
+      fdb:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
       interval: "weekly"
