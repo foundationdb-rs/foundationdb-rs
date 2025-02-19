@@ -55,7 +55,7 @@ foundationdb-sys = { version = "0.9.1", path = "../foundationdb-sys", default-fe
 foundationdb-macros = { version = "0.3.2", path = "../foundationdb-macros" }
 foundationdb-tuple = { version = "0.9.1", path = "../foundationdb-tuple" }
 futures = "0.3.31"
-rand = { version = "0.8.5", features = ["default", "small_rng"] }
+rand = { version = "0.9.0", features = ["default", "small_rng"] }
 static_assertions = "1.1.0"
 uuid = { version = "1.11.1", optional = true }
 num-bigint = { version = "0.4.6", optional = true }

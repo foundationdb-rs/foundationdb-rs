@@ -1,6 +1,6 @@
 use foundationdb::tuple::Subspace;
 use foundationdb::{Database, RangeOption};
-use rand::distributions::Uniform;
+use rand::distr::Uniform;
 use rand::Rng;
 
 /// The goal of this example is to store blob data as chunk of 1kB
@@ -56,8 +56,9 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 
 async fn test_blob_storing(db: &Database, subspace: &Subspace, iteration: usize) {
     // Generate random 10k bytes
-    let data: Vec<u8> = rand::thread_rng()
-        .sample_iter(Uniform::from(0..=255))
+    let data: Vec<u8> = rand::rng()
+        .sample_iter(Uniform::new_inclusive(0, 255).expect("Unable to create random generator"))
+        .map(|x| x as u8)
         .take(10000)
         .collect();
 
