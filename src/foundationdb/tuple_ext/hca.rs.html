@@ -221,14 +221,7 @@
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
 <a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#223" id="223">223</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -258,7 +251,7 @@
 <span class="kw">use </span>std::sync::{Mutex, PoisonError};
 
 <span class="kw">use </span>futures::future;
-<span class="kw">use </span>rand::{<span class="self">self</span>, rngs::SmallRng, Error <span class="kw">as </span>RandError, Rng, SeedableRng};
+<span class="kw">use </span>rand::{<span class="self">self</span>, rngs::SmallRng, Rng, SeedableRng};
 
 <span class="kw">use </span><span class="kw">crate</span>::options::{ConflictRangeType, MutationType, TransactionOption};
 <span class="kw">use </span><span class="kw">crate</span>::tuple::{PackError, Subspace};
@@ -271,7 +264,6 @@
     PackError(PackError),
     InvalidDirectoryLayerMetadata,
     PoisonError,
-    RandError(RandError),
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>HcaError {
@@ -283,7 +275,6 @@
                 <span class="macro">write!</span>(f, <span class="string">"invalid directory layer metadata"</span>)
             }
             HcaError::PoisonError =&gt; <span class="macro">write!</span>(f, <span class="string">"mutex poisoned"</span>),
-            HcaError::RandError(err) =&gt; err.fmt(f),
         }
     }
 }
@@ -301,11 +292,6 @@
 <span class="kw">impl</span>&lt;T&gt; From&lt;PoisonError&lt;T&gt;&gt; <span class="kw">for </span>HcaError {
     <span class="kw">fn </span>from(_err: PoisonError&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::PoisonError
-    }
-}
-<span class="kw">impl </span>From&lt;RandError&gt; <span class="kw">for </span>HcaError {
-    <span class="kw">fn </span>from(err: RandError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::RandError(err)
     }
 }
 
@@ -351,7 +337,7 @@
             reverse: <span class="bool-val">true</span>,
             ..RangeOption::default()
         };
-        <span class="kw">let </span><span class="kw-2">mut </span>rng = SmallRng::from_rng(<span class="kw-2">&amp;mut </span>rand::thread_rng())<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>rng = SmallRng::from_rng(<span class="kw-2">&amp;mut </span>rand::rng());
 
         <span class="kw">loop </span>{
             <span class="kw">let </span>kvs = trx.get_range(<span class="kw-2">&amp;</span>counters_range, <span class="number">1</span>, <span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
@@ -406,7 +392,7 @@
                 // full, so this should be expected to take 2 tries.  Under high
                 // contention (and when the window advances), there is an additional
                 // subsequent risk of conflict for this transaction.
-                </span><span class="kw">let </span>candidate: i64 = rng.gen_range(start..start + window);
+                </span><span class="kw">let </span>candidate: i64 = rng.random_range(start..start + window);
                 <span class="kw">let </span>recent_candidate = <span class="self">self</span>.recent.subspace(<span class="kw-2">&amp;</span>candidate);
 
                 <span class="kw">let </span>(latest_counter, candidate_value) = {
