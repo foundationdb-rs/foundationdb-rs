@@ -54,7 +54,7 @@ impl MicroQueue {
         Ok(Self {
             db,
             queue,
-            rng: SmallRng::from_entropy(),
+            rng: SmallRng::from_os_rng(),
         })
     }
 

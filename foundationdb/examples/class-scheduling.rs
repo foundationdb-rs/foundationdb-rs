@@ -14,7 +14,9 @@ use std::ops::Deref;
 use std::thread;
 
 use futures::prelude::*;
-use rand::{rngs::ThreadRng, seq::SliceRandom};
+use rand::rngs::ThreadRng;
+
+use rand::prelude::IndexedRandom;
 
 use foundationdb as fdb;
 use foundationdb::tuple::{pack, unpack, Subspace};
@@ -289,7 +291,7 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
         .expect("failed to get database");
 
     let student_id = format!("s{}", student_id);
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut available_classes = Cow::Borrowed(&*ALL_CLASSES);
     let mut my_classes = Vec::<String>::new();
