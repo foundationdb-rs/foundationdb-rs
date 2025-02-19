@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2025-02-19
+
+### <!-- 0 -->🚀 added
+
+- Profiling Keyspace Scanner
+- Feat(foundationdb) : Expose Timekeeper API
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Fixup! feat(foundationdb) : Expose Timekeeper API
+
+### <!-- 3 -->🆙 Bump
+
+- Bump rand to 0.9.0
+- Bump tokio from 1.41.0 to 1.43.0
+- Bump uuid from 1.11.0 to 1.11.1
+
+[0.9.3]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.9.2..0.9.3
+
 ## [0.9.2] - 2025-01-06
 
 ### <!-- 0 -->🚀 added
