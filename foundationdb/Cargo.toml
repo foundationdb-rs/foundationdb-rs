@@ -57,20 +57,20 @@ foundationdb-tuple = { version = "0.9.1", path = "../foundationdb-tuple" }
 futures = "0.3.31"
 rand = { version = "0.9.0", features = ["default", "small_rng"] }
 static_assertions = "1.1.0"
-uuid = { version = "1.11.1", optional = true }
+uuid = { version = "1.13.2", optional = true }
 num-bigint = { version = "0.4.6", optional = true }
-async-trait = "0.1.84"
+async-trait = "0.1.86"
 async-recursion = "1.1.1"
 # Required to deserialize tenant info
 serde = { version = "1.0.217", features = ["derive"], optional = true }
-serde_json = { version = "1.0.132", optional = true }
+serde_json = { version = "1.0.138", optional = true }
 serde_bytes = { version = "0.11.15", optional = true }
 
 [dev-dependencies]
 byteorder = "1.5.0"
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = ["full"] }
-ring = "0.17.8"
-data-encoding = "2.6.0"
+ring = "0.17.9"
+data-encoding = "2.8.0"
 pretty-bytes = "0.2.2"
-uuid = { version = "1.11.1", features = ["v4"] }
+uuid = { version = "1.13.2", features = ["v4"] }
