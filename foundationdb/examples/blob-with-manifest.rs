@@ -1,7 +1,7 @@
 use foundationdb::tuple::{pack, unpack, PackError, Subspace};
 use foundationdb::{Database, RangeOption};
 use pretty_bytes::converter::convert;
-use ring::digest::{Context, SHA256};
+use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -15,7 +15,7 @@ use uuid::Uuid;
 /// As we can't predict the size of data, we'll create a system of data involving
 /// a manifest and a bunch of chunk of data.
 ///
-/// The genuine idea would be to create a simple key => value entry ans to store every bytes
+/// The genuine idea would be to create a simple key => value entry and to store every bytes
 /// into it.
 ///
 /// For example:
@@ -117,7 +117,7 @@ async fn clear_subspace(db: &Database, subspaces: Vec<&Subspace>) {
 }
 
 fn sha256_hex_digest<R: Read>(mut reader: R) -> String {
-    let mut context = Context::new(&SHA256);
+    let mut context = Sha256::new();
     let mut buffer = [0_u8; 1024];
 
     loop {
@@ -129,7 +129,7 @@ fn sha256_hex_digest<R: Read>(mut reader: R) -> String {
         context.update(&buffer[..count]);
     }
 
-    let digest = context.finish();
+    let digest = context.finalize();
 
     data_encoding::HEXLOWER.encode(digest.as_ref())
 }
