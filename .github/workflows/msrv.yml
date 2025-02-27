@@ -26,12 +26,12 @@ jobs:
 
       - name: Install cargo-msrv
         run: cargo install cargo-msrv
+      
+      - name: Find MSRV
+        run: cargo msrv find -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
+        working-directory: ./foundationdb
 
       - name: Verify MSRV
         run: cargo msrv verify -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
         working-directory: ./foundationdb
 
-      - name: Find MSRV
-        if: failure()
-        run: cargo msrv -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
-        working-directory: ./foundationdb
