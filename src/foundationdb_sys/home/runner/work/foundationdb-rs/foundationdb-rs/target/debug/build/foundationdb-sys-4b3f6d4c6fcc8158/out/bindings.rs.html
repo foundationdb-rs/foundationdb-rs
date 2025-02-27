@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-e6e56eb5bb704e15/out/bindings.rs`."><title>bindings.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="foundationdb_sys" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.0 (4d91de4e4 2025-02-17)" data-channel="1.85.0" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../../../../../../../../../../static.files/storage-59e33391.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-56102188.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">foundationdb_sys/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-e6e56eb5bb704e15/out/</div>bindings.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-4b3f6d4c6fcc8158/out/bindings.rs`."><title>bindings.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../../../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../../../../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../../../../../../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../../../../../../../../../../" data-static-root-path="../../../../../../../../../../../../static.files/" data-current-crate="foundationdb_sys" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.0 (4d91de4e4 2025-02-17)" data-channel="1.85.0" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../../../../../../../../../../static.files/storage-59e33391.js"></script><script defer src="../../../../../../../../../../../../static.files/src-script-56102188.js"></script><script defer src="../../../../../../../../../../../../src-files.js"></script><script defer src="../../../../../../../../../../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">foundationdb_sys/home/runner/work/foundationdb-rs/foundationdb-rs/target/debug/build/foundationdb-sys-4b3f6d4c6fcc8158/out/</div>bindings.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -1202,7 +1202,7 @@
 <a href="#1201" id="1201">1201</a>
 <a href="#1202" id="1202">1202</a>
 <a href="#1203" id="1203">1203</a>
-<a href="#1204" id="1204">1204</a></pre></div><pre class="rust"><code><span class="comment">/* automatically generated by rust-bindgen 0.70.1 */
+<a href="#1204" id="1204">1204</a></pre></div><pre class="rust"><code><span class="comment">/* automatically generated by rust-bindgen 0.71.1 */
 
 </span><span class="kw">pub const </span>FDB_API_VERSION: u32 = <span class="number">730</span>;
 <span class="kw">pub const </span>FDB_LATEST_API_VERSION: u32 = <span class="number">730</span>;
@@ -1604,32 +1604,32 @@
 <span class="kw">pub type </span>FDBTransaction = FDB_transaction;
 <span class="kw">pub type </span>fdb_error_t = ::std::os::raw::c_int;
 <span class="kw">pub type </span>fdb_bool_t = ::std::os::raw::c_int;
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_get_error(code: fdb_error_t) -&gt; <span class="kw-2">*const </span>::std::os::raw::c_char;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_error_predicate(
         predicate_test: ::std::os::raw::c_int,
         code: fdb_error_t,
     ) -&gt; fdb_bool_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_network_set_option(
         option: FDBNetworkOption,
         value: <span class="kw-2">*const </span>u8,
         value_length: ::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_setup_network() -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_run_network() -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_stop_network() -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_add_network_thread_completion_hook(
         hook: ::std::option::Option&lt;<span class="kw">unsafe extern </span><span class="string">"C" </span><span class="kw">fn</span>(arg1: <span class="kw-2">*mut </span>::std::os::raw::c_void)&gt;,
         hook_parameter: <span class="kw-2">*mut </span>::std::os::raw::c_void,
@@ -1788,54 +1788,54 @@
     <span class="kw">pub </span>tenant_prefix: FDBBGTenantPrefix,
 }
 <span class="kw">pub type </span>FDBBGFileDescription = bgfiledescription;
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_cancel(f: <span class="kw-2">*mut </span>FDBFuture);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_release_memory(f: <span class="kw-2">*mut </span>FDBFuture);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_destroy(f: <span class="kw-2">*mut </span>FDBFuture);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_block_until_ready(f: <span class="kw-2">*mut </span>FDBFuture) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_is_ready(f: <span class="kw-2">*mut </span>FDBFuture) -&gt; fdb_bool_t;
 }
 <span class="kw">pub type </span>FDBCallback = ::std::option::Option&lt;
     <span class="kw">unsafe extern </span><span class="string">"C" </span><span class="kw">fn</span>(future: <span class="kw-2">*mut </span>FDBFuture, callback_parameter: <span class="kw-2">*mut </span>::std::os::raw::c_void),
 &gt;;
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_set_callback(
         f: <span class="kw-2">*mut </span>FDBFuture,
         callback: FDBCallback,
         callback_parameter: <span class="kw-2">*mut </span>::std::os::raw::c_void,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_error(f: <span class="kw-2">*mut </span>FDBFuture) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_bool(f: <span class="kw-2">*mut </span>FDBFuture, out: <span class="kw-2">*mut </span>fdb_bool_t) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_int64(f: <span class="kw-2">*mut </span>FDBFuture, out: <span class="kw-2">*mut </span>i64) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_uint64(f: <span class="kw-2">*mut </span>FDBFuture, out: <span class="kw-2">*mut </span>u64) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_double(f: <span class="kw-2">*mut </span>FDBFuture, out: <span class="kw-2">*mut </span>f64) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_key(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_key: <span class="kw-2">*mut *const </span>u8,
         out_key_length: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_value(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_present: <span class="kw-2">*mut </span>fdb_bool_t,
@@ -1843,7 +1843,7 @@
         out_value_length: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_keyvalue_array(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_kv: <span class="kw-2">*mut *const </span>FDBKeyValue,
@@ -1851,7 +1851,7 @@
         out_more: <span class="kw-2">*mut </span>fdb_bool_t,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_mappedkeyvalue_array(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_kv: <span class="kw-2">*mut *const </span>FDBMappedKeyValue,
@@ -1859,42 +1859,42 @@
         out_more: <span class="kw-2">*mut </span>fdb_bool_t,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_key_array(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_key_array: <span class="kw-2">*mut *const </span>FDBKey,
         out_count: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_string_array(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_strings: <span class="kw-2">*mut *mut *const </span>::std::os::raw::c_char,
         out_count: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_keyrange_array(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_ranges: <span class="kw-2">*mut *const </span>FDBKeyRange,
         out_count: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_get_granule_summary_array(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out_summaries: <span class="kw-2">*mut *const </span>FDBGranuleSummary,
         out_count: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_future_readbg_get_descriptions(
         f: <span class="kw-2">*mut </span>FDBFuture,
         out: <span class="kw-2">*mut *mut </span>FDBBGFileDescription,
         desc_count: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_readbg_parse_snapshot_file(
         file_data: <span class="kw-2">*const </span>u8,
         file_len: ::std::os::raw::c_int,
@@ -1902,7 +1902,7 @@
         encryption_ctx: <span class="kw-2">*const </span>FDBBGEncryptionCtx,
     ) -&gt; <span class="kw-2">*mut </span>FDBResult;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_readbg_parse_delta_file(
         file_data: <span class="kw-2">*const </span>u8,
         file_len: ::std::os::raw::c_int,
@@ -1910,10 +1910,10 @@
         encryption_ctx: <span class="kw-2">*const </span>FDBBGEncryptionCtx,
     ) -&gt; <span class="kw-2">*mut </span>FDBResult;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_result_destroy(r: <span class="kw-2">*mut </span>FDBResult);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_result_get_keyvalue_array(
         r: <span class="kw-2">*mut </span>FDBResult,
         out_kv: <span class="kw-2">*mut *const </span>FDBKeyValue,
@@ -1921,29 +1921,29 @@
         out_more: <span class="kw-2">*mut </span>fdb_bool_t,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_result_get_bg_mutations_array(
         r: <span class="kw-2">*mut </span>FDBResult,
         out_mutations: <span class="kw-2">*mut *const </span>FDBBGMutation,
         out_count: <span class="kw-2">*mut </span>::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_create_database(
         cluster_file_path: <span class="kw-2">*const </span>::std::os::raw::c_char,
         out_database: <span class="kw-2">*mut *mut </span>FDBDatabase,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_create_database_from_connection_string(
         connection_string: <span class="kw-2">*const </span>::std::os::raw::c_char,
         out_database: <span class="kw-2">*mut *mut </span>FDBDatabase,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_destroy(d: <span class="kw-2">*mut </span>FDBDatabase);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_set_option(
         d: <span class="kw-2">*mut </span>FDBDatabase,
         option: FDBDatabaseOption,
@@ -1951,7 +1951,7 @@
         value_length: ::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_open_tenant(
         d: <span class="kw-2">*mut </span>FDBDatabase,
         tenant_name: <span class="kw-2">*const </span>u8,
@@ -1959,13 +1959,13 @@
         out_tenant: <span class="kw-2">*mut *mut </span>FDBTenant,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_create_transaction(
         d: <span class="kw-2">*mut </span>FDBDatabase,
         out_transaction: <span class="kw-2">*mut *mut </span>FDBTransaction,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_reboot_worker(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         address: <span class="kw-2">*const </span>u8,
@@ -1974,14 +1974,14 @@
         duration: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_force_recovery_with_data_loss(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         dcid: <span class="kw-2">*const </span>u8,
         dcid_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_create_snapshot(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         uid: <span class="kw-2">*const </span>u8,
@@ -1990,16 +1990,16 @@
         snap_command_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_get_main_thread_busyness(db: <span class="kw-2">*mut </span>FDBDatabase) -&gt; f64;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_get_server_protocol(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         expected_version: u64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_purge_blob_granules(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2010,14 +2010,14 @@
         force: fdb_bool_t,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_wait_purge_granules_complete(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         purge_key_name: <span class="kw-2">*const </span>u8,
         purge_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_blobbify_range(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2026,7 +2026,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_blobbify_range_blocking(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2035,7 +2035,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_unblobbify_range(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2044,7 +2044,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_list_blobbified_ranges(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2054,7 +2054,7 @@
         rangeLimit: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_verify_blob_range(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2064,7 +2064,7 @@
         version: i64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_flush_blob_range(
         db: <span class="kw-2">*mut </span>FDBDatabase,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2075,16 +2075,16 @@
         version: i64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_database_get_client_status(db: <span class="kw-2">*mut </span>FDBDatabase) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_create_transaction(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         out_transaction: <span class="kw-2">*mut *mut </span>FDBTransaction,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_purge_blob_granules(
         db: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2095,14 +2095,14 @@
         force: fdb_bool_t,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_wait_purge_granules_complete(
         db: <span class="kw-2">*mut </span>FDBTenant,
         purge_key_name: <span class="kw-2">*const </span>u8,
         purge_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_blobbify_range(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2111,7 +2111,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_blobbify_range_blocking(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2120,7 +2120,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_unblobbify_range(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2129,7 +2129,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_list_blobbified_ranges(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2139,7 +2139,7 @@
         rangeLimit: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_verify_blob_range(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2149,7 +2149,7 @@
         version: i64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_flush_blob_range(
         tenant: <span class="kw-2">*mut </span>FDBTenant,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2160,19 +2160,19 @@
         version: i64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_get_id(tenant: <span class="kw-2">*mut </span>FDBTenant) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_tenant_destroy(tenant: <span class="kw-2">*mut </span>FDBTenant);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_destroy(tr: <span class="kw-2">*mut </span>FDBTransaction);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_cancel(tr: <span class="kw-2">*mut </span>FDBTransaction);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_set_option(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         option: FDBTransactionOption,
@@ -2180,13 +2180,13 @@
         value_length: ::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_set_read_version(tr: <span class="kw-2">*mut </span>FDBTransaction, version: i64);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_read_version(tr: <span class="kw-2">*mut </span>FDBTransaction) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
@@ -2194,7 +2194,7 @@
         snapshot: fdb_bool_t,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_key(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
@@ -2204,14 +2204,14 @@
         snapshot: fdb_bool_t,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_addresses_for_key(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
         key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_range(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2230,7 +2230,7 @@
         reverse: fdb_bool_t,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_mapped_range(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2251,7 +2251,7 @@
         reverse: fdb_bool_t,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_set(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
@@ -2260,7 +2260,7 @@
         value_length: ::std::os::raw::c_int,
     );
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_atomic_op(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
@@ -2270,14 +2270,14 @@
         operation_type: FDBMutationType,
     );
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_clear(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
         key_name_length: ::std::os::raw::c_int,
     );
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_clear_range(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2286,41 +2286,41 @@
         end_key_name_length: ::std::os::raw::c_int,
     );
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_watch(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         key_name: <span class="kw-2">*const </span>u8,
         key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_commit(tr: <span class="kw-2">*mut </span>FDBTransaction) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_committed_version(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         out_version: <span class="kw-2">*mut </span>i64,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_tag_throttled_duration(tr: <span class="kw-2">*mut </span>FDBTransaction) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_total_cost(tr: <span class="kw-2">*mut </span>FDBTransaction) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_approximate_size(tr: <span class="kw-2">*mut </span>FDBTransaction) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_versionstamp(tr: <span class="kw-2">*mut </span>FDBTransaction) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_on_error(tr: <span class="kw-2">*mut </span>FDBTransaction, error: fdb_error_t) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_reset(tr: <span class="kw-2">*mut </span>FDBTransaction);
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_add_conflict_range(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2330,7 +2330,7 @@
         type_: FDBConflictRangeType,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_estimated_range_size_bytes(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2339,7 +2339,7 @@
         end_key_name_length: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_range_split_points(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2349,7 +2349,7 @@
         chunk_size: i64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_get_blob_granule_ranges(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2359,7 +2359,7 @@
         rangeLimit: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_read_blob_granules(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2371,7 +2371,7 @@
         granuleContext: FDBReadBlobGranuleContext,
     ) -&gt; <span class="kw-2">*mut </span>FDBResult;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_summarize_blob_granules(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2382,7 +2382,7 @@
         rangeLimit: ::std::os::raw::c_int,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_transaction_read_blob_granules_description(
         tr: <span class="kw-2">*mut </span>FDBTransaction,
         begin_key_name: <span class="kw-2">*const </span>u8,
@@ -2394,16 +2394,16 @@
         read_version_out: <span class="kw-2">*mut </span>i64,
     ) -&gt; <span class="kw-2">*mut </span>FDBFuture;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_select_api_version_impl(
         runtime_version: ::std::os::raw::c_int,
         header_version: ::std::os::raw::c_int,
     ) -&gt; fdb_error_t;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_get_max_api_version() -&gt; ::std::os::raw::c_int;
 }
-<span class="kw">extern </span><span class="string">"C" </span>{
+<span class="kw">unsafe extern </span><span class="string">"C" </span>{
     <span class="kw">pub fn </span>fdb_get_client_version() -&gt; <span class="kw-2">*const </span>::std::os::raw::c_char;
 }
 </code></pre></div></section></main></body></html>
