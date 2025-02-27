@@ -1,15 +1,15 @@
 mod common;
 
-#[test]
-fn test_tenant() {
+#[tokio::test]
+async fn test_tenant() {
     let _guard = unsafe { foundationdb::boot() };
     #[cfg(all(
         any(feature = "fdb-7_1", feature = "fdb-7_3"),
         feature = "tenant-experimental"
     ))]
     {
-        futures::executor::block_on(test_tenant_management()).expect("failed to run");
-        futures::executor::block_on(test_tenant_run()).expect("failed to run");
+        test_tenant_management().await.expect("failed to run");
+        test_tenant_run().await.expect("failed to run");
     }
 }
 

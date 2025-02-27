@@ -13,12 +13,15 @@ use std::iter::FromIterator;
 
 mod common;
 
-#[test]
-fn test_hca_many_sequential_allocations() {
+#[tokio::test]
+async fn test_hca_many_sequential_allocations() {
     let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_hca_many_sequential_allocations_async())
+    test_hca_many_sequential_allocations_async()
+        .await
         .expect("failed to run");
-    futures::executor::block_on(test_hca_concurrent_allocations_async()).expect("failed to run");
+    test_hca_concurrent_allocations_async()
+        .await
+        .expect("failed to run");
 }
 
 async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
