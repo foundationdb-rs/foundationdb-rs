@@ -25,7 +25,7 @@ license = "MIT/Apache-2.0"
 [dependencies]
 env_logger = "0.11.7"
 foundationdb = { path = "../foundationdb", features = ["uuid", "num-bigint", "fdb-7_3", "embedded-fdb-include", "tenant-experimental"], default-features = false }
-foundationdb-sys = { version = "0.9.1", path = "../foundationdb-sys", features = ["embedded-fdb-include", "fdb-7_3"], default-features = false }
+foundationdb-sys = { version = "0.9.2", path = "../foundationdb-sys", features = ["embedded-fdb-include", "fdb-7_3"], default-features = false }
 futures = "0.3.31"
 log = "0.4.26"
 num-bigint = "0.4.6"
