@@ -29,6 +29,8 @@ use std::borrow::Cow;
 /// - `last_less_or_equal`
 /// - `first_greater_than`
 /// - `first_greater_or_equal`
+///
+/// A dedicated [example](https://github.com/foundationdb-rs/foundationdb-rs/blob/main/foundationdb/examples/key_selectors.rs) is available on Github.
 #[derive(Clone, Debug)]
 pub struct KeySelector<'a> {
     key: Bytes<'a>,

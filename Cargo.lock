@@ -361,6 +361,7 @@ dependencies = [
  "foundationdb-sys",
  "foundationdb-tuple",
  "futures",
+ "futures-util",
  "lazy_static",
  "num-bigint",
  "pretty-bytes",
