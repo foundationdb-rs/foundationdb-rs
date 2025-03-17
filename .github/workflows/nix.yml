@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
-      - uses: cachix/install-nix-action@v30
+      - uses: cachix/install-nix-action@v31
       - run: nix flake check
       - name: Building crate with Nix
         run: nix develop -c cargo build -p bindingtester
