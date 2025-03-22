@@ -5,26 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.2] - 2025-03-22
+## [0.1.0] - 2025-03-22
 
-### <!-- 1 -->🐛 Bug Fixes
+### <!-- 0 -->🚀 added
 
-- Clippy fixes
+- Profiling Keyspace Scanner
 
 ### <!-- 3 -->🆙 Bump
 
 - Build(deps): bump the fdb group across 1 directory with 7 updates
-- Bump MSRV to 1.82
+- Build(deps): bump the fdb group across 1 directory with 2 updates
+- Build(deps): bump the fdb group across 1 directory with 8 updates
+- Build(deps): bump the fdb group across 1 directory with 17 updates
 - Build(deps): bump the fdb group across 1 directory with 41 updates
-- Build(deps): bump uuid from 1.11.0 to 1.11.1
-
-[0.9.2]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.9.1..0.9.2
-
-## [0.9.1] - 2025-01-06
-
-### <!-- 4 -->⚙️ Other changes
-
-- Update release
-- Split the fdb-tuple module into its own crate
 
 
