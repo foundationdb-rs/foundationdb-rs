@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2025-04-11
+
+### <!-- 0 -->🚀 added
+
+- Profiling Keyspace Scanner
+- Feat(foundationdb) : Expose Timekeeper API
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Fix(foundationdb) : Replace unmaintained ring crate with sha2 in examples
+- Fixup! feat(foundationdb) : Expose Timekeeper API
+
+### <!-- 3 -->🆙 Bump
+
+- Build(deps): bump the fdb group across 1 directory with 9 updates
+- Build(deps): bump the fdb group across 1 directory with 7 updates
+- Build(deps): bump the fdb group across 1 directory with 2 updates
+- Build(deps): bump the fdb group across 1 directory with 8 updates
+- Build(deps): bump the fdb group across 1 directory with 17 updates
+- Bump MSRV to 1.82
+- Build(deps): bump the fdb group across 1 directory with 41 updates
+- Bump rand to 0.9.0
+- Build(deps): bump tokio from 1.41.0 to 1.43.0
+- Build(deps): bump uuid from 1.11.0 to 1.11.1
+
+### <!-- 4 -->⚙️ Other changes
+
+- Merge pull request #228 from Akanoa/profiling-keyspace-scan
+
+[0.9.3]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.9.2..0.9.3
+
 ## [0.9.2] - 2025-01-06
 
 ### <!-- 0 -->🚀 added
