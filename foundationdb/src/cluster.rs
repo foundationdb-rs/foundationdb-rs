@@ -52,7 +52,6 @@ impl Cluster {
     /// # Arguments
     ///
     /// * `path` - A string giving a local path of a cluster file (often called ‘fdb.cluster’) which contains connection information for the FoundationDB cluster. See `foundationdb::default_config_path()`
-    ///
     pub fn from_path(path: &str) -> impl Future<Output = FdbResult<Cluster>> + Send + Sync + Unpin {
         Self::new(Some(path))
     }
