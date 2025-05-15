@@ -15,8 +15,8 @@ Support for different platforms ("targets") are organized into three tiers, each
 |----------------|--------|-------------------------------------------------------------------------------------------------------------------------------------|
 | linux x86_64   | 1      |                                                                                                                                     |
 | osx x86_64     | 2      |                                                                                                                                     |
+| osx Silicon 	 | 2      |                                                                                                                                     |
 | Windows x86_64 | 3      | [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135) |
-| osx Silicon 	  | 3    	 | [Waiting for official dylib support](https://forums.foundationdb.org/t/arm-client-library/3072)                                     |
 
 For more information on the policies for targets at each tier, see the
 
