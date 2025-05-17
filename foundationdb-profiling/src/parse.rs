@@ -11,7 +11,7 @@ const SHORT_BYTES_SIZE: usize = size_of::<u8>();
 
 /// This module provides parsing traits `Parse` and `ParseWithProtocolVersion`
 /// for asynchronous deserialization of various data types from a `Scanner`,
-/// utilizing custom implementations and macros for efficient byte buffer processing.
+/// using custom implementations and macros for efficient byte buffer processing.
 #[async_trait::async_trait]
 pub trait Parse: Sized {
     async fn parse(scanner: &mut Scanner<'_>) -> Result<Self, Box<dyn Error + Send + Sync>>;
