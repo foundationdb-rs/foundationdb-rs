@@ -1,7 +1,7 @@
 extern crate cc;
 
 fn main() {
-    let api_version;
+    let api_version: String;
 
     #[cfg(feature = "fdb-7_1")]
     {

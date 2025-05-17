@@ -13,6 +13,10 @@ async-trait = "0.1.88"
 foundationdb = { version = "0.9.2", path = "../foundationdb", default-features = false, features = ["fdb-7_3"] }
 futures-util = "0.3.31"
 thiserror = "2.0.12"
+arbitrary = { version = "1.4.1", optional = true, features = ["derive"] }
 
 [dev-dependencies]
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
+
+[features]
+to_bytes = ["arbitrary"]

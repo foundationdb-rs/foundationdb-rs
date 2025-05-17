@@ -24,15 +24,22 @@
 //!
 //! Noted: It could have more than one event in the data block
 
+use crate::events::ProfilingEvent;
+use crate::parse::{Parse, ParseWithProtocolVersion};
 use crate::parsed_key::parse_key;
+use crate::protocol_version::ProtocolVersion;
 use crate::raw_transaction_profiling_block::RawTransactionProfilingBlock;
-use foundationdb::{FdbBindingError, RangeOption, Transaction};
+use crate::scanner::Scanner;
+use foundationdb::{FdbBindingError, RangeOption, RetryableTransaction, Transaction};
 use futures_util::{Stream, TryStreamExt};
 use std::pin::pin;
 
+pub mod arbitrary;
 mod errors;
+pub mod events;
 mod parse;
 mod parsed_key;
+pub mod protocol_version;
 mod raw_transaction_profiling_block;
 mod scanner;
 
@@ -198,6 +205,42 @@ pub async fn get_raw_datablocks(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Retrieves a stream of `ProfilingEvent` from a given `RetryableTransaction`.
+///
+/// `start_version` and `end_version` are used to filter the events to retrieve.
+/// If `start_version` is `Some(version)`, only events with a version greater than `version` are retrieved.
+/// If `end_version` is `Some(version)`, only events with version less or equal to `version` are retrieved.
+///
+/// The stream is ordered by increasing version.
+///
+/// If any error occurs during the retrieval, the `Stream` will yield an ` FdbBindingError `.
+///
+/// # Errors
+///
+/// * `FdbBindingError` if any error occurs during the retrieval.
+pub async fn get_events(
+    trx: RetryableTransaction,
+    start_version: Option<u64>,
+    end_version: Option<u64>,
+) -> impl Stream<Item = Result<ProfilingEvent, FdbBindingError>> {
+    async_stream::try_stream! {
+        let raw_events = get_raw_datablocks(&trx, start_version, end_version).await;
+        let mut raw_events = pin!(raw_events);
+        while let Some(raw_event) = raw_events.try_next().await? {
+
+            let data = raw_event.get_data();
+                let mut scanner = Scanner::new(data);
+                let protocol_version = &ProtocolVersion::parse(&mut scanner)
+                    .await.map_err( FdbBindingError::new_custom_error)?;
+
+            while !scanner.remaining().is_empty() {
+                yield ProfilingEvent::parse_with_protocol_version(&mut scanner, protocol_version).await.map_err( FdbBindingError::new_custom_error)?;
+            }
+
         }
     }
 }
