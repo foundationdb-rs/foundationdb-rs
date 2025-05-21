@@ -68,7 +68,7 @@ commit_parsers = [
     { message = "^.*[f|F]ix", group = "<!-- 1 -->🐛 Bug Fixes" },
     { message = "^.*[r|R]efactor", group = "<!-- 2 -->🚜 Refactor" },
     { message = "^.*[r|R]emove", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^.*[b|B]ump", group = "<!-- 3 -->🆙 Bump" },
+    { message = "^.*[b|B]ump", group = "<!-- 3 -->🆙 Bump", skip = true },
     { message = "chore: release", skip = true },
     { message = "^chore", group = "<!-- 4 -->⚙️ Other changes" },
     { message = "^.*", group = "<!-- 4 -->⚙️ Other changes" },
