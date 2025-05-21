@@ -43,7 +43,7 @@ jobs:
 
     strategy:
       matrix:
-        os: ["ubuntu-latest", "macos-13"]
+        os: ["ubuntu-latest", "macos-13", "macos-14"]
         toolchain: ["1.82.0", "stable"]
         fdb_feature_version: ["fdb-7_3", "fdb-7_1", "fdb-7_0", "fdb-6_3", "fdb-6_2", "fdb-6_1"]
 
@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Setup FoundationDB
-        uses: foundationdb-rs/foundationdb-actions-install@v2.1.0
+        uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
           version: "7.3.27"
 
