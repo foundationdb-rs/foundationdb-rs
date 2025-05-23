@@ -1,9 +1,9 @@
 /*
- * ClientWorkload.h
+ * CppWorkload.h
  *
  * This source file is part of the FoundationDB open source project
  *
- * Copyright 2013-2022 Apple Inc. and the FoundationDB project authors
+ * Copyright 2013-2024 Apple Inc. and the FoundationDB project authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@
  */
 
 #pragma once
-#ifndef CLIENT_WORKLOAD_H
-#define CLIENT_WORKLOAD_H
+#ifndef CPP_WORKLOAD_H
+#define CPP_WORKLOAD_H
 #include <string>
 #include <vector>
 #include <functional>
@@ -47,7 +47,7 @@ class FDBLogger {
 public:
 	virtual void trace(FDBSeverity sev,
 	                   const std::string& name,
-	                   const std::vector<std::pair<std::string, std::string> >& details) = 0;
+	                   const std::vector<std::pair<std::string, std::string>>& details) = 0;
 };
 
 class FDBWorkloadContext : public FDBLogger {
@@ -85,12 +85,14 @@ struct FDBPerfMetric {
 	std::string name;
 	double value;
 	bool averaged;
-	std::string format_code = "0.3g";
+	std::string format_code = "%.3g";
 };
 
 class DLLEXPORT FDBWorkload {
 public:
+#if FDB_API_VERSION == 710 || FDB_API_VERSION == 730
 	virtual std::string description() const = 0;
+#endif
 	virtual bool init(FDBWorkloadContext* context) = 0;
 	virtual void setup(FDBDatabase* db, GenericPromise<bool> done) = 0;
 	virtual void start(FDBDatabase* db, GenericPromise<bool> done) = 0;
