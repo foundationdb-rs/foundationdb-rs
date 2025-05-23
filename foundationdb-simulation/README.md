@@ -17,7 +17,7 @@ This crate contains 4 types of wrappers:
 
 Due to the high level of coupling between this crate and FoundationDB, please note that:
 
-- we are supporting only 7.1 and 7.3 for now
+- we are only supporting 7.1, 7.3 and 7.4 for now
 - it needs to be build within [the official Docker image](https://hub.docker.com/r/foundationdb/build)
 - linker needs to be set to `clang` for 7.3
 
@@ -39,7 +39,7 @@ Write a lib section as follow:
 [lib]
 name = "myworkload"
 crate-type = ["cdylib"]
-required-features = ["fdb-7_3", "fdb-docker"]
+required-features = ["fdb-7_4"]
 ```
 
 It is necessary that the crate-type is set to `cdylib` as the FoundationDB simulation expects a

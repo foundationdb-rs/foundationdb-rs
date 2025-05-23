@@ -426,9 +426,9 @@ dependencies = [
 name = "foundationdb-simulation"
 version = "0.2.2"
 dependencies = [
+ "bindgen",
  "cc",
  "foundationdb",
- "foundationdb-macros",
  "foundationdb-sys",
 ]
 
