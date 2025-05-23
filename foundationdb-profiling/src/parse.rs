@@ -1,4 +1,5 @@
 use crate::errors::ParseError;
+use crate::protocol_version::ProtocolVersion;
 use crate::scanner::Scanner;
 use core::mem::size_of;
 use std::error::Error;
@@ -11,7 +12,7 @@ const SHORT_BYTES_SIZE: usize = size_of::<u8>();
 
 /// This module provides parsing traits `Parse` and `ParseWithProtocolVersion`
 /// for asynchronous deserialization of various data types from a `Scanner`,
-/// utilizing custom implementations and macros for efficient byte buffer processing.
+/// using custom implementations and macros for efficient byte buffer processing.
 #[async_trait::async_trait]
 pub trait Parse: Sized {
     async fn parse(scanner: &mut Scanner<'_>) -> Result<Self, Box<dyn Error + Send + Sync>>;
@@ -62,6 +63,14 @@ impl<T: Parse> Parse for Option<T> {
     async fn parse(scanner: &mut Scanner<'_>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         Ok(Some(T::parse(scanner).await?))
     }
+}
+
+#[async_trait::async_trait]
+pub trait ParseWithProtocolVersion: Sized {
+    async fn parse_with_protocol_version(
+        scanner: &mut Scanner<'_>,
+        protocol_version: &ProtocolVersion,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>>;
 }
 
 #[async_trait::async_trait]

@@ -1,13 +1,13 @@
 //! FoundationDB natively implements transaction profiling and analyzing.
 //!
-//! The transactions are sampled at the specified rate and all the events for that sampled transaction are recorded.
-//! Then at 30 second interval, the data for all the sampled transactions during that interval is flushed to the database.
-//! The sampled data is written into special key space `\xff\x02/fdbClientInfo/ - \xff\x02/fdbClientInfo0`
+//! The transactions are sampled at the specified rate, and all the events for that sampled transaction are recorded.
+//! Then at the 30-second interval, the data for all the sampled transactions during that interval is flushed to the database.
+//! The sampled data is written into a special key space `\xff\x02/fdbClientInfo/ - \xff\x02/fdbClientInfo0`
 //!
 //! [source](https://apple.github.io/foundationdb/transaction-profiler-analyzer.html)
 //!
-//! Each data are recorded as chunked events. Events are referenced by the tuple (VersionStamp, TransactionId),
-//! then a header defined how much chunks defined the data block.
+//! Each data is recorded as chunked events. Events are referenced by the tuple (VersionStamp, TransactionId);
+//! then a header defined how many chunks defined the data block.
 //!
 //! Profiling Keys look like this:
 //! ```ignore
@@ -19,20 +19,27 @@
 //!```
 //! [source](https://github.com/apple/foundationdb/blob/main/contrib/transaction_profiling_analyzer/transaction_profiling_analyzer.py#L413)
 //!
-//! To get the data block, each chunk which composes the data block must be accumulated until
+//! To get the data block, each chunk that composes the data block must be accumulated until
 //! reaching the "chunk number"
 //!
 //! Noted: It could have more than one event in the data block
 
+use crate::events::ProfilingEvent;
+use crate::parse::{Parse, ParseWithProtocolVersion};
 use crate::parsed_key::parse_key;
+use crate::protocol_version::ProtocolVersion;
 use crate::raw_transaction_profiling_block::RawTransactionProfilingBlock;
-use foundationdb::{FdbBindingError, RangeOption, Transaction};
+use crate::scanner::Scanner;
+use foundationdb::{FdbBindingError, RangeOption, RetryableTransaction, Transaction};
 use futures_util::{Stream, TryStreamExt};
 use std::pin::pin;
 
+pub mod arbitrary;
 mod errors;
+pub mod events;
 mod parse;
 mod parsed_key;
+pub mod protocol_version;
 mod raw_transaction_profiling_block;
 mod scanner;
 
@@ -132,7 +139,7 @@ pub async fn get_raw_datablocks(
         key
     };
 
-    // Create an async iterator which yields completed DataBlock
+    // Create an async iterator which yields completed DataBlocks
     async_stream::try_stream! {
         // Get an iterator over the range inside the Profiling Keyspace
         let profiling_events_raw_key_value_stream = trx
@@ -151,7 +158,7 @@ pub async fn get_raw_datablocks(
                 .await
                 .map_err(FdbBindingError::from)?;
 
-            // Take decision on raw data
+            // Take a decision on raw data
             match raw_key_value {
                 // end of the range, no more raw keys
                 None => {
@@ -168,7 +175,7 @@ pub async fn get_raw_datablocks(
                     match in_progress_datablock {
                         // No DataBlock in progress
                         None => {
-                            // Create a new Datablock from current ParsedKey
+                            // Create a new Datablock from the current ParsedKey
                             let mut datablock = RawTransactionProfilingBlock::new(parsed_key.transaction_id, parsed_key.total_chunk);
                             // Accumulate the first data chunk
                             datablock.add_chunk(data.value());
@@ -198,6 +205,42 @@ pub async fn get_raw_datablocks(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Retrieves a stream of `ProfilingEvent` from a given `RetryableTransaction`.
+///
+/// `start_version` and `end_version` are used to filter the events to retrieve.
+/// If `start_version` is `Some(version)`, only events with a version greater than `version` are retrieved.
+/// If `end_version` is `Some(version)`, only events with version less or equal to `version` are retrieved.
+///
+/// The stream is ordered by increasing version.
+///
+/// If any error occurs during the retrieval, the `Stream` will yield an ` FdbBindingError `.
+///
+/// # Errors
+///
+/// * `FdbBindingError` if any error occurs during the retrieval.
+pub async fn get_events(
+    trx: RetryableTransaction,
+    start_version: Option<u64>,
+    end_version: Option<u64>,
+) -> impl Stream<Item = Result<ProfilingEvent, FdbBindingError>> {
+    async_stream::try_stream! {
+        let raw_events = get_raw_datablocks(&trx, start_version, end_version).await;
+        let mut raw_events = pin!(raw_events);
+        while let Some(raw_event) = raw_events.try_next().await? {
+
+            let data = raw_event.get_data();
+                let mut scanner = Scanner::new(data);
+                let protocol_version = &ProtocolVersion::parse(&mut scanner)
+                    .await.map_err( FdbBindingError::new_custom_error)?;
+
+            while !scanner.remaining().is_empty() {
+                yield ProfilingEvent::parse_with_protocol_version(&mut scanner, protocol_version).await.map_err( FdbBindingError::new_custom_error)?;
+            }
+
         }
     }
 }
