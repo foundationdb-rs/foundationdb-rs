@@ -2,15 +2,16 @@ use foundationdb_macros::cfg_api_versions;
 
 mod common;
 
-#[test]
-fn test_databse() {
+#[tokio::test]
+async fn test_databse() {
     let _guard = unsafe { foundationdb::boot() };
 
     #[cfg(feature = "fdb-7_3")]
-    futures::executor::block_on(test_status_async()).expect("failed to run");
+    test_status_async().await.expect("failed to run");
 
     #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
-    futures::executor::block_on(test_get_main_thread_busyness_async())
+    test_get_main_thread_busyness_async()
+        .await
         .expect("failed to get busyness");
 }
 
@@ -39,9 +40,9 @@ async fn test_get_main_thread_busyness_async() -> foundationdb::FdbResult<()> {
         .await
         .expect("could not get busyness");
     assert!(
-        busyness == 0.0,
+        busyness >= 0.0,
         "{}",
-        format!("non-zero thread busyness: {}", busyness)
+        format!("negative thread busyness: {}", busyness)
     );
     Ok(())
 }

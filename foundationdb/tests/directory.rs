@@ -13,33 +13,27 @@ use foundationdb::*;
 
 mod common;
 
-#[test]
+#[tokio::test]
 // testing basic features of the Directory, everything is tracked using with the BindingTester.
-fn test_directory() {
+async fn test_directory() {
     let _guard = unsafe { foundationdb::boot() };
-    let db = futures::executor::block_on(common::database()).expect("cannot open fdb");
+    let db = common::database().await.expect("could not obtain database");
 
-    eprintln!("clearing all keys");
+    eprintln!("clearing all directoryLayer keys");
     let trx = db.create_trx().expect("cannot create txn");
-    trx.clear_range(b"", b"\xff");
-    futures::executor::block_on(trx.commit()).expect("could not clear keys");
+    trx.clear_range(b"\xfe", b"\xff");
+    trx.commit().await.expect("could not clear keys");
 
     eprintln!("creating directories");
     let directory = DirectoryLayer::default();
 
-    futures::executor::block_on(test_create_then_open_then_delete(
-        &db,
-        &directory,
-        vec![String::from("application")],
-    ))
-    .expect("failed to run");
+    test_create_then_open_then_delete(&db, &directory, vec![String::from("application")])
+        .await
+        .expect("failed to run");
 
-    futures::executor::block_on(test_create_then_open_then_delete(
-        &db,
-        &directory,
-        vec![String::from("1"), String::from("2")],
-    ))
-    .expect("failed to run");
+    test_create_then_open_then_delete(&db, &directory, vec![String::from("1"), String::from("2")])
+        .await
+        .expect("failed to run");
 }
 
 async fn test_create_then_open_then_delete(

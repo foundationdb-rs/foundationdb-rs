@@ -53,10 +53,12 @@ You first need to install FoundationDB. You can follow the official documentatio
 * [Getting Started on Linux](https://apple.github.io/foundationdb/getting-started-linux.html)
 * [Getting started on macOS](https://apple.github.io/foundationdb/getting-started-mac.html)
 
-### Add dependencies on foundationdb-rs
+### Adding Dependencies for `foundationdb-rs`
+
+To use `foundationdb-rs`, you must include a feature that matches the installed version of the FoundationDB client library. For example, if you have FoundationDB version 7.3.45 installed, you need to include the `fdb-7_3` feature.
 
 ```shell
-cargo add foundationdb -F embedded-fdb-include
+cargo add foundationdb -F embedded-fdb-include,fdb-7_3
 cargo add futures
 ```
 
@@ -74,6 +76,7 @@ This Rust crate is not tied to any Async Runtime.
 | `fdb-6_3`              | Support for FoundationDB 6.3.X                                                 |
 | `fdb-7_0`              | Support for FoundationDB 7.0.X                                                 |
 | `fdb-7_1`              | Support for FoundationDB 7.1.X                                                 |
+| `fdb-7_3`              | Support for FoundationDB 7.3.X                                                 |
 | `embedded-fdb-include` | Use the locally embedded FoundationDB fdb_c.h and fdb.options files to compile |
 | `uuid`                 | Support for the uuid crate for Tuples                                          |
 | `num-bigint`           | Support for the bigint crate for Tuples                                        |
@@ -88,8 +91,7 @@ use futures::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
+    let network = unsafe {foundationdb::boot()};
 
     // Have fun with the FDB API
     hello_world().await.expect("could not run the hello world");
@@ -115,7 +117,9 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
 
     // read a value
     match db
-        .run(|trx, _maybe_committed| async move { Ok(trx.get(b"hello", false).await.unwrap()) })
+        .run(|trx, _maybe_committed| async move {
+            Ok(trx.get(b"hello", false).await.unwrap())
+        })
         .await
     {
         Ok(slice) => assert_eq!(b"world", slice.unwrap().as_ref()),
