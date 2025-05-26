@@ -11,6 +11,18 @@ jobs:
   simulation:
     name: "Simulation framework"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - fdb_version: "7.3.27"
+            fdb_rs_feature_version: "fdb-7_3,fdb-docker"
+            rustflags: "-C linker=clang"
+            rustc_linker: "clang"
+          - fdb_version: "7.1.57"
+            fdb_rs_feature_version: "fdb-7_1"
+            rustflags: ""
+            rustc_linker: ""
     steps:
       - name: disk space
         run: df -h /
@@ -33,10 +45,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: docker build
-        run: docker build -t simulation . -f foundationdb-simulation/examples/atomic/Dockerfile
+        run: docker build --build-arg FDB_VERSION=${{ matrix.fdb_version }} --build-arg FDB_RS_FEATURE_VERSION=${{ matrix.fdb_rs_feature_version }} --build-arg RUSTFLAGS='${{ matrix.rustflags }}' --build-arg RUSTC_LINKER='${{ matrix.rustc_linker }}' -t simulation:${{ matrix.fdb_version }} . -f foundationdb-simulation/examples/atomic/Dockerfile
 
       - name: docker run
-        run: docker run --rm simulation
+        run: docker run --rm simulation:${{ matrix.fdb_version }}
 
   compatibility:
     name: "Compat ${{ matrix.os }}/${{ matrix.toolchain }}/${{ matrix.fdb_feature_version }}"
