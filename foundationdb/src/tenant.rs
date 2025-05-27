@@ -90,7 +90,6 @@ impl FdbTenant {
     ///
     /// The closure will notify the user in case of a maybe_committed transaction in a previous run
     ///  with the boolean provided in the closure.
-    ///
     pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
     where
         F: Fn(RetryableTransaction, bool) -> Fut,

@@ -32,6 +32,7 @@
           cargo-expand
           cargo-edit
           cargo-msrv
+          cargo-watch
           # uncomment when https://github.com/NixOS/nixpkgs/issues/354058 is fixed
           # cargo-llvm-cov
           cargo-audit

@@ -20,7 +20,6 @@
 //! Futures make it easy to do multiple operations in parallel, by calling several
 //! asynchronous functions before waiting for any of the Fdbresults. This can be
 //! important for reducing the latency of transactions.
-//!
 
 use std::convert::TryFrom;
 use std::ffi::CStr;

@@ -13,22 +13,28 @@ use std::sync::{atomic::*, Arc};
 
 mod common;
 
-#[test]
-fn test_get() {
+#[tokio::test]
+async fn test_get() {
     let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_set_get_async()).expect("failed to run");
-    futures::executor::block_on(test_get_multi_async()).expect("failed to run");
-    futures::executor::block_on(test_set_conflict_async()).expect("failed to run");
-    futures::executor::block_on(test_set_conflict_snapshot_async()).expect("failed to run");
-    futures::executor::block_on(test_transact_async()).expect("failed to run");
-    futures::executor::block_on(test_transact_limit()).expect("failed to run");
-    futures::executor::block_on(test_transact_timeout()).expect("failed to run");
-    futures::executor::block_on(test_versionstamp_async()).expect("failed to run");
-    futures::executor::block_on(test_read_version_async()).expect("failed to run");
-    futures::executor::block_on(test_set_read_version_async()).expect("failed to run");
-    futures::executor::block_on(test_get_addresses_for_key_async()).expect("failed to run");
-    futures::executor::block_on(test_set_raw_option_async()).expect("failed to run");
-    futures::executor::block_on(test_fails_to_set_unknown_raw_option()).expect("failed to run");
+    test_set_get_async().await.expect("failed to run");
+    test_get_multi_async().await.expect("failed to run");
+    test_set_conflict_async().await.expect("failed to run");
+    test_set_conflict_snapshot_async()
+        .await
+        .expect("failed to run");
+    test_transact_async().await.expect("failed to run");
+    test_transact_limit().await.expect("failed to run");
+    test_transact_timeout().await.expect("failed to run");
+    test_versionstamp_async().await.expect("failed to run");
+    test_read_version_async().await.expect("failed to run");
+    test_set_read_version_async().await.expect("failed to run");
+    test_get_addresses_for_key_async()
+        .await
+        .expect("failed to run");
+    test_set_raw_option_async().await.expect("failed to run");
+    test_fails_to_set_unknown_raw_option()
+        .await
+        .expect("failed to run");
     #[cfg(any(
         feature = "fdb-7_3",
         feature = "fdb-7_1",
@@ -37,7 +43,7 @@ fn test_get() {
         feature = "fdb-6_2",
         feature = "fdb-6_1"
     ))]
-    futures::executor::block_on(test_metadata_version()).expect("failed to run");
+    test_metadata_version().await.expect("failed to run");
 }
 
 async fn test_set_get_async() -> FdbResult<()> {
