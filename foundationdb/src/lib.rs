@@ -6,32 +6,35 @@
 // copied, modified, or distributed except according to those terms.
 #![doc = include_str!("../README.md")]
 
+use foundationdb_sys::if_cfg_api_versions;
+
 #[macro_use]
 extern crate static_assertions;
 
 pub mod api;
-#[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
-pub mod cluster;
+if_cfg_api_versions! {min = 510, max = 600 =>
+    pub mod cluster;
+}
 mod database;
 pub mod directory;
 mod error;
-#[cfg(any(feature = "fdb-7_0", feature = "fdb-7_1", feature = "fdb-7_3"))]
-#[deny(missing_docs)]
-pub mod fdb_keys;
+if_cfg_api_versions! {min = 700 =>
+    #[deny(missing_docs)]
+    pub mod fdb_keys;
+}
 pub mod future;
 mod keyselector;
-#[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
-#[deny(missing_docs)]
-pub mod mapped_key_values;
+if_cfg_api_versions! {min = 710 =>
+    #[deny(missing_docs)]
+    pub mod mapped_key_values;
+}
 /// Generated configuration types for use with the various `set_option` functions
 #[allow(clippy::all)]
 pub mod options;
-#[cfg(any(
-    feature = "fdb-7_1",
-    feature = "fdb-7_3",
-    feature = "tenant-experimental"
-))]
-pub mod tenant;
+if_cfg_api_versions! {min = 710 =>
+    #[cfg(feature = "tenant-experimental")]
+    pub mod tenant;
+}
 pub mod timekeeper;
 mod transaction;
 mod tuple_ext;
@@ -41,8 +44,9 @@ pub mod tuple {
     pub use foundationdb_tuple::*;
 }
 
-#[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
-pub use crate::cluster::Cluster;
+if_cfg_api_versions! {min = 510, max = 600 =>
+    pub use crate::cluster::Cluster;
+}
 
 pub use crate::database::*;
 pub use crate::error::FdbBindingError;
