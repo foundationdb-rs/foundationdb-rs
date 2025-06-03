@@ -15,7 +15,9 @@ use crate::{
     error, Database, DatabaseTransact, FdbBindingError, FdbError, FdbResult, KeySelector,
     RangeOption, RetryableTransaction, TransactOption, Transaction,
 };
+use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
+use fdb_sys::if_cfg_api_versions;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Error;
@@ -28,9 +30,9 @@ const TENANT_MAP_PREFIX: &[u8] = b"\xFF\xFF/management/tenant_map/";
 #[cfg(feature = "fdb-7_1")]
 const TENANT_MAP_PREFIX_END: &[u8] = b"\xFF\xFF/management/tenant_map0";
 
-#[cfg(feature = "fdb-7_3")]
+#[cfg_api_versions(min = 730)]
 const TENANT_MAP_PREFIX: &[u8] = b"\xFF\xFF/management/tenant/map/";
-#[cfg(feature = "fdb-7_3")]
+#[cfg_api_versions(min = 730)]
 const TENANT_MAP_PREFIX_END: &[u8] = b"\xFF\xFF/management/tenant/map0";
 
 /// A `FdbTenant` represents a named key-space within a database that can be interacted with transactionally.
@@ -217,7 +219,7 @@ pub struct TenantInfo {
     pub name: Vec<u8>,
 }
 
-#[cfg(feature = "fdb-7_3")]
+#[cfg_api_versions(min = 730)]
 /// Holds the information about a tenant
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TenantInfo {
@@ -232,18 +234,18 @@ impl TryFrom<(&[u8], &[u8])> for TenantInfo {
     fn try_from(k_v: (&[u8], &[u8])) -> Result<Self, Self::Error> {
         let value = k_v.1;
         match serde_json::from_slice::<FDBTenantInfo>(value) {
-            #[cfg(feature = "fdb-7_1")]
-            Ok(tenant_info) => Ok(TenantInfo {
-                name: k_v.0.split_at(TENANT_MAP_PREFIX.len()).1.to_vec(),
-                id: tenant_info.id,
-                prefix: tenant_info.prefix,
-            }),
-
-            #[cfg(feature = "fdb-7_3")]
-            Ok(tenant_info) => Ok(TenantInfo {
-                name: tenant_info.name,
-                id: tenant_info.id,
-                prefix: tenant_info.prefix,
+            Ok(tenant_info) => if_cfg_api_versions!(min = 730 => {
+                Ok(TenantInfo {
+                    name: tenant_info.name,
+                    id: tenant_info.id,
+                    prefix: tenant_info.prefix,
+                })
+            } else {
+                Ok(TenantInfo {
+                    name: k_v.0.split_at(TENANT_MAP_PREFIX.len()).1.to_vec(),
+                    id: tenant_info.id,
+                    prefix: tenant_info.prefix,
+                })
             }),
 
             Err(err) => Err(err),
@@ -260,7 +262,7 @@ struct FDBTenantInfo {
     prefix: Vec<u8>,
 }
 
-#[cfg(feature = "fdb-7_3")]
+#[cfg_api_versions(min = 730)]
 #[derive(Serialize, Deserialize, Debug)]
 struct FDBTenantInfo {
     id: i64,
@@ -269,7 +271,7 @@ struct FDBTenantInfo {
     prefix: FDBTenantPrintableInfo,
 }
 
-#[cfg(feature = "fdb-7_3")]
+#[cfg_api_versions(min = 730)]
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 enum TenantLockState {
@@ -278,7 +280,7 @@ enum TenantLockState {
     ReadOnly,
 }
 
-#[cfg(feature = "fdb-7_3")]
+#[cfg_api_versions(min = 730)]
 /// Display a printable version of bytes
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FDBTenantPrintableInfo {
