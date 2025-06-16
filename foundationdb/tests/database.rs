@@ -1,4 +1,5 @@
 use foundationdb_macros::cfg_api_versions;
+use foundationdb_sys::if_cfg_api_versions;
 
 mod common;
 
@@ -6,12 +7,14 @@ mod common;
 fn test_databse() {
     let _guard = unsafe { foundationdb::boot() };
 
-    #[cfg(feature = "fdb-7_3")]
-    futures::executor::block_on(test_status_async()).expect("failed to run");
+    if_cfg_api_versions!(min = 730 =>
+        futures::executor::block_on(test_status_async()).expect("failed to run")
+    );
 
-    #[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
-    futures::executor::block_on(test_get_main_thread_busyness_async())
-        .expect("failed to get busyness");
+    if_cfg_api_versions!(min = 710 =>
+        futures::executor::block_on(test_get_main_thread_busyness_async())
+            .expect("failed to get busyness")
+    );
 }
 
 #[cfg_api_versions(min = 730)]

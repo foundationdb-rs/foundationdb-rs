@@ -7,6 +7,7 @@
 
 use foundationdb::*;
 use foundationdb_macros::cfg_api_versions;
+use foundationdb_sys::if_cfg_api_versions;
 use futures::future::*;
 use std::ops::Deref;
 use std::sync::{atomic::*, Arc};
@@ -29,15 +30,9 @@ fn test_get() {
     futures::executor::block_on(test_get_addresses_for_key_async()).expect("failed to run");
     futures::executor::block_on(test_set_raw_option_async()).expect("failed to run");
     futures::executor::block_on(test_fails_to_set_unknown_raw_option()).expect("failed to run");
-    #[cfg(any(
-        feature = "fdb-7_3",
-        feature = "fdb-7_1",
-        feature = "fdb-7_0",
-        feature = "fdb-6_3",
-        feature = "fdb-6_2",
-        feature = "fdb-6_1"
-    ))]
-    futures::executor::block_on(test_metadata_version()).expect("failed to run");
+    if_cfg_api_versions!(min = 610 =>
+        futures::executor::block_on(test_metadata_version()).expect("failed to run")
+    );
 }
 
 async fn test_set_get_async() -> FdbResult<()> {

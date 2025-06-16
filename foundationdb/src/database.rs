@@ -16,6 +16,7 @@ use std::pin::Pin;
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
+use fdb_sys::if_cfg_api_versions;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 
@@ -26,7 +27,7 @@ use crate::{error, FdbError, FdbResult};
 use crate::error::FdbBindingError;
 use futures::prelude::*;
 
-#[cfg(any(feature = "fdb-7_1", feature = "fdb-7_3"))]
+#[cfg_api_versions(min = 710)]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
 
@@ -138,17 +139,13 @@ impl Database {
     /// This is a compatibility api. If you only use API version ≥ 610 you should
     /// use `Database::new`, `Database::from_path` or  `Database::default`.
     pub async fn new_compat(path: Option<&str>) -> FdbResult<Database> {
-        #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0"))]
-        {
+        if_cfg_api_versions!(min = 510, max = 600 => {
             let cluster = crate::cluster::Cluster::new(path).await?;
             let database = cluster.create_database().await?;
             Ok(database)
-        }
-
-        #[cfg(not(any(feature = "fdb-5_1", feature = "fdb-5_2", feature = "fdb-6_0")))]
-        {
+        } else {
             Database::new(path)
-        }
+        })
     }
 
     /// Called to set an option an on `Database`.
