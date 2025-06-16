@@ -96,19 +96,65 @@ macro_rules! versions_expand {
         // For each branch type, generates the appropriate cfg attributes
 
         /// Similar to `cfg_api_versions` proc-macro, but as a regular macro.
-        /// Can be used on expressions and non-inlined modules, unlike proc-macros which are unstable in this position.
+        /// Unlike proc-macros which are unstable on expressions and non-inlined modules,
+        /// `if_cfg_api_versions` can be used on these places.
         ///
         /// Any feature after the "min" and "max" arguments will be joined in the "any" predicate.
         ///
-        /// This macro has two "flavors" which behave slightly differently.
+        /// ### Constraints:
+        /// - `if/else` always requires block syntax (i.e., `{}` around branches).
+        /// - Avoid using multiple items in a single macro call.
+        /// - Best suited for guarding expressions, single items, or blocks.
         ///
-        /// ### "if else" form
+        /// ## Behavior
+        /// ### Single statement
+        /// Guard the statment without additional curly braces
         /// ```rs
-        /// if_cfg_api_versions!(condition => { block1 } else { block2 });
-        /// let result = if_cfg_api_versions!(condition => { block1 } else { block2 });
+        /// if_cfg_api_versions!(max = 520 => prinln!("foo"));
+        /// // expands to:
+        /// #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2"))]
+        /// println!("foo");
         /// ```
-        /// Expects two blocks, behaves like an expression returning the result of the active block.
-        /// Example:
+        ///
+        /// ### Muliple statements
+        /// Guard a block wrapping the statments
+        /// ```rs
+        /// if_cfg_api_versions!(max = 520 =>
+        ///     prinln!("foo");
+        ///     prinln!("bar");
+        /// );
+        /// // expands to:
+        /// #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2"))]
+        /// {
+        ///     println!("foo");
+        ///     println!("bar");
+        /// }
+        /// ```
+        ///
+        /// ### Single Item (e.g., `mod`, `fn`, etc.)
+        /// Guard the item without additional culry braces
+        /// ```rs
+        /// if_cfg_api_versions!(max = 520 => pub mod foo);
+        /// // expands to:
+        /// #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2"))]
+        /// pub mod foo;
+        /// ```
+        ///
+        /// ### Multiple Items: **NOT RECOMMANDED**
+        /// Only guard the first item (does not add curly braces since it would be invalid syntax)
+        /// ```rs
+        /// if_cfg_api_versions!(max = 520 =>
+        ///     pub mod foo;
+        ///     pub mod bar;
+        /// );
+        /// // expands to:
+        /// #[cfg(any(feature = "fdb-5_1", feature = "fdb-5_2"))]
+        /// pub mod foo;
+        /// pub mod bar; // not guarded
+        /// ```
+        ///
+        /// ### If/Else
+        /// Both branches must be wrapped in curly braces, guard the first branch and the second with the opposite condition
         /// ```rs
         /// let result = if_cfg_api_versions!(max = 520 => {
         ///     println!("5.x");
@@ -131,27 +177,11 @@ macro_rules! versions_expand {
         ///     }
         /// };
         /// ```
-        ///
-        /// ### "if" form
-        /// ```rs
-        /// if_cfg_api_versions!(condition => statement);
-        /// ```
-        /// Expects a single statement, only puts a guard over it without any wrapping.
-        /// Useful for non-inline modules.
-        /// Example:
-        /// ```rs
-        /// if_cfg_api_versions!(min = 520, max = 600, feature = "foo" =>
-        ///     pub mod bar;
-        /// );
-        /// // expands to:
-        /// #[cfg(any(feature = "fdb-5_2", feature = "fdb-6_0", feature = "foo"))]
-        /// pub mod bar;
-        /// ```
         #[macro_export]
         macro_rules! if_cfg_api_versions {
-            // malformed branch
-            ($d($k:tt = $v:tt),+ => $a:stmt;$d($b:stmt);+ $d(;)?) => {
-                MULTIPLE_STATEMENTS_IN_IF_FORM__PLEASE_USE_A_BLOCK_OR_DUPLICATE_THE_MACRO
+            // multiple statements
+            ($d($k:tt = $v:tt),+ => $a:stmt; $d($b:stmt)+) => {
+                if_cfg_api_versions!($d($k=$v),+ => { $a; $d($b)+ })
             };
             // min-max branches
             $(
@@ -192,6 +222,16 @@ macro_rules! versions_expand {
                     $d($then)*
                 };
             )*
+            // unsupported versions
+            (min=$min:tt, max=$max:tt  $d(,feature = $feature:literal)* => $d($t:tt)*) => {
+                compile_error!(concat!("Use of unsupported version, or min >= max. Supported: ", $($min2, " " ,)*));
+            };
+            (min=$min:tt $d(,feature = $feature:literal)* => $d($t:tt)*) => {
+                compile_error!(concat!("Use of unsupported version. Supported: ", $($min2, " " ,)*));
+            };
+            (max=$max:tt $d(,feature = $feature:literal)* => $d($t:tt)*) => {
+                compile_error!(concat!("Use of unsupported version. Supported: ", $($min2, " " ,)*));
+            };
         }
     };
 }

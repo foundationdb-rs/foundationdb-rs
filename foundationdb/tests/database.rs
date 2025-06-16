@@ -8,12 +8,12 @@ fn test_databse() {
     let _guard = unsafe { foundationdb::boot() };
 
     if_cfg_api_versions!(min = 730 =>
-        futures::executor::block_on(test_status_async()).expect("failed to run");
+        futures::executor::block_on(test_status_async()).expect("failed to run")
     );
 
     if_cfg_api_versions!(min = 710 =>
         futures::executor::block_on(test_get_main_thread_busyness_async())
-            .expect("failed to get busyness");
+            .expect("failed to get busyness")
     );
 }
 

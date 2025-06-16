@@ -1,15 +1,16 @@
 mod common;
 
 use foundationdb_macros::cfg_api_versions;
+use foundationdb_sys::if_cfg_api_versions;
 
 #[test]
 fn test_tenant() {
     let _guard = unsafe { foundationdb::boot() };
     #[cfg(feature = "tenant-experimental")]
-    foundationdb_sys::if_cfg_api_versions!(min = 710 => {
+    if_cfg_api_versions!(min = 710 =>
         futures::executor::block_on(test_tenant_management()).expect("failed to run");
-        futures::executor::block_on(test_tenant_run()).expect("failed to run");
-    });
+        futures::executor::block_on(test_tenant_run()).expect("failed to run")
+    );
 }
 
 #[cfg_api_versions(min = 710)]

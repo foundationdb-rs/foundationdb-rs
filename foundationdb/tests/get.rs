@@ -31,7 +31,7 @@ fn test_get() {
     futures::executor::block_on(test_set_raw_option_async()).expect("failed to run");
     futures::executor::block_on(test_fails_to_set_unknown_raw_option()).expect("failed to run");
     if_cfg_api_versions!(min = 610 =>
-        futures::executor::block_on(test_metadata_version()).expect("failed to run");
+        futures::executor::block_on(test_metadata_version()).expect("failed to run")
     );
 }
 

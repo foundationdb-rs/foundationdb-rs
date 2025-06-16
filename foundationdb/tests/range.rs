@@ -25,15 +25,15 @@ fn test_range() {
     futures::executor::block_on(test_range_option_async()).expect("failed to run");
     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
     if_cfg_api_versions!(min = 630 =>
-        futures::executor::block_on(test_get_estimate_range()).expect("failed to run");
+        futures::executor::block_on(test_get_estimate_range()).expect("failed to run")
     );
     if_cfg_api_versions!(min = 700 =>
-        futures::executor::block_on(test_get_range_split_points()).expect("failed to run");
+        futures::executor::block_on(test_get_range_split_points()).expect("failed to run")
     );
-    if_cfg_api_versions!(min = 710 => {
-        futures::executor::block_on(test_mapped_value()).expect("failed to run");
-        futures::executor::block_on(test_mapped_values()).expect("failed to run");
-    });
+    if_cfg_api_versions!(min = 710 =>
+            futures::executor::block_on(test_mapped_value()).expect("failed to run");
+            futures::executor::block_on(test_mapped_values()).expect("failed to run")
+    )
 }
 
 async fn test_get_range_async() -> FdbResult<()> {
