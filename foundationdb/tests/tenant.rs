@@ -1,22 +1,20 @@
 mod common;
 
+use foundationdb_macros::cfg_api_versions;
+use foundationdb_sys::if_cfg_api_versions;
+
 #[test]
 fn test_tenant() {
     let _guard = unsafe { foundationdb::boot() };
-    #[cfg(all(
-        any(feature = "fdb-7_1", feature = "fdb-7_3"),
-        feature = "tenant-experimental"
-    ))]
-    {
+    #[cfg(feature = "tenant-experimental")]
+    if_cfg_api_versions!(min = 710 =>
         futures::executor::block_on(test_tenant_management()).expect("failed to run");
-        futures::executor::block_on(test_tenant_run()).expect("failed to run");
-    }
+        futures::executor::block_on(test_tenant_run()).expect("failed to run")
+    );
 }
 
-#[cfg(all(
-    any(feature = "fdb-7_1", feature = "fdb-7_3"),
-    feature = "tenant-experimental"
-))]
+#[cfg_api_versions(min = 710)]
+#[cfg(feature = "tenant-experimental")]
 async fn test_tenant_management() -> foundationdb::FdbResult<()> {
     use foundationdb::tenant::TenantManagement;
 
@@ -63,10 +61,8 @@ async fn test_tenant_management() -> foundationdb::FdbResult<()> {
     Ok(())
 }
 
-#[cfg(all(
-    any(feature = "fdb-7_1", feature = "fdb-7_3"),
-    feature = "tenant-experimental"
-))]
+#[cfg_api_versions(min = 710)]
+#[cfg(feature = "tenant-experimental")]
 async fn test_tenant_run() -> foundationdb::FdbResult<()> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)

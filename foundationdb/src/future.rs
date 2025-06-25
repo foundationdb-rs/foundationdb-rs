@@ -36,6 +36,7 @@ pub use crate::fdb_keys::FdbKeys;
 use crate::from_raw_fdb_slice;
 #[cfg_api_versions(min = 710)]
 pub use crate::mapped_key_values::MappedKeyValues;
+use fdb_sys::if_cfg_api_versions;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 use futures::prelude::*;
@@ -489,26 +490,11 @@ impl TryFrom<FdbFutureHandle> for i64 {
     fn try_from(f: FdbFutureHandle) -> FdbResult<Self> {
         let mut version: i64 = 0;
         error::eval(unsafe {
-            #[cfg(any(
-                feature = "fdb-6_2",
-                feature = "fdb-6_3",
-                feature = "fdb-7_0",
-                feature = "fdb-7_1",
-                feature = "fdb-7_3"
-            ))]
-            {
+            if_cfg_api_versions!(min = 620 => {
                 fdb_sys::fdb_future_get_int64(f.as_ptr(), &mut version)
-            }
-            #[cfg(not(any(
-                feature = "fdb-6_2",
-                feature = "fdb-6_3",
-                feature = "fdb-7_0",
-                feature = "fdb-7_1",
-                feature = "fdb-7_3"
-            )))]
-            {
+            } else {
                 fdb_sys::fdb_future_get_version(f.as_ptr(), &mut version)
-            }
+            })
         })?;
         Ok(version)
     }

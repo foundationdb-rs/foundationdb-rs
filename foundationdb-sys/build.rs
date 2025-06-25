@@ -1,37 +1,35 @@
 extern crate bindgen;
 
 use std::env;
-use std::fs::File;
-use std::io::prelude::*;
 use std::path::PathBuf;
 
 #[cfg(all(not(feature = "embedded-fdb-include"), target_os = "linux"))]
-const INCLUDE_PATH: &str = "-I/usr/include/foundationdb/";
+const INCLUDE_PATH: &str = "/usr/include/foundationdb/";
 
 #[cfg(all(not(feature = "embedded-fdb-include"), target_os = "macos"))]
-const INCLUDE_PATH: &str = "-I/usr/local/include/foundationdb/";
+const INCLUDE_PATH: &str = "/usr/local/include/foundationdb/";
 
 #[cfg(all(not(feature = "embedded-fdb-include"), target_os = "windows"))]
-const INCLUDE_PATH: &str = "-IC:/Program Files/foundationdb/include/foundationdb";
+const INCLUDE_PATH: &str = "C:/Program Files/foundationdb/include/foundationdb";
 
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-5_1"))]
-const INCLUDE_PATH: &str = "-I./include/510";
+const INCLUDE_PATH: &str = "./include/510";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-5_2"))]
-const INCLUDE_PATH: &str = "-I./include/520";
+const INCLUDE_PATH: &str = "./include/520";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-6_0"))]
-const INCLUDE_PATH: &str = "-I./include/600";
+const INCLUDE_PATH: &str = "./include/600";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-6_1"))]
-const INCLUDE_PATH: &str = "-I./include/610";
+const INCLUDE_PATH: &str = "./include/610";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-6_2"))]
-const INCLUDE_PATH: &str = "-I./include/620";
+const INCLUDE_PATH: &str = "./include/620";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-6_3"))]
-const INCLUDE_PATH: &str = "-I./include/630";
+const INCLUDE_PATH: &str = "./include/630";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_0"))]
-const INCLUDE_PATH: &str = "-I./include/700";
+const INCLUDE_PATH: &str = "./include/700";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_1"))]
-const INCLUDE_PATH: &str = "-I./include/710";
+const INCLUDE_PATH: &str = "./include/710";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_3"))]
-const INCLUDE_PATH: &str = "-I./include/730";
+const INCLUDE_PATH: &str = "./include/730";
 
 fn main() {
     // Link against fdb_c.
@@ -92,27 +90,11 @@ fn main() {
         api_version = 730;
     }
 
-    // Sigh, bindgen only takes a String for its header path, but that's UTF-8 while
-    // PathBuf is OS-native...
-    let wpath = out_path.join("wrapper.h");
-    let wrapper_path = wpath
-        .to_str()
-        .expect("couldn't convert wrapper PathBuf to String!");
-
-    let mut wrapper = File::create(wrapper_path).expect("couldn't create wrapper.h!");
-    wrapper
-        .write_all(format!("#define FDB_API_VERSION {}\n", api_version).as_bytes())
-        .expect("couldn't write wrapper.h!");
-    wrapper
-        .write_all(b"#include <fdb_c.h>\n")
-        .expect("couldn't write wrapper.h!");
-    drop(wrapper);
-
-    // Finish up by writing the actual bindings
     let bindings = bindgen::Builder::default()
         // TODO: there must be a way to get foundationdb from pkg-config...
-        .clang_arg(INCLUDE_PATH)
-        .header(wrapper_path)
+        .clang_arg(format!("-I{INCLUDE_PATH}"))
+        .clang_arg(format!("-D FDB_API_VERSION={api_version}"))
+        .header(format!("{INCLUDE_PATH}/fdb_c.h"))
         .generate_comments(true)
         .layout_tests(false)
         .generate()
