@@ -1,0 +1,337 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Similar to `cfg_api_versions` proc-macro, but as a regular macro. Unlike proc-macros which are unstable on expressions and non-inlined modules, `if_cfg_api_versions` can be used on these places."><title>if_cfg_api_versions in foundationdb_sys - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="foundationdb_sys" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0 (17067e9ac 2025-05-09)" data-channel="1.87.0" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../static.files/storage-82c7156e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../foundationdb_sys/index.html">foundationdb_<wbr>sys</a><span class="version">0.9.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">if_<wbr>cfg_<wbr>api_<wbr>versions</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#constraints" title="Constraints:">Constraints:</a></li><li><a href="#behavior" title="Behavior">Behavior</a><ul><li><a href="#single-statement" title="Single statement">Single statement</a></li><li><a href="#muliple-statements" title="Muliple statements">Muliple statements</a></li><li><a href="#single-item-eg-mod-fn-etc" title="Single Item (e.g., `mod`, `fn`, etc.)">Single Item (e.g., <code>mod</code>, <code>fn</code>, etc.)</a></li><li><a href="#multiple-items-not-recommanded" title="Multiple Items: NOT RECOMMANDED">Multiple Items: NOT RECOMMANDED</a></li><li><a href="#ifelse" title="If/Else">If/Else</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate foundationdb_<wbr>sys</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">foundationdb_sys</a></div><h1>Macro <span class="macro">if_cfg_api_versions</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/foundationdb_sys/lib.rs.html#239-249">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! if_cfg_api_versions {
+    ($($k:tt = $v:tt),+ =&gt; $a:stmt; $($b:stmt)+) =&gt; { ... };
+    (
+        min = 510, max = 520 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 520 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 600 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 600 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 610 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 610 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 620 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 620 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 630 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 700 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 600 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 600 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 610 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 610 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 620 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 620 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 630 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 700 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600, max = 610 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 610 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600, max = 620 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 620 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600, max = 630 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600, max = 700 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 610, max = 620 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610, max = 620 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 610, max = 630 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610, max = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 610, max = 700 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610, max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 610, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 610, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 620, max = 630 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 620, max = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 620, max = 700 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 620, max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 620, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 620, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 620, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 620, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 630, max = 700 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 630, max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 630, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 630, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 630, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 630, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 700, max = 710 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 700, max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 700, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 700, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 710, max = 730 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 710, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 510 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 520 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 600 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 610 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 620 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 620 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 630 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 700 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 710 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 730 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 510 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 510 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 520 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 520 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 600 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 600 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 610 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 610 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 620 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 620 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 630 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 630 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 700 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 700 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 710 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 710 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 730 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (min = $min:tt, max = $max:tt $(, feature = $feature:literal)* =&gt; $($t:tt)*) =&gt; { ... };
+    (min = $min:tt $(, feature = $feature:literal)* =&gt; $($t:tt)*) =&gt; { ... };
+    (max = $max:tt $(, feature = $feature:literal)* =&gt; $($t:tt)*) =&gt; { ... };
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Similar to <code>cfg_api_versions</code> proc-macro, but as a regular macro.
+Unlike proc-macros which are unstable on expressions and non-inlined modules,
+<code>if_cfg_api_versions</code> can be used on these places.</p>
+<p>Any feature after the “min” and “max” arguments will be joined in the “any” predicate.</p>
+<h4 id="constraints"><a class="doc-anchor" href="#constraints">§</a>Constraints:</h4>
+<ul>
+<li><code>if/else</code> always requires block syntax (i.e., <code>{}</code> around branches).</li>
+<li>Avoid using multiple items in a single macro call.</li>
+<li>Best suited for guarding expressions, single items, or blocks.</li>
+</ul>
+<h3 id="behavior"><a class="doc-anchor" href="#behavior">§</a>Behavior</h3><h4 id="single-statement"><a class="doc-anchor" href="#single-statement">§</a>Single statement</h4>
+<p>Guard the statment without additional curly braces</p>
+<div class="example-wrap"><pre class="language-rs"><code>if_cfg_api_versions!(max = 520 =&gt; prinln!(&quot;foo&quot;));
+// expands to:
+#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;))]
+println!(&quot;foo&quot;);</code></pre></div><h4 id="muliple-statements"><a class="doc-anchor" href="#muliple-statements">§</a>Muliple statements</h4>
+<p>Guard a block wrapping the statments</p>
+<div class="example-wrap"><pre class="language-rs"><code>if_cfg_api_versions!(max = 520 =&gt;
+    prinln!(&quot;foo&quot;);
+    prinln!(&quot;bar&quot;);
+);
+// expands to:
+#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;))]
+{
+    println!(&quot;foo&quot;);
+    println!(&quot;bar&quot;);
+}</code></pre></div><h4 id="single-item-eg-mod-fn-etc"><a class="doc-anchor" href="#single-item-eg-mod-fn-etc">§</a>Single Item (e.g., <code>mod</code>, <code>fn</code>, etc.)</h4>
+<p>Guard the item without additional culry braces</p>
+<div class="example-wrap"><pre class="language-rs"><code>if_cfg_api_versions!(max = 520 =&gt; pub mod foo);
+// expands to:
+#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;))]
+pub mod foo;</code></pre></div><h4 id="multiple-items-not-recommanded"><a class="doc-anchor" href="#multiple-items-not-recommanded">§</a>Multiple Items: <strong>NOT RECOMMANDED</strong></h4>
+<p>Only guard the first item (does not add curly braces since it would be invalid syntax)</p>
+<div class="example-wrap"><pre class="language-rs"><code>if_cfg_api_versions!(max = 520 =&gt;
+    pub mod foo;
+    pub mod bar;
+);
+// expands to:
+#[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;))]
+pub mod foo;
+pub mod bar; // not guarded</code></pre></div><h4 id="ifelse"><a class="doc-anchor" href="#ifelse">§</a>If/Else</h4>
+<p>Both branches must be wrapped in curly braces, guard the first branch and the second with the opposite condition</p>
+<div class="example-wrap"><pre class="language-rs"><code>let result = if_cfg_api_versions!(max = 520 =&gt; {
+    println!(&quot;5.x&quot;);
+    true
+} else {
+    println!(&quot;6.0+&quot;);
+    false
+});
+// expands to:
+let result = {
+    #[cfg(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;))]
+    {
+        println!(&quot;5.x&quot;);
+        true
+    }
+    #[cfg(not(any(feature = &quot;fdb-5_1&quot;, feature = &quot;fdb-5_2&quot;)))]
+    {
+        println!(&quot;6.0+&quot;);
+        false
+    }
+};</code></pre></div></div></details></section></div></main></body></html>
