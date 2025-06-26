@@ -238,7 +238,7 @@
 <a href=#238 id=238 data-nosnippet>238</a>/// can never own a FdbAddress directly, you can only have references to it.
 <a href=#239 id=239 data-nosnippet>239</a>/// This way, you can never obtain a lifetime greater than the lifetime of the
 <a href=#240 id=240 data-nosnippet>240</a>/// slice that gave you access to it.
-<a href=#241 id=241 data-nosnippet>241</a></span><span class="attr">#[repr(packed)]
+<a href=#241 id=241 data-nosnippet>241</a></span><span class="attr">#[repr(C, packed)]
 <a href=#242 id=242 data-nosnippet>242</a></span><span class="kw">pub struct </span>FdbAddress {
 <a href=#243 id=243 data-nosnippet>243</a>    c_str: <span class="kw-2">*const </span>c_char,
 <a href=#244 id=244 data-nosnippet>244</a>}
@@ -446,7 +446,7 @@
 <a href=#446 id=446 data-nosnippet>446</a>/// can never own a FdbKeyValue directly, you can only have references to it.
 <a href=#447 id=447 data-nosnippet>447</a>/// This way, you can never obtain a lifetime greater than the lifetime of the
 <a href=#448 id=448 data-nosnippet>448</a>/// slice that gave you access to it.
-<a href=#449 id=449 data-nosnippet>449</a></span><span class="attr">#[repr(packed)]
+<a href=#449 id=449 data-nosnippet>449</a></span><span class="attr">#[repr(C, packed)]
 <a href=#450 id=450 data-nosnippet>450</a></span><span class="kw">pub struct </span>FdbKeyValue(fdb_sys::FDBKeyValue);
 <a href=#451 id=451 data-nosnippet>451</a>
 <a href=#452 id=452 data-nosnippet>452</a><span class="kw">impl </span>FdbKeyValue {

@@ -145,49 +145,50 @@
 <a href=#145 id=145 data-nosnippet>145</a>///    - Another separator (`/`).
 <a href=#146 id=146 data-nosnippet>146</a>///    - Two `ChunkField`s representing chunk number and total chunks.
 <a href=#147 id=147 data-nosnippet>147</a>///    - A final separator (`/`).
-<a href=#148 id=148 data-nosnippet>148</a>/// Parsing converts this data into a `ParsedKey` structure which represents
-<a href=#149 id=149 data-nosnippet>149</a>/// the fields and their respective values in a structured format.
-<a href=#150 id=150 data-nosnippet>150</a>///
-<a href=#151 id=151 data-nosnippet>151</a>/// # Errors
-<a href=#152 id=152 data-nosnippet>152</a>///
-<a href=#153 id=153 data-nosnippet>153</a>/// This function can return errors in cases such as:
-<a href=#154 id=154 data-nosnippet>154</a>/// - Invalid format of the provided key.
-<a href=#155 id=155 data-nosnippet>155</a>/// - Failure to read the key's fields due to incorrect key length or content.
-<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">pub async fn </span>parse_key(key: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ProfilingParsedKey, Box&lt;<span class="kw">dyn </span>Error + Send + Sync&gt;&gt; {
-<a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">let </span><span class="kw-2">mut </span>scanner = Scanner::new(key);
-<a href=#158 id=158 data-nosnippet>158</a>    scanner.bump_by(PROFILE_PREFIX.len());
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">let </span>version = Version::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#160 id=160 data-nosnippet>160</a>    scanner.bump_by(SEPARATOR_BYTES_SIZE);
-<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">let </span>transaction_id = TransactionId::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#162 id=162 data-nosnippet>162</a>    scanner.bump_by(SEPARATOR_BYTES_SIZE);
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">let </span>chunk_number = ChunkField::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>.<span class="number">0</span>;
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">let </span>chunk_total = ChunkField::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>.<span class="number">0</span>;
-<a href=#165 id=165 data-nosnippet>165</a>    scanner.bump_by(SEPARATOR_BYTES_SIZE);
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">let </span>parsed_key = ProfilingParsedKey::new(version, transaction_id, chunk_number, chunk_total);
-<a href=#168 id=168 data-nosnippet>168</a>
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="prelude-val">Ok</span>(parsed_key)
-<a href=#170 id=170 data-nosnippet>170</a>}
-<a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a><span class="attr">#[cfg(test)]
-<a href=#173 id=173 data-nosnippet>173</a></span><span class="kw">mod </span>tests {
-<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="attr">#[tokio::test]
-<a href=#176 id=176 data-nosnippet>176</a>    </span><span class="kw">async fn </span>test_parse_key() {
-<a href=#177 id=177 data-nosnippet>177</a>        <span class="kw">let </span>key = <span class="string">b"\xff\x02/fdbClientInfo/client_latency/\x19\x5a\x63\xa7\x00\x2f\x3b\xa1\xd8\x00/\x5a\x0c\xd7\xad\x1f\x66\x2c\xb4\xa6\x72\xdb\x45\x3a\x68\xf5\xc1/\x00\x00\x00\x01\x00\x00\x00\x03"</span>;
-<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span>parsed_key = parse_key(key).<span class="kw">await</span>.expect(<span class="string">"Unable to parse key"</span>);
-<a href=#179 id=179 data-nosnippet>179</a>        <span class="macro">assert_eq!</span>(
-<a href=#180 id=180 data-nosnippet>180</a>            parsed_key.transaction_id.<span class="number">0</span>,
-<a href=#181 id=181 data-nosnippet>181</a>            [
-<a href=#182 id=182 data-nosnippet>182</a>                <span class="number">0x5a</span>, <span class="number">0x0c</span>, <span class="number">0xd7</span>, <span class="number">0xad</span>, <span class="number">0x1f</span>, <span class="number">0x66</span>, <span class="number">0x2c</span>, <span class="number">0xb4</span>, <span class="number">0xa6</span>, <span class="number">0x72</span>, <span class="number">0xdb</span>, <span class="number">0x45</span>, <span class="number">0x3a</span>, <span class="number">0x68</span>,
-<a href=#183 id=183 data-nosnippet>183</a>                <span class="number">0xf5</span>, <span class="number">0xc1
-<a href=#184 id=184 data-nosnippet>184</a>            </span>]
-<a href=#185 id=185 data-nosnippet>185</a>        );
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="macro">assert_eq!</span>(
-<a href=#187 id=187 data-nosnippet>187</a>            parsed_key.version.<span class="number">0</span>.transaction_version(),
-<a href=#188 id=188 data-nosnippet>188</a>            <span class="string">b"\x19\x5a\x63\xa7\x00\x2f\x3b\xa1\xd8\x00"
-<a href=#189 id=189 data-nosnippet>189</a>        </span>);
-<a href=#190 id=190 data-nosnippet>190</a>        <span class="macro">assert_eq!</span>(parsed_key.current_chunk, <span class="number">1</span>);
-<a href=#191 id=191 data-nosnippet>191</a>        <span class="macro">assert_eq!</span>(parsed_key.total_chunk, <span class="number">3</span>);
-<a href=#192 id=192 data-nosnippet>192</a>    }
-<a href=#193 id=193 data-nosnippet>193</a>}</code></pre></div></section></main></body></html>
+<a href=#148 id=148 data-nosnippet>148</a>///
+<a href=#149 id=149 data-nosnippet>149</a>/// Parsing converts this data into a `ParsedKey` structure which represents
+<a href=#150 id=150 data-nosnippet>150</a>/// the fields and their respective values in a structured format.
+<a href=#151 id=151 data-nosnippet>151</a>///
+<a href=#152 id=152 data-nosnippet>152</a>/// # Errors
+<a href=#153 id=153 data-nosnippet>153</a>///
+<a href=#154 id=154 data-nosnippet>154</a>/// This function can return errors in cases such as:
+<a href=#155 id=155 data-nosnippet>155</a>/// - Invalid format of the provided key.
+<a href=#156 id=156 data-nosnippet>156</a>/// - Failure to read the key's fields due to incorrect key length or content.
+<a href=#157 id=157 data-nosnippet>157</a></span><span class="kw">pub async fn </span>parse_key(key: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ProfilingParsedKey, Box&lt;<span class="kw">dyn </span>Error + Send + Sync&gt;&gt; {
+<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">let </span><span class="kw-2">mut </span>scanner = Scanner::new(key);
+<a href=#159 id=159 data-nosnippet>159</a>    scanner.bump_by(PROFILE_PREFIX.len());
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">let </span>version = Version::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#161 id=161 data-nosnippet>161</a>    scanner.bump_by(SEPARATOR_BYTES_SIZE);
+<a href=#162 id=162 data-nosnippet>162</a>    <span class="kw">let </span>transaction_id = TransactionId::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#163 id=163 data-nosnippet>163</a>    scanner.bump_by(SEPARATOR_BYTES_SIZE);
+<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">let </span>chunk_number = ChunkField::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>.<span class="number">0</span>;
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">let </span>chunk_total = ChunkField::parse(<span class="kw-2">&amp;mut </span>scanner).<span class="kw">await</span><span class="question-mark">?</span>.<span class="number">0</span>;
+<a href=#166 id=166 data-nosnippet>166</a>    scanner.bump_by(SEPARATOR_BYTES_SIZE);
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">let </span>parsed_key = ProfilingParsedKey::new(version, transaction_id, chunk_number, chunk_total);
+<a href=#169 id=169 data-nosnippet>169</a>
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="prelude-val">Ok</span>(parsed_key)
+<a href=#171 id=171 data-nosnippet>171</a>}
+<a href=#172 id=172 data-nosnippet>172</a>
+<a href=#173 id=173 data-nosnippet>173</a><span class="attr">#[cfg(test)]
+<a href=#174 id=174 data-nosnippet>174</a></span><span class="kw">mod </span>tests {
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="attr">#[tokio::test]
+<a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">async fn </span>test_parse_key() {
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span>key = <span class="string">b"\xff\x02/fdbClientInfo/client_latency/\x19\x5a\x63\xa7\x00\x2f\x3b\xa1\xd8\x00/\x5a\x0c\xd7\xad\x1f\x66\x2c\xb4\xa6\x72\xdb\x45\x3a\x68\xf5\xc1/\x00\x00\x00\x01\x00\x00\x00\x03"</span>;
+<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>parsed_key = parse_key(key).<span class="kw">await</span>.expect(<span class="string">"Unable to parse key"</span>);
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="macro">assert_eq!</span>(
+<a href=#181 id=181 data-nosnippet>181</a>            parsed_key.transaction_id.<span class="number">0</span>,
+<a href=#182 id=182 data-nosnippet>182</a>            [
+<a href=#183 id=183 data-nosnippet>183</a>                <span class="number">0x5a</span>, <span class="number">0x0c</span>, <span class="number">0xd7</span>, <span class="number">0xad</span>, <span class="number">0x1f</span>, <span class="number">0x66</span>, <span class="number">0x2c</span>, <span class="number">0xb4</span>, <span class="number">0xa6</span>, <span class="number">0x72</span>, <span class="number">0xdb</span>, <span class="number">0x45</span>, <span class="number">0x3a</span>, <span class="number">0x68</span>,
+<a href=#184 id=184 data-nosnippet>184</a>                <span class="number">0xf5</span>, <span class="number">0xc1
+<a href=#185 id=185 data-nosnippet>185</a>            </span>]
+<a href=#186 id=186 data-nosnippet>186</a>        );
+<a href=#187 id=187 data-nosnippet>187</a>        <span class="macro">assert_eq!</span>(
+<a href=#188 id=188 data-nosnippet>188</a>            parsed_key.version.<span class="number">0</span>.transaction_version(),
+<a href=#189 id=189 data-nosnippet>189</a>            <span class="string">b"\x19\x5a\x63\xa7\x00\x2f\x3b\xa1\xd8\x00"
+<a href=#190 id=190 data-nosnippet>190</a>        </span>);
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="macro">assert_eq!</span>(parsed_key.current_chunk, <span class="number">1</span>);
+<a href=#192 id=192 data-nosnippet>192</a>        <span class="macro">assert_eq!</span>(parsed_key.total_chunk, <span class="number">3</span>);
+<a href=#193 id=193 data-nosnippet>193</a>    }
+<a href=#194 id=194 data-nosnippet>194</a>}</code></pre></div></section></main></body></html>

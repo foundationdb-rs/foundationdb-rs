@@ -16,13 +16,13 @@
 <a href=#16 id=16 data-nosnippet>16</a>//! Assignment has two stages that are executed in a loop until they both succeed.
 <a href=#17 id=17 data-nosnippet>17</a>//!
 <a href=#18 id=18 data-nosnippet>18</a>//! 1. Find the current window. The client scans "counters : *" to get the current "window_start" and how many allocations have been made in the current window.
-<a href=#19 id=19 data-nosnippet>19</a>//!      If the window is more than half-full (using pre-defined window sizes), the window is advanced: "counters : *" and "recents : *" are both cleared, and a new "counters : window_start + window_size" key is created with a value of 0. (1) is retried
-<a href=#20 id=20 data-nosnippet>20</a>//!      If the window still has space, it moves to (2).
+<a href=#19 id=19 data-nosnippet>19</a>//!    If the window is more than half-full (using pre-defined window sizes), the window is advanced: "counters : *" and "recents : *" are both cleared, and a new "counters : window_start + window_size" key is created with a value of 0. (1) is retried
+<a href=#20 id=20 data-nosnippet>20</a>//!    If the window still has space, it moves to (2).
 <a href=#21 id=21 data-nosnippet>21</a>//!
 <a href=#22 id=22 data-nosnippet>22</a>//! 2. Find a candidate value inside that window. The client picks a candidate number between "[window_start, window_start + window_size)" and tries to set the key "recents : candidate".
-<a href=#23 id=23 data-nosnippet>23</a>//!      If the write succeeds, the candidate is returned as the allocated value. Success!
-<a href=#24 id=24 data-nosnippet>24</a>//!      If the write fails because the window has been advanced, it repeats (1).
-<a href=#25 id=25 data-nosnippet>25</a>//!      If the write fails because the value was already set, it repeats (2).
+<a href=#23 id=23 data-nosnippet>23</a>//!    If the write succeeds, the candidate is returned as the allocated value. Success!
+<a href=#24 id=24 data-nosnippet>24</a>//!    If the write fails because the window has been advanced, it repeats (1).
+<a href=#25 id=25 data-nosnippet>25</a>//!    If the write fails because the value was already set, it repeats (2).
 <a href=#26 id=26 data-nosnippet>26</a>
 <a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">use </span>std::fmt;
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>std::sync::{Mutex, PoisonError};
