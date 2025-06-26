@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Similar to `cfg_api_versions` proc-macro, but as a regular macro. Unlike proc-macros which are unstable on expressions and non-inlined modules, `if_cfg_api_versions` can be used on these places."><title>if_cfg_api_versions in foundationdb_sys - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="foundationdb_sys" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0 (17067e9ac 2025-05-09)" data-channel="1.87.0" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../static.files/storage-82c7156e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../foundationdb_sys/index.html">foundationdb_<wbr>sys</a><span class="version">0.9.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">if_<wbr>cfg_<wbr>api_<wbr>versions</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#constraints" title="Constraints:">Constraints:</a></li><li><a href="#behavior" title="Behavior">Behavior</a><ul><li><a href="#single-statement" title="Single statement">Single statement</a></li><li><a href="#muliple-statements" title="Muliple statements">Muliple statements</a></li><li><a href="#single-item-eg-mod-fn-etc" title="Single Item (e.g., `mod`, `fn`, etc.)">Single Item (e.g., <code>mod</code>, <code>fn</code>, etc.)</a></li><li><a href="#multiple-items-not-recommanded" title="Multiple Items: NOT RECOMMANDED">Multiple Items: NOT RECOMMANDED</a></li><li><a href="#ifelse" title="If/Else">If/Else</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate foundationdb_<wbr>sys</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">foundationdb_sys</a></div><h1>Macro <span class="macro">if_cfg_api_versions</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/foundationdb_sys/lib.rs.html#239-249">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! if_cfg_api_versions {
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Similar to `cfg_api_versions` proc-macro, but as a regular macro. Unlike proc-macros which are unstable on expressions and non-inlined modules, `if_cfg_api_versions` can be used on these places."><title>if_cfg_api_versions in foundationdb_sys - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="foundationdb_sys" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0 (17067e9ac 2025-05-09)" data-channel="1.87.0" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../static.files/storage-82c7156e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../foundationdb_sys/index.html">foundationdb_<wbr>sys</a><span class="version">0.9.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">if_<wbr>cfg_<wbr>api_<wbr>versions</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#constraints" title="Constraints:">Constraints:</a></li><li><a href="#behavior" title="Behavior">Behavior</a><ul><li><a href="#single-statement" title="Single statement">Single statement</a></li><li><a href="#muliple-statements" title="Muliple statements">Muliple statements</a></li><li><a href="#single-item-eg-mod-fn-etc" title="Single Item (e.g., `mod`, `fn`, etc.)">Single Item (e.g., <code>mod</code>, <code>fn</code>, etc.)</a></li><li><a href="#multiple-items-not-recommanded" title="Multiple Items: NOT RECOMMANDED">Multiple Items: NOT RECOMMANDED</a></li><li><a href="#ifelse" title="If/Else">If/Else</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate foundationdb_<wbr>sys</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">foundationdb_sys</a></div><h1>Macro <span class="macro">if_cfg_api_versions</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/foundationdb_sys/lib.rs.html#239-250">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! if_cfg_api_versions {
     ($($k:tt = $v:tt),+ =&gt; $a:stmt; $($b:stmt)+) =&gt; { ... };
     (
         min = 510, max = 520 $(, feature = $feature:literal)* =&gt; {
@@ -41,6 +41,11 @@
     ) =&gt; { ... };
     (min = 510, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 510, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 510, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 520, max = 600 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
@@ -76,6 +81,11 @@
     ) =&gt; { ... };
     (min = 520, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 520, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 520, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 600, max = 610 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
@@ -106,6 +116,11 @@
     ) =&gt; { ... };
     (min = 600, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 600, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 600, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 610, max = 620 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
@@ -131,6 +146,11 @@
     ) =&gt; { ... };
     (min = 610, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 610, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 610, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 620, max = 630 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
@@ -151,6 +171,11 @@
     ) =&gt; { ... };
     (min = 620, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 620, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 620, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 630, max = 700 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
@@ -166,6 +191,11 @@
     ) =&gt; { ... };
     (min = 630, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 630, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 630, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 700, max = 710 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
@@ -176,10 +206,25 @@
     ) =&gt; { ... };
     (min = 700, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 700, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 700, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         min = 710, max = 730 $(, feature = $feature:literal)* =&gt; {
         $($then:tt)* } else { $($r#else:tt)* }
     ) =&gt; { ... };
     (min = 710, max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 710, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 710, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        min = 730, max = 740 $(, feature = $feature:literal)* =&gt; {
+        $($then:tt)* } else { $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 730, max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
         min = 510 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
         $($r#else:tt)* }
@@ -226,6 +271,11 @@
     ) =&gt; { ... };
     (min = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (
+        min = 740 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (min = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
         max = 510 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
         $($r#else:tt)* }
     ) =&gt; { ... };
@@ -270,6 +320,11 @@
         $($r#else:tt)* }
     ) =&gt; { ... };
     (max = 730 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
+    (
+        max = 740 $(, feature = $feature:literal)* =&gt; { $($then:tt)* } else {
+        $($r#else:tt)* }
+    ) =&gt; { ... };
+    (max = 740 $(, feature = $feature:literal)* =&gt; $($then:tt)*) =&gt; { ... };
     (min = $min:tt, max = $max:tt $(, feature = $feature:literal)* =&gt; $($t:tt)*) =&gt; { ... };
     (min = $min:tt $(, feature = $feature:literal)* =&gt; $($t:tt)*) =&gt; { ... };
     (max = $max:tt $(, feature = $feature:literal)* =&gt; $($t:tt)*) =&gt; { ... };
