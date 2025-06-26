@@ -16,13 +16,13 @@
 //! Assignment has two stages that are executed in a loop until they both succeed.
 //!
 //! 1. Find the current window. The client scans "counters : *" to get the current "window_start" and how many allocations have been made in the current window.
-//!      If the window is more than half-full (using pre-defined window sizes), the window is advanced: "counters : *" and "recents : *" are both cleared, and a new "counters : window_start + window_size" key is created with a value of 0. (1) is retried
-//!      If the window still has space, it moves to (2).
+//!    If the window is more than half-full (using pre-defined window sizes), the window is advanced: "counters : *" and "recents : *" are both cleared, and a new "counters : window_start + window_size" key is created with a value of 0. (1) is retried
+//!    If the window still has space, it moves to (2).
 //!
 //! 2. Find a candidate value inside that window. The client picks a candidate number between "[window_start, window_start + window_size)" and tries to set the key "recents : candidate".
-//!      If the write succeeds, the candidate is returned as the allocated value. Success!
-//!      If the write fails because the window has been advanced, it repeats (1).
-//!      If the write fails because the value was already set, it repeats (2).
+//!    If the write succeeds, the candidate is returned as the allocated value. Success!
+//!    If the write fails because the window has been advanced, it repeats (1).
+//!    If the write fails because the value was already set, it repeats (2).
 
 use std::fmt;
 use std::sync::{Mutex, PoisonError};

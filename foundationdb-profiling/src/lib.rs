@@ -51,9 +51,9 @@ pub const PROFILE_PREFIX: &[u8; 32] = b"\xff\x02/fdbClientInfo/client_latency/";
 ///
 /// * `trx` - A reference to the FoundationDB `Transaction` used for fetching data.
 /// * `start_read_version` - An optional lower bound read version. If provided, only events
-///                          occurring at or after this version are fetched.
+///   occurring at or after this version are fetched.
 /// * `end_read_version` - An optional upper bound read version. If provided, only events
-///                        occurring before this version are fetched.
+///   occurring before this version are fetched.
 ///
 /// # Returns
 ///
