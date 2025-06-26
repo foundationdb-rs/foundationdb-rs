@@ -17,7 +17,7 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
-          version: "7.3.27"
+          version: "7.4.3"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -28,10 +28,10 @@ jobs:
         run: cargo install cargo-msrv
       
       - name: Find MSRV
-        run: cargo msrv find -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
+        run: cargo msrv find -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4 --no-default-features
         working-directory: ./foundationdb
 
       - name: Verify MSRV
-        run: cargo msrv verify -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3 --no-default-features
+        run: cargo msrv verify -- cargo check --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4 --no-default-features
         working-directory: ./foundationdb
 

@@ -5,12 +5,17 @@ fn main() {
 
     #[cfg(feature = "fdb-7_1")]
     {
-        api_version = String::from("710");
+        api_version = "710";
     }
 
     #[cfg(feature = "fdb-7_3")]
     {
-        api_version = String::from("730");
+        api_version = "730";
+    }
+
+    #[cfg(feature = "fdb-7_4")]
+    {
+        api_version = "740";
     }
 
     #[cfg(feature = "fdb-7_3")]
