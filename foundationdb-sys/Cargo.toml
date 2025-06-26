@@ -23,7 +23,7 @@ categories = ["database"]
 license = "MIT/Apache-2.0"
 
 [package.metadata.docs.rs]
-features = ["embedded-fdb-include", "fdb-7_3"]
+features = ["embedded-fdb-include", "fdb-7_4"]
 
 [badges]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
@@ -41,6 +41,7 @@ fdb-6_3 = []
 fdb-7_0 = []
 fdb-7_1 = []
 fdb-7_3 = []
+fdb-7_4 = []
 
 [dependencies]
 libc = "0.2"

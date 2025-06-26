@@ -24,7 +24,7 @@ jobs:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
-          version: "7.3.27"
+          version: "7.4.3"
 
       # Setting up a fixed Python version because of https://github.com/foundationdb-rs/foundationdb-rs/issues/226
       - name: Setup fixed Python version
@@ -51,7 +51,7 @@ jobs:
         run: source <(cargo llvm-cov show-env --export-prefix) && cargo build -p bindingtester
 
       - name: Test main crate
-        run: source <(cargo llvm-cov show-env --export-prefix) && cargo test -p foundationdb --tests --no-fail-fast --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
+        run: source <(cargo llvm-cov show-env --export-prefix) && cargo test -p foundationdb --tests --no-fail-fast --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/debug/bindingtester

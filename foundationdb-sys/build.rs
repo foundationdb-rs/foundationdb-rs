@@ -30,6 +30,8 @@ const INCLUDE_PATH: &str = "./include/700";
 const INCLUDE_PATH: &str = "./include/710";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_3"))]
 const INCLUDE_PATH: &str = "./include/730";
+#[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_4"))]
+const INCLUDE_PATH: &str = "./include/740";
 
 fn main() {
     // Link against fdb_c.
@@ -88,6 +90,10 @@ fn main() {
     #[cfg(feature = "fdb-7_3")]
     {
         api_version = 730;
+    }
+    #[cfg(feature = "fdb-7_4")]
+    {
+        api_version = 740;
     }
 
     let bindings = bindgen::Builder::default()

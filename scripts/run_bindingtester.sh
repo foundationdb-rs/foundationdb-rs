@@ -2,7 +2,7 @@
 
 set -ex;
 
-fdb_api_version=730
+fdb_api_version=740
 
 fdb_rs_dir=$(pwd)
 fdb_builddir=${fdb_rs_dir:?}/target/foundationdb_build

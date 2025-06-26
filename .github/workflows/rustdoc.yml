@@ -18,7 +18,7 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
-          version: "7.3.27"
+          version: "7.4.3"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -26,7 +26,7 @@ jobs:
           toolchain: stable
 
       - name: Build Documentation
-        run: cargo doc --no-deps --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_3
+        run: cargo doc --no-deps --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
 
       - name: Deploy Docs
         uses: peaceiris/actions-gh-pages@v4

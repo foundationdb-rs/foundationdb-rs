@@ -93,6 +93,7 @@ fn get_supported_feature_range(minimum_version: i32, maximum_version: Option<i32
 // TODO: Should we import something like lazy_static?
 fn get_version_mapping() -> HashMap<String, i32> {
     let mut version_mapping = HashMap::with_capacity(9);
+    version_mapping.insert("fdb-7_4".into(), 740);
     version_mapping.insert("fdb-7_3".into(), 730);
     version_mapping.insert("fdb-7_1".into(), 710);
     version_mapping.insert("fdb-7_0".into(), 700);
@@ -140,10 +141,11 @@ mod tests {
     #[test]
     fn test_create_supported_list() {
         let v = get_supported_feature_range(700, None);
-        assert_eq!(v.len(), 3);
+        assert_eq!(v.len(), 4);
         assert!(v.contains(&String::from("fdb-7_0")));
         assert!(v.contains(&String::from("fdb-7_1")));
         assert!(v.contains(&String::from("fdb-7_3")));
+        assert!(v.contains(&String::from("fdb-7_4")));
 
         let v = get_supported_feature_range(600, Some(700));
         assert_eq!(v.len(), 5);
@@ -162,7 +164,8 @@ mod tests {
         assert!(v.contains(&String::from("fdb-5_0")));
 
         let v = get_supported_feature_range(500, None);
-        assert_eq!(v.len(), 10);
+        assert_eq!(v.len(), 11);
+        assert!(v.contains(&String::from("fdb-7_4")));
         assert!(v.contains(&String::from("fdb-7_3")));
         assert!(v.contains(&String::from("fdb-7_1")));
         assert!(v.contains(&String::from("fdb-7_0")));
@@ -195,6 +198,7 @@ mod tests {
             feature = "fdb-7_0",
             feature = "fdb-7_1",
             feature = "fdb-7_3"
+            feature = "fdb-7_4"
         );
 
         let attrs = quote!(min = 700);
@@ -245,6 +249,7 @@ mod tests {
             feature = "fdb-7_0",
             feature = "fdb-7_1",
             feature = "fdb-7_3"
+            feature = "fdb-7_4"
         );
 
         let attrs = quote!(min = 500);

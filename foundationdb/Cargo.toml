@@ -22,7 +22,7 @@ keywords = ["foundationdb", "kv"]
 categories = ["database"]
 
 [package.metadata.docs.rs]
-features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
+features = ["embedded-fdb-include", "fdb-7_4", "uuid"]
 
 [badges]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
@@ -45,6 +45,7 @@ fdb-6_3 = ["foundationdb-sys/fdb-6_3", "foundationdb-gen/fdb-6_3"]
 fdb-7_0 = ["foundationdb-sys/fdb-7_0", "foundationdb-gen/fdb-7_0"]
 fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1", "serde", "serde_json", "serde_bytes"]
 fdb-7_3 = ["foundationdb-sys/fdb-7_3", "foundationdb-gen/fdb-7_3", "serde", "serde_json", "serde_bytes"]
+fdb-7_4 = ["foundationdb-sys/fdb-7_4", "foundationdb-gen/fdb-7_4", "serde", "serde_json", "serde_bytes"]
 tenant-experimental = []
 
 [build-dependencies]
