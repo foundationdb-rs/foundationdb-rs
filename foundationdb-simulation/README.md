@@ -279,7 +279,7 @@ Those 3 phases are run in order for all workloads. All workloads have to finish 
 next one to start. Those phases are run asynchronously in the simulator and a workload indicates
 it has finish by sending a boolean in its `done` promise.
 
-An important thing to understand is that **any code you write is blocking**. To ensure that the 
+An important thing to understand is that **any code you write is blocking**. To ensure that the
 simulation is determinist and repeatable, any time your code is running the fdbserver waits.
 In other words, you **have** to hand the execution over to the fdbserver for anything to happen
 on the database. To make it clear, this won't work:
@@ -384,7 +384,7 @@ Indirectly using a pointer to the workload or to the database after resolving `d
 behavior. Resolving `done` should be the very last thing you do in a phase, it indicates to the
 fdbserver that you are finished and many structures may be relocated in memory, so you no longer
 have any garantee on the validity of any object on the Rust side. You must wait for the next phase
-and use the new references to `self` and `db` you are given. For this reason don't try to store 
+and use the new references to `self` and `db` you are given. For this reason don't try to store
 `RustWorkload`, `SimDatabase`, `Promise` instances or any object created through foundation-rs
 bindings (transactions, futures...) as using them accross phases will most certainly result in a
 segmentation fault.

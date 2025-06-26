@@ -67,7 +67,7 @@ impl TryFrom<FdbFutureHandle> for MappedKeyValues {
     }
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 /// A KeyValue produced by a mapped operation, ownder by a Foundation Future.
 pub struct FdbMappedKeyValue(fdb_sys::FDBMappedKeyValue);
 

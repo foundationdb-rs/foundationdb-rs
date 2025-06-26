@@ -238,7 +238,7 @@ impl AsRef<[FdbAddress]> for FdbAddresses {
 /// can never own a FdbAddress directly, you can only have references to it.
 /// This way, you can never obtain a lifetime greater than the lifetime of the
 /// slice that gave you access to it.
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct FdbAddress {
     c_str: *const c_char,
 }
@@ -446,7 +446,7 @@ impl fmt::Debug for FdbValue {
 /// can never own a FdbKeyValue directly, you can only have references to it.
 /// This way, you can never obtain a lifetime greater than the lifetime of the
 /// slice that gave you access to it.
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct FdbKeyValue(fdb_sys::FDBKeyValue);
 
 impl FdbKeyValue {

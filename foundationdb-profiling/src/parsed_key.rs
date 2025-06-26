@@ -145,6 +145,7 @@ impl Debug for ProfilingParsedKey {
 ///    - Another separator (`/`).
 ///    - Two `ChunkField`s representing chunk number and total chunks.
 ///    - A final separator (`/`).
+///
 /// Parsing converts this data into a `ParsedKey` structure which represents
 /// the fields and their respective values in a structured format.
 ///

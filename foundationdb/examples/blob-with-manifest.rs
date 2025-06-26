@@ -71,7 +71,7 @@ use uuid::Uuid;
 ///     \x00 <= 2 < \xff
 ///     ...
 ///     \x00 <= n < \xff
-///     
+///
 ///
 /// Thus foundation DB will retrieve keys/values:
 ///

@@ -155,7 +155,7 @@ impl fmt::Debug for FdbRowKey {
     }
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 /// An FdbKey, owned by a FoundationDB Future
 pub struct FdbKey(fdb_sys::FDBKey);
 

@@ -82,7 +82,6 @@ impl<'a> Deref for Scanner<'a> {
 /// // Accessing a Cursor method directly via the Scanner instance
 /// assert_eq!(scanner.position(), 0);
 /// ```
-
 impl<'a> DerefMut for Scanner<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.cursor
