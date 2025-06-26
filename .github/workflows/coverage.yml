@@ -10,7 +10,7 @@ on:
 jobs:
   codecov:
     name: Code coverage
-    # We are skipping coverage if the PR is coming from dependabot, 
+    # We are skipping coverage if the PR is coming from dependabot,
     # mostly because of https://github.com/dependabot/dependabot-core/issues/3253#issuecomment-852541544
     if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest

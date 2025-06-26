@@ -15,7 +15,7 @@ Support for different platforms ("targets") are organized into three tiers, each
 |----------------|--------|-------------------------------------------------------------------------------------------------------------------------------------|
 | linux x86_64   | 1      |                                                                                                                                     |
 | osx x86_64     | 2      |                                                                                                                                     |
-| osx Silicon 	 | 2      |                                                                                                                                     |
+| osx Silicon    | 2      |                                                                                                                                     |
 | Windows x86_64 | 3      | [Windows build has been officially discontinue, now maintained by the community](https://github.com/apple/foundationdb/issues/5135) |
 
 For more information on the policies for targets at each tier, see the
@@ -130,17 +130,17 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
 
 ## Additional notes
 
-### The class-scheduling tutorial 
+### The class-scheduling tutorial
 
 The official FoundationDB's tutorial is called the [Class Scheduling](https://apple.github.io/foundationdb/class-scheduling.html). You can find the Rust version in the [examples](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples).
 
 ### The blob tutorial
 
-The official FoundationDB documentation provides also [another topic](https://apple.github.io/foundationdb/largeval.html#modeling-large-values) 
-which is further discussed inside a [design recipe](https://apple.github.io/foundationdb/blob.html). 
-A Rust implementation can be found [here](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob.rs). 
+The official FoundationDB documentation provides also [another topic](https://apple.github.io/foundationdb/largeval.html#modeling-large-values)
+which is further discussed inside a [design recipe](https://apple.github.io/foundationdb/blob.html).
+A Rust implementation can be found [here](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob.rs).
 
-Another [example](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob-with-manifest.rs), 
+Another [example](https://github.com/foundationdb-rs/foundationdb-rs/tree/main/foundationdb/examples/blob-with-manifest.rs),
 explores how to use subspaces to attach metadata to our blob.
 
 ### Must-read documentations

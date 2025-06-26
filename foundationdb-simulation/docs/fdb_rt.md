@@ -143,7 +143,7 @@ To sum up what happened until now:
   - registers our `Waker` into an `AtomicWaker` (cloning it in the process)
   - set an `fdb_future_callback` as callback and the `AtomicWaker` as argument for the `FdbFutureHandle`
   - returns `Poll::Pending`
-- `fdbwaker_wake` decreases the ref count (because `decrease==true`) and returns 
+- `fdbwaker_wake` decreases the ref count (because `decrease==true`) and returns
 - `fdb_spawn` drops the `Waker`, decreasing the ref count
 
 ```

@@ -24,7 +24,7 @@ You can access the `main` branch documentation [here](https://foundationdb-rs.gi
 Supported platforms are listed on the [foundationdb's README](foundationdb/README.md).
 
 ## Develop with Nix
- 
+
 A flake.nix is provided to develop the bindings. We recommend add a cluster-file on the `configuration.nix` file:
 
 ```nix
