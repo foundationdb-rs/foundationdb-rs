@@ -12,7 +12,7 @@ do
   echo "Running iteration $i"
   echo "----------------------"
   echo "----------------------"
-  if ! fdbserver -r simulation -f foundationdb-simulation/examples/atomic/test_file.toml -b on --trace-format json; then
+  if ! fdbserver -r simulation -f foundationdb-simulation/examples/atomic/test_file_73.toml -b on --trace-format json; then
       cat trace*.json | grep Rust
       exit 1;
   else
