@@ -1,8 +1,3 @@
-//! FoundationDB-workload module
-//!
-//! This module provides all necessary bindings for a FoundationDB's [ExternalWorkload](https://apple.github.io/foundationdb/client-testing.html#simulation-and-cluster-workloads)
-//! under a Rust trait, as well as a way to register a Workload in the simulation.
-
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 

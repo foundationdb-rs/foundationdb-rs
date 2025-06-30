@@ -40,18 +40,6 @@ where
 }
 
 /// Macro that can be used to create log "details" more easily.
-///
-/// ```rs
-/// let details1 = &[
-///     ("key1".into(), "val1".into()),
-///     ("key2".into(), format!("key{}", 2)),
-/// ];
-/// let details2 = details[
-///     "key1" => "val1",
-///     "key2" => format!("key{}", 2),
-/// ];
-/// assert_eq!(details1, details2);
-/// ```
 #[macro_export]
 macro_rules! details {
     ($($k:expr => $v:expr),* $(,)?) => {
