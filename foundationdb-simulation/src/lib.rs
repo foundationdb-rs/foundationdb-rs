@@ -31,16 +31,14 @@ pub trait RustWorkload {
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    /// * `done` - A promise that should be resolved to indicate completion
-    fn setup(&'static mut self, db: Database, done: Promise);
+    async fn setup(&mut self, db: Database);
 
     /// This method should run the actual test.
     ///
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    /// * `done` - A promise that should be resolved to indicate completion
-    fn start(&'static mut self, db: Database, done: Promise);
+    async fn start(&mut self, db: Database);
 
     /// This method is called when the tester completes.
     /// A workload should run any consistency/correctness tests during this phase.
@@ -48,8 +46,7 @@ pub trait RustWorkload {
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    /// * `done` - A promise that should be resolved to indicate completion
-    fn check(&'static mut self, db: Database, done: Promise);
+    async fn check(&mut self, db: Database);
 
     /// If a workload collects metrics (like latencies or throughput numbers), these should be reported back here.
     /// The multitester (or test orchestrator) will collect all metrics from all test clients and it will aggregate them.
@@ -97,7 +94,10 @@ unsafe extern "C" fn workload_setup<W: RustWorkload + 'static>(
     let workload = &mut *(raw_workload as *mut W);
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
-    workload.setup(database, done)
+    fdb_spawn(async move {
+        workload.setup(database).await;
+        done.send(true);
+    });
 }
 unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
@@ -107,7 +107,10 @@ unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     let workload = &mut *(raw_workload as *mut W);
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
-    workload.start(database, done)
+    fdb_spawn(async move {
+        workload.start(database).await;
+        done.send(true);
+    });
 }
 unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
@@ -117,7 +120,10 @@ unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     let workload = &mut *(raw_workload as *mut W);
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
-    workload.check(database, done)
+    fdb_spawn(async move {
+        workload.check(database).await;
+        done.send(true);
+    });
 }
 unsafe extern "C" fn workload_get_metrics<W: RustWorkload>(
     raw_workload: *mut OpaqueWorkload,
