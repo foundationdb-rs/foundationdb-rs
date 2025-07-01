@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"attr":["cfg_api_versions","simulation_entrypoint"]};
+window.SIDEBAR_ITEMS = {"attr":["cfg_api_versions"]};
