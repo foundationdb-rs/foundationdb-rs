@@ -1,0 +1,65 @@
+name: Simulation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  simulation73:
+    name: "Simulation 7.3"
+    runs-on: ubuntu-latest
+    steps:
+      - name: disk space
+        run: df -h /
+
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+
+      - name: disk space
+        run: df -h /
+
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: docker build
+        run: docker build -t simulation . -f foundationdb-simulation/examples/atomic/Dockerfile
+
+      - name: docker run
+        run: docker run --rm simulation
+
+  simulation74:
+    name: "Simulation 7.4"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup FoundationDB
+        uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
+        with:
+          version: "7.4.3"
+
+      - name: Enable tenant
+        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "stable"
+
+      - name: Build
+        run: cargo build -p foundationdb-simulation --release --example atomic --features fdb-7_4
+
+      - name: Test
+        run: fdbserver -r simulation -f foundationdb-simulation/examples/atomic/test_file_74.toml -b on --trace-format json
