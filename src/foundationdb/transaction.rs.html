@@ -186,7 +186,7 @@
 <a href=#186 id=186 data-nosnippet>186</a>}
 <a href=#187 id=187 data-nosnippet>187</a><span class="attr">#[inline]
 <a href=#188 id=188 data-nosnippet>188</a></span><span class="kw">fn </span>fdb_len(len: usize, context: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; std::os::raw::c_int {
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="macro">assert!</span>(len &lt;= i32::MAX <span class="kw">as </span>usize, <span class="string">"{}.len() &gt; i32::MAX"</span>, context);
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="macro">assert!</span>(len &lt;= i32::MAX <span class="kw">as </span>usize, <span class="string">"{context}.len() &gt; i32::MAX"</span>);
 <a href=#190 id=190 data-nosnippet>190</a>    len <span class="kw">as </span>i32
 <a href=#191 id=191 data-nosnippet>191</a>}
 <a href=#192 id=192 data-nosnippet>192</a><span class="attr">#[inline]

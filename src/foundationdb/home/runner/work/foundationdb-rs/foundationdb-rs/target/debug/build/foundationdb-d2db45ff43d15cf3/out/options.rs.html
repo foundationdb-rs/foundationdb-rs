@@ -225,11 +225,11 @@
 <a href=#225 id=225 data-nosnippet>225</a>
 <a href=#226 id=226 data-nosnippet>226</a>            }
 <a href=#227 id=227 data-nosnippet>227</a>            NetworkOption::TraceRollSize(v) =&gt; {
-<a href=#228 id=228 data-nosnippet>228</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#228 id=228 data-nosnippet>228</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#229 id=229 data-nosnippet>229</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#230 id=230 data-nosnippet>230</a>            }
 <a href=#231 id=231 data-nosnippet>231</a>            NetworkOption::TraceMaxLogsSize(v) =&gt; {
-<a href=#232 id=232 data-nosnippet>232</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#232 id=232 data-nosnippet>232</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#233 id=233 data-nosnippet>233</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#234 id=234 data-nosnippet>234</a>            }
 <a href=#235 id=235 data-nosnippet>235</a>            NetworkOption::TraceLogGroup(<span class="kw-2">ref </span>v) =&gt; {
@@ -285,11 +285,11 @@
 <a href=#285 id=285 data-nosnippet>285</a>            NetworkOption::BuggifyEnable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
 <a href=#286 id=286 data-nosnippet>286</a>            NetworkOption::BuggifyDisable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
 <a href=#287 id=287 data-nosnippet>287</a>            NetworkOption::BuggifySectionActivatedProbability(v) =&gt; {
-<a href=#288 id=288 data-nosnippet>288</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#288 id=288 data-nosnippet>288</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#289 id=289 data-nosnippet>289</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#290 id=290 data-nosnippet>290</a>            }
 <a href=#291 id=291 data-nosnippet>291</a>            NetworkOption::BuggifySectionFiredProbability(v) =&gt; {
-<a href=#292 id=292 data-nosnippet>292</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#292 id=292 data-nosnippet>292</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#293 id=293 data-nosnippet>293</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#294 id=294 data-nosnippet>294</a>            }
 <a href=#295 id=295 data-nosnippet>295</a>            NetworkOption::TLSCaBytes(<span class="kw-2">ref </span>v) =&gt; {
@@ -317,7 +317,7 @@
 <a href=#317 id=317 data-nosnippet>317</a>            }
 <a href=#318 id=318 data-nosnippet>318</a>            NetworkOption::DisableLocalClient =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
 <a href=#319 id=319 data-nosnippet>319</a>            NetworkOption::ClientThreadsPerVersion(v) =&gt; {
-<a href=#320 id=320 data-nosnippet>320</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#320 id=320 data-nosnippet>320</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#321 id=321 data-nosnippet>321</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#322 id=322 data-nosnippet>322</a>            }
 <a href=#323 id=323 data-nosnippet>323</a>            NetworkOption::FutureVersionClientLibrary(<span class="kw-2">ref </span>v) =&gt; {
@@ -334,11 +334,11 @@
 <a href=#334 id=334 data-nosnippet>334</a>            NetworkOption::ClientBuggifyEnable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
 <a href=#335 id=335 data-nosnippet>335</a>            NetworkOption::ClientBuggifyDisable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
 <a href=#336 id=336 data-nosnippet>336</a>            NetworkOption::ClientBuggifySectionActivatedProbability(v) =&gt; {
-<a href=#337 id=337 data-nosnippet>337</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#337 id=337 data-nosnippet>337</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#338 id=338 data-nosnippet>338</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#339 id=339 data-nosnippet>339</a>            }
 <a href=#340 id=340 data-nosnippet>340</a>            NetworkOption::ClientBuggifySectionFiredProbability(v) =&gt; {
-<a href=#341 id=341 data-nosnippet>341</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#341 id=341 data-nosnippet>341</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#342 id=342 data-nosnippet>342</a>                fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#343 id=343 data-nosnippet>343</a>            }
 <a href=#344 id=344 data-nosnippet>344</a>            NetworkOption::DistributedClientTracer(<span class="kw-2">ref </span>v) =&gt; {
@@ -443,11 +443,11 @@
 <a href=#443 id=443 data-nosnippet>443</a>        <span class="kw">let </span>code = <span class="self">self</span>.code();
 <a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>err = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
 <a href=#445 id=445 data-nosnippet>445</a>            DatabaseOption::LocationCacheSize(v) =&gt; {
-<a href=#446 id=446 data-nosnippet>446</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#446 id=446 data-nosnippet>446</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#447 id=447 data-nosnippet>447</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#448 id=448 data-nosnippet>448</a>            }
 <a href=#449 id=449 data-nosnippet>449</a>            DatabaseOption::MaxWatches(v) =&gt; {
-<a href=#450 id=450 data-nosnippet>450</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#450 id=450 data-nosnippet>450</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#451 id=451 data-nosnippet>451</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#452 id=452 data-nosnippet>452</a>            }
 <a href=#453 id=453 data-nosnippet>453</a>            DatabaseOption::MachineId(<span class="kw-2">ref </span>v) =&gt; {
@@ -461,23 +461,23 @@
 <a href=#461 id=461 data-nosnippet>461</a>            DatabaseOption::SnapshotRywEnable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#462 id=462 data-nosnippet>462</a>            DatabaseOption::SnapshotRywDisable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#463 id=463 data-nosnippet>463</a>            DatabaseOption::TransactionLoggingMaxFieldLength(v) =&gt; {
-<a href=#464 id=464 data-nosnippet>464</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#464 id=464 data-nosnippet>464</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#465 id=465 data-nosnippet>465</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#466 id=466 data-nosnippet>466</a>            }
 <a href=#467 id=467 data-nosnippet>467</a>            DatabaseOption::TransactionTimeout(v) =&gt; {
-<a href=#468 id=468 data-nosnippet>468</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#468 id=468 data-nosnippet>468</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#469 id=469 data-nosnippet>469</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#470 id=470 data-nosnippet>470</a>            }
 <a href=#471 id=471 data-nosnippet>471</a>            DatabaseOption::TransactionRetryLimit(v) =&gt; {
-<a href=#472 id=472 data-nosnippet>472</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#472 id=472 data-nosnippet>472</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#473 id=473 data-nosnippet>473</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#474 id=474 data-nosnippet>474</a>            }
 <a href=#475 id=475 data-nosnippet>475</a>            DatabaseOption::TransactionMaxRetryDelay(v) =&gt; {
-<a href=#476 id=476 data-nosnippet>476</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#476 id=476 data-nosnippet>476</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#477 id=477 data-nosnippet>477</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#478 id=478 data-nosnippet>478</a>            }
 <a href=#479 id=479 data-nosnippet>479</a>            DatabaseOption::TransactionSizeLimit(v) =&gt; {
-<a href=#480 id=480 data-nosnippet>480</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#480 id=480 data-nosnippet>480</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#481 id=481 data-nosnippet>481</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#482 id=482 data-nosnippet>482</a>            }
 <a href=#483 id=483 data-nosnippet>483</a>            DatabaseOption::TransactionCausalReadRisky =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -488,7 +488,7 @@
 <a href=#488 id=488 data-nosnippet>488</a>            DatabaseOption::TransactionReportConflictingKeys =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#489 id=489 data-nosnippet>489</a>            DatabaseOption::UseConfigDatabase =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#490 id=490 data-nosnippet>490</a>            DatabaseOption::TestCausalReadRisky(v) =&gt; {
-<a href=#491 id=491 data-nosnippet>491</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#491 id=491 data-nosnippet>491</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#492 id=492 data-nosnippet>492</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#493 id=493 data-nosnippet>493</a>            }
 <a href=#494 id=494 data-nosnippet>494</a>        };
@@ -718,24 +718,24 @@
 <a href=#718 id=718 data-nosnippet>718</a>            }
 <a href=#719 id=719 data-nosnippet>719</a>            TransactionOption::LogTransaction =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#720 id=720 data-nosnippet>720</a>            TransactionOption::TransactionLoggingMaxFieldLength(v) =&gt; {
-<a href=#721 id=721 data-nosnippet>721</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#721 id=721 data-nosnippet>721</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#722 id=722 data-nosnippet>722</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#723 id=723 data-nosnippet>723</a>            }
 <a href=#724 id=724 data-nosnippet>724</a>            TransactionOption::ServerRequestTracing =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#725 id=725 data-nosnippet>725</a>            TransactionOption::Timeout(v) =&gt; {
-<a href=#726 id=726 data-nosnippet>726</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#726 id=726 data-nosnippet>726</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#727 id=727 data-nosnippet>727</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#728 id=728 data-nosnippet>728</a>            }
 <a href=#729 id=729 data-nosnippet>729</a>            TransactionOption::RetryLimit(v) =&gt; {
-<a href=#730 id=730 data-nosnippet>730</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#730 id=730 data-nosnippet>730</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#731 id=731 data-nosnippet>731</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#732 id=732 data-nosnippet>732</a>            }
 <a href=#733 id=733 data-nosnippet>733</a>            TransactionOption::MaxRetryDelay(v) =&gt; {
-<a href=#734 id=734 data-nosnippet>734</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#734 id=734 data-nosnippet>734</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#735 id=735 data-nosnippet>735</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#736 id=736 data-nosnippet>736</a>            }
 <a href=#737 id=737 data-nosnippet>737</a>            TransactionOption::SizeLimit(v) =&gt; {
-<a href=#738 id=738 data-nosnippet>738</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#738 id=738 data-nosnippet>738</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#739 id=739 data-nosnippet>739</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#740 id=740 data-nosnippet>740</a>            }
 <a href=#741 id=741 data-nosnippet>741</a>            TransactionOption::AutomaticIdempotency =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -769,7 +769,7 @@
 <a href=#769 id=769 data-nosnippet>769</a>            }
 <a href=#770 id=770 data-nosnippet>770</a>            TransactionOption::EnableReplicaConsistencyCheck =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#771 id=771 data-nosnippet>771</a>            TransactionOption::ConsistencyCheckRequiredReplicas(v) =&gt; {
-<a href=#772 id=772 data-nosnippet>772</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = std::mem::transmute(v <span class="kw">as </span>i64);
+<a href=#772 id=772 data-nosnippet>772</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#773 id=773 data-nosnippet>773</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#774 id=774 data-nosnippet>774</a>            }
 <a href=#775 id=775 data-nosnippet>775</a>        };

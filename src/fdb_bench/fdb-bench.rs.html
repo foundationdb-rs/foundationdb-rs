@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>
 <a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span>sw = Stopwatch::start_new();
 <a href=#53 id=53 data-nosnippet>53</a>
-<a href=#54 id=54 data-nosnippet>54</a>        <span class="kw">let </span>step = (opt.queue_depth + opt.threads - <span class="number">1</span>) / opt.threads;
+<a href=#54 id=54 data-nosnippet>54</a>        <span class="kw">let </span>step = opt.queue_depth.div_ceil(opt.threads);
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">let </span><span class="kw-2">mut </span>start = <span class="number">0</span>;
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">for _ in </span><span class="number">0</span>..opt.threads {
 <a href=#57 id=57 data-nosnippet>57</a>            <span class="kw">let </span>end = std::cmp::min(start + step, opt.queue_depth);
@@ -143,7 +143,7 @@
 <a href=#143 id=143 data-nosnippet>143</a><span class="kw">fn </span>main() {
 <a href=#144 id=144 data-nosnippet>144</a>    env_logger::init();
 <a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">let </span>opt = Opt::from_args();
-<a href=#146 id=146 data-nosnippet>146</a>    <span class="macro">info!</span>(<span class="string">"opt: {:?}"</span>, opt);
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="macro">info!</span>(<span class="string">"opt: {opt:?}"</span>);
 <a href=#147 id=147 data-nosnippet>147</a>
 <a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">let </span>_guard = <span class="kw">unsafe </span>{ foundationdb::boot() };
 <a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">let </span>db = Arc::new(

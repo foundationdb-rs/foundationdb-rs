@@ -708,7 +708,7 @@
 <a href=#708 id=708 data-nosnippet>708</a>            FALSE =&gt; <span class="prelude-val">Ok</span>((input, <span class="bool-val">false</span>)),
 <a href=#709 id=709 data-nosnippet>709</a>            TRUE =&gt; <span class="prelude-val">Ok</span>((input, <span class="bool-val">true</span>)),
 <a href=#710 id=710 data-nosnippet>710</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(PackError::Message(
-<a href=#711 id=711 data-nosnippet>711</a>                <span class="macro">format!</span>(<span class="string">"{} is not a valid bool value"</span>, v).into_boxed_str(),
+<a href=#711 id=711 data-nosnippet>711</a>                <span class="macro">format!</span>(<span class="string">"{v} is not a valid bool value"</span>).into_boxed_str(),
 <a href=#712 id=712 data-nosnippet>712</a>            )),
 <a href=#713 id=713 data-nosnippet>713</a>        }
 <a href=#714 id=714 data-nosnippet>714</a>    }

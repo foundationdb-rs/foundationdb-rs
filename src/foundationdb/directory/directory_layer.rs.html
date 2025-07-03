@@ -474,12 +474,12 @@
 <a href=#474 id=474 data-nosnippet>474</a>                <span class="kw">let </span>patch: u32 = u32::from_le_bytes(arr);
 <a href=#475 id=475 data-nosnippet>475</a>
 <a href=#476 id=476 data-nosnippet>476</a>                <span class="kw">if </span>major &gt; MAJOR_VERSION {
-<a href=#477 id=477 data-nosnippet>477</a>                    <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"cannot load directory with version {}.{}.{} using directory layer {}.{}.{}"</span>, major, minor, patch, MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
+<a href=#477 id=477 data-nosnippet>477</a>                    <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"cannot load directory with version {major}.{minor}.{patch} using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"</span>);
 <a href=#478 id=478 data-nosnippet>478</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::Version(msg));
 <a href=#479 id=479 data-nosnippet>479</a>                }
 <a href=#480 id=480 data-nosnippet>480</a>
 <a href=#481 id=481 data-nosnippet>481</a>                <span class="kw">if </span>minor &gt; MINOR_VERSION {
-<a href=#482 id=482 data-nosnippet>482</a>                    <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"directory with version {}.{}.{} is read-only when opened using directory layer {}.{}.{}"</span>, major, minor, patch, MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
+<a href=#482 id=482 data-nosnippet>482</a>                    <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"directory with version {major}.{minor}.{patch} is read-only when opened using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"</span>);
 <a href=#483 id=483 data-nosnippet>483</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::Version(msg));
 <a href=#484 id=484 data-nosnippet>484</a>                }
 <a href=#485 id=485 data-nosnippet>485</a>
