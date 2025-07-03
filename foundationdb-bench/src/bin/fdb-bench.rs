@@ -51,7 +51,7 @@ impl Bench {
 
         let sw = Stopwatch::start_new();
 
-        let step = (opt.queue_depth + opt.threads - 1) / opt.threads;
+        let step = opt.queue_depth.div_ceil(opt.threads);
         let mut start = 0;
         for _ in 0..opt.threads {
             let end = std::cmp::min(start + step, opt.queue_depth);
@@ -143,7 +143,7 @@ struct Opt {
 fn main() {
     env_logger::init();
     let opt = Opt::from_args();
-    info!("opt: {:?}", opt);
+    info!("opt: {opt:?}");
 
     let _guard = unsafe { foundationdb::boot() };
     let db = Arc::new(

@@ -47,7 +47,7 @@ impl FdbScope {
             t = TAB1,
             name = self.name,
         )?;
-        writeln!(w, "{t}match *self {{", t = TAB2)?;
+        writeln!(w, "{TAB2}match *self {{")?;
 
         let enum_prefix = self.c_enum_prefix();
         let with_ty = self.with_ty();
@@ -69,8 +69,8 @@ impl FdbScope {
             )?;
         }
 
-        writeln!(w, "{t}}}", t = TAB2)?;
-        writeln!(w, "{t}}}", t = TAB1)
+        writeln!(w, "{TAB2}}}")?;
+        writeln!(w, "{TAB1}}}")
     }
 
     fn gen_apply<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
@@ -80,18 +80,16 @@ impl FdbScope {
         };
 
         let first_arg = match self.apply_arg_name() {
-            Some(name) => format!(", target: *mut fdb_sys::{}", name),
+            Some(name) => format!(", target: *mut fdb_sys::{name}"),
             None => String::new(),
         };
 
         writeln!(
             w,
-            "{t}pub unsafe fn apply(&self{args}) -> FdbResult<()> {{",
-            t = TAB1,
-            args = first_arg
+            "{TAB1}pub unsafe fn apply(&self{first_arg}) -> FdbResult<()> {{"
         )?;
-        writeln!(w, "{t}let code = self.code();", t = TAB2)?;
-        writeln!(w, "{t}let err = match *self {{", t = TAB2)?;
+        writeln!(w, "{TAB2}let code = self.code();")?;
+        writeln!(w, "{TAB2}let err = match *self {{")?;
 
         let args = if first_arg.is_empty() {
             "code"
@@ -103,56 +101,44 @@ impl FdbScope {
             write!(w, "{}{}::{}", TAB3, self.name, option.name)?;
             match option.param_type {
                 FdbOptionTy::Empty => {
-                    writeln!(
-                        w,
-                        " => fdb_sys::{}({}, std::ptr::null(), 0),",
-                        fn_name, args
-                    )?;
+                    writeln!(w, " => fdb_sys::{fn_name}({args}, std::ptr::null(), 0),")?;
                 }
                 FdbOptionTy::Int => {
                     writeln!(w, "(v) => {{")?;
+                    writeln!(w, "{TAB4}let data: [u8;8] = i64::to_ne_bytes(v as i64);",)?;
                     writeln!(
                         w,
-                        "{}let data: [u8;8] = std::mem::transmute(v as i64);",
-                        TAB4,
+                        "{TAB4}fdb_sys::{fn_name}({args}, data.as_ptr() as *const u8, 8)"
                     )?;
-                    writeln!(
-                        w,
-                        "{}fdb_sys::{}({}, data.as_ptr() as *const u8, 8)",
-                        TAB4, fn_name, args
-                    )?;
-                    writeln!(w, "{t}}}", t = TAB3)?;
+                    writeln!(w, "{TAB3}}}")?;
                 }
                 FdbOptionTy::Bytes => {
                     writeln!(w, "(ref v) => {{")?;
                     writeln!(
                         w,
-                        "{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
-                         i32::try_from(v.len()).expect(\"len to fit in i32\"))\n",
-                        TAB4, fn_name, args
+                        "{TAB4}fdb_sys::{fn_name}({args}, v.as_ptr() as *const u8, \
+                         i32::try_from(v.len()).expect(\"len to fit in i32\"))\n"
                     )?;
-                    writeln!(w, "{t}}}", t = TAB3)?;
+                    writeln!(w, "{TAB3}}}")?;
                 }
                 FdbOptionTy::Str => {
                     writeln!(w, "(ref v) => {{")?;
                     writeln!(
                         w,
-                        "{}fdb_sys::{}({}, v.as_ptr() as *const u8, \
-                         i32::try_from(v.len()).expect(\"len to fit in i32\"))\n",
-                        TAB4, fn_name, args
+                        "{TAB4}fdb_sys::{fn_name}({args}, v.as_ptr() as *const u8, \
+                         i32::try_from(v.len()).expect(\"len to fit in i32\"))\n"
                     )?;
-                    writeln!(w, "{t}}}", t = TAB3)?;
+                    writeln!(w, "{TAB3}}}")?;
                 }
             }
         }
 
-        writeln!(w, "{t}}};", t = TAB2)?;
+        writeln!(w, "{TAB2}}};")?;
         writeln!(
             w,
-            "{t}if err != 0 {{ Err(FdbError::from_code(err)) }} else {{ Ok(()) }}",
-            t = TAB2,
+            "{TAB2}if err != 0 {{ Err(FdbError::from_code(err)) }} else {{ Ok(()) }}",
         )?;
-        writeln!(w, "{t}}}", t = TAB1)
+        writeln!(w, "{TAB1}}}")
     }
 
     fn with_ty(&self) -> bool {
@@ -169,7 +155,7 @@ impl FdbScope {
             "MutationType" => "FDBMutationType_FDB_MUTATION_TYPE_",
             "ConflictRangeType" => "FDBConflictRangeType_FDB_CONFLICT_RANGE_TYPE_",
             "ErrorPredicate" => "FDBErrorPredicate_FDB_ERROR_PREDICATE_",
-            ty => panic!("unknown Scope name: `{}`", ty),
+            ty => panic!("unknown Scope name: `{ty}`"),
         }
     }
 
@@ -222,7 +208,7 @@ impl FdbOption {
     fn gen_ty<W: fmt::Write>(&self, w: &mut W, with_ty: bool) -> fmt::Result {
         if !self.param_description.is_empty() {
             writeln!(w, "{t}/// {desc}", t = TAB1, desc = self.param_description)?;
-            writeln!(w, "{t}///", t = TAB1)?;
+            writeln!(w, "{TAB1}///")?;
         }
         if !self.description.is_empty() {
             writeln!(w, "{t}/// {desc}", t = TAB1, desc = self.description)?;
@@ -282,7 +268,7 @@ impl From<Vec<OwnedAttribute>> for FdbOption {
                         "String" => FdbOptionTy::Str,
                         "Bytes" => FdbOptionTy::Bytes,
                         "" => FdbOptionTy::Empty,
-                        ty => panic!("unexpected param_type: {}", ty),
+                        ty => panic!("unexpected param_type: {ty}"),
                     };
                 }
                 "paramDescription" => {
@@ -294,7 +280,7 @@ impl From<Vec<OwnedAttribute>> for FdbOption {
                 "hidden" => match v.as_str() {
                     "true" => opt.hidden = true,
                     "false" => opt.hidden = false,
-                    _ => panic!("unexpected boolean value in 'hidden': {}", v),
+                    _ => panic!("unexpected boolean value in 'hidden': {v}"),
                 },
                 "defaultFor" => {
                     opt.default_for = Some(v.parse().expect("defaultFor to be a i32"));
@@ -302,15 +288,15 @@ impl From<Vec<OwnedAttribute>> for FdbOption {
                 "persistent" => match v.as_str() {
                     "true" => opt.persistent = true,
                     "false" => opt.persistent = false,
-                    _ => panic!("unexpected boolean value in 'persistent': {}", v),
+                    _ => panic!("unexpected boolean value in 'persistent': {v}"),
                 },
                 "sensitive" => match v.as_str() {
                     "true" => opt.sensitive = true,
                     "false" => opt.sensitive = false,
-                    _ => panic!("unexpected boolean value in 'sensitive': {}", v),
+                    _ => panic!("unexpected boolean value in 'sensitive': {v}"),
                 },
                 attr => {
-                    panic!("unexpected option attribute: {}", attr);
+                    panic!("unexpected option attribute: {attr}");
                 }
             }
         }

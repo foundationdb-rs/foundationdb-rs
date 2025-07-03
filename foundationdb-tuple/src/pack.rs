@@ -708,7 +708,7 @@ impl TupleUnpack<'_> for bool {
             FALSE => Ok((input, false)),
             TRUE => Ok((input, true)),
             _ => Err(PackError::Message(
-                format!("{} is not a valid bool value", v).into_boxed_str(),
+                format!("{v} is not a valid bool value").into_boxed_str(),
             )),
         }
     }

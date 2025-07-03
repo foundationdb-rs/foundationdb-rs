@@ -80,7 +80,7 @@ fn all_classes() -> Vec<String> {
     for level in LEVELS {
         for _type in TYPES {
             for time in TIMES {
-                class_names.push(format!("{} {} {}", time, _type, level));
+                class_names.push(format!("{time} {_type} {level}"));
             }
         }
     }
@@ -290,7 +290,7 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
         .await
         .expect("failed to get database");
 
-    let student_id = format!("s{}", student_id);
+    let student_id = format!("s{student_id}");
     let mut rng = rand::rng();
 
     let mut available_classes = Cow::Borrowed(&*ALL_CLASSES);
@@ -344,7 +344,7 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
     for (id, thread) in threads {
         thread.join().expect("failed to join thread");
 
-        let student_id = format!("s{}", id);
+        let student_id = format!("s{id}");
         let attends_range = RangeOption::from(&("attends", &student_id).into());
 
         for key_value in db
@@ -358,7 +358,7 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
             let (_, s, class) = unpack::<(String, String, String)>(key_value.key()).unwrap();
             assert_eq!(student_id, s);
 
-            println!("{} is taking: {}", student_id, class);
+            println!("{student_id} is taking: {class}");
         }
     }
 

@@ -71,7 +71,7 @@ async fn test_tenant_run() -> foundationdb::FdbResult<()> {
     let db = common::database().await?;
     // write the same key in multiple tenants
     for tenant_id in 0..10 {
-        let tenant_name = format!("tenant-{}-{}", now, tenant_id);
+        let tenant_name = format!("tenant-{now}-{tenant_id}");
         let tenant_name_ref = &tenant_name;
 
         foundationdb::tenant::TenantManagement::create_tenant(&db, tenant_name.as_bytes())
@@ -95,7 +95,7 @@ async fn test_tenant_run() -> foundationdb::FdbResult<()> {
 
     // check that all keys are defined in multiple tenants
     for tenant_id in 0..10 {
-        let tenant_name = format!("tenant-{}-{}", now, tenant_id);
+        let tenant_name = format!("tenant-{now}-{tenant_id}");
 
         let tenant = db
             .open_tenant(tenant_name.as_bytes())

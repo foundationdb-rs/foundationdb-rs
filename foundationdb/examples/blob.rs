@@ -88,7 +88,7 @@ async fn main() {
     clear_subspace(&db, &subspace).await;
 
     for i in 1..=100 {
-        println!("Iteration #{}", i);
+        println!("Iteration #{i}");
         test_blob_storing(&db, &subspace, i).await;
     }
 }

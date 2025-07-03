@@ -306,7 +306,7 @@ async fn populate_data(
 
     println!("--- Populate database");
     for file_name in file_names {
-        println!("Writing file {}", file_name);
+        println!("Writing file {file_name}");
 
         let (data, digest) = load_bytes_from_file(file_name);
 
@@ -371,7 +371,7 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
         let data_from_database = Cursor::new(data_from_database.unwrap());
         let digest_data_from_database = sha256_hex_digest(data_from_database);
 
-        println!("{}", manifest);
+        println!("{manifest}");
         assert_eq!(digest_data_from_database, manifest.digest);
         println!("\t Verify data integrity:\n\t\tfrom database hex digest : {}\n\t\treference hex digest     : {}\n", manifest.digest, digest_data_from_database);
     }

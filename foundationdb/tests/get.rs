@@ -87,11 +87,11 @@ async fn test_set_conflict_async() -> FdbResult<()> {
         "Transaction not committed due to conflict with another transaction"
     );
     assert_eq!(
-        format!("{}", err),
+        format!("{err}"),
         "Transaction not committed due to conflict with another transaction"
     );
     assert_eq!(
-        format!("{:?}", err),
+        format!("{err:?}"),
         "TransactionCommitError(Transaction not committed due to conflict with another transaction)"
     );
     assert!(err.is_retryable());
@@ -326,10 +326,7 @@ async fn test_metadata_version() -> FdbResult<()> {
         .get_metadata_version(false)
         .await?
         .expect("metadataVersion should be set by the previous transaction");
-    eprintln!(
-        "commit_version: {}, metadata_version: {}",
-        commit_version, metadata_version
-    );
+    eprintln!("commit_version: {commit_version}, metadata_version: {metadata_version}");
     assert_eq!(commit_version, metadata_version);
 
     Ok(())

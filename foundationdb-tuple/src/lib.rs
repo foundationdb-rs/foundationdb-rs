@@ -92,7 +92,7 @@ impl Display for PackError {
             PackError::TrailingBytes => write!(f, "trailing bytes"),
             PackError::MissingBytes => write!(f, "missing bytes"),
             PackError::BadStringFormat => write!(f, "not an utf8 string"),
-            PackError::BadCode { found, .. } => write!(f, "bad code, found {}", found),
+            PackError::BadCode { found, .. } => write!(f, "bad code, found {found}"),
             PackError::BadPrefix => write!(f, "bad prefix"),
             #[cfg(feature = "uuid")]
             PackError::BadUuid => write!(f, "bad uuid"),
@@ -127,7 +127,7 @@ impl fmt::Display for Bytes<'_> {
             } else if byte.is_ascii_alphanumeric() {
                 write!(fmt, "{}", byte as char)?;
             } else {
-                write!(fmt, "\\x{:02x}", byte)?;
+                write!(fmt, "\\x{byte:02x}")?;
             }
         }
         write!(fmt, "\"")

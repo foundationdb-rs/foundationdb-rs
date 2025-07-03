@@ -279,7 +279,7 @@ impl Instr {
         use crate::InstrCode::*;
 
         let data = Bytes::from(data);
-        trace!("inst {:?}", data);
+        trace!("inst {data:?}");
         let tup: Vec<Element> = unpack(&data).unwrap();
         let cmd = tup[0].as_str().unwrap();
 
@@ -429,7 +429,7 @@ impl StackItem {
             let StackResult { state, mut data } = fut.await;
 
             if let Some((name, state)) = state {
-                trace!("{:?} = {:?}", name, state);
+                trace!("{name:?} = {state:?}");
                 match state {
                     TransactionState::TransactionCommitError(e) => {
                         let err = FdbError::from_code(e.code());
@@ -443,7 +443,7 @@ impl StackItem {
             }
 
             let data = data.unwrap_or_else(|err| {
-                trace!("ERROR {:?}", err);
+                trace!("ERROR {err:?}");
                 let packed = pack(&(
                     Bytes::from(b"ERROR".as_ref()),
                     Bytes::from(format!("{}", err.code()).into_bytes()),
@@ -629,7 +629,7 @@ impl StackMachine {
 
     async fn fetch_instr(&self, trx: &Transaction) -> FdbResult<Vec<Instr>> {
         let opt = RangeOption::from(&Subspace::from(&self.prefix));
-        debug!("opt = {:?}", opt);
+        debug!("opt = {opt:?}");
         let instrs = Vec::new();
         trx.get_ranges(opt, false)
             .try_fold(instrs, |mut instrs, res| {
@@ -662,7 +662,7 @@ impl StackMachine {
         let element = self.pop_element().await;
         match element {
             Element::Int(v) => v,
-            _ => panic!("i64 was expected, found {:?}", element),
+            _ => panic!("i64 was expected, found {element:?}"),
         }
     }
 
@@ -678,7 +678,7 @@ impl StackMachine {
         let element = self.pop_element().await;
         match element {
             Element::String(v) => v.into_owned(),
-            _ => panic!("string was expected, found {:?}", element),
+            _ => panic!("string was expected, found {element:?}"),
         }
     }
 
@@ -691,7 +691,7 @@ impl StackMachine {
                 Some(Element::Bytes(b)) => b.clone(),
                 _ => panic!("bytes were expected, found a Tuple with no Bytes in it"),
             },
-            _ => panic!("bytes were expected, found {:?}", element),
+            _ => panic!("bytes were expected, found {element:?}"),
         }
     }
 
@@ -762,7 +762,7 @@ impl StackMachine {
     }
 
     fn push_directory_err(&mut self, code: &InstrCode, number: usize, err: DirectoryError) {
-        debug!("[{}] DIRECTORY_ERROR during {:?}: {:?}", number, code, err);
+        debug!("[{number}] DIRECTORY_ERROR during {code:?}: {err:?}");
         self.push(number, Element::Tuple(vec![ERROR_DIRECTORY.clone()]));
 
         if matches!(
@@ -785,7 +785,7 @@ impl StackMachine {
     }
 
     fn push_err(&mut self, number: usize, err: FdbError) {
-        trace!("ERROR {:?}", err);
+        trace!("ERROR {err:?}");
         let packed = pack(&Element::Tuple(vec![
             Element::Bytes(Bytes::from(b"ERROR".as_ref())),
             Element::Bytes(Bytes::from(format!("{}", err.code()).into_bytes())),
@@ -849,14 +849,14 @@ impl StackMachine {
         match instr.code {
             // Pushes the provided item onto the stack.
             Push(ref element) => {
-                debug!("push {:?}", element);
+                debug!("push {element:?}");
                 self.push(number, element.clone())
             }
             // Duplicates the top item on the stack. The instruction number for
             // the duplicate item should be the same as the original.
             Dup => {
                 let top = self.pop().await;
-                debug!("dup {:?}", top);
+                debug!("dup {top:?}");
                 self.stack.push(top.clone());
                 self.stack.push(top);
             }
@@ -878,7 +878,7 @@ impl StackMachine {
                 );
                 let depth_0 = self.stack.len() - 1;
                 let depth = depth_0 - depth;
-                debug!("swap {} {}", depth_0, depth);
+                debug!("swap {depth_0} {depth}");
                 self.stack.swap(depth_0, depth);
             }
             // Pops and discards the top item on the stack.
@@ -892,7 +892,7 @@ impl StackMachine {
             Sub => {
                 let a = self.pop_element().await;
                 let b = self.pop_element().await;
-                debug!("sub {:?} - {:?}", a, b);
+                debug!("sub {a:?} - {b:?}");
                 let c = match (a, b) {
                     // checking for possible overflow
                     (Element::Int(a), Element::Int(b)) => match a.checked_sub(b) {
@@ -904,7 +904,7 @@ impl StackMachine {
                     (Element::BigInt(a), Element::BigInt(b)) => Element::BigInt(a - b),
                     (Element::Int(a), Element::BigInt(b)) => Element::BigInt(a - b),
                     (Element::BigInt(a), Element::Int(b)) => Element::BigInt(a - b),
-                    (a, b) => panic!("sub between invalid elements {:?} {:?}", a, b),
+                    (a, b) => panic!("sub between invalid elements {a:?} {b:?}"),
                 };
                 self.push(number, c);
             }
@@ -915,10 +915,10 @@ impl StackMachine {
             Concat => {
                 let a = self.pop_element().await;
                 let b = self.pop_element().await;
-                debug!("concat {:?} {:?}", a, b);
+                debug!("concat {a:?} {b:?}");
                 let c = match (a, b) {
                     (Element::String(a), Element::String(b)) => {
-                        Element::String(format!("{}{}", a, b).into())
+                        Element::String(format!("{a}{b}").into())
                     }
                     (Element::Bytes(a), Element::Bytes(b)) => {
                         let mut bytes = Vec::new();
@@ -926,7 +926,7 @@ impl StackMachine {
                         bytes.extend_from_slice(&b);
                         Element::Bytes(bytes.into())
                     }
-                    (a, b) => panic!("concat between invalid elements {:?} {:?}", a, b),
+                    (a, b) => panic!("concat between invalid elements {a:?} {b:?}"),
                 };
                 self.push(number, c);
             }
@@ -996,7 +996,7 @@ impl StackMachine {
             // transaction should be inserted.
             UseTransaction => {
                 let name: Bytes = self.pop_bytes().await;
-                debug!("use_transaction {:?}", name);
+                debug!("use_transaction {name:?}");
                 if !self.transactions.contains_key(&name) {
                     let trx = self.check(number, db.create_trx())?;
                     self.transactions
@@ -1013,7 +1013,7 @@ impl StackMachine {
                 let trx_name = trx_name.cloned();
                 let error_code: i32 = self.pop_i32().await;
                 let error = FdbError::from_code(error_code);
-                debug!("on_error {:?}", error);
+                debug!("on_error {error:?}");
                 let trx_id = self.next_trx_id();
                 let f = trx
                     .take(trx_id)
@@ -1035,7 +1035,7 @@ impl StackMachine {
             // stack.
             Get => {
                 let key: Bytes = self.pop_bytes().await;
-                debug!("get {:?}", key);
+                debug!("get {key:?}");
                 let f = trx
                     .as_mut()
                     .get(&key, instr.pop_snapshot())
@@ -1058,7 +1058,7 @@ impl StackMachine {
             GetKey => {
                 let selector = self.pop_selector().await;
                 let prefix: Bytes = self.pop_bytes().await;
-                debug!("get_key {:?}, prefix = {:?}", selector, prefix);
+                debug!("get_key {selector:?}, prefix = {prefix:?}");
 
                 let f = trx
                     .as_mut()
@@ -1219,7 +1219,7 @@ impl StackMachine {
             Set => {
                 let key: Bytes = self.pop_bytes().await;
                 let value: Bytes = self.pop_bytes().await;
-                debug!("set {:?} {:?}", key, value);
+                debug!("set {key:?} {value:?}");
                 trx.as_mut().set(&key, &value);
                 mutation = true;
             }
@@ -1235,7 +1235,7 @@ impl StackMachine {
             // database. A CLEAR_DATABASE call may optionally push a future onto the stack.
             Clear => {
                 let key: Bytes = self.pop_bytes().await;
-                debug!("clear {:?}", key);
+                debug!("clear {key:?}");
                 trx.as_mut().clear(&key);
                 mutation = true;
             }
@@ -1259,7 +1259,7 @@ impl StackMachine {
                     let end: Bytes = self.pop_bytes().await;
                     (begin, end)
                 };
-                debug!("clear_range {:?} {:?}", begin, end);
+                debug!("clear_range {begin:?} {end:?}");
                 trx.as_mut().clear_range(&begin, &end);
                 mutation = true;
             }
@@ -1271,7 +1271,7 @@ impl StackMachine {
                 let optype: String = self.pop_str().await;
                 let key: Bytes = self.pop_bytes().await;
                 let value: Bytes = self.pop_bytes().await;
-                debug!("atomic_op {:?} {:?} {:?}", key, value, optype);
+                debug!("atomic_op {key:?} {value:?} {optype:?}");
 
                 let op = mutation_from_str(&optype);
                 trx.as_mut().atomic_op(&key, &value, op);
@@ -1284,7 +1284,7 @@ impl StackMachine {
             ReadConflictRange => {
                 let begin: Bytes = self.pop_bytes().await;
                 let end: Bytes = self.pop_bytes().await;
-                debug!("read_conflict_range {:?} {:?}", begin, end);
+                debug!("read_conflict_range {begin:?} {end:?}");
                 self.push_res(
                     number,
                     trx.as_mut()
@@ -1295,7 +1295,7 @@ impl StackMachine {
             WriteConflictRange => {
                 let begin: Bytes = self.pop_bytes().await;
                 let end: Bytes = self.pop_bytes().await;
-                debug!("write_conflict_range {:?} {:?}", begin, end);
+                debug!("write_conflict_range {begin:?} {end:?}");
                 self.push_res(
                     number,
                     trx.as_mut()
@@ -1310,7 +1310,7 @@ impl StackMachine {
                 let begin: Bytes = self.pop_bytes().await;
                 let mut end = begin.clone().into_owned();
                 end.push(0);
-                debug!("read_conflict_key {:?} {:?}", begin, end);
+                debug!("read_conflict_key {begin:?} {end:?}");
                 self.push_res(
                     number,
                     trx.as_mut()
@@ -1322,7 +1322,7 @@ impl StackMachine {
                 let begin: Bytes = self.pop_bytes().await;
                 let mut end = begin.clone().into_owned();
                 end.push(0);
-                debug!("write_conflict_key {:?} {:?}", begin, end);
+                debug!("write_conflict_key {begin:?} {end:?}");
                 self.push_res(
                     number,
                     trx.as_mut()
@@ -1451,7 +1451,7 @@ impl StackMachine {
                     .await
                 {
                     Ok(estimate) => {
-                        debug!("got an estimate of {} bytes", estimate);
+                        debug!("got an estimate of {estimate} bytes");
                         self.push(number, ESTIMATE_RANGE_RESPONSE.clone().into_owned());
                     }
                     Err(error) => {
@@ -1465,11 +1465,11 @@ impl StackMachine {
             // this single packed value onto the stack.
             TuplePack => {
                 let n: usize = self.pop_usize().await;
-                debug!("tuple_pack {}", n);
+                debug!("tuple_pack {n}");
                 let mut buf = Vec::new();
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
-                    debug!(" - {:?}", element);
+                    debug!(" - {element:?}");
                     buf.push(element);
                 }
                 let tuple = Element::Tuple(buf);
@@ -1490,11 +1490,11 @@ impl StackMachine {
             TuplePackWithVersionstamp => {
                 let prefix = self.pop_bytes().await;
                 let n: usize = self.pop_usize().await;
-                debug!("tuple_pack_with_versionstamp {:?} {}", prefix, n);
+                debug!("tuple_pack_with_versionstamp {prefix:?} {n}");
                 let mut buf = Vec::new();
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
-                    debug!(" - {:?}", element);
+                    debug!(" - {element:?}");
                     buf.push(element);
                 }
 
@@ -1525,10 +1525,10 @@ impl StackMachine {
             // onto the stack.
             TupleUnpack => {
                 let data = self.pop_bytes().await;
-                debug!("tuple_unpack {:?}", data);
+                debug!("tuple_unpack {data:?}");
                 let data: Vec<Element> = unpack(&data).unwrap();
                 for element in data {
-                    debug!(" - {:?}", element);
+                    debug!(" - {element:?}");
                     self.push(number, Element::Bytes(pack(&(element,)).into()));
                 }
             }
@@ -1538,7 +1538,7 @@ impl StackMachine {
             // the returned range onto the stack.
             TupleRange => {
                 let n: usize = self.pop_usize().await;
-                debug!("tuple_range {:?}", n);
+                debug!("tuple_range {n:?}");
                 let mut tup = Vec::new();
                 for _ in 0..n {
                     let element = self.pop_element().await;
@@ -1560,18 +1560,18 @@ impl StackMachine {
             // their byte representation. The choice of function should not affect final sort order.
             TupleSort => {
                 let n: usize = self.pop_usize().await;
-                debug!("tuple_sort {:?}", n);
+                debug!("tuple_sort {n:?}");
                 let mut tup = Vec::<Element>::new();
                 for _ in 0..n {
                     let packed = self.pop_bytes().await;
                     let element: Element = unpack(&packed).unwrap();
-                    debug!("- {:?}", element);
+                    debug!("- {element:?}");
                     tup.push(element.into_owned());
                 }
                 tup.sort();
                 debug!("tuple_sorted");
                 for element in tup {
-                    debug!("- {:?}", element);
+                    debug!("- {element:?}");
                     self.push(number, Element::Bytes(pack(&element).into()));
                 }
             }
@@ -1581,7 +1581,7 @@ impl StackMachine {
             // This is then converted into a float and pushed onto the stack.
             EncodeFloat => {
                 let bytes = self.pop_bytes().await;
-                debug!("encode_float {:?}", bytes);
+                debug!("encode_float {bytes:?}");
                 let mut arr = [0; 4];
                 arr.copy_from_slice(&bytes);
                 let f = f32::from_bits(u32::from_be_bytes(arr));
@@ -1592,7 +1592,7 @@ impl StackMachine {
             // This is then converted into a double and pushed onto the stack.
             EncodeDouble => {
                 let bytes = self.pop_bytes().await;
-                debug!("encode_double {:?}", bytes);
+                debug!("encode_double {bytes:?}");
                 let mut arr = [0; 8];
                 arr.copy_from_slice(&bytes);
                 let f = f64::from_bits(u64::from_be_bytes(arr));
@@ -1604,9 +1604,9 @@ impl StackMachine {
             DecodeFloat => {
                 let f: f32 = match self.pop_element().await {
                     Element::Float(v) => v,
-                    element => panic!("float was expected, found {:?}", element),
+                    element => panic!("float was expected, found {element:?}"),
                 };
-                debug!("decode_float {}", f);
+                debug!("decode_float {f}");
                 self.push(
                     number,
                     Element::Bytes(f.to_bits().to_be_bytes().to_vec().into()),
@@ -1618,9 +1618,9 @@ impl StackMachine {
             DecodeDouble => {
                 let f: f64 = match self.pop_element().await {
                     Element::Double(v) => v,
-                    element => panic!("double was expected, found {:?}", element),
+                    element => panic!("double was expected, found {element:?}"),
                 };
-                debug!("decode_double {}", f);
+                debug!("decode_double {f}");
                 self.push(
                     number,
                     Element::Bytes(f.to_bits().to_be_bytes().to_vec().into()),
@@ -1634,16 +1634,16 @@ impl StackMachine {
             // with the current stack machine through a language-appropriate mechanism.
             StartThread => {
                 let prefix = self.pop_bytes().await;
-                debug!("start_thread {:?}", prefix);
+                debug!("start_thread {prefix:?}");
                 let db = db.clone();
                 self.threads.push(
                     thread::Builder::new()
-                        .name(format!("{:?}", prefix))
+                        .name(format!("{prefix:?}"))
                         .spawn(move || {
                             let mut sm = StackMachine::new(&db, prefix.clone());
                             futures::executor::block_on(sm.run(db)).unwrap();
                             sm.join();
-                            debug!("thread {:?} exit", prefix);
+                            debug!("thread {prefix:?} exit");
                         })
                         .unwrap(),
                 );
@@ -1657,7 +1657,7 @@ impl StackMachine {
             // complete.
             WaitEmpty => {
                 let prefix = self.pop_bytes().await;
-                debug!("wait_empty {:?}", prefix);
+                debug!("wait_empty {prefix:?}");
                 let (begin, end) = range(prefix);
 
                 async fn wait_for_empty(
@@ -1670,7 +1670,7 @@ impl StackMachine {
                         .await?;
 
                     debug!("wait_empty {:?} range {}", Bytes::from(begin), range.len());
-                    if range.len() != 0 {
+                    if !range.is_empty() {
                         return Err(FdbError::from_code(1020));
                     }
                     Ok(())
@@ -2298,11 +2298,11 @@ impl StackMachine {
             // onto the stack.
             DirectoryPackKey => {
                 let n: usize = self.pop_usize().await;
-                debug!("DirectoryPackKey {}", n);
+                debug!("DirectoryPackKey {n}");
                 let mut buf = Vec::with_capacity(n);
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
-                    debug!(" - {:?}", element);
+                    debug!(" - {element:?}");
                     buf.push(element);
                 }
 
@@ -2327,7 +2327,7 @@ impl StackMachine {
             DirectoryUnpackKey => {
                 let data = self.pop_bytes().await;
                 let data = data.to_vec();
-                debug!("directory_unpack {:?}", data);
+                debug!("directory_unpack {data:?}");
                 match self.unpack_with_current_subspace(&data) {
                     None => self.push_directory_err(
                         &instr.code,
@@ -2339,7 +2339,7 @@ impl StackMachine {
                     Some(packed) => {
                         let data: Vec<Element> = packed.unwrap();
                         for element in data {
-                            debug!(" - {:?}", element);
+                            debug!(" - {element:?}");
                             self.push(number, Element::Tuple(vec![element.into_owned()]));
                         }
                     }
@@ -2355,7 +2355,7 @@ impl StackMachine {
                 let mut buf = Vec::with_capacity(n);
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
-                    debug!(" - {:?}", element);
+                    debug!(" - {element:?}");
                     buf.push(element);
                 }
 
@@ -2423,11 +2423,11 @@ impl StackMachine {
             // directory specified by tuple and push it onto the directory list.
             DirectoryOpenSubspace => {
                 let n: usize = self.pop_usize().await;
-                debug!("DirectoryRange {}", n);
+                debug!("DirectoryRange {n}");
                 let mut buf = Vec::with_capacity(n);
                 for _ in 0..n {
                     let element: Element = self.pop_element().await;
-                    debug!(" - {:?}", element);
+                    debug!(" - {element:?}");
                     buf.push(element);
                 }
 
@@ -2641,7 +2641,7 @@ impl StackMachine {
             // onto the stack.
             TenantCreate => {
                 let tenant_name = self.pop_bytes().await;
-                debug!("creating tenant {}", tenant_name);
+                debug!("creating tenant {tenant_name}");
                 match TenantManagement::create_tenant(&db, &tenant_name.0).await {
                     Ok(()) => self.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
                     Err(err) => self.push_err(number, err),
@@ -2652,7 +2652,7 @@ impl StackMachine {
             // the stack.
             TenantDelete => {
                 let tenant_name = self.pop_bytes().await;
-                debug!("deleting tenant {}", tenant_name);
+                debug!("deleting tenant {tenant_name}");
                 match TenantManagement::delete_tenant(&db, &tenant_name.0).await {
                     Ok(()) => self.push(number, RESULT_NOT_PRESENT.clone().into_owned()),
                     Err(err) => self.push_err(number, err),
@@ -2662,7 +2662,7 @@ impl StackMachine {
             // name TENANT_NAME and stores it as the active tenant.
             TenantSetActive => {
                 let tenant_name = self.pop_bytes().await;
-                debug!("set active tenant {}", tenant_name);
+                debug!("set active tenant {tenant_name}");
                 match db.open_tenant(&tenant_name.0) {
                     Ok(tenant) => self.tenant = Some(tenant),
                     Err(err) => self.push_err(number, err),
@@ -2713,7 +2713,7 @@ impl StackMachine {
         }
 
         if instr.has_flags() {
-            panic!("flag not handled for instr: {:?}", instr);
+            panic!("flag not handled for instr: {instr:?}");
         }
 
         Ok(())
@@ -2868,10 +2868,7 @@ fn main() {
 
     let api_version = args[2].parse::<i32>().expect("failed to parse api version");
 
-    info!(
-        "Starting rust bindingtester with api_version {}",
-        api_version
-    );
+    info!("Starting rust bindingtester with api_version {api_version}");
     let builder = api::FdbApiBuilder::default()
         .set_runtime_version(api_version)
         .build()
