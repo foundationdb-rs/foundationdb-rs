@@ -39,6 +39,8 @@ impl FdbError {
         Self { error_code }
     }
 
+    #[cfg(feature = "tenant-experimental")]
+    /// Converts from a raw foundationDB error code
     pub(crate) fn new(error_code: i32) -> Self {
         Self { error_code }
     }
