@@ -52,7 +52,8 @@
           release-plz
 
           # FDB part
-          libfdb73
+          fdbserver74
+          libfdb74
 
           # bindingTester part
           python3
@@ -63,8 +64,8 @@
         BINDGEN_EXTRA_CLANG_ARGS = "-isystem ${llvmPackages.libclang.lib}/lib/clang/${lib.getVersion clang}/include";
         LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";
 
-        FDB_CLIENT_LIB_PATH = "${libfdb73}/include";
-        LD_LIBRARY_PATH = "${libfdb73}/include";
+        FDB_CLIENT_LIB_PATH = "${libfdb74}/include";
+        LD_LIBRARY_PATH = "${libfdb74}/include";
 
         # To import with Intellij IDEA
         RUST_TOOLCHAIN_PATH = "${pkgs.rust-bin.${rustChannel}.latest.default}/bin";
