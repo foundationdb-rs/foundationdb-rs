@@ -186,7 +186,7 @@ fn fdb_bool(v: bool) -> fdb_sys::fdb_bool_t {
 }
 #[inline]
 fn fdb_len(len: usize, context: &'static str) -> std::os::raw::c_int {
-    assert!(len <= i32::MAX as usize, "{}.len() > i32::MAX", context);
+    assert!(len <= i32::MAX as usize, "{context}.len() > i32::MAX");
     len as i32
 }
 #[inline]

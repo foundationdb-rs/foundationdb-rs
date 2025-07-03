@@ -62,7 +62,7 @@ async fn test_get_range_async() -> FdbResult<()> {
         let opt = RangeOption::from((begin, end));
 
         let range = trx.get_range(&opt, 1, false).await?;
-        assert!(range.len() > 0);
+        assert!(!range.is_empty());
         assert!(range.more());
         let len = range.len();
         let mut i = 0;
@@ -121,7 +121,7 @@ async fn test_get_ranges_async() -> FdbResult<()> {
             .await?;
 
         assert_eq!(count, N);
-        eprintln!("count: {:?}", count);
+        eprintln!("count: {count:?}");
     }
 
     Ok(())
@@ -134,7 +134,7 @@ async fn test_range_option_async() -> FdbResult<()> {
         let trx = db.create_trx()?;
         let key_begin = "test-rangeoption-";
         let key_end = "test-rangeoption.";
-        let k = |i: u32| format!("{}-{:010}", key_begin, i);
+        let k = |i: u32| format!("{key_begin}-{i:010}");
 
         eprintln!("clearing...");
         trx.clear_range(key_begin.as_bytes(), key_end.as_bytes());
@@ -229,7 +229,7 @@ async fn test_get_estimate_range() -> FdbResult<()> {
     let trx = db.create_trx()?;
     let key_begin = "test-rangeoption-";
     let key_end = "test-rangeoption.";
-    let k = |i: u32| format!("{}-{:010}", key_begin, i);
+    let k = |i: u32| format!("{key_begin}-{i:010}");
 
     eprintln!("clearing...");
     trx.clear_range(key_begin.as_bytes(), key_end.as_bytes());
@@ -245,7 +245,7 @@ async fn test_get_estimate_range() -> FdbResult<()> {
     let estimate = trx
         .get_estimated_range_size_bytes(key_begin.as_bytes(), key_end.as_bytes())
         .await?;
-    eprintln!("get an estimate of {} bytes", estimate);
+    eprintln!("get an estimate of {estimate} bytes");
     assert!(estimate > 0);
 
     Ok(())
@@ -259,7 +259,7 @@ async fn test_get_range_split_points() -> FdbResult<()> {
     let trx = db.create_trx()?;
     let key_begin = "test-split-point-";
     let key_end = "test-split-point.";
-    let k = |i: u32| format!("{}-{:010}", key_begin, i);
+    let k = |i: u32| format!("{key_begin}-{i:010}");
 
     eprintln!("clearing...");
     trx.clear_range(key_begin.as_bytes(), key_end.as_bytes());
@@ -275,7 +275,7 @@ async fn test_get_range_split_points() -> FdbResult<()> {
     let splits = trx
         .get_range_split_points(key_begin.as_bytes(), key_end.as_bytes(), 100)
         .await?;
-    assert!(splits.len() > 0);
+    assert!(!splits.is_empty());
     for split in splits {
         eprintln!("split point: {:?}", split.key());
     }
@@ -359,8 +359,7 @@ fn verify_mapped_values(
     }
     assert_eq!(
         value_counter, blue_counter,
-        "found {} elements instead of {}",
-        value_counter, blue_counter
+        "found {value_counter} elements instead of {blue_counter}"
     );
 }
 
@@ -451,10 +450,7 @@ async fn setup_mapped_data(
 
             let size_trx = trx.get_approximate_size().await?;
             if size_trx >= 100_000 {
-                eprintln!(
-                    "committing batch, because we have already written ~{}b",
-                    size_trx
-                );
+                eprintln!("committing batch, because we have already written ~{size_trx}b");
                 break;
             }
         }

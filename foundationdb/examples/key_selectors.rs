@@ -20,10 +20,7 @@ async fn setup_db(db: &Database) -> Result<(), FdbError> {
         })
         .await
         .map_err(|binding_err: foundationdb::FdbBindingError| {
-            eprintln!(
-                "FoundationDB Binding Error during setup_db: {:?}",
-                binding_err
-            );
+            eprintln!("FoundationDB Binding Error during setup_db: {binding_err:?}");
             FdbError::from_code(2004) // client_invalid_operation
         });
 
@@ -54,10 +51,7 @@ async fn run_range_query_test<'a>(
         })
         .await
         .map_err(|binding_err: foundationdb::FdbBindingError| {
-            eprintln!(
-                "FoundationDB Binding Error during run_range_query_test: {:?}",
-                binding_err
-            );
+            eprintln!("FoundationDB Binding Error during run_range_query_test: {binding_err:?}");
             FdbError::from_code(2004) // client_invalid_operation
         });
 
@@ -67,12 +61,11 @@ async fn run_range_query_test<'a>(
 
     let difference = actual_keys_set.difference(&expected).collect::<Vec<_>>();
     if !difference.is_empty() {
-        eprintln!("Expected keys: {:?}", expected_keys);
-        eprintln!("Actual keys: {:?}", actual_keys_set);
-        eprintln!("Difference: {:?}", difference);
-        assert_eq!(
+        eprintln!("Expected keys: {expected_keys:?}");
+        eprintln!("Actual keys: {actual_keys_set:?}");
+        eprintln!("Difference: {difference:?}");
+        assert!(
             difference.is_empty(),
-            true,
             "Expected {} keys, but got {}",
             expected_keys.len(),
             difference.len()
@@ -420,12 +413,12 @@ async fn main() {
     match Database::default() {
         Ok(db) => {
             if let Err(e) = key_selector_example(&db).await {
-                eprintln!("Error in key_selector_example: {:?}", e);
+                eprintln!("Error in key_selector_example: {e:?}");
                 // Consider panic! or std::process::exit(1) for CI environments
             }
         }
         Err(e) => {
-            eprintln!("Failed to open FDB database: {:?}", e);
+            eprintln!("Failed to open FDB database: {e:?}");
             // Consider panic! or std::process::exit(1)
         }
     }

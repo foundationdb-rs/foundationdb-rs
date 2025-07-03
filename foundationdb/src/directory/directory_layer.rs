@@ -474,12 +474,12 @@ impl DirectoryLayer {
                 let patch: u32 = u32::from_le_bytes(arr);
 
                 if major > MAJOR_VERSION {
-                    let msg = format!("cannot load directory with version {}.{}.{} using directory layer {}.{}.{}", major, minor, patch, MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
+                    let msg = format!("cannot load directory with version {major}.{minor}.{patch} using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}");
                     return Err(DirectoryError::Version(msg));
                 }
 
                 if minor > MINOR_VERSION {
-                    let msg = format!("directory with version {}.{}.{} is read-only when opened using directory layer {}.{}.{}", major, minor, patch, MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
+                    let msg = format!("directory with version {major}.{minor}.{patch} is read-only when opened using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}");
                     return Err(DirectoryError::Version(msg));
                 }
 

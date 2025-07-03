@@ -51,7 +51,7 @@ async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
 
     check_hca_result_uniqueness(&all_ints);
 
-    eprintln!("ran test {:?}", all_ints);
+    eprintln!("ran test {all_ints:?}");
 
     Ok(())
 }
@@ -81,7 +81,7 @@ async fn test_hca_concurrent_allocations_async() -> FdbResult<()> {
     .unwrap();
     check_hca_result_uniqueness(&all_ints);
 
-    eprintln!("ran test {:?}", all_ints);
+    eprintln!("ran test {all_ints:?}");
 
     Ok(())
 }

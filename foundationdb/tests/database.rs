@@ -26,8 +26,7 @@ async fn test_status_async() -> foundationdb::FdbResult<()> {
         std::str::from_utf8(status.as_ref()).expect("could not find any utf-8 bytes to read");
     assert!(
         status.contains("Healthy"),
-        "Could not find healthy in '{}'",
-        status
+        "Could not find healthy in '{status}'"
     );
 
     Ok(())
@@ -44,7 +43,7 @@ async fn test_get_main_thread_busyness_async() -> foundationdb::FdbResult<()> {
     assert!(
         busyness == 0.0,
         "{}",
-        format!("non-zero thread busyness: {}", busyness)
+        format!("non-zero thread busyness: {busyness}")
     );
     Ok(())
 }

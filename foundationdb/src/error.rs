@@ -154,14 +154,14 @@ impl FdbBindingError {
 impl Debug for FdbBindingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            FdbBindingError::NonRetryableFdbError(err) => write!(f, "{:?}", err),
-            FdbBindingError::HcaError(err) => write!(f, "{:?}", err),
-            FdbBindingError::DirectoryError(err) => write!(f, "{:?}", err),
-            FdbBindingError::PackError(err) => write!(f, "{:?}", err),
+            FdbBindingError::NonRetryableFdbError(err) => write!(f, "{err:?}"),
+            FdbBindingError::HcaError(err) => write!(f, "{err:?}"),
+            FdbBindingError::DirectoryError(err) => write!(f, "{err:?}"),
+            FdbBindingError::PackError(err) => write!(f, "{err:?}"),
             FdbBindingError::ReferenceToTransactionKept => {
                 write!(f, "Reference to transaction kept")
             }
-            FdbBindingError::CustomError(err) => write!(f, "{:?}", err),
+            FdbBindingError::CustomError(err) => write!(f, "{err:?}"),
         }
     }
 }

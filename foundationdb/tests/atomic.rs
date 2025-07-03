@@ -59,7 +59,7 @@ async fn test_atomic_async() -> FdbResult<()> {
         let value = trx.get(KEY, false).await?.expect("value should exists");
         let v: i64 = byteorder::LE::read_i64(&value);
         if v != 0 {
-            panic!("expected 0, found {}", v);
+            panic!("expected 0, found {v}");
         }
     }
     Ok(())

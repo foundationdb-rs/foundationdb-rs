@@ -6,6 +6,6 @@ use foundationdb::FdbBindingError;
 // Exhibit B: https://github.com/foundationdb-rs/foundationdb-rs/issues/93
 fn test_debug_display_trait() {
     let error = FdbBindingError::ReferenceToTransactionKept;
-    println!("{}", error);
-    println!("{:?}", error);
+    println!("{error}");
+    println!("{error:?}");
 }

@@ -134,7 +134,7 @@ async fn main() {
     let users = search_user_by_zipcode(&db, &user_subspace, &zipcode_index_subspace, "205").await;
 
     if let Some(users) = users {
-        users.iter().for_each(|user| println!("{}", user));
+        users.iter().for_each(|user| println!("{user}"));
     }
 }
 
