@@ -1,3 +1,4 @@
+use foundationdb::FdbBindingError;
 use foundationdb::{
     options::{MutationType, TransactionOption},
     tuple::Subspace,
@@ -93,15 +94,17 @@ impl RustWorkload for AtomicWorkload {
         fdb_spawn(async move {
             if self.client_id == 0 {
                 // even if buggify is off in checks, transactions can failed because of the randomized knob,
-                // so we need to wrap the check in a txn
+                // so we need to wrap the check in a db.run
                 let count = db
                     .run(|trx, _maybe_committed| async move {
-                        let fdb_slice = trx
-                            .get(&Subspace::all().pack(&COUNT_KEY), true)
-                            .await?
-                            .unwrap();
-                        let count = i64::from_le_bytes(fdb_slice[..8].try_into().unwrap());
-                        Ok(count as usize)
+                        match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
+                            Err(e) => Err(FdbBindingError::from(e)),
+                            Ok(None) => Ok(0),
+                            Ok(Some(byte_count)) => {
+                                let count = i64::from_le_bytes(byte_count[..8].try_into().unwrap());
+                                Ok(count as usize)
+                            }
+                        }
                     })
                     .await
                     .expect("could not check using db.run");
