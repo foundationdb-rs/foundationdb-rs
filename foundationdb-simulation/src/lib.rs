@@ -9,11 +9,9 @@ use foundationdb_sys::FDBDatabase as FDBDatabaseAlias;
 mod bindings;
 mod fdb_rt;
 
-pub use bindings::{
-    str_from_c, FDBWorkloadContext, Metric, Metrics, Promise, Severity, WorkloadContext,
-};
-use bindings::{FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, OpaqueWorkload};
-pub use fdb_rt::*;
+use bindings::{FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, OpaqueWorkload, Promise};
+pub use bindings::{Metric, Metrics, Severity, WorkloadContext};
+use fdb_rt::fdb_spawn;
 
 // -----------------------------------------------------------------------------
 // User friendly types
@@ -24,6 +22,7 @@ pub type Database = ManuallyDrop<DatabaseAlias>;
 pub type WrappedWorkload = FDBWorkload;
 
 /// Equivalent to the C++ abstract class `FDBWorkload`
+#[allow(async_fn_in_trait)]
 pub trait RustWorkload {
     /// This method is called by the tester during the setup phase.
     /// It should be used to populate the database.
@@ -31,16 +30,14 @@ pub trait RustWorkload {
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    /// * `done` - A promise that should be resolved to indicate completion
-    fn setup(&'static mut self, db: Database, done: Promise);
+    async fn setup(&mut self, db: Database);
 
     /// This method should run the actual test.
     ///
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    /// * `done` - A promise that should be resolved to indicate completion
-    fn start(&'static mut self, db: Database, done: Promise);
+    async fn start(&mut self, db: Database);
 
     /// This method is called when the tester completes.
     /// A workload should run any consistency/correctness tests during this phase.
@@ -48,8 +45,7 @@ pub trait RustWorkload {
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    /// * `done` - A promise that should be resolved to indicate completion
-    fn check(&'static mut self, db: Database, done: Promise);
+    async fn check(&mut self, db: Database);
 
     /// If a workload collects metrics (like latencies or throughput numbers), these should be reported back here.
     /// The multitester (or test orchestrator) will collect all metrics from all test clients and it will aggregate them.
@@ -97,7 +93,10 @@ unsafe extern "C" fn workload_setup<W: RustWorkload + 'static>(
     let workload = &mut *(raw_workload as *mut W);
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
-    workload.setup(database, done)
+    fdb_spawn(async move {
+        workload.setup(database).await;
+        done.send(true);
+    });
 }
 unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
@@ -107,7 +106,10 @@ unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     let workload = &mut *(raw_workload as *mut W);
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
-    workload.start(database, done)
+    fdb_spawn(async move {
+        workload.start(database).await;
+        done.send(true);
+    });
 }
 unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
@@ -117,7 +119,10 @@ unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     let workload = &mut *(raw_workload as *mut W);
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
-    workload.check(database, done)
+    fdb_spawn(async move {
+        workload.check(database).await;
+        done.send(true);
+    });
 }
 unsafe extern "C" fn workload_get_metrics<W: RustWorkload>(
     raw_workload: *mut OpaqueWorkload,
@@ -154,6 +159,29 @@ impl WrappedWorkload {
 // -----------------------------------------------------------------------------
 // Registration hooks
 
+#[doc(hidden)]
+/// Primitives exposed for the registrations hooks, should not be used otherwise
+pub mod internals {
+    pub use crate::bindings::{str_from_c, FDBWorkloadContext};
+
+    #[cfg(feature = "cpp-abi")]
+    extern "C" {
+        pub fn workloadCppFactory(logger: *const u8) -> *const u8;
+    }
+
+    #[allow(non_snake_case)]
+    #[cfg(not(feature = "cpp-abi"))]
+    pub unsafe extern "C" fn workloadCppFactory(_logger: *const u8) -> *const u8 {
+        eprintln!(
+            "This Rust workload was compiled without the C++ shim adapter. To fix this, either:
+
+- Re-run the simulation with `useCAPI = true` (FoundationDB 7.4 or newer), or
+- Recompile the workload with FoundationDB versions prior to 7.4 or the `cpp-abi` feature"
+        );
+        std::process::exit(1);
+    }
+}
+
 /// Register a [RustWorkloadFactory].
 /// /!\ Should be called only once.
 #[macro_export]
@@ -162,7 +190,7 @@ macro_rules! register_factory {
         #[no_mangle]
         extern "C" fn workloadCFactory(
             raw_name: *const i8,
-            raw_context: $crate::FDBWorkloadContext,
+            raw_context: $crate::internals::FDBWorkloadContext,
         ) -> $crate::WrappedWorkload {
             use std::sync::atomic::{AtomicBool, Ordering};
             static DONE: AtomicBool = AtomicBool::new(false);
@@ -176,17 +204,13 @@ macro_rules! register_factory {
                     .build();
                 println!("FDB API version selected: {version}");
             }
-            let name = $crate::str_from_c(raw_name);
+            let name = $crate::internals::str_from_c(raw_name);
             let context = $crate::WorkloadContext::new(raw_context);
             <$name as $crate::RustWorkloadFactory>::create(name, context)
         }
-        extern "C" {
-            pub fn workloadCppFactory(logger: *const u8) -> *const u8;
-        }
-        #[cfg(feature = "cpp-abi")]
         #[no_mangle]
         extern "C" fn workloadFactory(logger: *const u8) -> *const u8 {
-            unsafe { workloadCppFactory(logger) }
+            unsafe { $crate::internals::workloadCppFactory(logger) }
         }
     };
 }
@@ -199,7 +223,7 @@ macro_rules! register_workload {
         #[no_mangle]
         extern "C" fn workloadCFactory(
             raw_name: *const i8,
-            raw_context: $crate::FDBWorkloadContext,
+            raw_context: $crate::internals::FDBWorkloadContext,
         ) -> $crate::WrappedWorkload {
             use std::sync::atomic::{AtomicBool, Ordering};
             static DONE: AtomicBool = AtomicBool::new(false);
@@ -213,17 +237,13 @@ macro_rules! register_workload {
                     .build();
                 println!("FDB API version selected: {version}");
             }
-            let name = $crate::str_from_c(raw_name);
+            let name = $crate::internals::str_from_c(raw_name);
             let context = $crate::WorkloadContext::new(raw_context);
             $crate::WrappedWorkload::new(<$name as $crate::SingleRustWorkload>::new(name, context))
         }
-        extern "C" {
-            pub fn workloadCppFactory(logger: *const u8) -> *const u8;
-        }
-        #[cfg(feature = "cpp-abi")]
         #[no_mangle]
         extern "C" fn workloadFactory(logger: *const u8) -> *const u8 {
-            unsafe { workloadCppFactory(logger) }
+            unsafe { $crate::internals::workloadCppFactory(logger) }
         }
     };
 }

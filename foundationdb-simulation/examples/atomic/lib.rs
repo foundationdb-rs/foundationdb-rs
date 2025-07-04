@@ -4,8 +4,8 @@ use foundationdb::{
     tuple::Subspace,
 };
 use foundationdb_simulation::{
-    details, fdb_spawn, register_workload, Database, Metric, Metrics, Promise, RustWorkload,
-    Severity, SingleRustWorkload, WorkloadContext,
+    details, register_workload, Database, Metric, Metrics, RustWorkload, Severity,
+    SingleRustWorkload, WorkloadContext,
 };
 
 pub struct AtomicWorkload {
@@ -37,112 +37,105 @@ impl SingleRustWorkload for AtomicWorkload {
 }
 
 impl RustWorkload for AtomicWorkload {
-    fn setup(&'static mut self, _db: Database, done: Promise) {
+    async fn setup(&mut self, _db: Database) {
         println!("rust_setup({})", self.client_id);
-        done.send(true);
     }
-    fn start(&'static mut self, db: Database, done: Promise) {
+    async fn start(&mut self, db: Database) {
         println!("rust_start({})", self.client_id);
-        fdb_spawn(async move {
-            // Only use a single client
-            if self.client_id == 0 {
-                for _ in 0..self.expected_count {
-                    let trx = db.create_trx().expect("Could not create transaction");
+        // Only use a single client
+        if self.client_id == 0 {
+            for _ in 0..self.expected_count {
+                let trx = db.create_trx().expect("Could not create transaction");
 
-                    // Enable idempotent txn
-                    trx.set_option(TransactionOption::AutomaticIdempotency)
-                        .expect("could not setup automatic idempotency");
+                // Enable idempotent txn
+                trx.set_option(TransactionOption::AutomaticIdempotency)
+                    .expect("could not setup automatic idempotency");
 
-                    let buf: [u8; 8] = 1i64.to_le_bytes();
+                let buf: [u8; 8] = 1i64.to_le_bytes();
 
-                    trx.atomic_op(&Subspace::all().pack(&COUNT_KEY), &buf, MutationType::Add);
+                trx.atomic_op(&Subspace::all().pack(&COUNT_KEY), &buf, MutationType::Add);
 
-                    match trx.commit().await {
-                        Ok(_) => self.success_count += 1,
-                        Err(err) => {
-                            if err.is_maybe_committed() {
-                                self.context.trace(
-                                    Severity::Warn,
-                                    "Detected an maybe_committed transactions with idempotency",
-                                    details![
-                                        "Layer" => "Rust",
-                                        "Client" => self.client_id
-                                    ],
-                                );
-                                self.maybe_committed_count += 1;
-                            } else {
-                                self.error_count += 1;
-                            }
+                match trx.commit().await {
+                    Ok(_) => self.success_count += 1,
+                    Err(err) => {
+                        if err.is_maybe_committed() {
+                            self.context.trace(
+                                Severity::Warn,
+                                "Detected an maybe_committed transactions with idempotency",
+                                details![
+                                    "Layer" => "Rust",
+                                    "Client" => self.client_id
+                                ],
+                            );
+                            self.maybe_committed_count += 1;
+                        } else {
+                            self.error_count += 1;
                         }
                     }
-
-                    self.context.trace(
-                        Severity::Info,
-                        "Successfully setup workload",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id
-                        ],
-                    );
                 }
+
+                self.context.trace(
+                    Severity::Info,
+                    "Successfully setup workload",
+                    details![
+                        "Layer" => "Rust",
+                        "Client" => self.client_id
+                    ],
+                );
             }
-            done.send(true);
-        });
+        }
     }
-    fn check(&'static mut self, db: Database, done: Promise) {
+    async fn check(&mut self, db: Database) {
         println!("rust_check({})", self.client_id);
-        fdb_spawn(async move {
-            if self.client_id == 0 {
-                // even if buggify is off in checks, transactions can failed because of the randomized knob,
-                // so we need to wrap the check in a db.run
-                let count = db
-                    .run(|trx, _maybe_committed| async move {
-                        match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
-                            Err(e) => Err(FdbBindingError::from(e)),
-                            Ok(None) => Ok(0),
-                            Ok(Some(byte_count)) => {
-                                let count = i64::from_le_bytes(byte_count[..8].try_into().unwrap());
-                                Ok(count as usize)
-                            }
+        if self.client_id == 0 {
+            // even if buggify is off in checks, transactions can failed because of the randomized knob,
+            // so we need to wrap the check in a db.run
+            let count = db
+                .run(|trx, _maybe_committed| async move {
+                    match trx.get(&Subspace::all().pack(&COUNT_KEY), true).await {
+                        Err(e) => Err(FdbBindingError::from(e)),
+                        Ok(None) => Ok(0),
+                        Ok(Some(byte_count)) => {
+                            let count = i64::from_le_bytes(byte_count[..8].try_into().unwrap());
+                            Ok(count as usize)
                         }
-                    })
-                    .await
-                    .expect("could not check using db.run");
+                    }
+                })
+                .await
+                .expect("could not check using db.run");
 
-                if self.success_count == count {
-                    self.context.trace(
-                        Severity::Info,
-                        "Atomic count match",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id,
-                            "Expected" => self.expected_count,
-                            "Found" => count,
-                            "CommittedCount" => self.success_count,
-                            "MaybeCommitted" => self.maybe_committed_count,
-                        ],
-                    );
-                } else {
-                    self.context.trace(
-                        Severity::Error,
-                        "Atomic count doesn't match",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id,
-                            "Expected" => self.expected_count,
-                            "Found" => count,
-                            "CommittedCount" => self.success_count,
-                            "MaybeCommitted" => self.maybe_committed_count,
-                        ],
-                    );
-                }
+            if self.success_count == count {
+                self.context.trace(
+                    Severity::Info,
+                    "Atomic count match",
+                    details![
+                        "Layer" => "Rust",
+                        "Client" => self.client_id,
+                        "Expected" => self.expected_count,
+                        "Found" => count,
+                        "CommittedCount" => self.success_count,
+                        "MaybeCommitted" => self.maybe_committed_count,
+                    ],
+                );
+            } else {
+                self.context.trace(
+                    Severity::Error,
+                    "Atomic count doesn't match",
+                    details![
+                        "Layer" => "Rust",
+                        "Client" => self.client_id,
+                        "Expected" => self.expected_count,
+                        "Found" => count,
+                        "CommittedCount" => self.success_count,
+                        "MaybeCommitted" => self.maybe_committed_count,
+                    ],
+                );
             }
-            done.send(true);
-        });
+        }
     }
     fn get_metrics(&self, mut out: Metrics) {
         println!("rust_get_metrics({})", self.client_id);
-        out.extend(&[
+        out.extend([
             Metric::val("expected_count", self.expected_count as f64),
             Metric::val("success_count", self.success_count as f64),
             Metric::val("error_count", self.error_count as f64),

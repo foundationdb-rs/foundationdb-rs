@@ -62,7 +62,7 @@ pub struct Promise(FDBPromise);
 pub struct Metrics(FDBMetrics);
 
 /// A single metric entry
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Metric<'a> {
     /// The name of the metric
     pub key: &'a str,
@@ -228,10 +228,15 @@ impl Metrics {
         }
     }
     /// Push several [Metric] entries in the underlying C++ sink
-    pub fn extend(&mut self, metrics: &[Metric]) {
-        self.reserve(metrics.len());
+    pub fn extend<'a, T>(&mut self, metrics: T)
+    where
+        T: IntoIterator<Item = Metric<'a>>,
+    {
+        let metrics = metrics.into_iter();
+        let (min, max) = metrics.size_hint();
+        self.reserve(max.unwrap_or(min));
         for metric in metrics {
-            self.push(*metric);
+            self.push(metric);
         }
     }
 }

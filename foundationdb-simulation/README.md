@@ -12,8 +12,8 @@ to drive the workload.
 Originally, `ExternalWorkload` used a C++ interface. This is cumbersome because the C++ ABI is not
 stable and most languages do not interoperate with it easily. As of FoundationDB 7.4, the
 `ExternalWorkload` supports a pure C interface, which this crate targets. For backwards
-compatibility with FoundationDB 7.1 and 7.3, a C++ shim is automatically compiled to translate the
-C interface back to the C++ one.
+compatibility with FoundationDB 7.1 and 7.3, a C++ shim can be compiled to translate the C
+interface back to the C++ one.
 
 ### For FoundationDB 7.4 and Newer (Recommended)
 
@@ -50,24 +50,18 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Make sure to select the feature flag for your target FDB version.
-foundationdb-simulation = { version = "...", features = ["fdb-7_4"] } # Or "fdb-7_1", "fdb-7_3"
+foundationdb-simulation = { version = "...", features = ["fdb-7_4"] } # or "fdb-7_1", "fdb-7_3"
 ```
 
 ## Compilation
 
-If you are targeting FDB 7.1 or 7.3 (which require the C++ shim), you **must** compile your
-workload inside the official FoundationDB Docker image. Compiling outside of this environment
+If you are targeting FoundationDB 7.1 or 7.3 (which require the C++ shim), you **must** compile
+your workload inside the official FoundationDB Docker image. Compiling outside of this environment
 will almost certainly lead to segmentation faults at runtime due to C++ ABI mismatches.
 
-Compile your workload using the standard Cargo release profile:
-
-```bash
-cargo build --release
-```
-
-This will create a shared object in `./target/release/`. The filename will be `lib<name>.so`,
-where `<name>` is the `name` you set in the `[lib]` section of your `Cargo.toml`.
-For example: `libmyworkload.so`.
+Compile your workload using the standard Cargo commands. This will create a shared object in
+`./target/release/` (`./target/debug/`). The filename will be `lib<name>.so`, where `<name>` is
+the `name` you set in the `[lib]` section of your `Cargo.toml`. For example: `libmyworkload.so`.
 
 ## Launching the Simulation
 
@@ -104,10 +98,10 @@ FoundationDB workloads are defined by implementing the `RustWorkload` trait:
 
 ```rust
 pub trait RustWorkload {
-    fn setup(&'static mut self, db: Database, done: Promise);
-    fn start(&'static mut self, db: Database, done: Promise);
-    fn check(&'static mut self, db: Database, done: Promise);
-    fn get_metrics(&self) -> Vec<Metric>;
+    fn setup(&mut self, db: Database);
+    fn start(&mut self, db: Database);
+    fn check(&mut self, db: Database);
+    fn get_metrics(&self, out: Metrics);
     fn get_check_timeout(&self) -> f64;
 }
 ```
@@ -116,7 +110,7 @@ The simulator expects the shared object to expose a factory that can create work
 This crate provides two traits to define these factories.
 
 For simple use cases where a single workload implementation is defined, you can implement the
-`SingleRustWorkload` trait.
+`SingleRustWorkload` trait directly on your `RustWorkload`.
 
 ```rust
 pub trait SingleRustWorkload: RustWorkload {
@@ -125,8 +119,11 @@ pub trait SingleRustWorkload: RustWorkload {
 }
 ```
 
-For more complex scenarios, you can use the `RustWorkloadFactory` trait to instantiate different
-`RustWorkload` types based on the workload name provided in the test configuration.
+Then, register your workload with the corresponding `register_workload` macro.
+
+For more complex scenarios, where multiple workload implementations exist in a single shared
+object, you can define a separate factory that implements the `RustWorkloadFactory` trait. This
+allows selecting the implementation based on the workload name provided in the test configuration.
 
 ```rust
 pub trait RustWorkloadFactory {
@@ -135,11 +132,15 @@ pub trait RustWorkloadFactory {
 }
 ```
 
+The factory must be registered with the corresponding `register_factory` macro.
+
+> **Warning:** Do not use more than one "register macro" per project.
+
 See the `atomic` and `noop` implementations in the `examples/` directory for complete working examples.
 
 ## The WorkloadContext
 
-The `WorkloadContext` passed to the factory is the primary way to interact with the simulator.
+The `WorkloadContext` passed at instantiation is the primary way to interact with the simulator.
 It provides several useful methods:
 
 - `trace(severity, name, details)`: Add a log entry to the FDB trace files.
@@ -150,23 +151,45 @@ It provides several useful methods:
 - `client_count()`: Get the total number of clients in the simulation.
 - `get_option<T>(name)`: Get a custom configuration option from the test file.
 
+### Get options
+In the simulation configuration file you can add custom parameters to your workload.
+These parameters can be read with `WorkloadContext::get_option`. This method will first try to get
+the parameter value as a raw string and then convert it in a the type of your choice.
+If the parameter doesn't exist, its value is invalid or set to null, the function returns None.
+
+Example:
+
+```rust
+impl SingleRustWorkload for MyWorkload {
+    fn new(name: String, context: WorkloadContext) -> Self {
+        let my_custom_option: usize = context
+            .get_option("myCustomOption")
+            .unwrap();
+        Self { context, name, my_custom_option }
+    }
+}
+```
+
 ### Tracing
 
 Use `WorkloadContext::trace` to log messages with a given severity and a map of string "details".
 A severity of `Severity::Error` will automatically stop the `fdbserver` process.
 
 ```rust
-fn setup(&'static mut self, db: SimDatabase, done: Promise) {
-    self.context.trace(
-        Severity::Info,
-        "SuccessfullySetupWorkload",
-        details![
-            "Layer" => "Rust",
-            "Name" => self.name.clone(),
-            "Phase" => "setup",
-        ],
-    );
-    done.send(true);
+impl RustWorkload for MyWorkload {
+    fn setup(&mut self, db: SimDatabase) {
+        self.context.trace(
+            Severity::Info,
+            "SuccessfullySetupWorkload",
+            details![
+                "Layer" => "Rust",
+                "Phase" => "setup",
+                "Name" => self.name,
+                "CustomOption" => self.my_custom_option,
+            ],
+        );
+    }
+    ...
 }
 ```
 
@@ -193,81 +216,19 @@ to use across phases and will not be provided again.
 ## The setup, start, and check Phases
 
 These three phases run sequentially. The simulation will not begin the `start` phase until all
-clients have completed the `setup` phase, and so on. These phases are asynchronous from the
-simulator's perspective. A workload signals that it has finished its current phase by resolving
-the `done` promise.
+clients have completed the `setup` phase, and so on.
 
-It is critical to understand that **any Rust code you write is blocking**. To ensure the simulation
-is deterministic, the `fdbserver` process pauses whenever your workload code is executing.
+Each function is `async` and runs cooperatively alonside the `fdbserver`.
+As long as your function is executing, the `fdbserver` is paused to ensure determinism.
 You **must** yield control back to the simulator for any database operations to occur.
+Do not "busy wait" for a foundationdb function to return as it will deadlock.
 
-For example, the following code will cause a **deadlock**:
+FoundationDB Simulation runs your async code on a custom future executor that integrates with
+the `fdbserver` event loop. It effectively turns your async fn into a sequence of cooperative
+steps, allowing the `fdbserver` to drive simulation events between awaits.
 
-```rust
-fn setup(&'static mut self, db: SimDatabase, done: Promise) {
-    // This creates a standard Rust async runtime, which is separate from
-    // the FDB simulator's event loop.
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let trx = db.create_trx().unwrap();
-            let version = trx.get_read_version().await.unwrap();
-            println!("version: {}", version);
-        });
-    done.send(true);
-}
-```
-
-This deadlocks because `get_read_version().await` waits for `fdbserver` to process the request,
-but `fdbserver` is waiting for the `setup` function to return.
-
-The correct approach is to use FoundationDB's callback-based futures. The raw `foundationdb_sys`
-bindings are verbose and require manual callback management:
-
-```rust
-use foundationdb_sys::*;
-
-fn setup(&'static mut self, db: Database, done: Promise) {
-    let trx = db.create_trx();
-    let f = fdb_transaction_get_read_version(trx);
-    // Set a callback to be invoked by the FDB event loop later
-    fdb_future_set_callback(f, on_version_ready, Box::into_raw(Box::new(MyCallbackData { trx, done })));
-}
-
-extern "C" fn on_version_ready(f: *mut FDBFuture, user_data: *mut c_void) {
-    // Now we are inside a callback, so the fdbserver is waiting for us again.
-    let data = unsafe { Box::from_raw(user_data as *mut MyCallbackData) };
-    let mut version: i64 = 0;
-    fdb_future_get_int64(f, &mut version);
-    println!("version: {}", version);
-    // We are done.
-    data.done.send(true);
-}
-```
-
-To simplify this, `foundationdb-simulation` provides a small, native async executor that integrates
-with the FDB event loop. You can use familiar `async/await` syntax, but
-**only with futures produced by the `foundationdb-rs` crate**.
-
-This is how the same logic should be written:
-
-```rust
-fn setup(&'static mut self, db: SimDatabase, done: Promise) {
-    // fdb_spawn schedules the async block to be driven by the FDB event loop.
-    fdb_spawn(async move {
-        let trx = db.create_trx().unwrap();
-        let version = trx.get_read_version().await.unwrap();
-        println!("version: {}", version);
-        done.send(true);
-    });
-}
-```
-
-`fdb_spawn` uses the `fdbserver` itself as the reactor. Attempting to `.await` any future not
-created by `foundationdb-rs` may cause a deadlock. This feature is experimental, and we welcome
-feedback, bug reports, and suggestions.
+- All foundationdb-rs async operations are compatible with this model.
+- Avoid using arbitrary async primitives from other crates (e.g., `tokio::sleep`).
 
 ## Reporting Metrics
 
@@ -286,30 +247,17 @@ fn get_metrics(&self, out: Metrics) {
 # Common Mistakes
 
 * **Compiling C++ shim outside of the Docker.** C++ ABI is extremely environment-dependent, not
-  compiling in the exact same environment as the oter half of the interface will probably result
+  compiling in the exact same environment as the other half of the interface will probably result
   in segmentation faults or mangled strings that will trigger unrecoverable errors.
 
 * **Forgetting to read all options.** Any custom option in the configuration that is not read will
   trigger a `Workload had invalid options.` error.
 
 * **Forgetting useCAPI=true.** If the `fdbserver` used supports the C API, you still need to add
-  explicitely this option, otherwise the `ExternalWorkload` will try to load the C++ symbol. This
-  error can be confusing since it won't print a specific error message, instead it will complain
-  about unrecognized options. In the log files you should find `undefined symbol: WorkloadFactory`.
+  explicitely this option, otherwise the `ExternalWorkload` will try to load the C++ symbol.
 
-* **Forgetting to resolve the `done` promise.** If you do not call `done.send(...)` at the end
-  of a phase, this will trigger a `BrokenPromise` error if the `done` is dropped, and hang if it
-  is somehow kept alive.
-
-* **Resolving the `done` promise more than once.** This will cause the workload to panic immediately.
-  The API helps prevent this, as `Promise::send` consumes `self`.
-
-* **Thinking `done.send(false)` signals an error.** For the simulator, sending `true` or `false` is
-  equivalent. All that matters is that the promise is resolved. Workload failure should be signaled
-  via `Severity::Error` traces or by panicking.
-
-* **Using pointers or references after a phase ends.** Resolving the `done` promise should be the
-  final action in a phase. Once it's resolved, the simulator may move or deallocate memory. Any
-  pointers or references to FDB objects become invalid. You must use the fresh `&'static mut self`
-  and `db` references passed to the next phase. Storing `Database`, `Transaction`, or `Future`
-  objects across phases will lead to segmentation faults or other undefined behavior.
+* **Using pointers or references after a phase ends.** After each phase, the simulator may move or
+  deallocate memory. Any pointers or references to FoundationDB objects become invalid. You must
+  use the fresh `&mut self` and `db` references passed to the next phase. Storing `Database`,
+  `Transaction`, or `Future` objects across phases will lead to segmentation faults or other
+  undefined behavior.
