@@ -135,7 +135,7 @@ impl RustWorkload for AtomicWorkload {
     }
     fn get_metrics(&self, mut out: Metrics) {
         println!("rust_get_metrics({})", self.client_id);
-        out.extend(&[
+        out.extend([
             Metric::val("expected_count", self.expected_count as f64),
             Metric::val("success_count", self.success_count as f64),
             Metric::val("error_count", self.error_count as f64),
