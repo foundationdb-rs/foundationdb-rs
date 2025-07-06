@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="foundationdb-simulation"><title>foundationdb_simulation - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="foundationdb_simulation" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../foundationdb_simulation/index.html">foundationdb_<wbr>simulation</a><span class="version">0.2.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#foundationdb-simulation" title="foundationdb-simulation">foundationdb-simulation</a><ul><li><a href="#how-it-works" title="How It Works">How It Works</a></li><li><a href="#setup" title="Setup">Setup</a></li><li><a href="#compilation" title="Compilation">Compilation</a></li><li><a href="#launching-the-simulation" title="Launching the Simulation">Launching the Simulation</a></li><li><a href="#workload-definition" title="Workload Definition">Workload Definition</a></li><li><a href="#the-workloadcontext" title="The WorkloadContext">The WorkloadContext</a></li></ul></li><li><a href="#workload-lifecycle" title="Workload Lifecycle">Workload Lifecycle</a><ul><li><a href="#instantiation" title="Instantiation">Instantiation</a></li><li><a href="#the-setup-start-and-check-phases" title="The setup, start, and check Phases">The setup, start, and check Phases</a></li><li><a href="#reporting-metrics" title="Reporting Metrics">Reporting Metrics</a></li></ul></li><li><a href="#common-mistakes" title="Common Mistakes">Common Mistakes</a></li></ul><h3><a href="#macros">Crate Items</a></h3><ul class="block"><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>foundationdb_simulation</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/foundationdb_simulation/lib.rs.html#1-229">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="foundationdb-simulation"><a class="doc-anchor" href="#foundationdb-simulation">§</a>foundationdb-simulation</h2>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="foundationdb-simulation"><title>foundationdb_simulation - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="foundationdb_simulation" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../foundationdb_simulation/index.html">foundationdb_<wbr>simulation</a><span class="version">0.2.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#foundationdb-simulation" title="foundationdb-simulation">foundationdb-simulation</a><ul><li><a href="#how-it-works" title="How It Works">How It Works</a></li><li><a href="#setup" title="Setup">Setup</a></li><li><a href="#compilation" title="Compilation">Compilation</a></li><li><a href="#launching-the-simulation" title="Launching the Simulation">Launching the Simulation</a></li><li><a href="#workload-definition" title="Workload Definition">Workload Definition</a></li><li><a href="#the-workloadcontext" title="The WorkloadContext">The WorkloadContext</a></li></ul></li><li><a href="#workload-lifecycle" title="Workload Lifecycle">Workload Lifecycle</a><ul><li><a href="#instantiation" title="Instantiation">Instantiation</a></li><li><a href="#the-setup-start-and-check-phases" title="The setup, start, and check Phases">The setup, start, and check Phases</a></li><li><a href="#reporting-metrics" title="Reporting Metrics">Reporting Metrics</a></li></ul></li><li><a href="#common-mistakes" title="Common Mistakes">Common Mistakes</a></li></ul><h3><a href="#macros">Crate Items</a></h3><ul class="block"><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>foundationdb_simulation</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/foundationdb_simulation/lib.rs.html#1-249">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="foundationdb-simulation"><a class="doc-anchor" href="#foundationdb-simulation">§</a>foundationdb-simulation</h2>
 <p>This crate provides the tools to write Rust workloads that can be loaded and executed in the
 official FoundationDB simulator, allowing for rigorous and deterministic testing of Rust layers.</p>
 <h3 id="how-it-works"><a class="doc-anchor" href="#how-it-works">§</a>How It Works</h3>
@@ -8,8 +8,8 @@ to drive the workload.</p>
 <p>Originally, <code>ExternalWorkload</code> used a C++ interface. This is cumbersome because the C++ ABI is not
 stable and most languages do not interoperate with it easily. As of FoundationDB 7.4, the
 <code>ExternalWorkload</code> supports a pure C interface, which this crate targets. For backwards
-compatibility with FoundationDB 7.1 and 7.3, a C++ shim is automatically compiled to translate the
-C interface back to the C++ one.</p>
+compatibility with FoundationDB 7.1 and 7.3, a C++ shim can be compiled to translate the C
+interface back to the C++ one.</p>
 <h4 id="for-foundationdb-74-and-newer-recommended"><a class="doc-anchor" href="#for-foundationdb-74-and-newer-recommended">§</a>For FoundationDB 7.4 and Newer (Recommended)</h4>
 <ul>
 <li>Uses a pure C API (FFI-safe).</li>
@@ -38,15 +38,13 @@ crate-type = [&quot;cdylib&quot;]
 
 [dependencies]
 # Make sure to select the feature flag for your target FDB version.
-foundationdb-simulation = { version = &quot;...&quot;, features = [&quot;fdb-7_4&quot;] } # Or &quot;fdb-7_1&quot;, &quot;fdb-7_3&quot;</code></pre></div><h3 id="compilation"><a class="doc-anchor" href="#compilation">§</a>Compilation</h3>
-<p>If you are targeting FDB 7.1 or 7.3 (which require the C++ shim), you <strong>must</strong> compile your
-workload inside the official FoundationDB Docker image. Compiling outside of this environment
+foundationdb-simulation = { version = &quot;...&quot;, features = [&quot;fdb-7_4&quot;] } # or &quot;fdb-7_1&quot;, &quot;fdb-7_3&quot;</code></pre></div><h3 id="compilation"><a class="doc-anchor" href="#compilation">§</a>Compilation</h3>
+<p>If you are targeting FoundationDB 7.1 or 7.3 (which require the C++ shim), you <strong>must</strong> compile
+your workload inside the official FoundationDB Docker image. Compiling outside of this environment
 will almost certainly lead to segmentation faults at runtime due to C++ ABI mismatches.</p>
-<p>Compile your workload using the standard Cargo release profile:</p>
-<div class="example-wrap"><pre class="language-bash"><code>cargo build --release</code></pre></div>
-<p>This will create a shared object in <code>./target/release/</code>. The filename will be <code>lib&lt;name&gt;.so</code>,
-where <code>&lt;name&gt;</code> is the <code>name</code> you set in the <code>[lib]</code> section of your <code>Cargo.toml</code>.
-For example: <code>libmyworkload.so</code>.</p>
+<p>Compile your workload using the standard Cargo commands. This will create a shared object in
+<code>./target/release/</code> (<code>./target/debug/</code>). The filename will be <code>lib&lt;name&gt;.so</code>, where <code>&lt;name&gt;</code> is
+the <code>name</code> you set in the <code>[lib]</code> section of your <code>Cargo.toml</code>. For example: <code>libmyworkload.so</code>.</p>
 <h3 id="launching-the-simulation"><a class="doc-anchor" href="#launching-the-simulation">§</a>Launching the Simulation</h3>
 <p>The FoundationDB simulator is launched via the <code>fdbserver</code> binary with a TOML configuration file.</p>
 <div class="example-wrap"><pre class="language-bash"><code>fdbserver -r simulation -f ./test_file.toml</code></pre></div>
@@ -70,31 +68,37 @@ myCustomOption = 42</code></pre></div><h3 id="workload-definition"><a class="doc
 <p>FoundationDB workloads are defined by implementing the <code>RustWorkload</code> trait:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub trait </span>RustWorkload {
-    <span class="kw">fn </span>setup(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: Database, done: Promise);
-    <span class="kw">fn </span>start(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: Database, done: Promise);
-    <span class="kw">fn </span>check(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: Database, done: Promise);
-    <span class="kw">fn </span>get_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Metric&gt;;
+    <span class="kw">fn </span>setup(<span class="kw-2">&amp;mut </span><span class="self">self</span>, db: Database);
+    <span class="kw">fn </span>start(<span class="kw-2">&amp;mut </span><span class="self">self</span>, db: Database);
+    <span class="kw">fn </span>check(<span class="kw-2">&amp;mut </span><span class="self">self</span>, db: Database);
+    <span class="kw">fn </span>get_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, out: Metrics);
     <span class="kw">fn </span>get_check_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64;
 }</code></pre></div>
 <p>The simulator expects the shared object to expose a factory that can create workload instances.
 This crate provides two traits to define these factories.</p>
 <p>For simple use cases where a single workload implementation is defined, you can implement the
-<code>SingleRustWorkload</code> trait.</p>
+<code>SingleRustWorkload</code> trait directly on your <code>RustWorkload</code>.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub trait </span>SingleRustWorkload: RustWorkload {
     <span class="kw">const </span>FDB_API_VERSION: u32;
     <span class="kw">fn </span>new(name: String, context: WorkloadContext) -&gt; <span class="self">Self</span>;
 }</code></pre></div>
-<p>For more complex scenarios, you can use the <code>RustWorkloadFactory</code> trait to instantiate different
-<code>RustWorkload</code> types based on the workload name provided in the test configuration.</p>
+<p>Then, register your workload with the corresponding <code>register_workload</code> macro.</p>
+<p>For more complex scenarios, where multiple workload implementations exist in a single shared
+object, you can define a separate factory that implements the <code>RustWorkloadFactory</code> trait. This
+allows selecting the implementation based on the workload name provided in the test configuration.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub trait </span>RustWorkloadFactory {
     <span class="kw">const </span>FDB_API_VERSION: u32;
     <span class="kw">fn </span>create(name: String, context: WorkloadContext) -&gt; WrappedWorkload;
 }</code></pre></div>
+<p>The factory must be registered with the corresponding <code>register_factory</code> macro.</p>
+<blockquote>
+<p><strong>Warning:</strong> Do not use more than one “register macro” per project.</p>
+</blockquote>
 <p>See the <code>atomic</code> and <code>noop</code> implementations in the <code>examples/</code> directory for complete working examples.</p>
 <h3 id="the-workloadcontext"><a class="doc-anchor" href="#the-workloadcontext">§</a>The WorkloadContext</h3>
-<p>The <code>WorkloadContext</code> passed to the factory is the primary way to interact with the simulator.
+<p>The <code>WorkloadContext</code> passed at instantiation is the primary way to interact with the simulator.
 It provides several useful methods:</p>
 <ul>
 <li><code>trace(severity, name, details)</code>: Add a log entry to the FDB trace files.</li>
@@ -105,21 +109,39 @@ It provides several useful methods:</p>
 <li><code>client_count()</code>: Get the total number of clients in the simulation.</li>
 <li><code>get_option&lt;T&gt;(name)</code>: Get a custom configuration option from the test file.</li>
 </ul>
+<h4 id="get-options"><a class="doc-anchor" href="#get-options">§</a>Get options</h4>
+<p>In the simulation configuration file you can add custom parameters to your workload.
+These parameters can be read with <code>WorkloadContext::get_option</code>. This method will first try to get
+the parameter value as a raw string and then convert it in a the type of your choice.
+If the parameter doesn’t exist, its value is invalid or set to null, the function returns None.</p>
+<p>Example:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>SingleRustWorkload <span class="kw">for </span>MyWorkload {
+    <span class="kw">fn </span>new(name: String, context: WorkloadContext) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>my_custom_option: usize = context
+            .get_option(<span class="string">"myCustomOption"</span>)
+            .unwrap();
+        <span class="self">Self </span>{ context, name, my_custom_option }
+    }
+}</code></pre></div>
 <h4 id="tracing"><a class="doc-anchor" href="#tracing">§</a>Tracing</h4>
 <p>Use <code>WorkloadContext::trace</code> to log messages with a given severity and a map of string “details”.
 A severity of <code>Severity::Error</code> will automatically stop the <code>fdbserver</code> process.</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>setup(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: SimDatabase, done: Promise) {
-    <span class="self">self</span>.context.trace(
-        Severity::Info,
-        <span class="string">"SuccessfullySetupWorkload"</span>,
-        <span class="macro">details!</span>[
-            <span class="string">"Layer" </span>=&gt; <span class="string">"Rust"</span>,
-            <span class="string">"Name" </span>=&gt; <span class="self">self</span>.name.clone(),
-            <span class="string">"Phase" </span>=&gt; <span class="string">"setup"</span>,
-        ],
-    );
-    done.send(<span class="bool-val">true</span>);
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>RustWorkload <span class="kw">for </span>MyWorkload {
+    <span class="kw">fn </span>setup(<span class="kw-2">&amp;mut </span><span class="self">self</span>, db: SimDatabase) {
+        <span class="self">self</span>.context.trace(
+            Severity::Info,
+            <span class="string">"SuccessfullySetupWorkload"</span>,
+            <span class="macro">details!</span>[
+                <span class="string">"Layer" </span>=&gt; <span class="string">"Rust"</span>,
+                <span class="string">"Phase" </span>=&gt; <span class="string">"setup"</span>,
+                <span class="string">"Name" </span>=&gt; <span class="self">self</span>.name,
+                <span class="string">"CustomOption" </span>=&gt; <span class="self">self</span>.my_custom_option,
+            ],
+        );
+    }
+    ...
 }</code></pre></div>
 <h4 id="randomness"><a class="doc-anchor" href="#randomness">§</a>Randomness</h4>
 <p>To maintain determinism, all random numbers must be sourced from the simulator.
@@ -137,68 +159,18 @@ the <code>RustWorkload</code> is not created until the simulator’s <code>init<
 to use across phases and will not be provided again.</p>
 <h3 id="the-setup-start-and-check-phases"><a class="doc-anchor" href="#the-setup-start-and-check-phases">§</a>The setup, start, and check Phases</h3>
 <p>These three phases run sequentially. The simulation will not begin the <code>start</code> phase until all
-clients have completed the <code>setup</code> phase, and so on. These phases are asynchronous from the
-simulator’s perspective. A workload signals that it has finished its current phase by resolving
-the <code>done</code> promise.</p>
-<p>It is critical to understand that <strong>any Rust code you write is blocking</strong>. To ensure the simulation
-is deterministic, the <code>fdbserver</code> process pauses whenever your workload code is executing.
-You <strong>must</strong> yield control back to the simulator for any database operations to occur.</p>
-<p>For example, the following code will cause a <strong>deadlock</strong>:</p>
-
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>setup(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: SimDatabase, done: Promise) {
-    <span class="comment">// This creates a standard Rust async runtime, which is separate from
-    // the FDB simulator's event loop.
-    </span>tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(<span class="kw">async </span>{
-            <span class="kw">let </span>trx = db.create_trx().unwrap();
-            <span class="kw">let </span>version = trx.get_read_version().<span class="kw">await</span>.unwrap();
-            <span class="macro">println!</span>(<span class="string">"version: {}"</span>, version);
-        });
-    done.send(<span class="bool-val">true</span>);
-}</code></pre></div>
-<p>This deadlocks because <code>get_read_version().await</code> waits for <code>fdbserver</code> to process the request,
-but <code>fdbserver</code> is waiting for the <code>setup</code> function to return.</p>
-<p>The correct approach is to use FoundationDB’s callback-based futures. The raw <code>foundationdb_sys</code>
-bindings are verbose and require manual callback management:</p>
-
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>foundationdb_sys::<span class="kw-2">*</span>;
-
-<span class="kw">fn </span>setup(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: Database, done: Promise) {
-    <span class="kw">let </span>trx = db.create_trx();
-    <span class="kw">let </span>f = fdb_transaction_get_read_version(trx);
-    <span class="comment">// Set a callback to be invoked by the FDB event loop later
-    </span>fdb_future_set_callback(f, on_version_ready, Box::into_raw(Box::new(MyCallbackData { trx, done })));
-}
-
-<span class="kw">extern </span><span class="string">"C" </span><span class="kw">fn </span>on_version_ready(f: <span class="kw-2">*mut </span>FDBFuture, user_data: <span class="kw-2">*mut </span>c_void) {
-    <span class="comment">// Now we are inside a callback, so the fdbserver is waiting for us again.
-    </span><span class="kw">let </span>data = <span class="kw">unsafe </span>{ Box::from_raw(user_data <span class="kw">as </span><span class="kw-2">*mut </span>MyCallbackData) };
-    <span class="kw">let </span><span class="kw-2">mut </span>version: i64 = <span class="number">0</span>;
-    fdb_future_get_int64(f, <span class="kw-2">&amp;mut </span>version);
-    <span class="macro">println!</span>(<span class="string">"version: {}"</span>, version);
-    <span class="comment">// We are done.
-    </span>data.done.send(<span class="bool-val">true</span>);
-}</code></pre></div>
-<p>To simplify this, <code>foundationdb-simulation</code> provides a small, native async executor that integrates
-with the FDB event loop. You can use familiar <code>async/await</code> syntax, but
-<strong>only with futures produced by the <code>foundationdb-rs</code> crate</strong>.</p>
-<p>This is how the same logic should be written:</p>
-
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>setup(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw-2">mut </span><span class="self">self</span>, db: SimDatabase, done: Promise) {
-    <span class="comment">// fdb_spawn schedules the async block to be driven by the FDB event loop.
-    </span>fdb_spawn(<span class="kw">async move </span>{
-        <span class="kw">let </span>trx = db.create_trx().unwrap();
-        <span class="kw">let </span>version = trx.get_read_version().<span class="kw">await</span>.unwrap();
-        <span class="macro">println!</span>(<span class="string">"version: {}"</span>, version);
-        done.send(<span class="bool-val">true</span>);
-    });
-}</code></pre></div>
-<p><code>fdb_spawn</code> uses the <code>fdbserver</code> itself as the reactor. Attempting to <code>.await</code> any future not
-created by <code>foundationdb-rs</code> may cause a deadlock. This feature is experimental, and we welcome
-feedback, bug reports, and suggestions.</p>
+clients have completed the <code>setup</code> phase, and so on.</p>
+<p>Each function is <code>async</code> and runs cooperatively alonside the <code>fdbserver</code>.
+As long as your function is executing, the <code>fdbserver</code> is paused to ensure determinism.
+You <strong>must</strong> yield control back to the simulator for any database operations to occur.
+Do not “busy wait” for a foundationdb function to return as it will deadlock.</p>
+<p>FoundationDB Simulation runs your async code on a custom future executor that integrates with
+the <code>fdbserver</code> event loop. It effectively turns your async fn into a sequence of cooperative
+steps, allowing the <code>fdbserver</code> to drive simulation events between awaits.</p>
+<ul>
+<li>All foundationdb-rs async operations are compatible with this model.</li>
+<li>Avoid using arbitrary async primitives from other crates (e.g., <code>tokio::sleep</code>).</li>
+</ul>
 <h3 id="reporting-metrics"><a class="doc-anchor" href="#reporting-metrics">§</a>Reporting Metrics</h3>
 <p>At the end of the simulation, the <code>get_metrics</code> method is called for each client.
 Implement this method to report results.</p>
@@ -213,7 +185,7 @@ Implement this method to report results.</p>
 <ul>
 <li>
 <p><strong>Compiling C++ shim outside of the Docker.</strong> C++ ABI is extremely environment-dependent, not
-compiling in the exact same environment as the oter half of the interface will probably result
+compiling in the exact same environment as the other half of the interface will probably result
 in segmentation faults or mangled strings that will trigger unrecoverable errors.</p>
 </li>
 <li>
@@ -222,32 +194,16 @@ trigger a <code>Workload had invalid options.</code> error.</p>
 </li>
 <li>
 <p><strong>Forgetting useCAPI=true.</strong> If the <code>fdbserver</code> used supports the C API, you still need to add
-explicitely this option, otherwise the <code>ExternalWorkload</code> will try to load the C++ symbol. This
-error can be confusing since it won’t print a specific error message, instead it will complain
-about unrecognized options. In the log files you should find <code>undefined symbol: WorkloadFactory</code>.</p>
+explicitely this option, otherwise the <code>ExternalWorkload</code> will try to load the C++ symbol.</p>
 </li>
 <li>
-<p><strong>Forgetting to resolve the <code>done</code> promise.</strong> If you do not call <code>done.send(...)</code> at the end
-of a phase, this will trigger a <code>BrokenPromise</code> error if the <code>done</code> is dropped, and hang if it
-is somehow kept alive.</p>
-</li>
-<li>
-<p><strong>Resolving the <code>done</code> promise more than once.</strong> This will cause the workload to panic immediately.
-The API helps prevent this, as <code>Promise::send</code> consumes <code>self</code>.</p>
-</li>
-<li>
-<p><strong>Thinking <code>done.send(false)</code> signals an error.</strong> For the simulator, sending <code>true</code> or <code>false</code> is
-equivalent. All that matters is that the promise is resolved. Workload failure should be signaled
-via <code>Severity::Error</code> traces or by panicking.</p>
-</li>
-<li>
-<p><strong>Using pointers or references after a phase ends.</strong> Resolving the <code>done</code> promise should be the
-final action in a phase. Once it’s resolved, the simulator may move or deallocate memory. Any
-pointers or references to FDB objects become invalid. You must use the fresh <code>&amp;'static mut self</code>
-and <code>db</code> references passed to the next phase. Storing <code>Database</code>, <code>Transaction</code>, or <code>Future</code>
-objects across phases will lead to segmentation faults or other undefined behavior.</p>
+<p><strong>Using pointers or references after a phase ends.</strong> After each phase, the simulator may move or
+deallocate memory. Any pointers or references to FoundationDB objects become invalid. You must
+use the fresh <code>&amp;mut self</code> and <code>db</code> references passed to the next phase. Storing <code>Database</code>,
+<code>Transaction</code>, or <code>Future</code> objects across phases will lead to segmentation faults or other
+undefined behavior.</p>
 </li>
 </ul>
 </div></details><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.details.html" title="macro foundationdb_simulation::details">details</a></dt><dd>Macro that can be used to create log “details” more easily.</dd><dt><a class="macro" href="macro.register_factory.html" title="macro foundationdb_simulation::register_factory">register_<wbr>factory</a></dt><dd>Register a <a href="trait.RustWorkloadFactory.html" title="trait foundationdb_simulation::RustWorkloadFactory">RustWorkloadFactory</a>.
 /!\ Should be called only once.</dd><dt><a class="macro" href="macro.register_workload.html" title="macro foundationdb_simulation::register_workload">register_<wbr>workload</a></dt><dd>Register a <a href="trait.SingleRustWorkload.html" title="trait foundationdb_simulation::SingleRustWorkload">SingleRustWorkload</a> and creates an implicit WorkloadFactory.
-/!\ Should be called only once.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.FDBWorkloadContext.html" title="struct foundationdb_simulation::FDBWorkloadContext">FDBWorkload<wbr>Context</a></dt><dt><a class="struct" href="struct.Metric.html" title="struct foundationdb_simulation::Metric">Metric</a></dt><dd>A single metric entry</dd><dt><a class="struct" href="struct.Metrics.html" title="struct foundationdb_simulation::Metrics">Metrics</a></dt><dd>Wrapper around the C FDBMetrics</dd><dt><a class="struct" href="struct.Promise.html" title="struct foundationdb_simulation::Promise">Promise</a></dt><dd>Wrapper around the C FDBPromise</dd><dt><a class="struct" href="struct.WorkloadContext.html" title="struct foundationdb_simulation::WorkloadContext">Workload<wbr>Context</a></dt><dd>Wrapper around the C FDBWorkloadContext</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Severity.html" title="enum foundationdb_simulation::Severity">Severity</a></dt><dd>Indicates the severity of a FoundationDB log entry</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.RustWorkload.html" title="trait foundationdb_simulation::RustWorkload">Rust<wbr>Workload</a></dt><dd>Equivalent to the C++ abstract class <code>FDBWorkload</code></dd><dt><a class="trait" href="trait.RustWorkloadFactory.html" title="trait foundationdb_simulation::RustWorkloadFactory">Rust<wbr>Workload<wbr>Factory</a></dt><dd>Equivalent to the C++ abstract class <code>FDBWorkloadFactory</code></dd><dt><a class="trait" href="trait.SingleRustWorkload.html" title="trait foundationdb_simulation::SingleRustWorkload">Single<wbr>Rust<wbr>Workload</a></dt><dd>Automatically implements a WorkloadFactory for a single workload</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.fdb_spawn.html" title="fn foundationdb_simulation::fdb_spawn">fdb_<wbr>spawn</a></dt><dd>Spawn an async block and resolve all contained FoundationDB futures</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.Database.html" title="type foundationdb_simulation::Database">Database</a></dt><dd>Rust representation of a simulated FoundationDB database</dd><dt><a class="type" href="type.WrappedWorkload.html" title="type foundationdb_simulation::WrappedWorkload">Wrapped<wbr>Workload</a></dt><dd>Rust representation of a FoundationDB workload</dd></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</div>","&mut [u8]":"<h3>Notable traits for <code>&amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for &amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</div>"}</script></section></div></main></body></html>
+/!\ Should be called only once.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Metric.html" title="struct foundationdb_simulation::Metric">Metric</a></dt><dd>A single metric entry</dd><dt><a class="struct" href="struct.Metrics.html" title="struct foundationdb_simulation::Metrics">Metrics</a></dt><dd>Wrapper around the C FDBMetrics</dd><dt><a class="struct" href="struct.WorkloadContext.html" title="struct foundationdb_simulation::WorkloadContext">Workload<wbr>Context</a></dt><dd>Wrapper around the C FDBWorkloadContext</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Severity.html" title="enum foundationdb_simulation::Severity">Severity</a></dt><dd>Indicates the severity of a FoundationDB log entry</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.RustWorkload.html" title="trait foundationdb_simulation::RustWorkload">Rust<wbr>Workload</a></dt><dd>Equivalent to the C++ abstract class <code>FDBWorkload</code></dd><dt><a class="trait" href="trait.RustWorkloadFactory.html" title="trait foundationdb_simulation::RustWorkloadFactory">Rust<wbr>Workload<wbr>Factory</a></dt><dd>Equivalent to the C++ abstract class <code>FDBWorkloadFactory</code></dd><dt><a class="trait" href="trait.SingleRustWorkload.html" title="trait foundationdb_simulation::SingleRustWorkload">Single<wbr>Rust<wbr>Workload</a></dt><dd>Automatically implements a WorkloadFactory for a single workload</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.Database.html" title="type foundationdb_simulation::Database">Database</a></dt><dd>Rust representation of a simulated FoundationDB database</dd><dt><a class="type" href="type.WrappedWorkload.html" title="type foundationdb_simulation::WrappedWorkload">Wrapped<wbr>Workload</a></dt><dd>Rust representation of a FoundationDB workload</dd></dl><script type="text/json" id="notable-traits-data">{"&[u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</div>","&mut [u8]":"<h3>Notable traits for <code>&amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for &amp;mut [<a class=\"primitive\" href=\"https://doc.rust-lang.org/1.88.0/std/primitive.u8.html\">u8</a>]</div>"}</script></section></div></main></body></html>

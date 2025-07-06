@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a></span><span class="kw">pub struct </span>Metrics(FDBMetrics);
 <a href=#63 id=63 data-nosnippet>63</a>
 <a href=#64 id=64 data-nosnippet>64</a><span class="doccomment">/// A single metric entry
-<a href=#65 id=65 data-nosnippet>65</a></span><span class="attr">#[derive(Clone, Copy)]
+<a href=#65 id=65 data-nosnippet>65</a></span><span class="attr">#[derive(Clone)]
 <a href=#66 id=66 data-nosnippet>66</a></span><span class="kw">pub struct </span>Metric&lt;<span class="lifetime">'a</span>&gt; {
 <a href=#67 id=67 data-nosnippet>67</a>    <span class="doccomment">/// The name of the metric
 <a href=#68 id=68 data-nosnippet>68</a>    </span><span class="kw">pub </span>key: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
@@ -228,37 +228,42 @@
 <a href=#228 id=228 data-nosnippet>228</a>        }
 <a href=#229 id=229 data-nosnippet>229</a>    }
 <a href=#230 id=230 data-nosnippet>230</a>    <span class="doccomment">/// Push several [Metric] entries in the underlying C++ sink
-<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="kw">pub fn </span>extend(<span class="kw-2">&amp;mut </span><span class="self">self</span>, metrics: <span class="kw-2">&amp;</span>[Metric]) {
-<a href=#232 id=232 data-nosnippet>232</a>        <span class="self">self</span>.reserve(metrics.len());
-<a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">for </span>metric <span class="kw">in </span>metrics {
-<a href=#234 id=234 data-nosnippet>234</a>            <span class="self">self</span>.push(<span class="kw-2">*</span>metric);
-<a href=#235 id=235 data-nosnippet>235</a>        }
-<a href=#236 id=236 data-nosnippet>236</a>    }
-<a href=#237 id=237 data-nosnippet>237</a>}
-<a href=#238 id=238 data-nosnippet>238</a>
-<a href=#239 id=239 data-nosnippet>239</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Metric&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="doccomment">/// Create a metric value entry
-<a href=#241 id=241 data-nosnippet>241</a>    </span><span class="kw">pub fn </span>val&lt;V&gt;(key: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, val: V) -&gt; <span class="self">Self
-<a href=#242 id=242 data-nosnippet>242</a>    </span><span class="kw">where
-<a href=#243 id=243 data-nosnippet>243</a>        </span>V: TryInto&lt;f64&gt;,
-<a href=#244 id=244 data-nosnippet>244</a>    {
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="self">Self </span>{
-<a href=#246 id=246 data-nosnippet>246</a>            key,
-<a href=#247 id=247 data-nosnippet>247</a>            val: val.try_into().ok().expect(<span class="string">"convertion failed"</span>),
-<a href=#248 id=248 data-nosnippet>248</a>            avg: <span class="bool-val">false</span>,
-<a href=#249 id=249 data-nosnippet>249</a>            fmt: <span class="prelude-val">None</span>,
-<a href=#250 id=250 data-nosnippet>250</a>        }
-<a href=#251 id=251 data-nosnippet>251</a>    }
-<a href=#252 id=252 data-nosnippet>252</a>    <span class="doccomment">/// Create a metric average entry
-<a href=#253 id=253 data-nosnippet>253</a>    </span><span class="kw">pub fn </span>avg&lt;V&gt;(key: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, val: V) -&gt; <span class="self">Self
-<a href=#254 id=254 data-nosnippet>254</a>    </span><span class="kw">where
-<a href=#255 id=255 data-nosnippet>255</a>        </span>V: TryInto&lt;f64&gt;,
-<a href=#256 id=256 data-nosnippet>256</a>    {
-<a href=#257 id=257 data-nosnippet>257</a>        <span class="self">Self </span>{
-<a href=#258 id=258 data-nosnippet>258</a>            key,
-<a href=#259 id=259 data-nosnippet>259</a>            val: val.try_into().ok().expect(<span class="string">"convertion failed"</span>),
-<a href=#260 id=260 data-nosnippet>260</a>            avg: <span class="bool-val">true</span>,
-<a href=#261 id=261 data-nosnippet>261</a>            fmt: <span class="prelude-val">None</span>,
-<a href=#262 id=262 data-nosnippet>262</a>        }
-<a href=#263 id=263 data-nosnippet>263</a>    }
-<a href=#264 id=264 data-nosnippet>264</a>}</code></pre></div></section></main></body></html>
+<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="kw">pub fn </span>extend&lt;<span class="lifetime">'a</span>, T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, metrics: T)
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">where
+<a href=#233 id=233 data-nosnippet>233</a>        </span>T: IntoIterator&lt;Item = Metric&lt;<span class="lifetime">'a</span>&gt;&gt;,
+<a href=#234 id=234 data-nosnippet>234</a>    {
+<a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">let </span>metrics = metrics.into_iter();
+<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">let </span>(min, max) = metrics.size_hint();
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="self">self</span>.reserve(max.unwrap_or(min));
+<a href=#238 id=238 data-nosnippet>238</a>        <span class="kw">for </span>metric <span class="kw">in </span>metrics {
+<a href=#239 id=239 data-nosnippet>239</a>            <span class="self">self</span>.push(metric);
+<a href=#240 id=240 data-nosnippet>240</a>        }
+<a href=#241 id=241 data-nosnippet>241</a>    }
+<a href=#242 id=242 data-nosnippet>242</a>}
+<a href=#243 id=243 data-nosnippet>243</a>
+<a href=#244 id=244 data-nosnippet>244</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Metric&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#245 id=245 data-nosnippet>245</a>    <span class="doccomment">/// Create a metric value entry
+<a href=#246 id=246 data-nosnippet>246</a>    </span><span class="kw">pub fn </span>val&lt;V&gt;(key: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, val: V) -&gt; <span class="self">Self
+<a href=#247 id=247 data-nosnippet>247</a>    </span><span class="kw">where
+<a href=#248 id=248 data-nosnippet>248</a>        </span>V: TryInto&lt;f64&gt;,
+<a href=#249 id=249 data-nosnippet>249</a>    {
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="self">Self </span>{
+<a href=#251 id=251 data-nosnippet>251</a>            key,
+<a href=#252 id=252 data-nosnippet>252</a>            val: val.try_into().ok().expect(<span class="string">"convertion failed"</span>),
+<a href=#253 id=253 data-nosnippet>253</a>            avg: <span class="bool-val">false</span>,
+<a href=#254 id=254 data-nosnippet>254</a>            fmt: <span class="prelude-val">None</span>,
+<a href=#255 id=255 data-nosnippet>255</a>        }
+<a href=#256 id=256 data-nosnippet>256</a>    }
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="doccomment">/// Create a metric average entry
+<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">pub fn </span>avg&lt;V&gt;(key: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, val: V) -&gt; <span class="self">Self
+<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">where
+<a href=#260 id=260 data-nosnippet>260</a>        </span>V: TryInto&lt;f64&gt;,
+<a href=#261 id=261 data-nosnippet>261</a>    {
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="self">Self </span>{
+<a href=#263 id=263 data-nosnippet>263</a>            key,
+<a href=#264 id=264 data-nosnippet>264</a>            val: val.try_into().ok().expect(<span class="string">"convertion failed"</span>),
+<a href=#265 id=265 data-nosnippet>265</a>            avg: <span class="bool-val">true</span>,
+<a href=#266 id=266 data-nosnippet>266</a>            fmt: <span class="prelude-val">None</span>,
+<a href=#267 id=267 data-nosnippet>267</a>        }
+<a href=#268 id=268 data-nosnippet>268</a>    }
+<a href=#269 id=269 data-nosnippet>269</a>}</code></pre></div></section></main></body></html>
