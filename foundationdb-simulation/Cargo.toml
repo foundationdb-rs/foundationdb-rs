@@ -20,7 +20,8 @@ cc = "1.2.29"
 bindgen = "0.72.0"
 
 [features]
-default = ["embedded-fdb-include"]
+default = ["embedded-fdb-include", "mock-getrandom"]
+mock-getrandom = []
 cpp-abi = []
 fdb-7_1 = ["foundationdb/fdb-7_1", "foundationdb-sys/fdb-7_1", "cpp-abi"]
 fdb-7_3 = ["foundationdb/fdb-7_3", "foundationdb-sys/fdb-7_3", "cpp-abi"]
