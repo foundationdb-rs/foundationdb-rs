@@ -1,9 +1,9 @@
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use std::{mem::ManuallyDrop, ptr::NonNull};
+use std::{ptr::NonNull, sync::Arc};
 
-use foundationdb::Database as DatabaseAlias;
+use foundationdb::Database;
 use foundationdb_sys::FDBDatabase as FDBDatabaseAlias;
 
 mod bindings;
@@ -17,7 +17,7 @@ use fdb_rt::fdb_spawn;
 // User friendly types
 
 /// Rust representation of a simulated FoundationDB database
-pub type Database = ManuallyDrop<DatabaseAlias>;
+pub type SimDatabase = Arc<Database>;
 /// Rust representation of a FoundationDB workload
 pub type WrappedWorkload = FDBWorkload;
 
@@ -30,14 +30,14 @@ pub trait RustWorkload {
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    async fn setup(&mut self, db: Database);
+    async fn setup(&mut self, db: SimDatabase);
 
     /// This method should run the actual test.
     ///
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    async fn start(&mut self, db: Database);
+    async fn start(&mut self, db: SimDatabase);
 
     /// This method is called when the tester completes.
     /// A workload should run any consistency/correctness tests during this phase.
@@ -45,7 +45,7 @@ pub trait RustWorkload {
     /// # Arguments
     ///
     /// * `db` - The simulated database.
-    async fn check(&mut self, db: Database);
+    async fn check(&mut self, db: SimDatabase);
 
     /// If a workload collects metrics (like latencies or throughput numbers), these should be reported back here.
     /// The multitester (or test orchestrator) will collect all metrics from all test clients and it will aggregate them.
@@ -80,8 +80,16 @@ pub trait SingleRustWorkload: RustWorkload {
 // -----------------------------------------------------------------------------
 // C to Rust bindings
 
-unsafe fn database_new(raw_database: *mut FDBDatabase) -> Database {
-    ManuallyDrop::new(DatabaseAlias::new_from_pointer(NonNull::new_unchecked(
+fn check_database_ref(database: SimDatabase) {
+    if Arc::strong_count(&database) != 1 || Arc::weak_count(&database) != 0 {
+        eprintln!("Reference to Database kept between phases (setup/start/check). All references should be dropped.");
+        std::process::exit(1);
+    }
+    std::mem::forget(database);
+}
+
+unsafe fn database_new(raw_database: *mut FDBDatabase) -> SimDatabase {
+    Arc::new(Database::new_from_pointer(NonNull::new_unchecked(
         raw_database as *mut FDBDatabaseAlias,
     )))
 }
@@ -94,7 +102,8 @@ unsafe extern "C" fn workload_setup<W: RustWorkload + 'static>(
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
     fdb_spawn(async move {
-        workload.setup(database).await;
+        workload.setup(database.clone()).await;
+        check_database_ref(database);
         done.send(true);
     });
 }
@@ -107,7 +116,8 @@ unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
     fdb_spawn(async move {
-        workload.start(database).await;
+        workload.start(database.clone()).await;
+        check_database_ref(database);
         done.send(true);
     });
 }
@@ -120,7 +130,8 @@ unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
     fdb_spawn(async move {
-        workload.check(database).await;
+        workload.check(database.clone()).await;
+        check_database_ref(database);
         done.send(true);
     });
 }

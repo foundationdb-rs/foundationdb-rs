@@ -1,10 +1,10 @@
-use foundationdb::FdbBindingError;
 use foundationdb::{
     options::{MutationType, TransactionOption},
     tuple::Subspace,
+    FdbBindingError,
 };
 use foundationdb_simulation::{
-    details, register_workload, Database, Metric, Metrics, RustWorkload, Severity,
+    details, register_workload, Metric, Metrics, RustWorkload, Severity, SimDatabase,
     SingleRustWorkload, WorkloadContext,
 };
 
@@ -37,10 +37,10 @@ impl SingleRustWorkload for AtomicWorkload {
 }
 
 impl RustWorkload for AtomicWorkload {
-    async fn setup(&mut self, _db: Database) {
+    async fn setup(&mut self, _db: SimDatabase) {
         println!("rust_setup({})", self.client_id);
     }
-    async fn start(&mut self, db: Database) {
+    async fn start(&mut self, db: SimDatabase) {
         println!("rust_start({})", self.client_id);
         // Only use a single client
         if self.client_id == 0 {
@@ -85,7 +85,7 @@ impl RustWorkload for AtomicWorkload {
             }
         }
     }
-    async fn check(&mut self, db: Database) {
+    async fn check(&mut self, db: SimDatabase) {
         println!("rust_check({})", self.client_id);
         if self.client_id == 0 {
             // even if buggify is off in checks, transactions can failed because of the randomized knob,
