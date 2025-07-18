@@ -1,5 +1,5 @@
 use foundationdb_simulation::{
-    register_factory, Database, Metric, Metrics, RustWorkload, RustWorkloadFactory, Severity,
+    register_factory, Metric, Metrics, RustWorkload, RustWorkloadFactory, Severity, SimDatabase,
     WorkloadContext, WrappedWorkload,
 };
 
@@ -10,7 +10,7 @@ struct NoopWorkload {
 }
 
 impl RustWorkload for NoopWorkload {
-    async fn setup(&mut self, _db: Database) {
+    async fn setup(&mut self, _db: SimDatabase) {
         println!("rust_setup({}_{})", self.name, self.client_id);
         self.context.trace(
             Severity::Debug,
@@ -18,7 +18,7 @@ impl RustWorkload for NoopWorkload {
             &[("Layer", "Rust"), ("Stage", "Setup")],
         );
     }
-    async fn start(&mut self, _db: Database) {
+    async fn start(&mut self, _db: SimDatabase) {
         println!("rust_start({}_{})", self.name, self.client_id);
         self.context.trace(
             Severity::Debug,
@@ -26,7 +26,7 @@ impl RustWorkload for NoopWorkload {
             &[("Layer", "Rust"), ("Stage", "Start")],
         );
     }
-    async fn check(&mut self, _db: Database) {
+    async fn check(&mut self, _db: SimDatabase) {
         println!("rust_check({}_{})", self.name, self.client_id);
         self.context.trace(
             Severity::Debug,
