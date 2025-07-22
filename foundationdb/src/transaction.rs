@@ -13,7 +13,9 @@
 use foundationdb_sys as fdb_sys;
 use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
+use std::pin::Pin;
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::future::*;
@@ -170,6 +172,7 @@ impl From<TransactionCancelled> for Transaction {
 pub struct Transaction {
     // Order of fields should not be changed, because Rust drops field top-to-bottom, and
     // transaction should be dropped before cluster.
+    write_pending: AtomicBool,
     inner: NonNull<fdb_sys::FDBTransaction>,
 }
 unsafe impl Send for Transaction {}
@@ -375,7 +378,10 @@ impl From<std::ops::RangeInclusive<std::vec::Vec<u8>>> for RangeOption<'static> 
 
 impl Transaction {
     pub(crate) fn new(inner: NonNull<fdb_sys::FDBTransaction>) -> Self {
-        Self { inner }
+        Self {
+            write_pending: AtomicBool::new(false),
+            inner 
+        }
     }
 
     /// Called to set an option on an FDBTransaction.
@@ -423,6 +429,8 @@ impl Transaction {
     /// * `key` - the name of the key to be inserted into the database.
     /// * `value` - the value to be inserted into the database
     pub fn set(&self, key: &[u8], value: &[u8]) {
+        self.write_pending.store(true, Ordering::Relaxed);
+
         unsafe {
             fdb_sys::fdb_transaction_set(
                 self.inner.as_ptr(),
@@ -445,6 +453,8 @@ impl Transaction {
     ///
     /// * `key` - the name of the key to be removed from the database.
     pub fn clear(&self, key: &[u8]) {
+        self.write_pending.store(true, Ordering::Relaxed);
+
         unsafe {
             fdb_sys::fdb_transaction_clear(
                 self.inner.as_ptr(),
@@ -502,6 +512,8 @@ impl Transaction {
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
     pub fn atomic_op(&self, key: &[u8], param: &[u8], op_type: options::MutationType) {
+        self.write_pending.store(true, Ordering::Relaxed);
+
         unsafe {
             fdb_sys::fdb_transaction_atomic_op(
                 self.inner.as_ptr(),
@@ -750,6 +762,8 @@ impl Transaction {
     /// The modification affects the actual database only if transaction is later committed with
     /// `Transaction::commit`.
     pub fn clear_range(&self, begin: &[u8], end: &[u8]) {
+        self.write_pending.store(true, Ordering::Relaxed);
+
         unsafe {
             fdb_sys::fdb_transaction_clear_range(
                 self.inner.as_ptr(),
@@ -802,13 +816,23 @@ impl Transaction {
     /// Normally, commit will wait for outstanding reads to return. However, if those reads were
     /// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,
     /// any outstanding reads will immediately return errors.
-    pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
-        FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
-            move |r| match r {
-                Ok(()) => Ok(TransactionCommitted { tr: self }),
-                Err(err) => Err(TransactionCommitError { tr: self, err }),
-            },
-        )
+    pub fn commit(self) -> Pin<Box<dyn Future<Output = TransactionResult> + Send + Sync + Unpin>> {
+        let write_occurred = self.write_pending.load(Ordering::Relaxed);
+        
+        if write_occurred {
+            Box::pin(
+                FdbFuture::<()>::new(unsafe {
+                    fdb_sys::fdb_transaction_commit(self.inner.as_ptr())
+                }).map(
+                    move |r| match r {
+                        Ok(()) => Ok(TransactionCommitted { tr: self }),
+                        Err(err) => Err(TransactionCommitError { tr: self, err }),
+                    },
+                )
+            )
+        } else {
+            Box::pin(core::future::ready(Ok(TransactionCommitted { tr: self })))
+        }
     }
 
     /// Implements the recommended retry and backoff behavior for a transaction. This function knows
@@ -1015,6 +1039,8 @@ impl Transaction {
     /// It is not necessary to call `reset()` when handling an error with `on_error()` since the
     /// transaction has already been reset.
     pub fn reset(&mut self) {
+        self.write_pending.store(false, Ordering::Relaxed);
+
         unsafe { fdb_sys::fdb_transaction_reset(self.inner.as_ptr()) }
     }
 
