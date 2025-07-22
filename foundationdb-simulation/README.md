@@ -98,9 +98,9 @@ FoundationDB workloads are defined by implementing the `RustWorkload` trait:
 
 ```rust
 pub trait RustWorkload {
-    fn setup(&mut self, db: Database);
-    fn start(&mut self, db: Database);
-    fn check(&mut self, db: Database);
+    async fn setup(&mut self, db: SimDatabase);
+    async fn start(&mut self, db: SimDatabase);
+    async fn check(&mut self, db: SimDatabase);
     fn get_metrics(&self, out: Metrics);
     fn get_check_timeout(&self) -> f64;
 }
@@ -258,6 +258,6 @@ fn get_metrics(&self, out: Metrics) {
 
 * **Using pointers or references after a phase ends.** After each phase, the simulator may move or
   deallocate memory. Any pointers or references to FoundationDB objects become invalid. You must
-  use the fresh `&mut self` and `db` references passed to the next phase. Storing `Database`,
+  use the fresh `&mut self` and `db` references passed to the next phase. Storing `SimDatabase`,
   `Transaction`, or `Future` objects across phases will lead to segmentation faults or other
   undefined behavior.
