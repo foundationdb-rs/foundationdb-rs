@@ -100,16 +100,18 @@ impl WorkloadContext {
     }
 
     /// Add a log entry in the FoundationDB logs
-    pub fn trace<S>(&self, severity: Severity, name: S, details: &[(&str, &str)])
+    pub fn trace<S, S2, S3>(&self, severity: Severity, name: S, details: &[(S2, S3)])
     where
         S: Into<Vec<u8>>,
+        S2: AsRef<str>,
+        S3: AsRef<str>,
     {
         let name = str_for_c(name);
         let details_storage = details
             .iter()
             .map(|(key, val)| {
-                let key = str_for_c(*key);
-                let val = str_for_c(*val);
+                let key = str_for_c(key.as_ref());
+                let val = str_for_c(val.as_ref());
                 (key, val)
             })
             .collect::<Vec<_>>();
