@@ -816,7 +816,16 @@ impl Transaction {
     /// Normally, commit will wait for outstanding reads to return. However, if those reads were
     /// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,
     /// any outstanding reads will immediately return errors.
-    pub fn commit(self) -> Pin<Box<dyn Future<Output = TransactionResult> + Send + Sync + Unpin>> {
+    pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
+        FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
+            move |r| match r {
+                Ok(()) => Ok(TransactionCommitted { tr: self }),
+                Err(err) => Err(TransactionCommitError { tr: self, err }),
+            },
+        )
+    }
+
+    pub fn commit_if_needed(self) -> Pin<Box<dyn Future<Output = TransactionResult> + Send + Sync + Unpin>> {
         let write_occurred = self.write_pending.load(Ordering::Relaxed);
         
         if write_occurred {
