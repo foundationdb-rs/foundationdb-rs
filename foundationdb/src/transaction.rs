@@ -133,6 +133,8 @@ impl fmt::Display for TransactionCommitError {
     }
 }
 
+impl std::error::Error for TransactionCommitError {}
+
 /// The result of `Transaction::Commit`
 type TransactionResult = Result<TransactionCommitted, TransactionCommitError>;
 
