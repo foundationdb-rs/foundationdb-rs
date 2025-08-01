@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -395,14 +395,14 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-gen"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "xml-rs",
 ]
 
 [[package]]
 name = "foundationdb-macros"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -424,7 +424,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-simulation"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "bindgen",
  "cc",
@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-sys"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "bindgen",
  "libc",
@@ -442,7 +442,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-tuple"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "memchr",
  "num-bigint",
