@@ -429,7 +429,7 @@ impl Transaction {
     /// * `key` - the name of the key to be inserted into the database.
     /// * `value` - the value to be inserted into the database
     pub fn set(&self, key: &[u8], value: &[u8]) {
-        self.write_pending.store(true, Ordering::Relaxed);
+        self.flag_pending_write();
 
         unsafe {
             fdb_sys::fdb_transaction_set(
@@ -453,7 +453,7 @@ impl Transaction {
     ///
     /// * `key` - the name of the key to be removed from the database.
     pub fn clear(&self, key: &[u8]) {
-        self.write_pending.store(true, Ordering::Relaxed);
+        self.flag_pending_write();
 
         unsafe {
             fdb_sys::fdb_transaction_clear(
@@ -512,7 +512,7 @@ impl Transaction {
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
     pub fn atomic_op(&self, key: &[u8], param: &[u8], op_type: options::MutationType) {
-        self.write_pending.store(true, Ordering::Relaxed);
+        self.flag_pending_write();
 
         unsafe {
             fdb_sys::fdb_transaction_atomic_op(
@@ -762,7 +762,7 @@ impl Transaction {
     /// The modification affects the actual database only if transaction is later committed with
     /// `Transaction::commit`.
     pub fn clear_range(&self, begin: &[u8], end: &[u8]) {
-        self.write_pending.store(true, Ordering::Relaxed);
+        self.flag_pending_write();
 
         unsafe {
             fdb_sys::fdb_transaction_clear_range(
@@ -825,23 +825,34 @@ impl Transaction {
         )
     }
 
+    /// Commits the transaction if any write has been performed. Otherwise, returns a future that will
+    /// be immediately ready with a `TransactionCommitted` value without calling the underlying FoundationDB
+    /// API.
+    /// 
+    /// This behaviour addresses performance issues for high-concurrency applications, where no-op transactions
+    /// are frequently created and committed, which can result in large tail latencies.
+    /// 
+    /// More info can be found in the relevant [pull request](https://github.com/foundationdb-rs/foundationdb-rs/pull/334)
     pub fn commit_if_needed(self) -> Pin<Box<dyn Future<Output = TransactionResult> + Send + Sync + Unpin>> {
-        let write_occurred = self.write_pending.load(Ordering::Relaxed);
-        
-        if write_occurred {
-            Box::pin(
-                FdbFuture::<()>::new(unsafe {
-                    fdb_sys::fdb_transaction_commit(self.inner.as_ptr())
-                }).map(
-                    move |r| match r {
-                        Ok(()) => Ok(TransactionCommitted { tr: self }),
-                        Err(err) => Err(TransactionCommitError { tr: self, err }),
-                    },
-                )
-            )
-        } else {
-            Box::pin(core::future::ready(Ok(TransactionCommitted { tr: self })))
+        if !self.should_commit() {
+            return Box::pin(core::future::ready(Ok(TransactionCommitted { tr: self })));
         }
+
+        Box::pin(
+            FdbFuture::<()>::new(unsafe {
+                fdb_sys::fdb_transaction_commit(self.inner.as_ptr())
+            }).map(
+                move |r| match r {
+                    Ok(()) => Ok(TransactionCommitted { tr: self }),
+                    Err(err) => Err(TransactionCommitError { tr: self, err }),
+                },
+            )
+        )
+    }
+
+    // Returns true if the transaction has any write pending, indicating that it should be committed
+    pub fn should_commit(&self) -> bool {
+        self.write_pending.load(Ordering::Relaxed)
     }
 
     /// Implements the recommended retry and backoff behavior for a transaction. This function knows
@@ -1075,6 +1086,12 @@ impl Transaction {
                 ty.code(),
             )
         })
+    }
+
+    /// Internal function to flag the transaction has pending writes
+    /// Used by the `should_commit` and `commit_if_needed` functions
+    fn flag_pending_write(&self) {
+        self.write_pending.store(true, Ordering::Relaxed);
     }
 }
 
