@@ -80,6 +80,7 @@ This Rust crate is not tied to any Async Runtime.
 | `uuid`                 | Support for the uuid crate for Tuples                                          |
 | `num-bigint`           | Support for the bigint crate for Tuples                                        |
 | `tenant-experimental`  | Experimental support for tenants. Require at least 7.1                         |
+| `instrumentation`      | Enable tracing on transaction related operations                               |
 
 ### Hello, World using the crate
 

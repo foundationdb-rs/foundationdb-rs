@@ -420,6 +420,10 @@ impl Transaction {
     ///
     /// * `key` - the name of the key to be inserted into the database.
     /// * `value` - the value to be inserted into the database
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, key, value))
+    )]
     pub fn set(&self, key: &[u8], value: &[u8]) {
         unsafe {
             fdb_sys::fdb_transaction_set(
@@ -442,6 +446,10 @@ impl Transaction {
     /// # Arguments
     ///
     /// * `key` - the name of the key to be removed from the database.
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, key))
+    )]
     pub fn clear(&self, key: &[u8]) {
         unsafe {
             fdb_sys::fdb_transaction_clear(
@@ -460,6 +468,10 @@ impl Transaction {
     ///
     /// * `key` - the name of the key to be looked up in the database
     /// * `snapshot` - `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, key))
+    )]
     pub fn get(
         &self,
         key: &[u8],
@@ -499,6 +511,10 @@ impl Transaction {
     /// If a transaction uses both an atomic operation and a strictly serializable read on the same
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, key, param))
+    )]
     pub fn atomic_op(&self, key: &[u8], param: &[u8], op_type: options::MutationType) {
         unsafe {
             fdb_sys::fdb_transaction_atomic_op(
@@ -522,6 +538,10 @@ impl Transaction {
     ///
     /// * `selector`: the key selector
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, selector, snapshot))
+    )]
     pub fn get_key(
         &self,
         selector: &KeySelector,
@@ -554,6 +574,10 @@ impl Transaction {
     ///
     /// * `opt`: the range, limit, target_bytes and mode
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, opt, snapshot))
+    )]
     pub fn get_ranges<'a>(
         &'a self,
         opt: RangeOption<'a>,
@@ -587,6 +611,10 @@ impl Transaction {
     ///
     /// * `opt`: the range, limit, target_bytes and mode
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, opt, snapshot))
+    )]
     pub fn get_ranges_keyvalues<'a>(
         &'a self,
         opt: RangeOption<'a>,
@@ -608,6 +636,10 @@ impl Transaction {
     /// * `iteration`: If opt.mode is Iterator, this parameter should start at 1 and be incremented
     ///   by 1 for each successive call while reading this range. In all other cases it is ignored.
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, opt, snapshot))
+    )]
     pub fn get_range(
         &self,
         opt: &RangeOption,
@@ -662,6 +694,10 @@ impl Transaction {
     ///
     /// This is the "raw" version, users are expected to use [Transaction::get_mapped_ranges]
     #[cfg_api_versions(min = 710)]
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, opt, mapper, snapshot))
+    )]
     pub fn get_mapped_range(
         &self,
         opt: &RangeOption,
@@ -717,6 +753,10 @@ impl Transaction {
     ///
     /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
     #[cfg_api_versions(min = 710)]
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, opt, mapper, snapshot))
+    )]
     pub fn get_mapped_ranges<'a>(
         &'a self,
         opt: RangeOption<'a>,
@@ -747,6 +787,10 @@ impl Transaction {
     ///
     /// The modification affects the actual database only if transaction is later committed with
     /// `Transaction::commit`.
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self, begin, end))
+    )]
     pub fn clear_range(&self, begin: &[u8], end: &[u8]) {
         unsafe {
             fdb_sys::fdb_transaction_clear_range(
@@ -800,6 +844,10 @@ impl Transaction {
     /// Normally, commit will wait for outstanding reads to return. However, if those reads were
     /// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,
     /// any outstanding reads will immediately return errors.
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self))
+    )]
     pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
         FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
             move |r| match r {
@@ -1086,6 +1134,10 @@ impl RetryableTransaction {
             .map(RetryableTransaction::new))
     }
 
+    #[cfg_attr(
+        feature = "instrumentation",
+        tracing::instrument(level = "debug", skip(self))
+    )]
     pub(crate) async fn commit(
         self,
     ) -> Result<Result<TransactionCommitted, TransactionCommitError>, FdbBindingError> {
