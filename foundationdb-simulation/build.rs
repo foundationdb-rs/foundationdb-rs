@@ -28,6 +28,10 @@ fn main() {
         _api_version = 740;
     }
 
+    if cfg!(feature = "mock-getrandom") {
+        println!("cargo:rustc-link-arg=-Wl,--wrap=getrandom");
+    }
+
     #[cfg(feature = "cpp-abi")]
     {
         if cfg!(feature = "fdb-docker") {
