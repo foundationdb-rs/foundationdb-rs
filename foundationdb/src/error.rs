@@ -26,6 +26,38 @@ pub(crate) fn eval(error_code: fdb_sys::fdb_error_t) -> FdbResult<()> {
     }
 }
 
+/// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation.
+///
+/// This error occurs when calling methods like `set_custom_metric` or `increment_custom_metric` on a
+/// transaction that was created without metrics instrumentation (i.e., using `create_trx` instead of
+/// `create_instrumented_trx`).
+///
+/// # Example
+/// ```
+/// # use foundationdb::*;
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let db = Database::default()?;
+///
+/// // This transaction doesn't have metrics instrumentation
+/// let txn = db.create_trx()?;
+///
+/// // This will return a TransactionMetricsNotFound error
+/// let result = txn.set_custom_metric("my_metric", 42, &[("label", "value")]);
+/// assert!(result.is_err());
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Debug)]
+pub struct TransactionMetricsNotFound;
+
+impl std::fmt::Display for TransactionMetricsNotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Transaction metrics not found")
+    }
+}
+
+impl std::error::Error for TransactionMetricsNotFound {}
+
 /// The Standard Error type of FoundationDB
 #[derive(Debug, Copy, Clone)]
 pub struct FdbError {
@@ -105,6 +137,8 @@ pub enum FdbBindingError {
     ReferenceToTransactionKept,
     /// A custom error that layer developers can use
     CustomError(Box<dyn std::error::Error + Send + Sync>),
+    /// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation
+    TransactionMetricsNotFound,
 }
 
 impl FdbBindingError {
@@ -146,6 +180,12 @@ impl From<DirectoryError> for FdbBindingError {
     }
 }
 
+impl From<TransactionMetricsNotFound> for FdbBindingError {
+    fn from(_e: TransactionMetricsNotFound) -> Self {
+        Self::TransactionMetricsNotFound
+    }
+}
+
 impl FdbBindingError {
     /// create a new custom error
     pub fn new_custom_error(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
@@ -164,6 +204,9 @@ impl Debug for FdbBindingError {
                 write!(f, "Reference to transaction kept")
             }
             FdbBindingError::CustomError(err) => write!(f, "{err:?}"),
+            FdbBindingError::TransactionMetricsNotFound => {
+                write!(f, "Transaction metrics not found")
+            }
         }
     }
 }

@@ -28,6 +28,9 @@ if_cfg_api_versions! {min = 710 =>
     #[deny(missing_docs)]
     pub mod mapped_key_values;
 }
+
+pub mod metrics;
+
 /// Generated configuration types for use with the various `set_option` functions
 #[allow(clippy::all)]
 pub mod options;
@@ -35,6 +38,9 @@ if_cfg_api_versions! {min = 710 =>
     #[cfg(feature = "tenant-experimental")]
     pub mod tenant;
 }
+
+// Re-export metrics types for convenience
+pub use crate::metrics::TransactionMetrics;
 pub mod timekeeper;
 mod transaction;
 mod tuple_ext;
@@ -50,8 +56,7 @@ if_cfg_api_versions! {min = 510, max = 600 =>
 
 pub use crate::database::*;
 pub use crate::error::FdbBindingError;
-pub use crate::error::FdbError;
-pub use crate::error::FdbResult;
+pub use crate::error::{FdbError, FdbResult};
 pub use crate::keyselector::*;
 pub use crate::transaction::*;
 

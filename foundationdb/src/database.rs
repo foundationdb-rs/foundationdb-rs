@@ -20,6 +20,7 @@ use fdb_sys::if_cfg_api_versions;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 
+use crate::metrics::{MetricsReport, TransactionMetrics};
 use crate::options;
 use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
@@ -164,9 +165,54 @@ impl Database {
         )))
     }
 
+    /// Creates a new transaction on the given database with metrics collection.
+    ///
+    /// This method is similar to `create_trx()` but additionally collects metrics about
+    /// the transaction execution, including operation counts, bytes read/written, and retry counts.
+    ///
+    /// # Arguments
+    /// * `metrics` - A TransactionMetrics instance to collect metrics
+    ///
+    /// # Returns
+    /// * `Result<Transaction, (FdbBindingError, MetricsData)>` - A transaction with metrics collection enabled
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn create_instrumented_trx(
+        &self,
+        metrics: TransactionMetrics,
+    ) -> Result<Transaction, FdbBindingError> {
+        let mut trx: *mut fdb_sys::FDBTransaction = std::ptr::null_mut();
+        let err =
+            unsafe { fdb_sys::fdb_database_create_transaction(self.inner.as_ptr(), &mut trx) };
+        error::eval(err)?;
+
+        let inner = NonNull::new(trx)
+            .expect("fdb_database_create_transaction to not return null if there is no error");
+        Ok(Transaction::new_instrumented(inner, metrics))
+    }
+
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     fn create_retryable_trx(&self) -> FdbResult<RetryableTransaction> {
         Ok(RetryableTransaction::new(self.create_trx()?))
+    }
+
+    /// Creates a new retryable transaction on the given database with metrics collection.
+    ///
+    /// This method is similar to `create_retryable_trx()` but additionally collects metrics about
+    /// the transaction execution, including operation counts, bytes read/written, and retry counts.
+    ///
+    /// # Arguments
+    /// * `metrics` - A TransactionMetrics instance to collect metrics
+    ///
+    /// # Returns
+    /// * `Result<RetryableTransaction, (FdbBindingError, MetricsData)>` - A retryable transaction with metrics collection enabled
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn create_intrumented_retryable_trx(
+        &self,
+        metrics: TransactionMetrics,
+    ) -> Result<RetryableTransaction, FdbBindingError> {
+        Ok(RetryableTransaction::new(
+            self.create_instrumented_trx(metrics.clone())?,
+        ))
     }
 
     /// `transact` returns a future which retries on error. It tries to resolve a future created by
@@ -399,6 +445,163 @@ impl Database {
                         }
                         Err(non_retryable_error) => {
                             return Err(FdbBindingError::from(non_retryable_error))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Runs a transactional function against this Database with retry logic and metrics collection.
+    /// The associated closure will be called until a non-retryable FDBError
+    /// is thrown or commit() returns success.
+    ///
+    /// This method is similar to `run()` but additionally collects and returns metrics about
+    /// the transaction execution, including operation counts, bytes read/written, and retry counts.
+    ///
+    /// # Arguments
+    /// * `closure` - A function that takes a RetryableTransaction and MaybeCommitted flag and returns a Future
+    ///
+    /// # Returns
+    /// * `Result<(T, Metrics), (FdbBindingError, Metrics)>` - On success, returns the result of the transaction and collected metrics.
+    ///   On failure, returns the error and the metrics collected up to the point of failure.
+    ///
+    /// # Warning: retry
+    ///
+    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
+    /// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction
+    /// if the task needs to be guaranteed to finish.
+    ///
+    /// # Warning: Maybe committed transactions
+    ///
+    /// As with other client/server databases, in some failure scenarios a client may be unable to determine
+    /// whether a transaction succeeded. The closure will be notified of a maybe_committed transaction
+    /// in a previous run with the `MaybeCommitted` provided in the closure.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, closure))
+    )]
+    pub async fn instrumented_run<F, Fut, T>(
+        &self,
+        closure: F,
+    ) -> Result<(T, MetricsReport), (FdbBindingError, MetricsReport)>
+    where
+        F: Fn(RetryableTransaction, MaybeCommitted) -> Fut,
+        Fut: Future<Output = Result<T, FdbBindingError>>,
+    {
+        let now_start = std::time::Instant::now();
+        let metrics = TransactionMetrics::new();
+        let mut maybe_committed_transaction = false;
+
+        // we just need to create the transaction once,
+        // in case there is a error, it will be reset automatically
+        let mut transaction = match self.create_intrumented_retryable_trx(metrics.clone()) {
+            Ok(trx) => trx,
+            Err(err) => {
+                // Update total execution time before returning
+                let total_duration = now_start.elapsed().as_millis() as u64;
+                metrics.set_execution_time(total_duration);
+                return Err((err, metrics.get_metrics_data()));
+            }
+        };
+
+        loop {
+            // executing the closure
+            let result_closure = closure(
+                transaction.clone(),
+                MaybeCommitted(maybe_committed_transaction),
+            )
+            .await;
+
+            if let Err(error) = result_closure {
+                if let Some(e) = error.get_fdb_error() {
+                    // checks if it is an FdbError
+                    maybe_committed_transaction = e.is_maybe_committed();
+                    // The closure returned an Error,
+                    let now_on_error = std::time::Instant::now();
+                    let on_error_result = transaction.on_error(e).await;
+                    let error_duration = now_on_error.elapsed().as_millis() as u64;
+                    metrics.add_error_time(error_duration);
+
+                    match on_error_result {
+                        // we can retry the error
+                        Ok(Ok(t)) => {
+                            transaction = t;
+                            // Use the original metrics instance to increment retry count
+                            metrics.reset_current();
+                            continue;
+                        }
+                        Ok(Err(non_retryable_error)) => {
+                            let total_duration = now_start.elapsed().as_millis() as u64;
+                            metrics.set_execution_time(total_duration);
+                            return Err((
+                                FdbBindingError::from(non_retryable_error),
+                                metrics.get_metrics_data(),
+                            ));
+                        }
+                        // The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
+                        Err(non_retryable_error) => {
+                            let total_duration = now_start.elapsed().as_millis() as u64;
+                            metrics.set_execution_time(total_duration);
+                            return Err((non_retryable_error, metrics.get_metrics_data()));
+                        }
+                    }
+                }
+                // Otherwise, it cannot be retried
+                let total_duration = now_start.elapsed().as_millis() as u64;
+                metrics.set_execution_time(total_duration);
+                return Err((error, metrics.get_metrics_data()));
+            }
+
+            let now_commit = std::time::Instant::now();
+            let commit_result = transaction.commit().await;
+            let commit_duration = now_commit.elapsed().as_millis() as u64;
+            metrics.record_commit_time(commit_duration);
+
+            match commit_result {
+                // The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
+                Err(err) => {
+                    let total_duration = now_start.elapsed().as_millis() as u64;
+                    metrics.set_execution_time(total_duration);
+                    return Err((err, metrics.get_metrics_data()));
+                }
+                Ok(Ok(committed)) => {
+                    // Handle committed_version() result properly to match our tuple-based error handling
+                    match committed.committed_version() {
+                        Ok(version) => metrics.set_commit_version(version),
+                        Err(_err) => {
+                            // If we can't get the commit version, we still want to return the result
+                            // but we'll log the error or handle it as needed
+                            // For now, we just continue without setting the commit version
+                        }
+                    }
+
+                    let total_duration = now_start.elapsed().as_millis() as u64;
+                    metrics.set_execution_time(total_duration);
+                    return Ok((result_closure.unwrap(), metrics.get_metrics_data()));
+                }
+                Ok(Err(transaction_commit_error)) => {
+                    maybe_committed_transaction = transaction_commit_error.is_maybe_committed();
+                    // we have an error during commit, checking if it is a retryable error
+                    let now_on_error = std::time::Instant::now();
+                    let on_error_result = transaction_commit_error.on_error().await;
+                    let error_duration = now_on_error.elapsed().as_millis() as u64;
+                    metrics.add_error_time(error_duration);
+
+                    match on_error_result {
+                        Ok(t) => {
+                            transaction = RetryableTransaction::new(t);
+                            // Use the original metrics instance for commit errors too
+                            metrics.reset_current();
+                            continue;
+                        }
+                        Err(non_retryable_error) => {
+                            let total_duration = now_start.elapsed().as_millis() as u64;
+                            metrics.set_execution_time(total_duration);
+                            return Err((
+                                FdbBindingError::from(non_retryable_error),
+                                metrics.get_metrics_data(),
+                            ));
                         }
                     }
                 }
