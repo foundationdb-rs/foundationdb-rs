@@ -25,11 +25,10 @@ use crate::transaction::*;
 use crate::{error, FdbError, FdbResult};
 
 use crate::error::FdbBindingError;
-use futures::prelude::*;
-
 #[cfg_api_versions(min = 710)]
 #[cfg(feature = "tenant-experimental")]
 use crate::tenant::FdbTenant;
+use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
 /// previous transaction is still on fly
@@ -154,10 +153,7 @@ impl Database {
     }
 
     /// Creates a new transaction on the given database.
-    #[cfg_attr(
-        feature = "instrumentation",
-        tracing::instrument(level = "debug", skip(self))
-    )]
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn create_trx(&self) -> FdbResult<Transaction> {
         let mut trx: *mut fdb_sys::FDBTransaction = std::ptr::null_mut();
         let err =
@@ -168,10 +164,7 @@ impl Database {
         )))
     }
 
-    #[cfg_attr(
-        feature = "instrumentation",
-        tracing::instrument(level = "debug", skip(self))
-    )]
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     fn create_retryable_trx(&self) -> FdbResult<RetryableTransaction> {
         Ok(RetryableTransaction::new(self.create_trx()?))
     }
@@ -315,7 +308,7 @@ impl Database {
     /// }).await;
     ///```
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, closure))
     )]
     pub async fn run<F, Fut, T>(&self, closure: F) -> Result<T, FdbBindingError>
@@ -327,8 +320,14 @@ impl Database {
         // we just need to create the transaction once,
         // in case there is an error; it will be reset automatically
         let mut transaction = self.create_retryable_trx()?;
+        #[cfg(feature = "trace")]
+        let mut iteration = 0;
 
         loop {
+            #[cfg(feature = "trace")]
+            {
+                iteration += 1;
+            }
             // executing the closure
             let result_closure = closure(
                 transaction.clone(),
@@ -344,6 +343,12 @@ impl Database {
                     match transaction.on_error(e).await {
                         // we can retry the error
                         Ok(Ok(t)) => {
+                            #[cfg(feature = "trace")]
+                            {
+                                let error_code = e.code();
+                                tracing::warn!(iteration, error_code, "restarting transaction");
+                            }
+
                             transaction = t;
                             continue;
                         }
@@ -358,17 +363,37 @@ impl Database {
                 return Err(e);
             }
 
+            #[cfg(feature = "trace")]
+            tracing::info!(iteration, "closure executed, checking result...");
+
             let commit_result = transaction.commit().await;
 
             match commit_result {
                 // The only FdbBindingError that can be thrown here is `ReferenceToTransactionKept`
-                Err(err) => return Err(err),
-                Ok(Ok(_)) => return result_closure,
+                Err(err) => {
+                    #[cfg(feature = "trace")]
+                    tracing::error!(
+                        iteration,
+                        "transaction reference kept, aborting transaction"
+                    );
+                    return Err(err);
+                }
+                Ok(Ok(_)) => {
+                    #[cfg(feature = "trace")]
+                    tracing::info!(iteration, "success, returning result");
+                    return result_closure;
+                }
                 Ok(Err(transaction_commit_error)) => {
+                    #[cfg(feature = "trace")]
+                    let error_code = transaction_commit_error.code();
+
                     maybe_committed_transaction = transaction_commit_error.is_maybe_committed();
                     // we have an error during commit, checking if it is a retryable error
                     match transaction_commit_error.on_error().await {
                         Ok(t) => {
+                            #[cfg(feature = "trace")]
+                            tracing::warn!(iteration, error_code, "restarting transaction");
+
                             transaction = RetryableTransaction::new(t);
                             continue;
                         }

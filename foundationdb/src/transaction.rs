@@ -421,7 +421,7 @@ impl Transaction {
     /// * `key` - the name of the key to be inserted into the database.
     /// * `value` - the value to be inserted into the database
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, key, value))
     )]
     pub fn set(&self, key: &[u8], value: &[u8]) {
@@ -447,7 +447,7 @@ impl Transaction {
     ///
     /// * `key` - the name of the key to be removed from the database.
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, key))
     )]
     pub fn clear(&self, key: &[u8]) {
@@ -469,7 +469,7 @@ impl Transaction {
     /// * `key` - the name of the key to be looked up in the database
     /// * `snapshot` - `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, key))
     )]
     pub fn get(
@@ -512,7 +512,7 @@ impl Transaction {
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, key, param))
     )]
     pub fn atomic_op(&self, key: &[u8], param: &[u8], op_type: options::MutationType) {
@@ -539,7 +539,7 @@ impl Transaction {
     /// * `selector`: the key selector
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, selector, snapshot))
     )]
     pub fn get_key(
@@ -575,7 +575,7 @@ impl Transaction {
     /// * `opt`: the range, limit, target_bytes and mode
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, opt, snapshot))
     )]
     pub fn get_ranges<'a>(
@@ -612,7 +612,7 @@ impl Transaction {
     /// * `opt`: the range, limit, target_bytes and mode
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, opt, snapshot))
     )]
     pub fn get_ranges_keyvalues<'a>(
@@ -637,7 +637,7 @@ impl Transaction {
     ///   by 1 for each successive call while reading this range. In all other cases it is ignored.
     /// * `snapshot`: `true` if this is a [snapshot read](https://apple.github.io/foundationdb/api-c.html#snapshots)
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, opt, snapshot))
     )]
     pub fn get_range(
@@ -695,7 +695,7 @@ impl Transaction {
     /// This is the "raw" version, users are expected to use [Transaction::get_mapped_ranges]
     #[cfg_api_versions(min = 710)]
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, opt, mapper, snapshot))
     )]
     pub fn get_mapped_range(
@@ -754,7 +754,7 @@ impl Transaction {
     /// More info can be found in the relevant [documentation](https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange#input).
     #[cfg_api_versions(min = 710)]
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, opt, mapper, snapshot))
     )]
     pub fn get_mapped_ranges<'a>(
@@ -788,7 +788,7 @@ impl Transaction {
     /// The modification affects the actual database only if transaction is later committed with
     /// `Transaction::commit`.
     #[cfg_attr(
-        feature = "instrumentation",
+        feature = "trace",
         tracing::instrument(level = "debug", skip(self, begin, end))
     )]
     pub fn clear_range(&self, begin: &[u8], end: &[u8]) {
@@ -844,15 +844,25 @@ impl Transaction {
     /// Normally, commit will wait for outstanding reads to return. However, if those reads were
     /// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,
     /// any outstanding reads will immediately return errors.
-    #[cfg_attr(
-        feature = "instrumentation",
-        tracing::instrument(level = "debug", skip(self))
-    )]
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
         FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
             move |r| match r {
-                Ok(()) => Ok(TransactionCommitted { tr: self }),
-                Err(err) => Err(TransactionCommitError { tr: self, err }),
+                Ok(()) => {
+                    #[cfg(feature = "trace")]
+                    tracing::info!("transaction committed");
+
+                    Ok(TransactionCommitted { tr: self })
+                }
+                Err(err) => {
+                    #[cfg(feature = "trace")]
+                    {
+                        let error_code = err.code();
+                        tracing::error!(error_code, "could not commit");
+                    }
+
+                    Err(TransactionCommitError { tr: self, err })
+                }
             },
         )
     }
@@ -1134,10 +1144,7 @@ impl RetryableTransaction {
             .map(RetryableTransaction::new))
     }
 
-    #[cfg_attr(
-        feature = "instrumentation",
-        tracing::instrument(level = "debug", skip(self))
-    )]
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub(crate) async fn commit(
         self,
     ) -> Result<Result<TransactionCommitted, TransactionCommitError>, FdbBindingError> {

@@ -94,8 +94,8 @@ where
     type Output = FdbResult<T>;
 
     #[cfg_attr(
-        feature = "instrumentation",
-        tracing::instrument(level = "trace", skip(self, cx))
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, cx))
     )]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<FdbResult<T>> {
         let f = self.f.as_ref().expect("cannot poll after resolve");
