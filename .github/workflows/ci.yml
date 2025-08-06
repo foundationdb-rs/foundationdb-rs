@@ -75,6 +75,8 @@ jobs:
 
       - name: Run all tests
         run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
+      - name: Run all tests with trace feature enabled
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace
 
   lint:
     name: Rustfmt / Clippy
@@ -101,7 +103,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4 --no-default-features
+        run: cargo clippy --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace --no-default-features
 
   audit:
     name: Cargo audit

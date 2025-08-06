@@ -51,7 +51,7 @@ jobs:
         run: source <(cargo llvm-cov show-env --export-prefix) && cargo build -p bindingtester
 
       - name: Test main crate
-        run: source <(cargo llvm-cov show-env --export-prefix) && cargo test -p foundationdb --tests --no-fail-fast --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
+        run: source <(cargo llvm-cov show-env --export-prefix) && cargo test -p foundationdb --tests --no-fail-fast --features=num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace
 
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/debug/bindingtester
