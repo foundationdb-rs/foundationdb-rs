@@ -1,3 +1,8 @@
+use foundationdb::{FdbBindingError, FdbError};
+use std::error::Error;
+use std::fmt::Formatter;
+use std::sync::atomic::AtomicU8;
+
 #[cfg(feature = "trace")]
 #[test]
 fn test_trace() {
@@ -31,6 +36,50 @@ async fn test_traces_on_run() {
     })
     .await
     .expect("could not run transaction");
+
+    // Test closure error
+    #[derive(Debug)]
+    struct CustomError;
+
+    impl std::fmt::Display for CustomError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{self:?}")
+        }
+    }
+    impl Error for CustomError {}
+
+    let result = db
+        .run(|_trx, _b| async move {
+            return Err::<(), FdbBindingError>(FdbBindingError::CustomError(Box::new(CustomError)));
+        })
+        .await;
+
+    assert!(result.is_err());
+
+    // test transaction kept error
+    let result = db
+        .run(|trx, _b| async move {
+            let trx_clone = trx.clone();
+            Ok(trx_clone)
+        })
+        .await;
+    assert!(result.is_err());
+    if let Err(e) = result {
+        assert!(matches!(e, FdbBindingError::ReferenceToTransactionKept));
+    }
+
+    // Test retryable errors
+    let attempt: AtomicU8 = AtomicU8::new(0);
+    let result = db
+        .run(|_trx, _| async {
+            let new_val = &attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if *new_val < 2 {
+                return Err(FdbError::from_code(1020).into());
+            }
+            Ok(())
+        })
+        .await;
+    assert!(result.is_ok());
 
     // cleaning up
     db.run(|trx, _b| async move {
