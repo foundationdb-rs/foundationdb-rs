@@ -18,12 +18,13 @@ use std::sync::Arc;
 
 use crate::future::*;
 use crate::keyselector::*;
+use crate::metrics::{FdbCommand, TransactionMetrics};
 use crate::options;
 
 use crate::{error, FdbError, FdbResult};
 use foundationdb_macros::cfg_api_versions;
 
-use crate::error::FdbBindingError;
+use crate::error::{FdbBindingError, TransactionMetricsNotFound};
 
 use futures::{
     future, future::Either, stream, Future, FutureExt, Stream, TryFutureExt, TryStreamExt,
@@ -173,6 +174,7 @@ pub struct Transaction {
     // Order of fields should not be changed, because Rust drops field top-to-bottom, and
     // transaction should be dropped before cluster.
     inner: NonNull<fdb_sys::FDBTransaction>,
+    metrics: Option<TransactionMetrics>,
 }
 unsafe impl Send for Transaction {}
 unsafe impl Sync for Transaction {}
@@ -373,7 +375,20 @@ impl From<std::ops::RangeInclusive<std::vec::Vec<u8>>> for RangeOption<'static> 
 
 impl Transaction {
     pub(crate) fn new(inner: NonNull<fdb_sys::FDBTransaction>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            metrics: None,
+        }
+    }
+
+    pub fn new_instrumented(
+        inner: NonNull<fdb_sys::FDBTransaction>,
+        metrics: TransactionMetrics,
+    ) -> Self {
+        Self {
+            inner,
+            metrics: Some(metrics),
+        }
     }
 
     /// Called to set an option on an FDBTransaction.
@@ -434,6 +449,10 @@ impl Transaction {
                 fdb_len(value.len(), "value"),
             )
         }
+
+        if let Some(metrics) = &self.metrics {
+            metrics.report_metrics(FdbCommand::Set((key.len() + value.len()) as u64));
+        }
     }
 
     /// Modify the database snapshot represented by transaction to remove the given key from the
@@ -458,6 +477,10 @@ impl Transaction {
                 fdb_len(key.len(), "key"),
             )
         }
+
+        if let Some(metrics) = &self.metrics {
+            metrics.report_metrics(FdbCommand::Clear);
+        }
     }
 
     /// Reads a value from the database snapshot represented by transaction.
@@ -477,13 +500,29 @@ impl Transaction {
         key: &[u8],
         snapshot: bool,
     ) -> impl Future<Output = FdbResult<Option<FdbSlice>>> + Send + Sync + Unpin {
-        FdbFuture::new(unsafe {
+        let metrics = self.metrics.clone();
+        let lenght_key = key.len();
+
+        FdbFuture::<Option<FdbSlice>>::new(unsafe {
             fdb_sys::fdb_transaction_get(
                 self.inner.as_ptr(),
                 key.as_ptr(),
                 fdb_len(key.len(), "key"),
                 fdb_bool(snapshot),
             )
+        })
+        .map(move |result| {
+            if let Ok(value) = &result {
+                if let Some(metrics) = metrics.as_ref() {
+                    let (bytes_count, kv_fetched) = if let Some(values) = value {
+                        ((lenght_key + values.len()) as u64, 1)
+                    } else {
+                        (lenght_key as u64, 0)
+                    };
+                    metrics.report_metrics(FdbCommand::Get(bytes_count, kv_fetched));
+                }
+            }
+            result
         })
     }
 
@@ -525,6 +564,10 @@ impl Transaction {
                 fdb_len(param.len(), "param"),
                 op_type.code(),
             )
+        }
+
+        if let Some(metrics) = &self.metrics {
+            metrics.report_metrics(FdbCommand::Atomic);
         }
     }
 
@@ -651,7 +694,9 @@ impl Transaction {
         let key_begin = begin.key();
         let key_end = end.key();
 
-        FdbFuture::new(unsafe {
+        let metrics = self.metrics.clone();
+
+        FdbFuture::<FdbValues>::new(unsafe {
             fdb_sys::fdb_transaction_get_range(
                 self.inner.as_ptr(),
                 key_begin.as_ptr(),
@@ -669,6 +714,23 @@ impl Transaction {
                 fdb_bool(snapshot),
                 fdb_bool(opt.reverse),
             )
+        })
+        .map(move |result| {
+            if let (Ok(values), Some(metrics)) = (&result, metrics) {
+                let kv_fetched = values.len();
+                let mut bytes_count = 0;
+
+                for key_value in values.as_ref() {
+                    let key_len = key_value.key().len();
+                    let value_len = key_value.value().len();
+
+                    bytes_count += (key_len + value_len) as u64
+                }
+
+                metrics.report_metrics(FdbCommand::GetRange(bytes_count, kv_fetched as u64));
+            };
+
+            result
         })
     }
 
@@ -801,6 +863,10 @@ impl Transaction {
                 fdb_len(end.len(), "end"),
             )
         }
+
+        if let Some(metrics) = &self.metrics {
+            metrics.report_metrics(FdbCommand::ClearRange);
+        }
     }
 
     /// Get the estimated byte size of the key range based on the byte sample collected by FDB
@@ -892,8 +958,111 @@ impl Transaction {
     /// Cancels the transaction. All pending or future uses of the transaction will return a
     /// transaction_cancelled error. The transaction can be used again after it is reset.
     pub fn cancel(self) -> TransactionCancelled {
-        unsafe { fdb_sys::fdb_transaction_cancel(self.inner.as_ptr()) };
+        unsafe {
+            fdb_sys::fdb_transaction_cancel(self.inner.as_ptr());
+        }
         TransactionCancelled { tr: self }
+    }
+
+    /// Sets a custom metric for the transaction with the specified name, value, and labels.
+    ///
+    /// Custom metrics allow you to track application-specific metrics during transaction execution.
+    /// These metrics are collected alongside the standard FoundationDB metrics and can be used
+    /// for monitoring, debugging, and performance analysis.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the metric (e.g., "query_time", "cache_hits")
+    /// * `value` - The value to set for the metric
+    /// * `labels` - Key-value pairs for labeling the metric, allowing for dimensional metrics
+    ///              (e.g., `[("operation", "read"), ("region", "us-west")]`)
+    ///
+    /// # Returns
+    /// * `Ok(())` if the metric was set successfully
+    /// * `Err(TransactionMetricsNotFound)` if this transaction was not created with metrics instrumentation
+    ///
+    /// # Example
+    /// ```
+    /// # use foundationdb::*;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let db = Database::default()?;
+    /// let metrics = TransactionMetrics::new();
+    /// let txn = db.create_instrumented_trx(metrics)?;
+    ///
+    /// // Set a custom metric with labels
+    /// txn.set_custom_metric("query_processing_time", 42, &[("query_type", "select"), ("table", "users")])?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Note
+    /// This method only works on transactions created with `create_instrumented_trx()` or within
+    /// `instrumented_run()`. For regular transactions created with `create_trx()`, this will
+    /// return `Err(TransactionMetricsNotFound)`.
+    pub fn set_custom_metric(
+        &self,
+        name: &str,
+        value: u64,
+        labels: &[(&str, &str)],
+    ) -> Result<(), TransactionMetricsNotFound> {
+        if let Some(metrics) = &self.metrics {
+            metrics.set_custom(name, value, labels);
+            Ok(())
+        } else {
+            Err(TransactionMetricsNotFound)
+        }
+    }
+
+    /// Increments a custom metric for the transaction by the specified amount.
+    ///
+    /// This is useful for counting events or accumulating values during transaction execution.
+    /// If the metric doesn't exist yet, it will be created with the specified amount.
+    /// If it already exists with the same labels, its value will be incremented.
+    ///
+    /// # Arguments
+    /// * `name` - The name of the metric to increment (e.g., "requests", "bytes_processed")
+    /// * `amount` - The amount to increment the metric by
+    /// * `labels` - Key-value pairs for labeling the metric, allowing for dimensional metrics
+    ///              (e.g., `[("status", "success"), ("endpoint", "api/v1/users")]`)
+    ///
+    /// # Returns
+    /// * `Ok(())` if the metric was incremented successfully
+    /// * `Err(TransactionMetricsNotFound)` if this transaction was not created with metrics instrumentation
+    ///
+    /// # Example
+    /// ```
+    /// # use foundationdb::*;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let db = Database::default()?;
+    /// let metrics = TransactionMetrics::new();
+    /// let txn = db.create_instrumented_trx(metrics)?;
+    ///
+    /// // Increment a counter each time a specific operation occurs
+    /// txn.increment_custom_metric("cache_misses", 1, &[("cache", "user_data")])?;
+    ///
+    /// // Later in the transaction, increment it again
+    /// txn.increment_custom_metric("cache_misses", 1, &[("cache", "user_data")])?;
+    ///
+    /// // The final value will be 2
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Note
+    /// This method only works on transactions created with `create_instrumented_trx()` or within
+    /// `instrumented_run()`. For regular transactions created with `create_trx()`, this will
+    /// return `Err(TransactionMetricsNotFound)`.
+    pub fn increment_custom_metric(
+        &self,
+        name: &str,
+        amount: u64,
+        labels: &[(&str, &str)],
+    ) -> Result<(), TransactionMetricsNotFound> {
+        if let Some(metrics) = &self.metrics {
+            metrics.increment_custom(name, amount, labels);
+            Ok(())
+        } else {
+            Err(TransactionMetricsNotFound)
+        }
     }
 
     /// Returns a list of public network addresses as strings, one for each of the storage servers
