@@ -7,8 +7,8 @@ pub type Labels = Vec<(String, String)>;
 /// Unique key for a metric: name + labels
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub struct MetricKey {
-    name: String,
-    labels: Labels,
+    pub name: String,
+    pub labels: Labels,
 }
 
 impl MetricKey {
