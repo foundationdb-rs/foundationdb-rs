@@ -23,27 +23,9 @@ You can access the `main` branch documentation [here](https://foundationdb-rs.gi
 
 Supported platforms are listed on the [foundationdb's README](foundationdb/README.md).
 
-## Develop with Nix
+## Contributing
 
-A flake.nix is provided to develop the bindings. We recommend add a cluster-file on the `configuration.nix` file:
-
-```nix
-{
-  environment.etc."foundationdb/fdb.cluster" = {
-    mode = "0555";
-    text = ''
-      docker:docker@127.0.0.1:4500
-    '';
-  };
-}
-```
-
-A FoundationDB cluster can be run using these commands:
-
-```shell
-docker run -p 4500:4500 --name fdb -it --rm -d foundationdb/foundationdb:7.1.19
-docker exec fdb fdbcli --exec "configure new single memory"
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## Correctness
 
