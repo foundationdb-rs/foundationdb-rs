@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2025-08-30
+
+### <!-- 0 -->🚀 added
+
+- Feat(foundationdb) : Expose Timekeeper API
+- Profiling Keyspace Scanner
+- Add support 7.4
+- Impl std::error::Error for TransactionCommitError
+- Add optional tracing feature
+- Add a test on failed closure
+- Add `intrumented_run`
+- Add  on fields in MetricKey
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Fixup! feat(foundationdb) : Expose Timekeeper API
+- Fix(foundationdb) : Replace unmaintained ring crate with sha2 in examples
+- Doc-related clippy fixes
+- Clippy --fix
+- Fix warnings
+
+### <!-- 4 -->⚙️ Other changes
+
+- Merge pull request #228 from Akanoa/profiling-keyspace-scan
+- Test on Apple silicon
+- Merge pull request #306 from hkrutzer/apple-silicon-ci
+- Use cfg_api_versions and if_cfg_api_versions
+- Doc, multi-statements support
+- Specifically use C ABI for packed structs
+- Some spaces and tabs doc formalization
+- Merge pull request #337 from foundationdb-rs/dependabot/cargo/fdb-dbb3006a4f
+- Rename instrumentation by trace
+- Merge pull request #339 from Akanoa/instrumentation
+
+[0.9.3]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.9.2..0.9.3
+
 ## [0.9.2] - 2025-01-06
 
 ### <!-- 0 -->🚀 added
