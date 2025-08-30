@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "macos-13", "macos-14"]
-        toolchain: ["1.82.0", "stable"]
+        toolchain: ["1.85.1", "stable"]
         fdb_feature_version: ["fdb-7_4", "fdb-7_3", "fdb-7_1", "fdb-7_0", "fdb-6_3", "fdb-6_2", "fdb-6_1"]
 
     runs-on: ${{ matrix.os }}
@@ -52,7 +52,7 @@ jobs:
     name: "Test foundationDB with ${{ matrix.toolchain }}"
     strategy:
       matrix:
-        toolchain: ["1.82.0", "stable", "beta", "nightly"]
+        toolchain: ["1.85.1", "stable", "beta", "nightly"]
 
     runs-on: "ubuntu-latest"
 
