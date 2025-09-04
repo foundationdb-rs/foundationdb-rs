@@ -14,7 +14,7 @@ async fn main() {
 
     // Run the instrumented example
     if let Err(e) = instrumented_example().await {
-        eprintln!("Error running instrumented example: {:?}", e);
+        eprintln!("Error running instrumented example: {e:?}");
     }
 
     // Shutdown the client
@@ -45,13 +45,13 @@ async fn instrumented_example() -> Result<(), FdbBindingError> {
         Ok((_, metrics)) => {
             println!("Transaction successful!");
             println!("--- Metrics Report ---");
-            println!("{:#?}", metrics);
+            println!("{metrics:#?}");
             println!("----------------------");
         }
         Err((err, metrics)) => {
-            eprintln!("Transaction failed: {:?}", err);
+            eprintln!("Transaction failed: {err:?}");
             eprintln!("--- Metrics Report (on failure) ---");
-            println!("{:#?}", metrics);
+            println!("{metrics:#?}");
             println!("-----------------------------------");
             return Err(err);
         }
