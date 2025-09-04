@@ -139,6 +139,9 @@ pub enum FdbBindingError {
     CustomError(Box<dyn std::error::Error + Send + Sync>),
     /// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation
     TransactionMetricsNotFound,
+    #[cfg(feature = "recipes-leader-election")]
+    /// Leader election specific error
+    LeaderElectionError(crate::recipes::leader_election::LeaderElectionError),
 }
 
 impl FdbBindingError {
@@ -157,6 +160,10 @@ impl FdbBindingError {
                     None
                 }
             }
+            #[cfg(feature = "recipes-leader-election")]
+            Self::LeaderElectionError(
+                crate::recipes::leader_election::LeaderElectionError::Fdb(e),
+            ) => Some(e),
             _ => None,
         }
     }
@@ -186,6 +193,13 @@ impl From<TransactionMetricsNotFound> for FdbBindingError {
     }
 }
 
+#[cfg(feature = "recipes-leader-election")]
+impl From<crate::recipes::leader_election::LeaderElectionError> for FdbBindingError {
+    fn from(error: crate::recipes::leader_election::LeaderElectionError) -> Self {
+        Self::LeaderElectionError(error)
+    }
+}
+
 impl FdbBindingError {
     /// create a new custom error
     pub fn new_custom_error(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
@@ -207,6 +221,8 @@ impl Debug for FdbBindingError {
             FdbBindingError::TransactionMetricsNotFound => {
                 write!(f, "Transaction metrics not found")
             }
+            #[cfg(feature = "recipes-leader-election")]
+            FdbBindingError::LeaderElectionError(err) => write!(f, "{err:?}"),
         }
     }
 }

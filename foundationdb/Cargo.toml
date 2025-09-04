@@ -28,7 +28,7 @@ features = ["embedded-fdb-include", "fdb-7_4", "uuid"]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
 
 [features]
-default = ["uuid"]
+default = ["uuid", "recipes"]
 uuid = ["dep:uuid", "foundationdb-tuple/uuid"]
 num-bigint = ["dep:num-bigint", "foundationdb-tuple/num-bigint"]
 # Use the locally embedded foundationdb fdb_c.h and fdb.options files
@@ -47,6 +47,8 @@ fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1", "serde", "ser
 fdb-7_3 = ["foundationdb-sys/fdb-7_3", "foundationdb-gen/fdb-7_3", "serde", "serde_json", "serde_bytes"]
 fdb-7_4 = ["foundationdb-sys/fdb-7_4", "foundationdb-gen/fdb-7_4", "serde", "serde_json", "serde_bytes"]
 tenant-experimental = []
+recipes = ["recipes-leader-election"]
+recipes-leader-election = []
 trace = ["tracing"]
 
 [build-dependencies]
