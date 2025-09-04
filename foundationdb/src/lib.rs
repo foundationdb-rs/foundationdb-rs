@@ -39,6 +39,9 @@ if_cfg_api_versions! {min = 710 =>
     pub mod tenant;
 }
 
+#[cfg(any(feature = "recipes", feature = "recipes-leader-election"))]
+pub mod recipes;
+
 // Re-export metrics types for convenience
 pub use crate::metrics::TransactionMetrics;
 pub mod timekeeper;
