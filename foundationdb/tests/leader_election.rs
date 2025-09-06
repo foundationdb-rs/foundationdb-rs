@@ -21,6 +21,13 @@ mod leader_election_tests {
         futures::executor::block_on(test_heartbeat_and_eviction_async()).expect("failed to run");
         futures::executor::block_on(test_leadership_transfer_on_stale_leader_async())
             .expect("failed to run");
+        futures::executor::block_on(test_config_change_async()).expect("failed to run");
+    }
+
+    fn current_time() -> std::time::Duration {
+        std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
     }
 
     async fn setup_test(db: &Database, test_name: &str) -> Result<LeaderElection, FdbBindingError> {
@@ -56,7 +63,9 @@ mod leader_election_tests {
         // Register a process
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.register_process(&mut txn, process_id).await?;
+            election_ref
+                .register_process(&mut txn, process_id, current_time())
+                .await?;
             Ok(())
         })
         .await?;
@@ -65,7 +74,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|mut txn, _| async move {
-                let became_leader = election_ref.try_become_leader(&mut txn, process_id).await?;
+                let became_leader = election_ref
+                    .try_become_leader(&mut txn, process_id, current_time())
+                    .await?;
                 Ok(became_leader)
             })
             .await?;
@@ -78,7 +89,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let is_leader = db
             .run(|mut txn, _| async move {
-                let is_leader = election_ref.is_leader(&mut txn, process_id).await?;
+                let is_leader = election_ref
+                    .is_leader(&mut txn, process_id, current_time())
+                    .await?;
                 Ok(is_leader)
             })
             .await?;
@@ -104,7 +117,9 @@ mod leader_election_tests {
         for process_id in &process_ids {
             let election_ref = &election;
             db.run(|mut txn, _| async move {
-                election_ref.register_process(&mut txn, process_id).await?;
+                election_ref
+                    .register_process(&mut txn, process_id, current_time())
+                    .await?;
                 Ok(())
             })
             .await?;
@@ -116,8 +131,9 @@ mod leader_election_tests {
             let election_ref = &election;
             let became_leader = db
                 .run(|mut txn, _| async move {
-                    let became_leader =
-                        election_ref.try_become_leader(&mut txn, process_id).await?;
+                    let became_leader = election_ref
+                        .try_become_leader(&mut txn, process_id, current_time())
+                        .await?;
                     Ok(became_leader)
                 })
                 .await?;
@@ -134,7 +150,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let is_leader = db
             .run(|mut txn, _| async move {
-                let is_leader = election_ref.is_leader(&mut txn, leader_id).await?;
+                let is_leader = election_ref
+                    .is_leader(&mut txn, leader_id, current_time())
+                    .await?;
                 Ok(is_leader)
             })
             .await?;
@@ -149,7 +167,9 @@ mod leader_election_tests {
                 let election_ref = &election;
                 let is_leader = db
                     .run(|mut txn, _| async move {
-                        let is_leader = election_ref.is_leader(&mut txn, process_id).await?;
+                        let is_leader = election_ref
+                            .is_leader(&mut txn, process_id, current_time())
+                            .await?;
                         Ok(is_leader)
                     })
                     .await?;
@@ -172,7 +192,7 @@ mod leader_election_tests {
 
         // Initialize with short heartbeat timeout for testing
         let config = ElectionConfig {
-            max_missed_heartbeats: 3,
+            heartbeat_timeout: Duration::from_secs(5),
             election_enabled: true,
         };
 
@@ -191,7 +211,9 @@ mod leader_election_tests {
         // Register leader processes
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.register_process(&mut txn, leader_id).await?;
+            election_ref
+                .register_process(&mut txn, leader_id, current_time())
+                .await?;
             Ok(())
         })
         .await?;
@@ -199,7 +221,9 @@ mod leader_election_tests {
         // Register follower processes
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.register_process(&mut txn, follower_id).await?;
+            election_ref
+                .register_process(&mut txn, follower_id, current_time())
+                .await?;
             Ok(())
         })
         .await?;
@@ -208,7 +232,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|mut txn, _| async move {
-                let became_leader = election_ref.try_become_leader(&mut txn, leader_id).await?;
+                let became_leader = election_ref
+                    .try_become_leader(&mut txn, leader_id, current_time())
+                    .await?;
                 Ok(became_leader)
             })
             .await?;
@@ -218,7 +244,9 @@ mod leader_election_tests {
         // Send heartbeats for leader but not follower
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.heartbeat(&mut txn, leader_id).await?;
+            election_ref
+                .heartbeat(&mut txn, leader_id, current_time())
+                .await?;
             Ok(())
         })
         .await?;
@@ -229,7 +257,9 @@ mod leader_election_tests {
         // Send fresh heartbeat for leader before trying to become leader again
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.heartbeat(&mut txn, leader_id).await?;
+            election_ref
+                .heartbeat(&mut txn, leader_id, current_time())
+                .await?;
             Ok(())
         })
         .await?;
@@ -238,7 +268,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let still_leader = db
             .run(|mut txn, _| async move {
-                let still_leader = election_ref.try_become_leader(&mut txn, leader_id).await?;
+                let still_leader = election_ref
+                    .try_become_leader(&mut txn, leader_id, current_time())
+                    .await?;
                 Ok(still_leader)
             })
             .await?;
@@ -248,7 +280,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let follower_is_leader = db
             .run(|mut txn, _| async move {
-                let follower_is_leader = election_ref.is_leader(&mut txn, follower_id).await?;
+                let follower_is_leader = election_ref
+                    .is_leader(&mut txn, follower_id, current_time())
+                    .await?;
                 Ok(follower_is_leader)
             })
             .await?;
@@ -269,7 +303,7 @@ mod leader_election_tests {
 
         // Initialize with short heartbeat timeout for testing
         let config = ElectionConfig {
-            max_missed_heartbeats: 3,
+            heartbeat_timeout: Duration::from_secs(5),
             election_enabled: true,
         };
 
@@ -289,7 +323,7 @@ mod leader_election_tests {
         let election_ref = &election;
         db.run(|mut txn, _| async move {
             election_ref
-                .register_process(&mut txn, initial_leader)
+                .register_process(&mut txn, initial_leader, current_time())
                 .await?;
             Ok(())
         })
@@ -297,7 +331,9 @@ mod leader_election_tests {
 
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.register_process(&mut txn, new_leader).await?;
+            election_ref
+                .register_process(&mut txn, new_leader, current_time())
+                .await?;
             Ok(())
         })
         .await?;
@@ -307,7 +343,7 @@ mod leader_election_tests {
         let became_leader = db
             .run(|mut txn, _| async move {
                 let became_leader = election_ref
-                    .try_become_leader(&mut txn, initial_leader)
+                    .try_become_leader(&mut txn, initial_leader, current_time())
                     .await?;
                 Ok(became_leader)
             })
@@ -318,7 +354,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let is_leader = db
             .run(|mut txn, _| async move {
-                let is_leader = election_ref.is_leader(&mut txn, initial_leader).await?;
+                let is_leader = election_ref
+                    .is_leader(&mut txn, initial_leader, current_time())
+                    .await?;
                 Ok(is_leader)
             })
             .await?;
@@ -328,7 +366,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|mut txn, _| async move {
-                let became_leader = election_ref.try_become_leader(&mut txn, new_leader).await?;
+                let became_leader = election_ref
+                    .try_become_leader(&mut txn, new_leader, current_time())
+                    .await?;
                 Ok(became_leader)
             })
             .await?;
@@ -340,27 +380,33 @@ mod leader_election_tests {
         // Send heartbeat for new_leader to keep it fresh
         let election_ref = &election;
         db.run(|mut txn, _| async move {
-            election_ref.heartbeat(&mut txn, new_leader).await?;
+            election_ref
+                .heartbeat(&mut txn, new_leader, current_time())
+                .await?;
             Ok(())
         })
         .await?;
 
-        // Generate heartbeats from new_leader to advance version counter and make initial leader stale
-        for _ in 0..50 {
-            let election_ref = &election;
-            db.run(|mut txn, _| async move {
-                election_ref.heartbeat(&mut txn, new_leader).await?;
-                Ok(())
-            })
-            .await?;
-            sleep(Duration::from_millis(100));
-        }
+        // Wait for initial leader to become stale (longer than heartbeat_timeout)
+        sleep(Duration::from_secs(6));
+
+        // Send fresh heartbeat for new_leader to ensure it's alive
+        let election_ref = &election;
+        db.run(|mut txn, _| async move {
+            election_ref
+                .heartbeat(&mut txn, new_leader, current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
 
         // New leader tries to become leader again after initial leader is stale
         let election_ref = &election;
         let became_leader = db
             .run(|mut txn, _| async move {
-                let became_leader = election_ref.try_become_leader(&mut txn, new_leader).await?;
+                let became_leader = election_ref
+                    .try_become_leader(&mut txn, new_leader, current_time())
+                    .await?;
                 Ok(became_leader)
             })
             .await?;
@@ -373,7 +419,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let is_leader = db
             .run(|mut txn, _| async move {
-                let is_leader = election_ref.is_leader(&mut txn, new_leader).await?;
+                let is_leader = election_ref
+                    .is_leader(&mut txn, new_leader, current_time())
+                    .await?;
                 Ok(is_leader)
             })
             .await?;
@@ -383,7 +431,9 @@ mod leader_election_tests {
         let election_ref = &election;
         let is_leader = db
             .run(|mut txn, _| async move {
-                let is_leader = election_ref.is_leader(&mut txn, initial_leader).await?;
+                let is_leader = election_ref
+                    .is_leader(&mut txn, initial_leader, current_time())
+                    .await?;
                 Ok(is_leader)
             })
             .await?;
@@ -397,7 +447,7 @@ mod leader_election_tests {
         let became_leader = db
             .run(|mut txn, _| async move {
                 let became_leader = election_ref
-                    .try_become_leader(&mut txn, initial_leader)
+                    .try_become_leader(&mut txn, initial_leader, current_time())
                     .await?;
                 Ok(became_leader)
             })
@@ -406,6 +456,123 @@ mod leader_election_tests {
             !became_leader,
             "Stale initial process should not become leader again"
         );
+
+        Ok(())
+    }
+
+    async fn test_config_change_async() -> Result<(), FdbBindingError> {
+        use foundationdb::recipes::leader_election::ElectionConfig;
+        use std::time::Duration;
+
+        let db = crate::common::database().await?;
+        let election = setup_test(&db, "test_config_change_async").await?;
+
+        // Initialize with default config
+        let election_ref = &election;
+        db.run(|mut txn, _| async move {
+            election_ref.initialize(&mut txn).await?;
+            Ok(())
+        })
+        .await?;
+
+        // Change config to disable elections
+        let new_config = ElectionConfig {
+            heartbeat_timeout: Duration::from_secs(10),
+            election_enabled: false,
+        };
+
+        let election_ref = &election;
+        db.run(|mut txn, _| {
+            let config = new_config.clone();
+            async move {
+                election_ref.write_config(&mut txn, &config).await?;
+                Ok(())
+            }
+        })
+        .await?;
+
+        // Try to register process - should fail due to disabled elections
+        let election_ref = &election;
+        let registration_failed = db
+            .run(|mut txn, _| async move {
+                match election_ref
+                    .register_process(&mut txn, "test-process", current_time())
+                    .await
+                {
+                    Err(_) => Ok(true), // Registration failed as expected
+                    Ok(_) => Ok(false), // Registration succeeded unexpectedly
+                }
+            })
+            .await?;
+
+        assert!(
+            registration_failed,
+            "Registration should fail when elections are disabled"
+        );
+
+        // Also test that try_become_leader fails when elections are disabled
+        let election_ref = &election;
+        let leadership_failed = db
+            .run(|mut txn, _| async move {
+                match election_ref
+                    .try_become_leader(&mut txn, "test-process", current_time())
+                    .await
+                {
+                    Err(_) => Ok(true), // Leadership attempt failed as expected
+                    Ok(_) => Ok(false), // Leadership attempt succeeded unexpectedly
+                }
+            })
+            .await?;
+
+        assert!(
+            leadership_failed,
+            "try_become_leader should fail when elections are disabled"
+        );
+
+        // Also test that is_leader fails when elections are disabled
+        let election_ref = &election;
+        let is_leader_failed = db
+            .run(|mut txn, _| async move {
+                match election_ref
+                    .is_leader(&mut txn, "test-process", current_time())
+                    .await
+                {
+                    Err(_) => Ok(true), // is_leader failed as expected
+                    Ok(_) => Ok(false), // is_leader succeeded unexpectedly
+                }
+            })
+            .await?;
+
+        assert!(
+            is_leader_failed,
+            "is_leader should fail when elections are disabled"
+        );
+
+        // Re-enable elections
+        let enabled_config = ElectionConfig {
+            heartbeat_timeout: Duration::from_secs(10),
+            election_enabled: true,
+        };
+
+        let election_ref = &election;
+        db.run(|mut txn, _| {
+            let config = enabled_config.clone();
+            async move {
+                election_ref.write_config(&mut txn, &config).await?;
+                Ok(())
+            }
+        })
+        .await?;
+
+        // Now registration should work
+        let election_ref = &election;
+        db.run(|mut txn, _| async move {
+            election_ref
+                .register_process(&mut txn, "test-process", current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
 
         Ok(())
     }

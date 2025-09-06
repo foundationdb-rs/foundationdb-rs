@@ -35,8 +35,8 @@
 //! 3. **Leader Selection**: The process with the earliest registration/heartbeat time
 //!    (smallest versionstamp) among alive processes becomes the leader
 //!
-//! 4. **Lease Management**: Leaders hold a lease that expires after a configured
-//!    number of missed heartbeats, preventing split-brain scenarios
+//! 4. **Timeout Management**: Leaders are valid as long as their heartbeat is within the configured
+//!    timeout period, preventing split-brain scenarios
 
 mod algorithm;
 mod errors;
@@ -107,6 +107,7 @@ impl LeaderElection {
     ///
     /// # Arguments
     /// * `process_id` - Unique identifier for the process (e.g., hostname, UUID)
+    /// * `timestamp` - Current time to use for timeout detection
     ///
     /// # Errors
     /// Returns `LeaderElectionError::ElectionDisabled` if elections are disabled
@@ -118,31 +119,34 @@ impl LeaderElection {
         &self,
         txn: &mut RetryableTransaction,
         process_id: &str,
+        timestamp: std::time::Duration,
     ) -> Result<()> {
-        algorithm::register_process(txn, &self.subspace, process_id).await
+        algorithm::register_process(txn, &self.subspace, process_id, timestamp).await
     }
 
     /// Send a heartbeat for the given process
     ///
-    /// Updates the process's versionstamp to indicate it's still alive.
-    /// This should be called periodically (e.g., every 1-2 seconds) to maintain
+    /// Updates the process's timestamp to indicate it's still alive.
+    /// This should be called periodically (e.g., every 5-10 seconds) to maintain
     /// process liveness.
     ///
     /// # Arguments
     /// * `process_uuid` - The unique identifier used during registration
+    /// * `timestamp` - Current time to use for timeout detection
     ///
     /// # Errors
     /// Returns `LeaderElectionError::ElectionDisabled` if elections are disabled
     ///
     /// # Important
     /// Failing to send heartbeats will cause the process to be evicted from
-    /// the election after `max_missed_heartbeats` expires.
+    /// the election after `heartbeat_timeout` expires.
     pub async fn heartbeat(
         &self,
         txn: &mut RetryableTransaction,
         process_uuid: &str,
+        timestamp: std::time::Duration,
     ) -> Result<()> {
-        algorithm::heartbeat(txn, &self.subspace, process_uuid).await
+        algorithm::heartbeat(txn, &self.subspace, process_uuid, timestamp).await
     }
 
     /// Try to become the leader
@@ -153,6 +157,7 @@ impl LeaderElection {
     ///
     /// # Arguments
     /// * `process_uuid` - The unique identifier of the process attempting leadership
+    /// * `timestamp` - Current time to use for timeout detection
     ///
     /// # Returns
     /// * `Ok(true)` - Successfully became the leader
@@ -172,8 +177,9 @@ impl LeaderElection {
         &self,
         txn: &mut RetryableTransaction,
         process_uuid: &str,
+        timestamp: std::time::Duration,
     ) -> Result<bool> {
-        algorithm::try_become_leader(txn, &self.subspace, process_uuid).await
+        algorithm::try_become_leader(txn, &self.subspace, process_uuid, timestamp).await
     }
 
     /// Get the current leader (read-only, for observers)
@@ -181,6 +187,9 @@ impl LeaderElection {
     /// Retrieves information about the current leader without participating
     /// in the election. This is a read-only operation that doesn't cause
     /// conflicts with the election process.
+    ///
+    /// # Arguments
+    /// * `timestamp` - Current time to use for lease validation
     ///
     /// # Returns
     /// * `Some(LeaderInfo)` - Current leader information including lease expiry
@@ -192,13 +201,14 @@ impl LeaderElection {
     /// - Monitoring systems tracking leadership changes
     ///
     /// # Note
-    /// The leader information includes a lease that may expire. Always check
-    /// if the lease is still valid when making decisions based on leadership.
+    /// Leadership is determined by whether the leader's last heartbeat is within
+    /// the configured timeout period. Stale leaders are automatically considered invalid.
     pub async fn get_current_leader(
         &self,
         txn: &mut RetryableTransaction,
+        timestamp: std::time::Duration,
     ) -> Result<Option<LeaderInfo>> {
-        algorithm::get_current_leader(txn, &self.subspace).await
+        algorithm::get_current_leader(txn, &self.subspace, timestamp).await
     }
 
     /// Check if a specific process is the current leader
@@ -208,6 +218,7 @@ impl LeaderElection {
     ///
     /// # Arguments
     /// * `process_uuid` - The process identifier to check
+    /// * `timestamp` - Current time to use for timeout detection
     ///
     /// # Returns
     /// * `true` - The specified process is the current leader
@@ -220,8 +231,9 @@ impl LeaderElection {
         &self,
         txn: &mut RetryableTransaction,
         process_uuid: &str,
+        timestamp: std::time::Duration,
     ) -> Result<bool> {
-        algorithm::is_leader(txn, &self.subspace, process_uuid).await
+        algorithm::is_leader(txn, &self.subspace, process_uuid, timestamp).await
     }
 
     /// Write global election configuration
