@@ -32,6 +32,7 @@ use crate::{
     RangeOption, RetryableTransaction,
 };
 use futures::StreamExt;
+use std::time::Duration;
 
 use super::{
     errors::{LeaderElectionError, Result},
@@ -57,8 +58,8 @@ pub async fn initialize(
 
     // Check if already initialized
     if txn.get(&config_key, false).await?.is_none() {
-        // Pack as tuple: (max_missed_heartbeats, election_enabled)
-        let data = (config.max_missed_heartbeats, config.election_enabled);
+        // Pack as tuple: (heartbeat_timeout_secs, election_enabled)
+        let data = (config.heartbeat_timeout.as_secs(), config.election_enabled);
         let packed = crate::tuple::pack(&data);
         txn.set(&config_key, &packed);
     }
@@ -87,11 +88,11 @@ pub async fn read_config(
         .await?
         .ok_or(LeaderElectionError::NotInitialized)?;
 
-    // Unpack tuple: (max_missed_heartbeats, election_enabled)
+    // Unpack tuple: (heartbeat_timeout_secs, election_enabled)
     let tuple: (u64, bool) = crate::tuple::unpack(&data)?;
 
     let config = ElectionConfig {
-        max_missed_heartbeats: tuple.0,
+        heartbeat_timeout: Duration::from_secs(tuple.0),
         election_enabled: tuple.1,
     };
     Ok(config)
@@ -111,7 +112,7 @@ pub async fn write_config(
     config: &ElectionConfig,
 ) -> Result<()> {
     let config_key = config_key(subspace);
-    let data = (config.max_missed_heartbeats, config.election_enabled);
+    let data = (config.heartbeat_timeout.as_secs(), config.election_enabled);
     let packed = crate::tuple::pack(&data);
     txn.set(&config_key, &packed);
     Ok(())
@@ -119,25 +120,28 @@ pub async fn write_config(
 
 /// Register a new process in the election
 ///
-/// Creates a process entry with a unique versionstamp that captures the transaction's
-/// commit version. The versionstamp is assigned by FoundationDB at commit time,
-/// providing a time-based ordering for leader selection.
+/// Creates a process entry with both a versionstamp (for ordering) and a Duration
+/// timestamp (for timeout detection). The versionstamp is assigned by FoundationDB
+/// at commit time, providing ordering immunity to FDB recovery version jumps.
 ///
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `process_id` - Unique identifier for the process
+/// * `timestamp` - Current time to use for timeout detection
 ///
 /// # Errors
 /// Returns `ElectionDisabled` if elections are currently disabled
 ///
 /// # Implementation
-/// Uses `SetVersionstampedValue` atomic operation to ensure the versionstamp
-/// is set at transaction commit time, providing a unique, ordered identifier.
+/// Stores a tuple of (versionstamp, timestamp_nanos) where:
+/// - versionstamp: Used for process ordering (immune to FDB recovery)
+/// - timestamp_nanos: Used for timeout detection (survives FDB recovery)
 pub async fn register_process(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
     process_id: &str,
+    timestamp: Duration,
 ) -> Result<()> {
     // Check if election is enabled
     let config = read_config(txn, subspace).await?;
@@ -147,8 +151,9 @@ pub async fn register_process(
 
     let key = process_key(subspace, process_id);
 
-    // Pack the versionstamp using pack_with_versionstamp
-    let packed = pack_with_versionstamp(&Versionstamp::incomplete(0));
+    // Pack tuple: (versionstamp, timestamp_nanos)
+    let data = (Versionstamp::incomplete(0), timestamp.as_nanos() as u64);
+    let packed = pack_with_versionstamp(&data);
 
     // Use atomic operation to set versionstamped value
     txn.atomic_op(&key, &packed, options::MutationType::SetVersionstampedValue);
@@ -158,24 +163,27 @@ pub async fn register_process(
 
 /// Send heartbeat for a process
 ///
-/// Updates the process's versionstamp to indicate it's still alive. The new
-/// versionstamp reflects the current transaction's commit version.
+/// Updates the process's timestamp to indicate it's still alive. The versionstamp
+/// is preserved to maintain process ordering, but the timestamp is updated for
+/// timeout detection.
 ///
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `process_uuid` - The process's unique identifier
+/// * `timestamp` - Current time to use for timeout detection
 ///
 /// # Errors
 /// Returns `ElectionDisabled` if elections are currently disabled
 ///
 /// # Note
-/// Heartbeats should be sent regularly (e.g., every 1-2 seconds) to prevent
+/// Heartbeats should be sent regularly (e.g., every 5-10 seconds) to prevent
 /// the process from being evicted as dead.
 pub async fn heartbeat(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
     process_uuid: &str,
+    timestamp: Duration,
 ) -> Result<()> {
     // Check if election is enabled
     let config = read_config(txn, subspace).await?;
@@ -185,8 +193,9 @@ pub async fn heartbeat(
 
     let key = process_key(subspace, process_uuid);
 
-    // Pack the versionstamp using pack_with_versionstamp
-    let packed = pack_with_versionstamp(&Versionstamp::incomplete(0));
+    // Pack tuple: (versionstamp, timestamp_nanos)
+    let data = (Versionstamp::incomplete(0), timestamp.as_nanos() as u64);
+    let packed = pack_with_versionstamp(&data);
 
     txn.atomic_op(&key, &packed, options::MutationType::SetVersionstampedValue);
     Ok(())
@@ -200,31 +209,27 @@ pub async fn heartbeat(
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
+/// * `current_time` - Current time to use for timeout detection
 ///
 /// # Returns
 /// Vector of (process_uuid, descriptor) pairs sorted by priority
 ///
 /// # Algorithm
 /// 1. Read all processes from the processes range
-/// 2. Calculate staleness threshold based on max_missed_heartbeats
-/// 3. Filter processes whose versionstamp is within the threshold
-/// 4. Sort by ProcessDescriptor (ordered by transaction commit version)
+/// 2. Unpack both versionstamp and timestamp from each process entry
+/// 3. Filter processes whose timestamp is within the timeout threshold
+/// 4. Sort by ProcessDescriptor (ordered by versionstamp for deterministic leadership)
 ///
-/// # Performance
-/// This operation performs a range read which is efficient in FoundationDB.
-/// The number of processes is typically small (< 1000) in production systems.
+/// # Immunity to FDB Recovery
+/// This implementation uses Duration-based timestamps for timeout detection,
+/// making it immune to FoundationDB version jumps during cluster recovery.
 pub async fn find_alive_processes(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
+    current_time: Duration,
 ) -> Result<Vec<(String, ProcessDescriptor)>> {
     let config = read_config(txn, subspace).await?;
     let (start, end) = processes_range(subspace);
-
-    // Get current read version for staleness check
-    let current_version = txn.get_read_version().await?;
-    let current_version_u64 = current_version as u64;
-
-    let staleness_threshold = config.max_missed_heartbeats * VERSIONSTAMP_PER_HEARTBEAT_ESTIMATE;
 
     let mut alive_processes = Vec::new();
 
@@ -238,18 +243,22 @@ pub async fn find_alive_processes(
         let key_tuple: (String, String) = subspace.unpack(kv.key())?;
         let uuid = key_tuple.1;
 
-        // Unpack versionstamp from value
-        let versionstamp: Versionstamp = crate::tuple::unpack(kv.value())?;
+        // Unpack tuple: (versionstamp, timestamp_nanos)
+        let tuple: (Versionstamp, u64) = crate::tuple::unpack(kv.value())?;
+        let versionstamp = tuple.0;
+        let timestamp_nanos = tuple.1;
+        let timestamp = Duration::from_nanos(timestamp_nanos);
 
-        let descriptor = ProcessDescriptor::from_versionstamp(*versionstamp.as_bytes());
+        let descriptor =
+            ProcessDescriptor::from_versionstamp_and_timestamp(*versionstamp.as_bytes(), timestamp);
 
-        // Check if heartbeat is fresh enough
-        if version_gap(descriptor.version, current_version_u64) < staleness_threshold {
+        // Check if heartbeat is fresh enough using Duration-based timeout
+        if descriptor.is_alive(current_time, config.heartbeat_timeout) {
             alive_processes.push((uuid, descriptor));
         }
     }
 
-    // Sort by version for leader selection (ProcessDescriptor implements Ord)
+    // Sort by versionstamp for leader selection (ProcessDescriptor implements Ord)
     alive_processes.sort_by_key(|(_uuid, desc)| desc.clone());
 
     Ok(alive_processes)
@@ -264,6 +273,7 @@ pub async fn find_alive_processes(
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `process_uuid` - UUID of the process attempting to become leader
+/// * `current_time` - Current time to use for timeout detection
 ///
 /// # Returns
 /// * `true` if successfully became leader
@@ -282,6 +292,7 @@ pub async fn try_become_leader(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
     process_uuid: &str,
+    current_time: Duration,
 ) -> Result<bool> {
     // Check if election is enabled
     // Note: Reading the config creates an implicit read conflict on the config key,
@@ -289,17 +300,17 @@ pub async fn try_become_leader(
     let config = read_config(txn, subspace).await?;
 
     if !config.election_enabled {
-        return Ok(false);
+        return Err(LeaderElectionError::ElectionDisabled);
     }
 
     // Find alive processes
-    let alive_processes = find_alive_processes(txn, subspace).await?;
+    let alive_processes = find_alive_processes(txn, subspace, current_time).await?;
 
     // Check if we're the smallest alive process
     if let Some((smallest_uuid, smallest_desc)) = alive_processes.first() {
         if smallest_uuid == process_uuid {
             // We are the leader!
-            update_leader_state(txn, subspace, Some(smallest_desc)).await?;
+            update_leader_state(txn, subspace, Some(smallest_desc), current_time).await?;
 
             // Evict dead processes
             evict_dead_processes(txn, subspace, &alive_processes).await?;
@@ -313,41 +324,33 @@ pub async fn try_become_leader(
 
 /// Update the leader state in the database
 ///
-/// Records the new leader's information and sets up their lease.
+/// Records the new leader's information.
 ///
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `leader` - The new leader's descriptor, or None to clear leadership
-///
-/// # Lease Management
-/// The leader is granted a lease for `DEFAULT_LEASE_HEARTBEATS` heartbeat intervals.
-/// This prevents other processes from claiming leadership even if the leader
-/// temporarily loses connectivity.
+/// * `current_time` - Current time (unused, kept for API consistency)
 async fn update_leader_state(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
     leader: Option<&ProcessDescriptor>,
+    _current_time: Duration,
 ) -> Result<()> {
     let leader_key = leader_state_key(subspace);
 
-    // Just store the leader's versionstamp and lease info
-    let data = if let Some(leader_desc) = leader {
-        (
+    if let Some(leader_desc) = leader {
+        // Store tuple: (leader_versionstamp, leader_timestamp_nanos)
+        let data = (
             leader_desc.to_versionstamp().to_vec(),
-            DEFAULT_LEASE_HEARTBEATS,
-            Versionstamp::incomplete(0),
-        )
+            leader_desc.timestamp.as_nanos() as u64,
+        );
+        let packed = crate::tuple::pack(&data);
+        txn.set(&leader_key, &packed);
     } else {
-        (vec![0u8; 12], 0u64, Versionstamp::incomplete(0))
-    };
-    let packed = pack_with_versionstamp(&data);
-
-    txn.atomic_op(
-        &leader_key,
-        &packed,
-        options::MutationType::SetVersionstampedValue,
-    );
+        // Clear leadership
+        txn.clear(&leader_key);
+    }
 
     Ok(())
 }
@@ -399,46 +402,43 @@ async fn evict_dead_processes(
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
+/// * `current_time` - Current time to use for timeout validation
 ///
 /// # Returns
-/// * `Some(LeaderInfo)` if there's an active leader with valid lease
-/// * `None` if no leader or lease has expired
+/// * `Some(LeaderInfo)` if there's an active leader with valid heartbeat
+/// * `None` if no leader or leader's heartbeat has expired
 ///
-/// # Lease Validation
-/// The function verifies that the leader's lease hasn't expired by comparing
-/// the current transaction version with the lease end version.
+/// # Timeout Validation
+/// The function verifies that the leader's last heartbeat is within the
+/// configured heartbeat timeout period.
 pub async fn get_current_leader(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
+    current_time: Duration,
 ) -> Result<Option<LeaderInfo>> {
     let leader_key = leader_state_key(subspace);
+    let config = read_config(txn, subspace).await?;
 
     // Simple read-only access, no conflict ranges
     if let Some(data) = txn.get(&leader_key, false).await? {
-        // Unpack tuple: (leader_versionstamp, leader_lease_heartbeats, last_updated)
-        let tuple: (Vec<u8>, u64, Versionstamp) = crate::tuple::unpack(&data)?;
+        // Unpack tuple: (leader_versionstamp, leader_timestamp_nanos)
+        let tuple: (Vec<u8>, u64) = crate::tuple::unpack(&data)?;
 
-        if tuple.1 > 0 {
-            // Check if there's an active lease
-            let leader_versionstamp: [u8; 12] = tuple.0.try_into().map_err(|_| {
-                LeaderElectionError::InvalidState("Invalid versionstamp length".to_string())
-            })?;
-            let leader_desc = ProcessDescriptor::from_versionstamp(leader_versionstamp);
-            let leader_lease_heartbeats = tuple.1;
+        let leader_versionstamp: [u8; 12] = tuple.0.try_into().map_err(|_| {
+            LeaderElectionError::InvalidState("Invalid versionstamp length".to_string())
+        })?;
+        let leader_timestamp = Duration::from_nanos(tuple.1);
 
-            // Verify leader lease hasn't expired
-            let current_version = txn.get_read_version().await?;
-            let current_version_u64 = current_version as u64;
+        let leader_desc = ProcessDescriptor::from_versionstamp_and_timestamp(
+            leader_versionstamp,
+            leader_timestamp,
+        );
 
-            let lease_duration = leader_lease_heartbeats * VERSIONSTAMP_PER_HEARTBEAT_ESTIMATE;
-            let lease_end_version = leader_desc.version + lease_duration;
-
-            if current_version_u64 < lease_end_version {
-                return Ok(Some(LeaderInfo {
-                    leader: leader_desc,
-                    lease_end_version,
-                }));
-            }
+        // Verify leader's heartbeat is still within timeout
+        if leader_desc.is_alive(current_time, config.heartbeat_timeout) {
+            return Ok(Some(LeaderInfo {
+                leader: leader_desc,
+            }));
         }
     }
 
@@ -454,6 +454,7 @@ pub async fn get_current_leader(
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `process_uuid` - The process UUID to check
+/// * `current_time` - Current time to use for timeout detection
 ///
 /// # Returns
 /// * `true` if the process is the current leader
@@ -466,27 +467,34 @@ pub async fn is_leader(
     txn: &mut RetryableTransaction,
     subspace: &Subspace,
     process_uuid: &str,
+    current_time: Duration,
 ) -> Result<bool> {
     // First check if election is enabled
     let config = read_config(txn, subspace).await?;
     if !config.election_enabled {
-        return Ok(false);
+        return Err(LeaderElectionError::ElectionDisabled);
     }
 
     // Get the current leader
-    if let Some(leader_info) = get_current_leader(txn, subspace).await? {
+    if let Some(leader_info) = get_current_leader(txn, subspace, current_time).await? {
         // Get the process descriptor to compare
         let process_key = process_key(subspace, process_uuid);
         if let Some(data) = txn.get(&process_key, false).await? {
-            // Unpack versionstamp from process data
-            let versionstamp: Versionstamp = crate::tuple::unpack(&data)?;
-            let process_desc = ProcessDescriptor::from_versionstamp(*versionstamp.as_bytes());
+            // Unpack tuple: (versionstamp, timestamp_nanos)
+            let tuple: (Versionstamp, u64) = crate::tuple::unpack(&data)?;
+            let versionstamp = tuple.0;
+            let timestamp = Duration::from_nanos(tuple.1);
+
+            let process_desc = ProcessDescriptor::from_versionstamp_and_timestamp(
+                *versionstamp.as_bytes(),
+                timestamp,
+            );
             return Ok(process_desc == leader_info.leader);
         }
     }
 
     // If no leader or process not found, check if we would be leader
-    let alive_processes = find_alive_processes(txn, subspace).await?;
+    let alive_processes = find_alive_processes(txn, subspace, current_time).await?;
     if let Some((smallest_uuid, _)) = alive_processes.first() {
         return Ok(smallest_uuid == process_uuid);
     }
