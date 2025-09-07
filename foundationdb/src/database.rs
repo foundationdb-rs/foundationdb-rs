@@ -48,17 +48,32 @@ impl From<MaybeCommitted> for bool {
 /// Represents a FoundationDB database
 ///
 /// A mutable, lexicographically ordered mapping from binary keys to binary values.
-///
 /// Modifications to a database are performed via transactions.
+///
+/// ## Network Management
+///
+/// Database objects automatically manage the FoundationDB network lifecycle.
+/// The network is started when the first Database is created and stopped when
+/// the last Database is dropped. This ensures proper resource cleanup without
+/// requiring manual network management in most cases.
 pub struct Database {
     pub(crate) inner: NonNull<fdb_sys::FDBDatabase>,
+    /// Whether this Database instance manages the network lifecycle.
+    /// Set to false for simulation runtime databases created from raw pointers.
+    manages_network: bool,
 }
 unsafe impl Send for Database {}
 unsafe impl Sync for Database {}
 impl Drop for Database {
     fn drop(&mut self) {
+        #[cfg(feature = "trace")]
+        tracing::trace!("Database::drop: manages_network={}", self.manages_network);
+
         unsafe {
             fdb_sys::fdb_database_destroy(self.inner.as_ptr());
+        }
+        if self.manages_network {
+            crate::api::release_network();
         }
     }
 }
@@ -66,7 +81,16 @@ impl Drop for Database {
 #[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
+    ///
+    /// This automatically initializes the FoundationDB network if it hasn't been started yet.
+    /// The network will remain active until all Database instances are dropped.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
+        #[cfg(feature = "trace")]
+        tracing::trace!("Database::new: creating new database");
+
+        // Ensure network is running with automatic management
+        crate::api::ensure_network_running()?;
+
         let path_str =
             path.map(|path| std::ffi::CString::new(path).expect("path to be convertible to CStr"));
         let path_ptr = path_str
@@ -79,12 +103,21 @@ impl Database {
         error::eval(err)?;
         let ptr =
             NonNull::new(v).expect("fdb_create_database to not return null if there is no error");
-        Ok(Self::new_from_pointer(ptr))
+        Ok(Self {
+            inner: ptr,
+            manages_network: true,
+        })
     }
 
-    /// Create a new FDBDatabase from a raw pointer. Users are expected to use the `new` method.
+    /// Create a new FDBDatabase from a raw pointer.
+    ///
+    /// This is primarily used by the simulation runtime and does not manage the network lifecycle.
+    /// Users should typically use the `new` method instead.
     pub fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
-        Self { inner: ptr }
+        Self {
+            inner: ptr,
+            manages_network: false,
+        }
     }
 
     /// Create a database for the given configuration path
@@ -140,10 +173,15 @@ impl Database {
     /// use `Database::new`, `Database::from_path` or  `Database::default`.
     pub async fn new_compat(path: Option<&str>) -> FdbResult<Database> {
         if_cfg_api_versions!(min = 510, max = 600 => {
+            // Ensure network is running with automatic management
+            crate::api::ensure_network_running()?;
+
             let cluster = crate::cluster::Cluster::new(path).await?;
-            let database = cluster.create_database().await?;
+            let mut database = cluster.create_database().await?;
+            database.manages_network = true;
             Ok(database)
         } else {
+            // Don't call ensure_network_running() here - Database::new() will do it
             Database::new(path)
         })
     }

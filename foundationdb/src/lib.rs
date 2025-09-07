@@ -90,11 +90,11 @@ pub use crate::transaction::*;
 ///     drop(network);
 /// }
 /// ```
-pub unsafe fn boot() -> api::NetworkAutoStop {
-    let network_builder = api::FdbApiBuilder::default()
-        .build()
-        .expect("foundationdb API to be initialized");
-    network_builder.boot().expect("fdb network running")
+#[deprecated(
+    note = "Network is managed automatically by Database. Just use Database::new() or Database::new_compat()"
+)]
+pub unsafe fn boot() -> FdbResult<api::NetworkAutoStop> {
+    api::NetworkAutoStop::new()
 }
 
 /// Returns the default Fdb cluster configuration file path
