@@ -22,6 +22,140 @@ use crate::options::NetworkOption;
 use crate::{error, FdbResult};
 use foundationdb_sys as fdb_sys;
 
+enum GlobalState {
+    Uninitialized,
+    ApiVersionSelected {
+        api_version: i32,
+    },
+    NetworkSetup {
+        api_version: i32,
+    },
+    Running {
+        api_version: i32,
+        handle: std::thread::JoinHandle<()>,
+        count: usize,
+    },
+    Stopped,
+}
+
+struct KeepRunningGuard {
+    _priv: (),
+}
+impl Drop for KeepRunningGuard {
+    fn drop(&mut self) {
+        GLOBAL_STATE.lock().unwrap().stop();
+    }
+}
+
+impl GlobalState {
+    pub fn set_api_version(&mut self, version: i32) -> FdbResult<()> {
+        match self {
+            GlobalState::Uninitialized => {
+                let result = error::eval(unsafe {
+                    fdb_sys::fdb_select_api_version_impl(version, fdb_sys::FDB_API_VERSION as i32)
+                });
+                match result {
+                    Ok(()) => {
+                        *self = GlobalState::ApiVersionSelected {
+                            api_version: version,
+                        }
+                    }
+                    // 2203: api_version_not_supported
+                    // generally mean the local libfdb doesn't support requested target version
+                    Err(e) if e.code() == 2203 => {
+                        let max_api_version = unsafe { fdb_sys::fdb_get_max_api_version() };
+                        if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
+                            println!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
+                            println!("by the installed FoundationDB C library. Maximum supported version by the local library is {max_api_version}");
+                        }
+                    }
+                    Err(_) => {}
+                }
+                result
+            }
+            GlobalState::ApiVersionSelected { api_version }
+            | GlobalState::NetworkSetup { api_version, .. }
+            | GlobalState::Running { api_version, .. } => {
+                if version != version {
+                    panic!("the fdb select api version can only be run once per process, requested: {version}, previously set: {api_version}");
+                } else {
+                    println!("the fdb api version was already set to {version}, warning: it should be selected only once");
+                    Ok(())
+                }
+            }
+            GlobalState::Stopped => panic!(
+                "you are late to the party: the fdb network was stopped and can't be restarted"
+            ),
+        }
+    }
+    pub fn setup(&mut self) -> FdbResult<()> {
+        match self {
+            GlobalState::Uninitialized => panic!("the fdb api version wasn't selected yet"), // should we use the defaults instead?
+            GlobalState::ApiVersionSelected { api_version } => unsafe {
+                let result = error::eval(fdb_sys::fdb_setup_network());
+                match result {
+                    Ok(()) => {
+                        *self = GlobalState::NetworkSetup {
+                            api_version: *api_version,
+                        }
+                    }
+                    Err(_) => {
+                        // what should we do here? simply return the error and stay in this state?
+                        // or go to an error state, ensuring this can't be retried
+                    }
+                }
+                result
+            },
+            GlobalState::NetworkSetup { .. } | GlobalState::Running { .. } => {
+                panic!("the network was already setup")
+            }
+            GlobalState::Stopped => panic!(
+                "you are late to the party: the fdb network was stopped and can't be restarted"
+            ),
+        }
+    }
+    pub fn start(&mut self) -> KeepRunningGuard {
+        match self {
+            GlobalState::Uninitialized => panic!("the fdb api wasn't selected yet"), // should we use the defaults instead?
+            GlobalState::ApiVersionSelected { .. } => panic!("the network wasn't setup yet"), // should we use the defaults instead?
+            GlobalState::NetworkSetup { api_version } => {
+                let handle = thread::spawn(move || {
+                    error::eval(unsafe { fdb_sys::fdb_run_network() }).expect("network start")
+                });
+                *self = GlobalState::Running {
+                    api_version: *api_version,
+                    handle,
+                    count: 1,
+                };
+                KeepRunningGuard { _priv: () }
+            }
+            GlobalState::Running { count, .. } => {
+                *count += 1;
+                KeepRunningGuard { _priv: () }
+            }
+            GlobalState::Stopped => panic!("the fdb network was stopped and can't be restarted"),
+        }
+    }
+    fn stop(&mut self) -> Option<FdbResult<()>> {
+        match self {
+            GlobalState::Uninitialized
+            | GlobalState::ApiVersionSelected { .. }
+            | GlobalState::NetworkSetup { .. }
+            | GlobalState::Stopped => unreachable!(), // stop is private and can only be called by KeepRunningGuard::drop
+            GlobalState::Running { count: 0, .. } => {
+                *self = GlobalState::Stopped;
+                Some(error::eval(unsafe { fdb_sys::fdb_stop_network() }))
+            }
+            GlobalState::Running { count, .. } => {
+                *count -= 1;
+                None
+            }
+        }
+    }
+}
+
+static GLOBAL_STATE: Mutex<GlobalState> = Mutex::new(GlobalState::Uninitialized);
+
 /// Returns the max api version of the underlying Fdb C API Client
 pub fn get_max_api_version() -> i32 {
     unsafe { fdb_sys::fdb_get_max_api_version() }
