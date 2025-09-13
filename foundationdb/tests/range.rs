@@ -10,7 +10,6 @@ use crate::tuple::Subspace;
 
 use foundationdb::*;
 use foundationdb_macros::cfg_api_versions;
-use foundationdb_sys::if_cfg_api_versions;
 use futures::future;
 use futures::prelude::*;
 
@@ -18,24 +17,29 @@ use std::borrow::Cow;
 
 mod common;
 
-#[test]
-fn test_range() {
-    let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_get_range_async()).expect("failed to run");
-    futures::executor::block_on(test_range_option_async()).expect("failed to run");
-    futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
-    if_cfg_api_versions!(min = 630 =>
-        futures::executor::block_on(test_get_estimate_range()).expect("failed to run")
-    );
-    if_cfg_api_versions!(min = 700 =>
-        futures::executor::block_on(test_get_range_split_points()).expect("failed to run")
-    );
-    if_cfg_api_versions!(min = 710 =>
-            futures::executor::block_on(test_mapped_value()).expect("failed to run");
-            futures::executor::block_on(test_mapped_values()).expect("failed to run")
-    )
-}
+// #[test]
+// fn test_range() {
+//     let _guard = unsafe { foundationdb::boot() };
+//     println!("T1");
+//     futures::executor::block_on(test_get_range_async()).expect("failed to run");
+//     println!("T2");
+//     futures::executor::block_on(test_range_option_async()).expect("failed to run");
+//     println!("T3");
+//     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");
+//     println!("T4");
+//     if_cfg_api_versions!(min = 630 =>
+//         futures::executor::block_on(test_get_estimate_range()).expect("failed to run")
+//     );
+//     if_cfg_api_versions!(min = 700 =>
+//         futures::executor::block_on(test_get_range_split_points()).expect("failed to run")
+//     );
+//     if_cfg_api_versions!(min = 710 =>
+//             futures::executor::block_on(test_mapped_value()).expect("failed to run");
+//             futures::executor::block_on(test_mapped_values()).expect("failed to run")
+//     )
+// }
 
+#[tokio::test]
 async fn test_get_range_async() -> FdbResult<()> {
     const N: usize = 10000;
 
@@ -90,6 +94,7 @@ async fn test_get_range_async() -> FdbResult<()> {
     Ok(())
 }
 
+#[tokio::test]
 async fn test_get_ranges_async() -> FdbResult<()> {
     const N: usize = 10000;
 
@@ -127,6 +132,7 @@ async fn test_get_ranges_async() -> FdbResult<()> {
     Ok(())
 }
 
+#[tokio::test]
 async fn test_range_option_async() -> FdbResult<()> {
     let db = common::database().await?;
 
@@ -222,6 +228,7 @@ async fn test_range_option_async() -> FdbResult<()> {
 }
 
 #[cfg_api_versions(min = 630)]
+#[tokio::test]
 async fn test_get_estimate_range() -> FdbResult<()> {
     const N: u32 = 10000;
 
@@ -252,6 +259,7 @@ async fn test_get_estimate_range() -> FdbResult<()> {
 }
 
 #[cfg_api_versions(min = 700)]
+#[tokio::test]
 async fn test_get_range_split_points() -> FdbResult<()> {
     const N: u32 = 10000;
 
@@ -283,6 +291,7 @@ async fn test_get_range_split_points() -> FdbResult<()> {
 }
 
 #[cfg_api_versions(min = 710)]
+#[tokio::test]
 async fn test_mapped_value() -> FdbResult<()> {
     use foundationdb::tuple::{pack, Subspace};
 
@@ -364,6 +373,7 @@ fn verify_mapped_values(
 }
 
 #[cfg_api_versions(min = 710)]
+#[tokio::test]
 async fn test_mapped_values() -> FdbResult<()> {
     use foundationdb::tuple::{pack, Subspace};
 

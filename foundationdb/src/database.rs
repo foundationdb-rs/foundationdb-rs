@@ -20,6 +20,7 @@ use fdb_sys::if_cfg_api_versions;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 
+use crate::api::{NetworkGuard, GLOBAL_STATE};
 use crate::metrics::{MetricsReport, TransactionMetrics};
 use crate::options;
 use crate::transaction::*;
@@ -52,6 +53,7 @@ impl From<MaybeCommitted> for bool {
 /// Modifications to a database are performed via transactions.
 pub struct Database {
     pub(crate) inner: NonNull<fdb_sys::FDBDatabase>,
+    guard: Option<NetworkGuard>,
 }
 unsafe impl Send for Database {}
 unsafe impl Sync for Database {}
@@ -74,17 +76,23 @@ impl Database {
             .map(|path| path.as_ptr())
             .unwrap_or(std::ptr::null());
         let mut v: *mut fdb_sys::FDBDatabase = std::ptr::null_mut();
+        let guard = GLOBAL_STATE.lock().unwrap().start()?;
         let err = unsafe { fdb_sys::fdb_create_database(path_ptr, &mut v) };
         drop(path_str); // path_str own the CString that we are getting the ptr from
         error::eval(err)?;
         let ptr =
             NonNull::new(v).expect("fdb_create_database to not return null if there is no error");
-        Ok(Self::new_from_pointer(ptr))
+        let mut db = Self::new_from_pointer(ptr);
+        db.guard = guard;
+        Ok(db)
     }
 
     /// Create a new FDBDatabase from a raw pointer. Users are expected to use the `new` method.
     pub fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
-        Self { inner: ptr }
+        Self {
+            inner: ptr,
+            guard: None,
+        }
     }
 
     /// Create a database for the given configuration path

@@ -3,24 +3,25 @@ mod common;
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex};
 
-#[test]
-fn test_metrics() {
-    let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(instrumented_run_success()).expect("failed to run");
-    futures::executor::block_on(instrumented_run_with_n_retries()).expect("failed to run");
-    futures::executor::block_on(test_counter_metrics()).expect("failed to run");
-    futures::executor::block_on(test_transaction_info()).expect("failed to run");
-    futures::executor::block_on(test_time_metrics()).expect("failed to run");
-    futures::executor::block_on(test_custom_metrics()).expect("failed to run");
-    futures::executor::block_on(test_transaction_custom_metrics()).expect("failed to run");
-}
+// #[test]
+// fn test_metrics() {
+//     let _guard = unsafe { foundationdb::boot() };
+//     futures::executor::block_on(instrumented_run_success()).expect("failed to run");
+//     futures::executor::block_on(instrumented_run_with_n_retries()).expect("failed to run");
+//     futures::executor::block_on(test_counter_metrics()).expect("failed to run");
+//     futures::executor::block_on(test_transaction_info()).expect("failed to run");
+//     futures::executor::block_on(test_time_metrics()).expect("failed to run");
+//     futures::executor::block_on(test_custom_metrics()).expect("failed to run");
+//     futures::executor::block_on(test_transaction_custom_metrics()).expect("failed to run");
+// }
 
 /// Tests a successful transaction using `instrumented_run`.
 ///
 /// This test verifies that a simple transaction (one SET and one GET operation)
 /// completes successfully and that the returned metrics correctly report the number
 /// of operations performed.
-async fn instrumented_run_success() -> FdbResult<()> {
+#[tokio::test]
+async fn test_instrumented_run_success() -> FdbResult<()> {
     const KEY: &[u8] = b"test_metrics_success";
     const VALUE: &[u8] = b"value";
     const SUCCESS: u64 = 42;
@@ -57,7 +58,8 @@ async fn instrumented_run_success() -> FdbResult<()> {
 /// This test simulates a retryable error (`transaction_too_old`) to ensure that
 /// the `instrumented_run` method correctly retries the transaction. It then
 /// asserts that the `retries` count in the final metrics report is accurate.
-async fn instrumented_run_with_n_retries() -> FdbResult<()> {
+#[tokio::test]
+async fn test_instrumented_run_with_n_retries() -> FdbResult<()> {
     const KEY: &[u8] = b"test_metrics_retry";
     const VALUE: &[u8] = b"value";
     const SUCCESS: u64 = 42;
@@ -137,6 +139,7 @@ async fn instrumented_run_with_n_retries() -> FdbResult<()> {
 /// It then performs precise assertions on all relevant counter metrics, including
 /// operation counts, exact bytes written, and exact bytes read, ensuring they are
 /// all tracked correctly within a single transaction.
+#[tokio::test]
 async fn test_counter_metrics() -> FdbResult<()> {
     let db = common::database().await?;
 
@@ -293,6 +296,7 @@ async fn test_counter_metrics() -> FdbResult<()> {
 ///    and the `retries` count is zero.
 /// 2. A transaction that is forced to retry, to verify that the `retries` count
 ///    is correctly reported.
+#[tokio::test]
 async fn test_transaction_info() -> FdbResult<()> {
     let db = common::database().await?;
 
@@ -386,6 +390,7 @@ async fn test_transaction_info() -> FdbResult<()> {
 /// This test runs a transaction and verifies that the timing metrics
 /// (`commit_seconds`, `error_seconds`, `total_seconds`) are greater than zero,
 /// confirming that the time spent in different phases of the transaction is being measured.
+#[tokio::test]
 async fn test_time_metrics() -> FdbResult<()> {
     let db = common::database().await?;
 
@@ -460,6 +465,7 @@ async fn test_time_metrics() -> FdbResult<()> {
 /// This test verifies that `set_custom_metric` and `increment_custom_metric` work
 /// correctly when called on the central `TransactionMetrics` object outside of any
 /// specific transaction. It ensures that custom metrics are properly registered and aggregated.
+#[tokio::test]
 async fn test_custom_metrics() -> FdbResult<()> {
     let db = common::database().await?;
 
@@ -519,6 +525,7 @@ async fn test_custom_metrics() -> FdbResult<()> {
 /// `set_custom_metric` and `increment_custom_metric` on the `Transaction` object
 /// itself. It then verifies that these transaction-specific custom metrics are
 /// correctly recorded in the final metrics report.
+#[tokio::test]
 async fn test_transaction_custom_metrics() -> Result<(), FdbBindingError> {
     let db = common::database().await?;
 
