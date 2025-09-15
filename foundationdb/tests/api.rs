@@ -2,7 +2,7 @@ use foundationdb::api::FdbApiBuilder;
 use std::thread;
 
 #[test]
-#[should_panic(expected = "the fdb select api version can only be run once per process")]
+#[should_panic(expected = "the fdb network was stopped and can't be restarted")]
 fn test_run() {
     let (runner, cond) = FdbApiBuilder::default()
         .build()

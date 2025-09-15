@@ -14,19 +14,19 @@ use futures::StreamExt;
 
 mod common;
 
-#[test]
+#[tokio::test]
 // testing subspace with versionstamps.
-fn test_tuples() {
-    let _guard = unsafe { foundationdb::boot() };
-    let db = futures::executor::block_on(common::database()).expect("cannot open fdb");
+async fn test_tuples() {
+    // let _guard = unsafe { foundationdb::boot() };
+    let db = common::database().await.expect("cannot open fdb");
 
     eprintln!("clearing all keys");
     let trx = db.create_trx().expect("cannot create txn");
     trx.clear_range(b"", b"\xff");
-    futures::executor::block_on(trx.commit()).expect("could not clear keys");
+    trx.commit().await.expect("could not clear keys");
 
     eprintln!("creating directories");
-    futures::executor::block_on(test_subspace_with_versionstamp(&db));
+    test_subspace_with_versionstamp(&db).await;
 }
 
 async fn test_subspace_with_versionstamp(db: &Database) {

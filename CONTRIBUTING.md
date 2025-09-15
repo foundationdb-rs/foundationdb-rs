@@ -1,4 +1,4 @@
-# Contributing to FoundationDB Rust
+g# Contributing to FoundationDB Rust
 
 Thank you for your interest in contributing to the FoundationDB Rust client! This guide will help you get started.
 

@@ -93,7 +93,7 @@ pub use crate::transaction::*;
 pub unsafe fn boot() -> api::NetworkAutoStop {
     let network_builder = api::FdbApiBuilder::default()
         .build()
-        .expect("foundationdb API to be initialized");
+        .expect("foundationdb API to be initialized"); // should we ignore this?
     network_builder.boot().expect("fdb network running")
 }
 

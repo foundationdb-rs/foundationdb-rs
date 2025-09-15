@@ -55,6 +55,11 @@ impl NoopWorkload {
 }
 impl Drop for NoopWorkload {
     fn drop(&mut self) {
+        let mut h = std::collections::HashSet::new();
+        for i in 0..32 {
+            h.insert(i);
+        }
+        println!("{h:?}");
         println!("rust_free({}_{})", self.name, self.client_id);
     }
 }

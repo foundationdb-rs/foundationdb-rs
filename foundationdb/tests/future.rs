@@ -30,12 +30,13 @@ where
     }
 }
 
-#[test]
-fn test_future_discard() {
-    let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_future_discard_async()).expect("failed to run");
-}
+// #[test]
+// fn test_future_discard() {
+//     let _guard = unsafe { foundationdb::boot() };
+//     futures::executor::block_on(test_future_discard_async()).expect("failed to run");
+// }
 
+#[tokio::test]
 async fn test_future_discard_async() -> FdbResult<()> {
     // dropping a future while it's in the pending state should not crash
     let db = common::database().await?;

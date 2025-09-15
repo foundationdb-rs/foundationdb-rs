@@ -4,7 +4,7 @@ use std::fmt::Formatter;
 use std::sync::atomic::AtomicU8;
 
 #[cfg(feature = "trace")]
-#[test]
+#[tokio::test]
 fn test_trace() {
     use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -18,9 +18,7 @@ fn test_trace() {
         .with_writer(test_writer)
         .try_init();
 
-    rt.block_on(async {
-        test_traces_on_run().await;
-    });
+    test_traces_on_run().await;
 }
 
 #[cfg(feature = "trace")]
