@@ -47,4 +47,4 @@ fdb-7_4 = []
 libc = "0.2"
 
 [build-dependencies]
-bindgen = "0.72.0"
+bindgen = "0.72.1"
