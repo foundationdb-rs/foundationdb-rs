@@ -79,11 +79,13 @@ impl Database {
         error::eval(err)?;
         let ptr =
             NonNull::new(v).expect("fdb_create_database to not return null if there is no error");
-        Ok(Self::new_from_pointer(ptr))
+        // Safe because the database is constructed in this scope and we know it's
+        // a valid pointer.
+        Ok(unsafe { Self::new_from_pointer(ptr) })
     }
 
     /// Create a new FDBDatabase from a raw pointer. Users are expected to use the `new` method.
-    pub fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
+    pub unsafe fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
         Self { inner: ptr }
     }
 
