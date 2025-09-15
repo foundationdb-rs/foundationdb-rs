@@ -34,7 +34,7 @@ jobs:
 
       # Setting up a fixed Python version because of https://github.com/foundationdb-rs/foundationdb-rs/issues/226
       - name: Setup fixed Python 3.11 version
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
