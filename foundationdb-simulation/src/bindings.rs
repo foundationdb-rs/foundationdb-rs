@@ -23,6 +23,17 @@ use raw_bindings::{
 };
 
 // -----------------------------------------------------------------------------
+// Libc override
+
+/// Override symbol used by RandomState to call libc
+#[no_mangle]
+extern "C" fn __wrap_getrandom(ptr: *mut u8, len: usize, _flags: u32) -> usize {
+    let buf = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
+    buf.fill(0x42);
+    len
+}
+
+// -----------------------------------------------------------------------------
 // String conversions
 
 #[doc(hidden)]
