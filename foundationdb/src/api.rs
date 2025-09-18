@@ -26,31 +26,34 @@ pub(crate) enum GlobalState {
     ApiVersionSelected {
         api_version: i32,
     },
+    // this state is only used for unmanaged networks
     NetworkSetup {
         api_version: i32,
-        managed: bool,
     },
     Running {
         api_version: i32,
-        handle: std::thread::JoinHandle<()>,
+        handle: Option<std::thread::JoinHandle<()>>,
         count: usize,
     },
     Stopped,
 }
 
 pub struct NetworkGuard {
-    /// if a guard is global it is the first guard created and last to be dropped
-    /// dropping it MUST stop the network
     global: bool,
 }
 pub type NetworkAutoStop = NetworkGuard;
 
 impl Drop for NetworkGuard {
     fn drop(&mut self) {
-        if GLOBAL_STATE.lock().unwrap().stop().is_none() && self.global {
-            panic!("Global guard dropped while some guards were not dropped, the network is still running");
+        if !GLOBAL_STATE.lock().unwrap().stop() && self.global {
+            panic!("Some guards were not dropped, the network is still running, aborting");
         }
     }
+}
+
+#[cfg(feature = "global_guard")]
+unsafe extern "C" {
+    fn atexit(cb: extern "C" fn()) -> i32;
 }
 
 impl GlobalState {
@@ -72,8 +75,8 @@ impl GlobalState {
                     Err(e) if e.code() == 2203 => {
                         let max_api_version = unsafe { fdb_sys::fdb_get_max_api_version() };
                         if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
-                            println!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
-                            println!("by the installed FoundationDB C library. Maximum supported version by the local library is {max_api_version}");
+                            eprintln!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
+                            eprintln!("by the installed FoundationDB C library. Maximum supported version by the local library is {max_api_version}");
                         }
                     }
                     Err(_) => {}
@@ -81,81 +84,93 @@ impl GlobalState {
                 result
             }
             GlobalState::ApiVersionSelected { api_version }
-            | GlobalState::NetworkSetup { api_version, .. }
             | GlobalState::Running { api_version, .. } => {
+                eprintln!("Warning: fdb api version was already set");
                 if version != *api_version {
-                    println!("requested fdb api version: {version}, previously set: {api_version}");
+                    eprintln!(
+                        "requested fdb api version: {version}, previously set: {api_version}"
+                    );
+                    return Err(FdbError::from_code(2201));
                 }
-                // api_version_already_set
-                Err(FdbError::from_code(2201))
+                Ok(())
             }
-            GlobalState::Stopped => panic!("the fdb network was stopped and can't be restarted"),
+            GlobalState::Stopped => {
+                // network_cannot_be_restarted
+                Err(FdbError::from_code(2025))
+            }
+            GlobalState::NetworkSetup { .. } => unreachable!(),
         }
     }
-    fn setup(&mut self, managed: bool) -> FdbResult<()> {
-        println!("GlobalState::setup({managed})");
+    fn set_option(&mut self, option: NetworkOption) -> FdbResult<()> {
         match self {
-            GlobalState::Uninitialized => {
-                self.set_api_version(fdb_sys::FDB_API_VERSION as i32)?;
-                self.setup(managed)
-            }
-            GlobalState::ApiVersionSelected { api_version } => {
-                let result = error::eval(unsafe { fdb_sys::fdb_setup_network() });
-                if let Ok(()) = result {
-                    *self = GlobalState::NetworkSetup {
-                        api_version: *api_version,
-                        managed,
-                    }
-                }
-                result
-            }
+            GlobalState::Uninitialized => unreachable!(),
+            GlobalState::ApiVersionSelected { .. } => unsafe { option.apply() },
             GlobalState::NetworkSetup { .. } | GlobalState::Running { .. } => {
                 // network_already_setup
                 Err(FdbError::from_code(2009))
             }
-            GlobalState::Stopped => panic!("the fdb network was stopped and can't be restarted"),
+            GlobalState::Stopped => {
+                // network_cannot_be_restarted
+                Err(FdbError::from_code(2025))
+            }
         }
     }
     fn boot(&mut self) -> FdbResult<NetworkAutoStop> {
         println!("GlobalState::boot");
         match self {
-            GlobalState::ApiVersionSelected { api_version } => {
+            GlobalState::Uninitialized => unreachable!(),
+            GlobalState::ApiVersionSelected { api_version, .. } => {
                 error::eval(unsafe { fdb_sys::fdb_setup_network() })?;
-                let handle = thread::spawn(move || {
-                    error::eval(unsafe { fdb_sys::fdb_run_network() }).expect("network start")
-                });
+                let handle = thread::Builder::new()
+                    .name("fdb-network-thread".to_owned())
+                    .spawn(move || {
+                        error::eval(unsafe { fdb_sys::fdb_run_network() }).expect("network start")
+                    })
+                    .expect("Could not start network thread");
+                let (count, global) = if cfg!(feature = "global_guard") {
+                    eprintln!("Warning: with feature `global_guard` calling boot is unecessary");
+                    println!("GlobalState::boot: register atexit hook");
+                    unsafe { atexit(GlobalState::exit) };
+                    (2, false)
+                } else {
+                    (1, true)
+                };
                 *self = GlobalState::Running {
                     api_version: *api_version,
-                    handle,
-                    count: 1,
+                    handle: Some(handle),
+                    count,
                 };
-                Ok(NetworkAutoStop { global: true })
+                Ok(NetworkGuard { global })
             }
-            GlobalState::Uninitialized => unreachable!(),
-            GlobalState::NetworkSetup { .. } => panic!("boot called on already setup network"),
-            GlobalState::Running { .. } => panic!("boot called on already running network"),
-            GlobalState::Stopped => panic!("the fdb network was stopped and can't be restarted"),
+            GlobalState::NetworkSetup { .. } => {
+                panic!("You tried to use boot after NetworkBuilder::build but before NetworkRunner::run")
+            }
+            GlobalState::Running { count, .. } => {
+                *count += 1;
+                println!("GlobalState::boot: {count} guards alive");
+                Ok(NetworkGuard { global: false })
+            }
+            GlobalState::Stopped => {
+                // network_cannot_be_restarted
+                Err(FdbError::from_code(2025))
+            }
         }
     }
-    pub(crate) fn start(&mut self) -> FdbResult<Option<NetworkGuard>> {
+    pub(crate) fn start(&mut self) -> FdbResult<NetworkGuard> {
         match self {
-            GlobalState::Uninitialized | GlobalState::ApiVersionSelected { .. } => {
-                self.setup(true)?;
+            GlobalState::Uninitialized => {
+                self.set_api_version(fdb_sys::FDB_API_VERSION as i32)?;
                 self.start()
             }
-            GlobalState::NetworkSetup {
-                api_version,
-                managed: true,
-            } => {
-                let handle = thread::spawn(move || {
-                    error::eval(unsafe { fdb_sys::fdb_run_network() }).expect("network start")
-                });
-                // tests run in parallel and there is no "main" to boot and guard the network
-                // in this case, we add an implicit guard that will be dropped when the program exits
-                let count = if cfg!(feature="global_guard") {
-                    unsafe extern "C" {
-                        fn atexit(cb: extern "C" fn()) -> i32;
-                    }
+            GlobalState::ApiVersionSelected { api_version } => {
+                error::eval(unsafe { fdb_sys::fdb_setup_network() })?;
+                let handle = thread::Builder::new()
+                    .name("fdb-network-thread".to_owned())
+                    .spawn(move || {
+                        error::eval(unsafe { fdb_sys::fdb_run_network() }).expect("network start")
+                    })
+                    .expect("Could not start network thread");
+                let count = if cfg!(feature = "global_guard") {
                     println!("GlobalState::start: register atexit hook");
                     unsafe { atexit(GlobalState::exit) };
                     2
@@ -164,68 +179,94 @@ impl GlobalState {
                 };
                 *self = GlobalState::Running {
                     api_version: *api_version,
-                    handle,
+                    handle: Some(handle),
                     count,
                 };
-                Ok(Some(NetworkGuard { global: false }))
+                Ok(NetworkGuard { global: false })
             }
-            GlobalState::NetworkSetup { managed: false, .. } => {
-                println!("GlobalState::start: unmanaged");
-                // if not managed, the user is reponsible for starting/stopping the network
-                Ok(None)
+            GlobalState::NetworkSetup { .. } => {
+                panic!("Database::new was called but the network is unmanaged and the network was not started");
             }
             GlobalState::Running { count, .. } => {
                 *count += 1;
                 println!("GlobalState::start: {count} guards alive");
-                Ok(Some(NetworkGuard { global: false }))
+                Ok(NetworkGuard { global: false })
             }
-            GlobalState::Stopped => panic!("the fdb network was stopped and can't be restarted"),
+            GlobalState::Stopped => {
+                // network_cannot_be_restarted
+                Err(FdbError::from_code(2025))
+            }
         }
     }
-    fn stop(&mut self) -> Option<FdbResult<()>> {
+    fn stop(&mut self) -> bool {
         match self {
             // stop is private and can only be called by NetworkGuard::drop
             GlobalState::Uninitialized
             | GlobalState::ApiVersionSelected { .. }
-            | GlobalState::NetworkSetup { managed: true, .. }
+            | GlobalState::NetworkSetup { .. }
             | GlobalState::Running { count: 0, .. }
             | GlobalState::Stopped => unreachable!("Tried to stop when GLOBAL_STATE={self:?}"),
-            GlobalState::NetworkSetup { managed: false, .. } => {
-                println!("GlobaState::Stop: unmanaged: killing");
-                *self = GlobalState::Stopped;
-                Some(error::eval(unsafe { fdb_sys::fdb_stop_network() }))
-            }
             GlobalState::Running { count: 1, .. } => {
                 let GlobalState::Running { handle, .. } =
                     core::mem::replace(self, GlobalState::Stopped)
                 else {
                     unreachable!()
                 };
-                println!("GlobaState::Stop: no guards alive: killing");
+                println!("GlobaState::Stop: no guard alive: killing");
                 let result = error::eval(unsafe { fdb_sys::fdb_stop_network() });
-                match result {
-                    Ok(()) => {
-                        handle.join().expect("failed to join fdb thread");
-                        Some(result)
-                    }
-                    Err(err) => {
-                        eprintln!("failed to stop network: {err}");
-                        // Not aborting can probably cause undefined behavior
-                        std::process::abort();
-                    }
+                if let Err(error) = result {
+                    eprintln!("failed to stop network: {error}");
+                    // Not aborting can probably cause undefined behavior
+                    std::process::abort();
                 }
+                if let Some(handle) = handle {
+                    handle.join().expect("failed to join fdb thread");
+                }
+                true
             }
             GlobalState::Running { count, .. } => {
                 *count -= 1;
                 println!("GlobaState::Stop: still alive: {count}");
-                None
+                false
             }
         }
     }
     extern "C" fn exit() {
         println!("GlobaState::exit");
-        if GLOBAL_STATE.lock().unwrap().stop().is_none() {
-            panic!("Some guards were not dropped, the network is still running");
+        drop(NetworkGuard { global: true })
+    }
+}
+
+impl GlobalState {
+    fn setup_unmanaged(&mut self) -> FdbResult<()> {
+        println!("GlobalState::setup_unamanged");
+        match self {
+            GlobalState::ApiVersionSelected { api_version } => {
+                let result = error::eval(unsafe { fdb_sys::fdb_setup_network() });
+                if result.is_ok() {
+                    *self = GlobalState::NetworkSetup {
+                        api_version: *api_version,
+                    }
+                }
+                result
+            }
+            _ => unreachable!(),
+        }
+    }
+    fn start_unmanaged(&mut self) -> FdbResult<()> {
+        match self {
+            GlobalState::NetworkSetup { api_version } => {
+                if cfg!(feature = "global_guard") {
+                    eprint!("Warning: feature `global_guard` is ignored in unmanaged mode");
+                }
+                *self = GlobalState::Running {
+                    api_version: *api_version,
+                    handle: None,
+                    count: 1,
+                };
+                error::eval(unsafe { fdb_sys::fdb_run_network() })
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -304,7 +345,7 @@ pub struct NetworkBuilder {
 impl NetworkBuilder {
     /// Set network options.
     pub fn set_option(self, option: NetworkOption) -> FdbResult<Self> {
-        unsafe { option.apply()? };
+        GLOBAL_STATE.lock().unwrap().set_option(option)?;
         Ok(self)
     }
 
@@ -345,7 +386,7 @@ impl NetworkBuilder {
     /// ```
     #[allow(clippy::mutex_atomic)]
     pub fn build(self) -> FdbResult<(NetworkRunner, NetworkWait)> {
-        GLOBAL_STATE.lock().unwrap().setup(false)?;
+        GLOBAL_STATE.lock().unwrap().setup_unmanaged()?;
 
         let cond = Arc::new((Mutex::new(false), Condvar::new()));
         Ok((NetworkRunner { cond: cond.clone() }, NetworkWait { cond }))
@@ -424,7 +465,7 @@ impl NetworkRunner {
             cvar.notify_one();
         }
 
-        error::eval(unsafe { fdb_sys::fdb_run_network() })
+        GLOBAL_STATE.lock().unwrap().start_unmanaged()
     }
 
     unsafe fn spawn(self) -> thread::JoinHandle<()> {
@@ -471,8 +512,8 @@ pub struct NetworkStop {
 impl NetworkStop {
     /// Signals the event loop invoked by `Network::run` to terminate.
     pub fn stop(self) -> FdbResult<()> {
-        // NetworkStop can only be obtain in unmanaged mode, so stop is guaranteed to return Some<FdbResult>
-        GLOBAL_STATE.lock().unwrap().stop().unwrap()
+        drop(NetworkGuard { global: true });
+        Ok(())
     }
 }
 

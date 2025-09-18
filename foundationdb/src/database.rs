@@ -83,7 +83,7 @@ impl Database {
         let ptr =
             NonNull::new(v).expect("fdb_create_database to not return null if there is no error");
         let mut db = Self::new_from_pointer(ptr);
-        db.guard = guard;
+        db.guard = Some(guard);
         Ok(db)
     }
 
