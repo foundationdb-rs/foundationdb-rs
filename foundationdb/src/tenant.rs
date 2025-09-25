@@ -357,7 +357,7 @@ impl TenantManagement {
         {
             Ok(None) => Ok(None),
             Ok(Some(kv)) => Ok(Some(TenantInfo::try_from((key.as_slice(), kv.as_ref())))),
-            // error can only be an fdb_error
+            // error can only be a fdb_error
             Err(err) => Err(err.get_fdb_error().unwrap()),
         }
     }
@@ -419,20 +419,20 @@ impl TenantManagement {
         let mut begin_range: Vec<u8> = Vec::with_capacity(TENANT_MAP_PREFIX.len() + begin.len());
         begin_range.extend_from_slice(TENANT_MAP_PREFIX);
         begin_range.extend_from_slice(begin);
+        let begin = KeySelector::first_greater_than(begin_range);
 
-        let end_range = if end.is_empty() {
-            TENANT_MAP_PREFIX_END.to_vec()
+        let end = if end.is_empty() {
+            KeySelector::first_greater_than(TENANT_MAP_PREFIX_END)
         } else {
             let mut end_range: Vec<u8> = Vec::with_capacity(TENANT_MAP_PREFIX.len() + end.len());
             end_range.extend_from_slice(TENANT_MAP_PREFIX);
             end_range.extend_from_slice(end);
-
-            end_range
+            KeySelector::first_greater_than(end_range)
         };
 
         let range_option = RangeOption {
-            begin: KeySelector::first_greater_than(begin_range),
-            end: KeySelector::first_greater_than(end_range),
+            begin,
+            end,
             limit,
             ..Default::default()
         };

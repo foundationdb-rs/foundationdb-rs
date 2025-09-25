@@ -12,7 +12,7 @@ use crate::directory::directory_partition::DirectoryPartition;
 use crate::directory::directory_subspace::DirectorySubspace;
 use crate::directory::error::DirectoryError;
 use crate::directory::node::Node;
-use crate::directory::{compare_slice, strinc, Directory, DirectoryOutput};
+use crate::directory::{strinc, Directory, DirectoryOutput};
 use crate::future::FdbSlice;
 use crate::tuple::hca::HighContentionAllocator;
 use crate::tuple::{Element, Subspace, TuplePack};
@@ -20,7 +20,6 @@ use crate::RangeOption;
 use crate::{FdbResult, Transaction};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use std::cmp::Ordering;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -274,21 +273,11 @@ impl DirectoryLayer {
         if !allow_open {
             return Err(DirectoryError::DirAlreadyExists);
         }
-
-        match layer {
-            None => {}
-            Some(layer) => {
-                if !layer.is_empty() {
-                    match compare_slice(layer, &node.layer) {
-                        Ordering::Equal => {}
-                        _ => {
-                            return Err(DirectoryError::IncompatibleLayer);
-                        }
-                    }
-                }
+        if let Some(layer) = layer {
+            if !layer.is_empty() && layer != node.layer {
+                return Err(DirectoryError::IncompatibleLayer);
             }
         }
-
         node.get_contents()
     }
 
@@ -400,18 +389,14 @@ impl DirectoryLayer {
         // checking range
         let fdb_values = trx.get_range(&range_option, 1, snapshot).await?;
 
-        match fdb_values.first() {
-            None => {}
-            Some(fdb_key_value) => {
-                let previous_prefix: Vec<Element> =
-                    self.node_subspace.unpack(fdb_key_value.key())?;
+        if let Some(fdb_key_value) = fdb_values.first() {
+            let previous_prefix: Vec<Element> = self.node_subspace.unpack(fdb_key_value.key())?;
 
-                if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
-                    if key.starts_with(previous_prefix) {
-                        return Ok(Some(self.node_with_prefix(previous_prefix)));
-                    };
+            if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
+                if key.starts_with(previous_prefix) {
+                    return Ok(Some(self.node_with_prefix(previous_prefix)));
                 };
-            }
+            };
         }
         Ok(None)
     }
@@ -490,10 +475,10 @@ impl DirectoryLayer {
 
     /// `initialize_directory` is initializing the directory
     async fn initialize_directory(&self, trx: &Transaction) -> Result<(), DirectoryError> {
-        let mut value = vec![];
-        value.extend(&MAJOR_VERSION.to_le_bytes());
-        value.extend(&MINOR_VERSION.to_le_bytes());
-        value.extend(&PATCH_VERSION.to_le_bytes());
+        let mut value = [0; 12];
+        value[0..4].copy_from_slice(&MAJOR_VERSION.to_le_bytes());
+        value[4..8].copy_from_slice(&MINOR_VERSION.to_le_bytes());
+        value[0..12].copy_from_slice(&PATCH_VERSION.to_le_bytes());
         let version_subspace: &[u8] = b"version";
         let directory_version_key = self.root_node.subspace(&version_subspace);
         trx.set(directory_version_key.bytes(), &value);
@@ -561,19 +546,14 @@ impl DirectoryLayer {
     ) -> Result<DirectoryOutput, DirectoryError> {
         self.check_version(trx, true).await?;
 
-        if old_path.len() <= new_path.len()
-            && compare_slice(old_path, &new_path[..old_path.len()]) == Ordering::Equal
-        {
+        if new_path.starts_with(old_path) {
             return Err(DirectoryError::CannotMoveBetweenSubdirectory);
         }
 
         let old_node = self.find(trx, old_path).await?;
         let new_node = self.find(trx, new_path).await?;
 
-        let old_node = match old_node {
-            None => return Err(DirectoryError::PathDoesNotExists),
-            Some(n) => n,
-        };
+        let old_node = old_node.ok_or(DirectoryError::PathDoesNotExists)?;
         let old_node_exists_in_partition = old_node.is_in_partition(false);
 
         match new_node {
@@ -634,12 +614,9 @@ impl DirectoryLayer {
             .split_last()
             .ok_or(DirectoryError::BadDestinationDirectory)?;
 
-        match self.find(trx, parent_path).await? {
-            None => {}
-            Some(parent_node) => {
-                let key = parent_node.subspace.pack(&(DEFAULT_SUB_DIRS, last_element));
-                trx.clear(&key);
-            }
+        if let Some(parent_node) = self.find(trx, parent_path).await? {
+            let key = parent_node.subspace.pack(&(DEFAULT_SUB_DIRS, last_element));
+            trx.clear(&key);
         }
 
         Ok(())

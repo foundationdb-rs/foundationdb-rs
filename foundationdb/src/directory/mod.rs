@@ -68,12 +68,10 @@ mod node;
 use crate::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
 use crate::Transaction;
 use async_trait::async_trait;
-use core::cmp;
 pub use directory_layer::DirectoryLayer;
 pub use directory_partition::DirectoryPartition;
 pub use directory_subspace::DirectorySubspace;
 pub use error::DirectoryError;
-use std::cmp::Ordering;
 
 /// `Directory` represents a subspace of keys in a FoundationDB database, identified by a hierarchical path.
 #[async_trait]
@@ -143,18 +141,6 @@ pub trait Directory {
     /// List the subdirectories of this directory at a given subpath.
     async fn list(&self, trx: &Transaction, path: &[String])
         -> Result<Vec<String>, DirectoryError>;
-}
-
-pub(crate) fn compare_slice<T: Ord>(a: &[T], b: &[T]) -> cmp::Ordering {
-    for (ai, bi) in a.iter().zip(b.iter()) {
-        match ai.cmp(bi) {
-            Ordering::Equal => continue,
-            ord => return ord,
-        }
-    }
-
-    // if every single element was equal, compare length
-    a.len().cmp(&b.len())
 }
 
 /// DirectoryOutput represents the different output of a Directory.

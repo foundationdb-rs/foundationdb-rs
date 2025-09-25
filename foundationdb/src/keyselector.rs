@@ -48,7 +48,7 @@ impl<'a> KeySelector<'a> {
         }
     }
 
-    /// Returns a the key that serves as the anchor for this `KeySelector`
+    /// Returns the key that serves as the anchor for this `KeySelector`
     pub fn key(&self) -> &[u8] {
         self.key.as_ref()
     }

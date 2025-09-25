@@ -39,19 +39,17 @@ impl Node {
         &self,
         trx: &Transaction,
     ) -> Result<Vec<String>, DirectoryError> {
-        let mut results = vec![];
-
         let range_option = RangeOption::from(&self.subspace.subspace(&DEFAULT_SUB_DIRS));
-
         let fdb_values = trx.get_range(&range_option, 1_024, false).await?;
-
-        for fdb_value in fdb_values {
-            let subspace = Subspace::from_bytes(fdb_value.key());
-            // stripping from subspace
-            let sub_directory: (i64, String) = self.subspace.unpack(subspace.bytes())?;
-            results.push(sub_directory.1);
-        }
-        Ok(results)
+        fdb_values
+            .into_iter()
+            .map(|fdb_value| {
+                let subspace = Subspace::from_bytes(fdb_value.key());
+                // stripping from subspace
+                let sub_directory: (i64, String) = self.subspace.unpack(subspace.bytes())?;
+                Ok(sub_directory.1)
+            })
+            .collect()
     }
 
     pub(crate) fn is_in_partition(&self, include_empty_subpath: bool) -> bool {
