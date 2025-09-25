@@ -496,7 +496,7 @@ impl Database {
         let mut maybe_committed_transaction = false;
 
         // we just need to create the transaction once,
-        // in case there is a error, it will be reset automatically
+        // in case there is an error, it will be reset automatically
         let mut transaction = match self.create_intrumented_retryable_trx(metrics.clone()) {
             Ok(trx) => trx,
             Err(err) => {

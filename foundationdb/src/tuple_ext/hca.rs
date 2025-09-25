@@ -49,9 +49,9 @@ impl fmt::Debug for HcaError {
             HcaError::FdbError(err) => err.fmt(f),
             HcaError::PackError(err) => err.fmt(f),
             HcaError::InvalidDirectoryLayerMetadata => {
-                write!(f, "invalid directory layer metadata")
+                f.write_str("invalid directory layer metadata")
             }
-            HcaError::PoisonError => write!(f, "mutex poisoned"),
+            HcaError::PoisonError => f.write_str("mutex poisoned"),
         }
     }
 }
@@ -215,8 +215,8 @@ impl HighContentionAllocator {
         // ever get *too* big because we have to store about window_size/2 recent
         // items.
         match start {
-            _ if start < 255 => 64,
-            _ if start < 65535 => 1024,
+            ..255 => 64,
+            255..65535 => 1024,
             _ => 8192,
         }
     }
