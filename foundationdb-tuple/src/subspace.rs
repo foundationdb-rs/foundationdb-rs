@@ -7,6 +7,7 @@
 // copied, modified, or distributed except according to those terms.
 
 use super::*;
+use std::fmt::Formatter;
 use std::hash::Hash;
 
 /// Represents a well-defined region of keyspace in a FoundationDB database
@@ -24,6 +25,21 @@ use std::hash::Hash;
 pub struct Subspace {
     prefix: Vec<u8>,
     versionstamp_offset: VersionstampOffset,
+}
+
+impl Display for Subspace {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        for &b in &self.prefix {
+            if b >= 32 && b < 127 && b != b'\\' {
+                write!(f, "{}", b as char)?;
+            } else if b == b'\\' {
+                write!(f, "\\\\")?;
+            } else {
+                write!(f, "\\x{b:02x}")?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<E: TuplePack> From<E> for Subspace {
@@ -280,5 +296,21 @@ mod tests {
 
         assert_eq!(map.get(&Subspace::all().subspace(&"test")).unwrap(), &1);
         assert_eq!(map.get(&Subspace::all().subspace(&"test2")).unwrap(), &2);
+    }
+
+    #[test]
+    fn display() {
+        let sub1 = Subspace::all().subspace(&"test");
+        let sub2 = Subspace::all().subspace(&"test2").subspace(&"path1");
+        let sub3 = Subspace::all().subspace(&"test3").subspace(&"__커피__");
+        let sub4 = Subspace::all().subspace(&"test4\\path1\\path2");
+
+        assert_eq!(format!("{sub1}"), r#"\x02test\x00"#);
+        assert_eq!(format!("{sub2}"), r#"\x02test2\x00\x02path1\x00"#);
+        assert_eq!(
+            format!("{sub3}"),
+            r#"\x02test3\x00\x02__\xec\xbb\xa4\xed\x94\xbc__\x00"#
+        );
+        assert_eq!(format!("{sub4}"), r#"\x02test4\\path1\\path2\x00"#);
     }
 }
