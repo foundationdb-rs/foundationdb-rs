@@ -46,7 +46,8 @@ mod types;
 pub use errors::{LeaderElectionError, Result};
 pub use types::{ElectionConfig, LeaderInfo, ProcessDescriptor};
 
-use crate::{tuple::Subspace, RetryableTransaction};
+use crate::{tuple::Subspace, Transaction};
+use std::ops::Deref;
 
 /// Main leader election coordinator
 ///
@@ -79,7 +80,10 @@ impl LeaderElection {
     ///
     /// This operation is idempotent - calling it multiple times has no effect
     /// if the election is already initialized.
-    pub async fn initialize(&self, txn: &mut RetryableTransaction) -> Result<()> {
+    pub async fn initialize<T>(&self, txn: &mut T) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::initialize(txn, &self.subspace, ElectionConfig::default()).await
     }
 
@@ -90,11 +94,10 @@ impl LeaderElection {
     ///
     /// # Arguments
     /// * `config` - Custom election configuration including heartbeat tolerance
-    pub async fn initialize_with_config(
-        &self,
-        txn: &mut RetryableTransaction,
-        config: ElectionConfig,
-    ) -> Result<()> {
+    pub async fn initialize_with_config<T>(&self, txn: &mut T, config: ElectionConfig) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::initialize(txn, &self.subspace, config).await
     }
 
@@ -115,12 +118,15 @@ impl LeaderElection {
     /// # Note
     /// The process ID should be globally unique. Using duplicate IDs will cause
     /// processes to overwrite each other's heartbeats.
-    pub async fn register_process(
+    pub async fn register_process<T>(
         &self,
-        txn: &mut RetryableTransaction,
+        txn: &mut T,
         process_id: &str,
         timestamp: std::time::Duration,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::register_process(txn, &self.subspace, process_id, timestamp).await
     }
 
@@ -140,12 +146,15 @@ impl LeaderElection {
     /// # Important
     /// Failing to send heartbeats will cause the process to be evicted from
     /// the election after `heartbeat_timeout` expires.
-    pub async fn heartbeat(
+    pub async fn heartbeat<T>(
         &self,
-        txn: &mut RetryableTransaction,
+        txn: &mut T,
         process_uuid: &str,
         timestamp: std::time::Duration,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::heartbeat(txn, &self.subspace, process_uuid, timestamp).await
     }
 
@@ -173,12 +182,15 @@ impl LeaderElection {
     /// # Performance
     /// This operation uses serializable transactions, causing automatic
     /// retries if concurrent leadership attempts occur.
-    pub async fn try_become_leader(
+    pub async fn try_become_leader<T>(
         &self,
-        txn: &mut RetryableTransaction,
+        txn: &mut T,
         process_uuid: &str,
         timestamp: std::time::Duration,
-    ) -> Result<bool> {
+    ) -> Result<bool>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::try_become_leader(txn, &self.subspace, process_uuid, timestamp).await
     }
 
@@ -203,11 +215,14 @@ impl LeaderElection {
     /// # Note
     /// Leadership is determined by whether the leader's last heartbeat is within
     /// the configured timeout period. Stale leaders are automatically considered invalid.
-    pub async fn get_current_leader(
+    pub async fn get_current_leader<T>(
         &self,
-        txn: &mut RetryableTransaction,
+        txn: &mut T,
         timestamp: std::time::Duration,
-    ) -> Result<Option<LeaderInfo>> {
+    ) -> Result<Option<LeaderInfo>>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::get_current_leader(txn, &self.subspace, timestamp).await
     }
 
@@ -227,12 +242,15 @@ impl LeaderElection {
     /// # Note
     /// This is more efficient than calling `get_current_leader()` and comparing
     /// manually as it can short-circuit in some cases.
-    pub async fn is_leader(
+    pub async fn is_leader<T>(
         &self,
-        txn: &mut RetryableTransaction,
+        txn: &mut T,
         process_uuid: &str,
         timestamp: std::time::Duration,
-    ) -> Result<bool> {
+    ) -> Result<bool>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::is_leader(txn, &self.subspace, process_uuid, timestamp).await
     }
 
@@ -250,11 +268,10 @@ impl LeaderElection {
     /// Changing configuration during active elections may cause temporary
     /// leadership instability. Consider disabling elections first, then
     /// re-enabling with new parameters.
-    pub async fn write_config(
-        &self,
-        txn: &mut RetryableTransaction,
-        config: &ElectionConfig,
-    ) -> Result<()> {
+    pub async fn write_config<T>(&self, txn: &mut T, config: &ElectionConfig) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
         algorithm::write_config(txn, &self.subspace, config).await
     }
 }

@@ -29,9 +29,10 @@
 use crate::{
     options,
     tuple::{pack_with_versionstamp, Subspace, Versionstamp},
-    RangeOption, RetryableTransaction,
+    RangeOption, Transaction,
 };
 use futures::StreamExt;
+use std::ops::Deref;
 use std::time::Duration;
 
 use super::{
@@ -49,11 +50,10 @@ use super::{
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `config` - Initial configuration parameters
-pub async fn initialize(
-    txn: &mut RetryableTransaction,
-    subspace: &Subspace,
-    config: ElectionConfig,
-) -> Result<()> {
+pub async fn initialize<T>(txn: &mut T, subspace: &Subspace, config: ElectionConfig) -> Result<()>
+where
+    T: Deref<Target = Transaction>,
+{
     let config_key = config_key(subspace);
 
     // Check if already initialized
@@ -78,10 +78,10 @@ pub async fn initialize(
 ///
 /// # Errors
 /// Returns `NotInitialized` if the election system hasn't been initialized
-pub async fn read_config(
-    txn: &mut RetryableTransaction,
-    subspace: &Subspace,
-) -> Result<ElectionConfig> {
+pub async fn read_config<T>(txn: &mut T, subspace: &Subspace) -> Result<ElectionConfig>
+where
+    T: Deref<Target = Transaction>,
+{
     let config_key = config_key(subspace);
     let data = txn
         .get(&config_key, false)
@@ -106,11 +106,14 @@ pub async fn read_config(
 /// * `txn` - The FoundationDB transaction
 /// * `subspace` - The subspace for storing election data
 /// * `config` - New configuration to apply
-pub async fn write_config(
-    txn: &mut RetryableTransaction,
+pub async fn write_config<T>(
+    txn: &mut T,
     subspace: &Subspace,
     config: &ElectionConfig,
-) -> Result<()> {
+) -> Result<()>
+where
+    T: Deref<Target = Transaction>,
+{
     let config_key = config_key(subspace);
     let data = (config.heartbeat_timeout.as_secs(), config.election_enabled);
     let packed = crate::tuple::pack(&data);
@@ -137,12 +140,15 @@ pub async fn write_config(
 /// Stores a tuple of (versionstamp, timestamp_nanos) where:
 /// - versionstamp: Used for process ordering (immune to FDB recovery)
 /// - timestamp_nanos: Used for timeout detection (survives FDB recovery)
-pub async fn register_process(
-    txn: &mut RetryableTransaction,
+pub async fn register_process<T>(
+    txn: &mut T,
     subspace: &Subspace,
     process_id: &str,
     timestamp: Duration,
-) -> Result<()> {
+) -> Result<()>
+where
+    T: Deref<Target = Transaction>,
+{
     // Check if election is enabled
     let config = read_config(txn, subspace).await?;
     if !config.election_enabled {
@@ -179,12 +185,15 @@ pub async fn register_process(
 /// # Note
 /// Heartbeats should be sent regularly (e.g., every 5-10 seconds) to prevent
 /// the process from being evicted as dead.
-pub async fn heartbeat(
-    txn: &mut RetryableTransaction,
+pub async fn heartbeat<T>(
+    txn: &mut T,
     subspace: &Subspace,
     process_uuid: &str,
     timestamp: Duration,
-) -> Result<()> {
+) -> Result<()>
+where
+    T: Deref<Target = Transaction>,
+{
     // Check if election is enabled
     let config = read_config(txn, subspace).await?;
     if !config.election_enabled {
@@ -223,11 +232,14 @@ pub async fn heartbeat(
 /// # Immunity to FDB Recovery
 /// This implementation uses Duration-based timestamps for timeout detection,
 /// making it immune to FoundationDB version jumps during cluster recovery.
-pub async fn find_alive_processes(
-    txn: &mut RetryableTransaction,
+pub async fn find_alive_processes<T>(
+    txn: &mut T,
     subspace: &Subspace,
     current_time: Duration,
-) -> Result<Vec<(String, ProcessDescriptor)>> {
+) -> Result<Vec<(String, ProcessDescriptor)>>
+where
+    T: Deref<Target = Transaction>,
+{
     let config = read_config(txn, subspace).await?;
     let (start, end) = processes_range(subspace);
 
@@ -288,12 +300,15 @@ pub async fn find_alive_processes(
 /// # Safety
 /// Serializable transactions ensure only one process can successfully
 /// claim leadership in a given transaction. Concurrent attempts will retry.
-pub async fn try_become_leader(
-    txn: &mut RetryableTransaction,
+pub async fn try_become_leader<T>(
+    txn: &mut T,
     subspace: &Subspace,
     process_uuid: &str,
     current_time: Duration,
-) -> Result<bool> {
+) -> Result<bool>
+where
+    T: Deref<Target = Transaction>,
+{
     // Check if election is enabled
     // Note: Reading the config creates an implicit read conflict on the config key,
     // which helps serialize leadership transitions
@@ -331,12 +346,15 @@ pub async fn try_become_leader(
 /// * `subspace` - The subspace for storing election data
 /// * `leader` - The new leader's descriptor, or None to clear leadership
 /// * `current_time` - Current time (unused, kept for API consistency)
-async fn update_leader_state(
-    txn: &mut RetryableTransaction,
+async fn update_leader_state<T>(
+    txn: &mut T,
     subspace: &Subspace,
     leader: Option<&ProcessDescriptor>,
     _current_time: Duration,
-) -> Result<()> {
+) -> Result<()>
+where
+    T: Deref<Target = Transaction>,
+{
     let leader_key = leader_state_key(subspace);
 
     if let Some(leader_desc) = leader {
@@ -369,11 +387,14 @@ async fn update_leader_state(
 /// Only the leader performs eviction to avoid conflicts.
 /// Dead processes are those that haven't sent heartbeats within
 /// the configured threshold.
-async fn evict_dead_processes(
-    txn: &mut RetryableTransaction,
+async fn evict_dead_processes<T>(
+    txn: &mut T,
     subspace: &Subspace,
     alive: &[(String, ProcessDescriptor)],
-) -> Result<()> {
+) -> Result<()>
+where
+    T: Deref<Target = Transaction>,
+{
     let alive_uuids: std::collections::HashSet<String> =
         alive.iter().map(|(uuid, _)| uuid.clone()).collect();
 
@@ -411,11 +432,14 @@ async fn evict_dead_processes(
 /// # Timeout Validation
 /// The function verifies that the leader's last heartbeat is within the
 /// configured heartbeat timeout period.
-pub async fn get_current_leader(
-    txn: &mut RetryableTransaction,
+pub async fn get_current_leader<T>(
+    txn: &mut T,
     subspace: &Subspace,
     current_time: Duration,
-) -> Result<Option<LeaderInfo>> {
+) -> Result<Option<LeaderInfo>>
+where
+    T: Deref<Target = Transaction>,
+{
     let leader_key = leader_state_key(subspace);
     let config = read_config(txn, subspace).await?;
 
@@ -463,12 +487,15 @@ pub async fn get_current_leader(
 /// # Fallback Behavior
 /// If no leader is recorded but elections are enabled, checks if the
 /// process would be the leader based on current alive processes.
-pub async fn is_leader(
-    txn: &mut RetryableTransaction,
+pub async fn is_leader<T>(
+    txn: &mut T,
     subspace: &Subspace,
     process_uuid: &str,
     current_time: Duration,
-) -> Result<bool> {
+) -> Result<bool>
+where
+    T: Deref<Target = Transaction>,
+{
     // First check if election is enabled
     let config = read_config(txn, subspace).await?;
     if !config.election_enabled {
