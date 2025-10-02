@@ -73,10 +73,12 @@ jobs:
           toolchain: "${{ matrix.toolchain }}"
           components: rustfmt, clippy
 
-      - name: Run all tests
+      - name: Run all tests of foundationdb
         run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
-      - name: Run all tests with trace feature enabled
+      - name: Run all tests of foundationdb with trace feature enabled
         run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace
+      - name: Run all tests of foundationdb-tuple
+        run: cargo test -p foundationdb-tuple --all-features
 
   lint:
     name: Rustfmt / Clippy
