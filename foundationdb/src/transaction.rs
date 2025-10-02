@@ -914,21 +914,8 @@ impl Transaction {
     pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
         FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
             move |r| match r {
-                Ok(()) => {
-                    #[cfg(feature = "trace")]
-                    tracing::info!("transaction committed");
-
-                    Ok(TransactionCommitted { tr: self })
-                }
-                Err(err) => {
-                    #[cfg(feature = "trace")]
-                    {
-                        let error_code = err.code();
-                        tracing::error!(error_code, "could not commit");
-                    }
-
-                    Err(TransactionCommitError { tr: self, err })
-                }
+                Ok(()) => Ok(TransactionCommitted { tr: self }),
+                Err(err) => Err(TransactionCommitError { tr: self, err }),
             },
         )
     }

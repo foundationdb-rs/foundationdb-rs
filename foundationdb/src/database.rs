@@ -446,7 +446,17 @@ impl Database {
                             continue;
                         }
                         Err(non_retryable_error) => {
-                            return Err(FdbBindingError::from(non_retryable_error))
+                            #[cfg(feature = "trace")]
+                            {
+                                let error_code = non_retryable_error.code();
+                                tracing::error!(
+                                    iteration,
+                                    error_code,
+                                    "could not commit, non retryable error"
+                                );
+                            }
+
+                            return Err(FdbBindingError::from(non_retryable_error));
                         }
                     }
                 }
