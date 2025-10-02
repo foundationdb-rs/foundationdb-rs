@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb-sys"
-version = "0.9.1"
+version = "0.9.2"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
