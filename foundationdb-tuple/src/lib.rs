@@ -8,10 +8,10 @@ mod subspace;
 mod versionstamp;
 
 use std::borrow::Cow;
-use std::fmt::{self, Display};
+use std::fmt;
+use std::fmt::Write;
 use std::io;
 use std::ops::Deref;
-use std::result;
 
 #[cfg(feature = "uuid")]
 pub use uuid::Uuid;
@@ -84,7 +84,7 @@ impl From<io::Error> for PackError {
     }
 }
 
-impl Display for PackError {
+impl fmt::Display for PackError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             PackError::Message(s) => s.fmt(f),
@@ -104,7 +104,7 @@ impl Display for PackError {
 impl std::error::Error for PackError {}
 
 /// Alias for `Result<..., tuple::Error>`
-pub type PackResult<T> = result::Result<T, PackError>;
+pub type PackResult<T> = Result<T, PackError>;
 
 /// Represent a sequence of bytes (i.e. &[u8])
 ///
@@ -123,14 +123,14 @@ impl fmt::Display for Bytes<'_> {
         write!(fmt, "b\"")?;
         for &byte in self.0.iter() {
             if byte == b'\\' {
-                write!(fmt, r"\\")?;
+                fmt.write_str(r"\\")?;
             } else if byte.is_ascii_alphanumeric() {
-                write!(fmt, "{}", byte as char)?;
+                fmt.write_char(byte as char)?;
             } else {
                 write!(fmt, "\\x{byte:02x}")?;
             }
         }
-        write!(fmt, "\"")
+        fmt.write_str("\"")
     }
 }
 

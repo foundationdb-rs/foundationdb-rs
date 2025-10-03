@@ -6,7 +6,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! A resulting Subspace whose prefix is preprended to all of its descendant directories's prefixes.
+//! A resulting Subspace whose prefix is prepended to all of its descendant directory's prefixes.
 
 use crate::directory::directory_layer::{DirectoryLayer, DEFAULT_NODE_PREFIX, PARTITION_LAYER};
 use crate::directory::directory_subspace::DirectorySubspace;
@@ -18,8 +18,8 @@ use async_trait::async_trait;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// A `DirectoryPartition` is a DirectorySubspace whose prefix is preprended to all of its descendant
-/// directories's prefixes. It cannot be used as a Subspace. Instead, you must create at
+/// A `DirectoryPartition` is a DirectorySubspace whose prefix is prepended to all of its descendant
+/// directories' prefixes. It cannot be used as a Subspace. Instead, you must create at
 /// least one subdirectory to store content.
 #[derive(Clone)]
 pub struct DirectoryPartition {
@@ -53,7 +53,7 @@ impl DirectoryPartition {
         prefix: Vec<u8>,
         parent_directory_layer: DirectoryLayer,
     ) -> Self {
-        let mut node_subspace_bytes = vec![];
+        let mut node_subspace_bytes = Vec::with_capacity(prefix.len() + DEFAULT_NODE_PREFIX.len());
         node_subspace_bytes.extend_from_slice(&prefix);
         node_subspace_bytes.extend_from_slice(DEFAULT_NODE_PREFIX);
 
@@ -96,21 +96,21 @@ impl DirectoryPartition {
         path: &[String],
         directory_layer: Option<DirectoryLayer>,
     ) -> Result<Vec<String>, DirectoryError> {
-        let directory = match directory_layer {
-            None => self.directory_subspace.directory_layer.clone(),
-            Some(d) => d,
-        };
-
-        if directory.path.len() > self.directory_subspace.get_path().len() {
-            return Err(DirectoryError::CannotCreateSubpath);
+        match directory_layer {
+            Some(directory) => {
+                if directory.path.len() > self.directory_subspace.get_path().len() {
+                    return Err(DirectoryError::CannotCreateSubpath);
+                }
+                let mut new_path = Vec::with_capacity(
+                    self.directory_subspace.get_path().len() - directory.path.len() + path.len(),
+                );
+                new_path
+                    .extend_from_slice(&self.directory_subspace.get_path()[directory.path.len()..]);
+                new_path.extend_from_slice(path);
+                Ok(new_path)
+            }
+            None => Ok(path.to_vec()),
         }
-
-        let mut new_path = vec![];
-
-        new_path.extend_from_slice(&self.directory_subspace.get_path()[directory.path.len()..]);
-        new_path.extend_from_slice(path);
-
-        Ok(new_path)
     }
 
     pub fn get_layer(&self) -> &[u8] {
@@ -180,23 +180,16 @@ impl Directory for DirectoryPartition {
 
         for (i, path) in directory_layer_path.iter().enumerate() {
             match new_path.get(i) {
-                None => return Err(DirectoryError::CannotMoveBetweenPartition),
-                Some(new_path_item) => {
-                    if !new_path_item.eq(path) {
-                        return Err(DirectoryError::CannotMoveBetweenPartition);
-                    }
-                }
+                Some(new_path_item) if new_path_item.eq(path) => {}
+                _ => return Err(DirectoryError::CannotMoveBetweenPartition),
             }
         }
-
-        let mut new_relative_path = vec![];
-        new_relative_path.extend_from_slice(&new_path[directory_layer_path.len()..]);
 
         directory_layer
             .move_to(
                 trx,
                 &self.get_partition_subpath(&[], Some(directory_layer.clone()))?,
-                &new_relative_path,
+                &new_path[directory_layer_path.len()..],
             )
             .await
     }
