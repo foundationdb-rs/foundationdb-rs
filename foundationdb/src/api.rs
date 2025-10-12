@@ -96,9 +96,9 @@ impl Default for FdbApiBuilder {
     }
 }
 
-/// A Builder with which the foundationDB network event loop can be created
+/// A Builder with which the FoundationDB network event loop can be created
 ///
-/// The foundationDB Network event loop can only be run once.
+/// The FoundationDB Network event loop can only be run once.
 ///
 /// ```
 /// use foundationdb::api::FdbApiBuilder;
@@ -171,7 +171,7 @@ impl NetworkBuilder {
     ///
     /// # Safety
     ///
-    /// You *MUST* ensure `drop` is called on the returned object before the program exits.
+    /// You *MUST* ensure `drop` is called on the returned object before the program exits.
     /// This is not required if the program is aborted.
     ///
     /// This method used to be safe in version `0.4`. But because `drop` on the returned object
@@ -180,7 +180,7 @@ impl NetworkBuilder {
     /// # Panics
     ///
     /// Panics if the dedicated thread cannot be spawned or the internal condition primitive is
-    /// poisonned.
+    /// poisoned.
     ///
     /// # Examples
     ///
@@ -233,13 +233,9 @@ impl NetworkRunner {
     /// This method is unsafe because you **MUST** call the `stop` method on the
     /// associated `NetworkStop` before the program exit.
     ///
-    /// This will only returns once the `stop` method on the associated `NetworkStop`
+    /// This will only return once the `stop` method on the associated `NetworkStop`
     /// object is called or if the foundationDB event loop return an error.
     pub unsafe fn run(self) -> FdbResult<()> {
-        self._run()
-    }
-
-    fn _run(self) -> FdbResult<()> {
         {
             let (lock, cvar) = &*self.cond;
             let mut started = lock.lock().unwrap();
@@ -309,8 +305,9 @@ impl NetworkStop {
 /// Panics if the network thread cannot be joined.
 pub struct NetworkAutoStop {
     network: Option<NetworkStop>,
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<thread::JoinHandle<()>>,
 }
+
 impl Drop for NetworkAutoStop {
     fn drop(&mut self) {
         if let Err(err) = self.network.take().unwrap().stop() {
