@@ -12,6 +12,19 @@ pr_labels = ["release"]
 # https://github.com/MarcoIeni/release-plz/issues/1009
 changelog_config = "cliff.toml"
 
+# https://release-plz.dev/docs/config#the-features_always_increment_minor-field
+# If true, feature commits always increment the minor version, even in 0.x releases.
+# This is particularly important for FoundationDB protocol version additions (e.g., fdb-7_4, fdb-7_5),
+# which represent significant changes that deserve minor version bumps rather than patch updates.
+# This reserves patch versions for bug fixes only.
+# Note: This violates Cargo SemVer rules where 0.x -> 0.(x+1) is used for breaking changes.
+features_always_increment_minor = true
+
+# https://release-plz.dev/docs/config#the-dependencies_update-field
+# If true, update all dependencies in Cargo.lock by running `cargo update`.
+# If false, only update workspace packages by running `cargo update --workspace`.
+dependencies_update = true
+
 [[package]]
 name = "foundationdb-macros"
 

@@ -85,6 +85,12 @@ impl Database {
     }
 
     /// Create a new FDBDatabase from a raw pointer. Users are expected to use the `new` method.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `ptr` is a valid pointer to an `FDBDatabase` object
+    /// obtained from the FoundationDB C API, and that the pointer is not aliased or used
+    /// after being passed to this function.
     pub unsafe fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
         Self { inner: ptr }
     }

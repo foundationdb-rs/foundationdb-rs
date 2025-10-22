@@ -961,7 +961,7 @@ impl Transaction {
     /// * `name` - The name of the metric (e.g., "query_time", "cache_hits")
     /// * `value` - The value to set for the metric
     /// * `labels` - Key-value pairs for labeling the metric, allowing for dimensional metrics
-    ///              (e.g., `[("operation", "read"), ("region", "us-west")]`)
+    ///   (e.g., `[("operation", "read"), ("region", "us-west")]`)
     ///
     /// # Returns
     /// * `Ok(())` if the metric was set successfully
@@ -1009,7 +1009,7 @@ impl Transaction {
     /// * `name` - The name of the metric to increment (e.g., "requests", "bytes_processed")
     /// * `amount` - The amount to increment the metric by
     /// * `labels` - Key-value pairs for labeling the metric, allowing for dimensional metrics
-    ///              (e.g., `[("status", "success"), ("endpoint", "api/v1/users")]`)
+    ///   (e.g., `[("status", "success"), ("endpoint", "api/v1/users")]`)
     ///
     /// # Returns
     /// * `Ok(())` if the metric was incremented successfully

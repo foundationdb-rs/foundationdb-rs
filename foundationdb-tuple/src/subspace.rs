@@ -30,7 +30,7 @@ pub struct Subspace {
 impl Display for Subspace {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for &b in &self.prefix {
-            if b >= 32 && b < 127 && b != b'\\' {
+            if (32..127).contains(&b) && b != b'\\' {
                 write!(f, "{}", b as char)?;
             } else if b == b'\\' {
                 write!(f, "\\\\")?;
