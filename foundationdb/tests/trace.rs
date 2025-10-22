@@ -1,6 +1,10 @@
+#[cfg(feature = "trace")]
 use foundationdb::{FdbBindingError, FdbError};
+#[cfg(feature = "trace")]
 use std::error::Error;
+#[cfg(feature = "trace")]
 use std::fmt::Formatter;
+#[cfg(feature = "trace")]
 use std::sync::atomic::AtomicU8;
 
 #[cfg(feature = "trace")]

@@ -1,6 +1,8 @@
 mod common;
 
+#[cfg(feature = "tenant-experimental")]
 use foundationdb_macros::cfg_api_versions;
+#[cfg(feature = "tenant-experimental")]
 use foundationdb_sys::if_cfg_api_versions;
 
 #[test]
