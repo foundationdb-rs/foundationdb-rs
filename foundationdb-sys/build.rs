@@ -33,6 +33,29 @@ const INCLUDE_PATH: &str = "./include/730";
 #[cfg(all(feature = "embedded-fdb-include", feature = "fdb-7_4"))]
 const INCLUDE_PATH: &str = "./include/740";
 
+// Compile error when no version feature is specified
+#[cfg(not(any(
+    feature = "fdb-5_1",
+    feature = "fdb-5_2",
+    feature = "fdb-6_0",
+    feature = "fdb-6_1",
+    feature = "fdb-6_2",
+    feature = "fdb-6_3",
+    feature = "fdb-7_0",
+    feature = "fdb-7_1",
+    feature = "fdb-7_3",
+    feature = "fdb-7_4",
+)))]
+compile_error!(
+    "foundationdb-sys requires a version feature to be specified.\n\
+     \n\
+     Available version features: fdb-5_1, fdb-5_2, fdb-6_0, fdb-6_1, fdb-6_2, fdb-6_3, fdb-7_0, fdb-7_1, fdb-7_3, fdb-7_4\n\
+     \n\
+     Examples:\n\
+     - With embedded include: features = [\"embedded-fdb-include\", \"fdb-7_4\"]\n\
+     - With system install: features = [\"fdb-7_4\"]"
+);
+
 fn main() {
     // Link against fdb_c.
     println!("cargo:rustc-link-lib=fdb_c");
