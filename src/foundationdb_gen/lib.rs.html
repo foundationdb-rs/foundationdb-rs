@@ -365,44 +365,67 @@
 <a href=#365 id=365 data-nosnippet>365</a><span class="attr">#[cfg(all(feature = <span class="string">"embedded-fdb-include"</span>, feature = <span class="string">"fdb-7_4"</span>))]
 <a href=#366 id=366 data-nosnippet>366</a></span><span class="kw">const </span>OPTIONS_DATA: <span class="kw-2">&amp;</span>[u8] = <span class="macro">include_bytes!</span>(<span class="string">"../include/740/fdb.options"</span>);
 <a href=#367 id=367 data-nosnippet>367</a>
-<a href=#368 id=368 data-nosnippet>368</a><span class="kw">pub fn </span>emit(w: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>fmt::Write) -&gt; fmt::Result {
-<a href=#369 id=369 data-nosnippet>369</a>    <span class="kw">let </span><span class="kw-2">mut </span>reader = OPTIONS_DATA;
-<a href=#370 id=370 data-nosnippet>370</a>    <span class="kw">let </span>parser = EventReader::new(<span class="kw-2">&amp;mut </span>reader);
-<a href=#371 id=371 data-nosnippet>371</a>    <span class="kw">let </span><span class="kw-2">mut </span>iter = parser.into_iter();
-<a href=#372 id=372 data-nosnippet>372</a>    <span class="kw">let </span><span class="kw-2">mut </span>scopes = Vec::new();
-<a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="kw">while let </span><span class="prelude-val">Some</span>(e) = iter.next() {
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="kw">match </span>e.unwrap() {
-<a href=#376 id=376 data-nosnippet>376</a>            XmlEvent::StartElement {
-<a href=#377 id=377 data-nosnippet>377</a>                name, attributes, ..
-<a href=#378 id=378 data-nosnippet>378</a>            } =&gt; {
-<a href=#379 id=379 data-nosnippet>379</a>                <span class="kw">if </span>name.local_name == <span class="string">"Scope" </span>{
-<a href=#380 id=380 data-nosnippet>380</a>                    <span class="kw">let </span>scope_name = attributes
-<a href=#381 id=381 data-nosnippet>381</a>                        .into_iter()
-<a href=#382 id=382 data-nosnippet>382</a>                        .find(|attr| attr.name.local_name == <span class="string">"name"</span>)
-<a href=#383 id=383 data-nosnippet>383</a>                        .unwrap();
-<a href=#384 id=384 data-nosnippet>384</a>
-<a href=#385 id=385 data-nosnippet>385</a>                    <span class="kw">let </span>options = on_scope(<span class="kw-2">&amp;mut </span>iter);
-<a href=#386 id=386 data-nosnippet>386</a>                    scopes.push(FdbScope {
-<a href=#387 id=387 data-nosnippet>387</a>                        name: scope_name.value,
-<a href=#388 id=388 data-nosnippet>388</a>                        options,
-<a href=#389 id=389 data-nosnippet>389</a>                    });
-<a href=#390 id=390 data-nosnippet>390</a>                }
-<a href=#391 id=391 data-nosnippet>391</a>            }
-<a href=#392 id=392 data-nosnippet>392</a>            XmlEvent::EndElement { .. } =&gt; {
-<a href=#393 id=393 data-nosnippet>393</a>                <span class="comment">//
-<a href=#394 id=394 data-nosnippet>394</a>            </span>}
-<a href=#395 id=395 data-nosnippet>395</a>            <span class="kw">_ </span>=&gt; {}
-<a href=#396 id=396 data-nosnippet>396</a>        }
-<a href=#397 id=397 data-nosnippet>397</a>    }
-<a href=#398 id=398 data-nosnippet>398</a>
-<a href=#399 id=399 data-nosnippet>399</a>    <span class="macro">writeln!</span>(w, <span class="string">"use std::convert::TryFrom;"</span>)<span class="question-mark">?</span>;
-<a href=#400 id=400 data-nosnippet>400</a>    <span class="macro">writeln!</span>(w, <span class="string">"use crate::{{FdbError, FdbResult}};"</span>)<span class="question-mark">?</span>;
-<a href=#401 id=401 data-nosnippet>401</a>    <span class="macro">writeln!</span>(w, <span class="string">"use foundationdb_sys as fdb_sys;"</span>)<span class="question-mark">?</span>;
-<a href=#402 id=402 data-nosnippet>402</a>    <span class="kw">for </span>scope <span class="kw">in </span>scopes.iter() {
-<a href=#403 id=403 data-nosnippet>403</a>        scope.gen_ty(w)<span class="question-mark">?</span>;
-<a href=#404 id=404 data-nosnippet>404</a>        scope.gen_impl(w)<span class="question-mark">?</span>;
-<a href=#405 id=405 data-nosnippet>405</a>    }
-<a href=#406 id=406 data-nosnippet>406</a>
-<a href=#407 id=407 data-nosnippet>407</a>    <span class="prelude-val">Ok</span>(())
-<a href=#408 id=408 data-nosnippet>408</a>}</code></pre></div></section></main></body></html>
+<a href=#368 id=368 data-nosnippet>368</a><span class="comment">// Compile error when no version feature is specified
+<a href=#369 id=369 data-nosnippet>369</a></span><span class="attr">#[cfg(not(any(
+<a href=#370 id=370 data-nosnippet>370</a>    feature = <span class="string">"fdb-5_1"</span>,
+<a href=#371 id=371 data-nosnippet>371</a>    feature = <span class="string">"fdb-5_2"</span>,
+<a href=#372 id=372 data-nosnippet>372</a>    feature = <span class="string">"fdb-6_0"</span>,
+<a href=#373 id=373 data-nosnippet>373</a>    feature = <span class="string">"fdb-6_1"</span>,
+<a href=#374 id=374 data-nosnippet>374</a>    feature = <span class="string">"fdb-6_2"</span>,
+<a href=#375 id=375 data-nosnippet>375</a>    feature = <span class="string">"fdb-6_3"</span>,
+<a href=#376 id=376 data-nosnippet>376</a>    feature = <span class="string">"fdb-7_0"</span>,
+<a href=#377 id=377 data-nosnippet>377</a>    feature = <span class="string">"fdb-7_1"</span>,
+<a href=#378 id=378 data-nosnippet>378</a>    feature = <span class="string">"fdb-7_3"</span>,
+<a href=#379 id=379 data-nosnippet>379</a>    feature = <span class="string">"fdb-7_4"</span>,
+<a href=#380 id=380 data-nosnippet>380</a>)))]
+<a href=#381 id=381 data-nosnippet>381</a></span><span class="macro">compile_error!</span>(
+<a href=#382 id=382 data-nosnippet>382</a>    <span class="string">"foundationdb-gen requires a version feature to be specified.\n\
+<a href=#383 id=383 data-nosnippet>383</a>     \n\
+<a href=#384 id=384 data-nosnippet>384</a>     Available version features: fdb-5_1, fdb-5_2, fdb-6_0, fdb-6_1, fdb-6_2, fdb-6_3, fdb-7_0, fdb-7_1, fdb-7_3, fdb-7_4\n\
+<a href=#385 id=385 data-nosnippet>385</a>     \n\
+<a href=#386 id=386 data-nosnippet>386</a>     Examples:\n\
+<a href=#387 id=387 data-nosnippet>387</a>     - With embedded include: features = [\"embedded-fdb-include\", \"fdb-7_4\"]\n\
+<a href=#388 id=388 data-nosnippet>388</a>     - With system install: features = [\"fdb-7_4\"]"
+<a href=#389 id=389 data-nosnippet>389</a></span>);
+<a href=#390 id=390 data-nosnippet>390</a>
+<a href=#391 id=391 data-nosnippet>391</a><span class="kw">pub fn </span>emit(w: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>fmt::Write) -&gt; fmt::Result {
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="kw">let </span><span class="kw-2">mut </span>reader = OPTIONS_DATA;
+<a href=#393 id=393 data-nosnippet>393</a>    <span class="kw">let </span>parser = EventReader::new(<span class="kw-2">&amp;mut </span>reader);
+<a href=#394 id=394 data-nosnippet>394</a>    <span class="kw">let </span><span class="kw-2">mut </span>iter = parser.into_iter();
+<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span><span class="kw-2">mut </span>scopes = Vec::new();
+<a href=#396 id=396 data-nosnippet>396</a>
+<a href=#397 id=397 data-nosnippet>397</a>    <span class="kw">while let </span><span class="prelude-val">Some</span>(e) = iter.next() {
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">match </span>e.unwrap() {
+<a href=#399 id=399 data-nosnippet>399</a>            XmlEvent::StartElement {
+<a href=#400 id=400 data-nosnippet>400</a>                name, attributes, ..
+<a href=#401 id=401 data-nosnippet>401</a>            } =&gt; {
+<a href=#402 id=402 data-nosnippet>402</a>                <span class="kw">if </span>name.local_name == <span class="string">"Scope" </span>{
+<a href=#403 id=403 data-nosnippet>403</a>                    <span class="kw">let </span>scope_name = attributes
+<a href=#404 id=404 data-nosnippet>404</a>                        .into_iter()
+<a href=#405 id=405 data-nosnippet>405</a>                        .find(|attr| attr.name.local_name == <span class="string">"name"</span>)
+<a href=#406 id=406 data-nosnippet>406</a>                        .unwrap();
+<a href=#407 id=407 data-nosnippet>407</a>
+<a href=#408 id=408 data-nosnippet>408</a>                    <span class="kw">let </span>options = on_scope(<span class="kw-2">&amp;mut </span>iter);
+<a href=#409 id=409 data-nosnippet>409</a>                    scopes.push(FdbScope {
+<a href=#410 id=410 data-nosnippet>410</a>                        name: scope_name.value,
+<a href=#411 id=411 data-nosnippet>411</a>                        options,
+<a href=#412 id=412 data-nosnippet>412</a>                    });
+<a href=#413 id=413 data-nosnippet>413</a>                }
+<a href=#414 id=414 data-nosnippet>414</a>            }
+<a href=#415 id=415 data-nosnippet>415</a>            XmlEvent::EndElement { .. } =&gt; {
+<a href=#416 id=416 data-nosnippet>416</a>                <span class="comment">//
+<a href=#417 id=417 data-nosnippet>417</a>            </span>}
+<a href=#418 id=418 data-nosnippet>418</a>            <span class="kw">_ </span>=&gt; {}
+<a href=#419 id=419 data-nosnippet>419</a>        }
+<a href=#420 id=420 data-nosnippet>420</a>    }
+<a href=#421 id=421 data-nosnippet>421</a>
+<a href=#422 id=422 data-nosnippet>422</a>    <span class="macro">writeln!</span>(w, <span class="string">"use std::convert::TryFrom;"</span>)<span class="question-mark">?</span>;
+<a href=#423 id=423 data-nosnippet>423</a>    <span class="macro">writeln!</span>(w, <span class="string">"use crate::{{FdbError, FdbResult}};"</span>)<span class="question-mark">?</span>;
+<a href=#424 id=424 data-nosnippet>424</a>    <span class="macro">writeln!</span>(w, <span class="string">"use foundationdb_sys as fdb_sys;"</span>)<span class="question-mark">?</span>;
+<a href=#425 id=425 data-nosnippet>425</a>    <span class="kw">for </span>scope <span class="kw">in </span>scopes.iter() {
+<a href=#426 id=426 data-nosnippet>426</a>        scope.gen_ty(w)<span class="question-mark">?</span>;
+<a href=#427 id=427 data-nosnippet>427</a>        scope.gen_impl(w)<span class="question-mark">?</span>;
+<a href=#428 id=428 data-nosnippet>428</a>    }
+<a href=#429 id=429 data-nosnippet>429</a>
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="prelude-val">Ok</span>(())
+<a href=#431 id=431 data-nosnippet>431</a>}</code></pre></div></section></main></body></html>
