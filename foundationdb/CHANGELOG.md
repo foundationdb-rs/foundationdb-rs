@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2025-10-24
+
+### <!-- 1 -->🚀 Features
+
+- Feat(foundationdb) : Expose Timekeeper API
+- Profiling Keyspace Scanner
+- Add support 7.4
+- Impl std::error::Error for TransactionCommitError
+- Add optional tracing feature
+- Add `intrumented_run`
+- Add unsafe to new_from_pointer function
+
+### <!-- 2 -->🐛 Bug Fixes
+
+- Fix(foundationdb) : Replace unmaintained ring crate with sha2 in examples
+- Add  on fields in MetricKey
+- Don't log as error all commit errors
+- Fix: resolve clippy warnings and add doc alias
+
+### <!-- 5 -->📚 Documentation
+
+- Doc, multi-statements support
+- Doc-related clippy fixes
+
+### <!-- 6 -->🧪 Testing
+
+- Add a test on failed closure
+
+### <!-- 8 -->⚙️ Miscellaneous
+
+- Bump rand to 0.9.0
+- Bump MSRV to 1.82
+- Test on Apple silicon
+- Clippy --fix
+- Fix warnings
+- Bump msrv to 1.85
+
+### <!-- 9 -->📦 Other Changes
+
+- Use cfg_api_versions and if_cfg_api_versions
+- Specifically use C ABI for packed structs
+- Some spaces and tabs doc formalization
+- Rename instrumentation by trace
+
+[0.10.0]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.9.2..0.10.0
+
+
 ## [0.9.2] - 2025-01-06
 
 ### <!-- 0 -->🚀 added
