@@ -63,19 +63,64 @@ commit_preprocessors = [
 ]
 
 commit_parsers = [
-    { message = "^.*[a|A]dd", group = "<!-- 0 -->🚀 added" },
-    { message = "^feat", group = "<!-- 0 -->🚀 added" },
-    { message = "^.*[f|F]ix", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^.*[r|R]efactor", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^.*[r|R]emove", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^.*[b|B]ump", group = "<!-- 3 -->🆙 Bump", skip = true },
-    { message = "chore: release", skip = true },
-    { message = "^chore", group = "<!-- 4 -->⚙️ Other changes" },
-    { message = "^.*", group = "<!-- 4 -->⚙️ Other changes" },
+    # Skip patterns (evaluated first)
+    { message = "^chore: release", skip = true },
+    { message = "^chore\\(release\\)", skip = true },
+    { message = "^Merge pull request", skip = true },
+    { message = "^Merge branch", skip = true },
+    { message = "^[fF]ixup!", skip = true },
+    { message = "^[bB]uild\\(deps\\)", skip = true },
+    { message = "^[bB]ump", skip = true },
+    { message = "^[uU]pdate.*dependency", skip = true },
+    { message = "^[uU]pdate.*dependencies", skip = true },
+    { body = ".*skip changelog.*", skip = true },
+
+    # Breaking changes (highest priority)
+    { message = ".*!", group = "<!-- 0 -->⚠️ BREAKING CHANGES" },
+    { body = ".*BREAKING CHANGE.*", group = "<!-- 0 -->⚠️ BREAKING CHANGES" },
+
+    # Features / Additions
+    { message = "^feat", group = "<!-- 1 -->🚀 Features" },
+    { message = "^[aA]dd", group = "<!-- 1 -->🚀 Features" },
+
+    # Bug fixes
+    { message = "^fix", group = "<!-- 2 -->🐛 Bug Fixes" },
+    { message = "^[fF]ix:", group = "<!-- 2 -->🐛 Bug Fixes" },
+    { message = "^[fF]ix\\(", group = "<!-- 2 -->🐛 Bug Fixes" },
+    { message = "^[cC]lippy", group = "<!-- 2 -->🐛 Bug Fixes" },
+
+    # Performance improvements
+    { message = "^perf", group = "<!-- 3 -->⚡ Performance" },
+    { message = "^[oO]ptimize", group = "<!-- 3 -->⚡ Performance" },
+
+    # Refactoring
+    { message = "^refactor", group = "<!-- 4 -->🚜 Refactor" },
+    { message = "^[rR]efactor", group = "<!-- 4 -->🚜 Refactor" },
+    { message = "^[rR]emove", group = "<!-- 4 -->🚜 Refactor" },
+
+    # Documentation
+    { message = "^docs", group = "<!-- 5 -->📚 Documentation" },
+    { message = "^[dD]oc", group = "<!-- 5 -->📚 Documentation" },
+
+    # Tests
+    { message = "^test", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^[tT]est", group = "<!-- 6 -->🧪 Testing" },
+
+    # Build system and CI/CD (non-dependency build changes)
+    { message = "^build", group = "<!-- 7 -->🔧 Build" },
+    { message = "^ci", group = "<!-- 7 -->🔧 Build" },
+    { message = "^[cC][iI]", group = "<!-- 7 -->🔧 Build" },
+
+    # Chores and other changes
+    { message = "^chore", group = "<!-- 8 -->⚙️ Miscellaneous" },
+    { message = "^style", group = "<!-- 8 -->⚙️ Miscellaneous" },
+
+    # Catch-all (should be last)
+    { message = ".*", group = "<!-- 9 -->📦 Other Changes" },
 ]
 
 # protect breaking changes from being skipped due to matching a skipping commit_parser
-protect_breaking_commits = false
+protect_breaking_commits = true
 
 # filter out the commits that are not matched by commit parsers
 filter_commits = false
