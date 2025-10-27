@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-10-24
+
+### <!-- 1 -->🚀 Features
+
+- Add support 7.4
+- Add 7.4 simulation in CI
+
+### <!-- 2 -->🐛 Bug Fixes
+
+- Remove unwrap on checks
+- Recover simulation trace public api breaking change
+- Fix(foundationdb-simulation): add docs.rs metadata to fix build
+
+### <!-- 4 -->🚜 Refactor
+
+- Remove unnecessary simulation headers
+
+### <!-- 8 -->⚙️ Miscellaneous
+
+- Clippy fixes
+
+### <!-- 9 -->📦 Other Changes
+
+- Update CI and bindingtester to 7.4
+- Some spaces and tabs doc formalization
+- Update workload bindings
+- Update README
+- Async RustWorkload
+- Tidy up foundationdb-simulation API:
+
+[0.2.3]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.2.2..0.2.3
+
+
 ## [0.2.2] - 2025-01-06
 
 ### <!-- 0 -->🚀 added
