@@ -4,6 +4,11 @@
 # To do this, release-plz checks if the latest commit is associated to a release PR. To determine if a PR is a release-pr
 release_always = false
 
+# Default PR branch prefix. Any PR with a branch starting with this prefix will trigger
+# a release when merged (when release_always = false). This allows you to fix failed releases
+# by creating a PR from a branch like "release-plz-fix-something".
+pr_branch_prefix = "release-plz-"
+
 git_release_draft = true
 pr_draft = true
 pr_labels = ["release"]
@@ -30,10 +35,11 @@ name = "foundationdb-macros"
 
 [[package]]
 name = "foundationdb-sys"
-publish_features = ["embedded-fdb-include", "fdb-7_3"]
+publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
 name = "foundationdb-gen"
+publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
 name = "foundationdb-tuple"
@@ -41,11 +47,11 @@ publish_features = ["uuid", "num-bigint"]
 
 [[package]]
 name = "foundationdb"
-publish_features = ["embedded-fdb-include", "fdb-7_3", "uuid"]
+publish_features = ["embedded-fdb-include", "fdb-7_4", "uuid"]
 
 [[package]]
 name = "foundationdb-simulation"
-publish_features = ["embedded-fdb-include", "fdb-7_3"]
+publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
 name = "foundationdb-bench"
