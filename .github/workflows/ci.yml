@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.0
 
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.0
 
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
@@ -86,7 +86,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.0
 
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.0
 
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
