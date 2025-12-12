@@ -1,0 +1,18 @@
+[package]
+name = "foundationdb-recipes-simulation"
+version = "0.1.0"
+edition = "2021"
+description = """
+Simulation workloads for testing FoundationDB recipes under deterministic simulation
+"""
+license = "MIT/Apache-2.0"
+repository = "https://github.com/foundationdb-rs/foundationdb-rs"
+keywords = ["foundationdb", "simulation", "testing"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+foundationdb = { version = "0.10.0", path = "../foundationdb", default-features = false, features = ["recipes-leader-election", "fdb-7_4", "embedded-fdb-include"] }
+foundationdb-simulation = { version = "0.2.3", path = "../foundationdb-simulation", default-features = false, features = ["fdb-7_4", "embedded-fdb-include"] }
+uuid = { version = "1.18.1", features = ["v4"] }

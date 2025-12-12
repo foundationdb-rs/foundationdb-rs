@@ -10,6 +10,7 @@ members = [
     "foundationdb-macros",
     "foundationdb-profiling",
     "foundationdb-simulation",
+    "foundationdb-recipes-simulation",
 ]
 
 [profile.release]

@@ -374,7 +374,9 @@ async fn evict_dead_processes(
     subspace: &Subspace,
     alive: &[(String, ProcessDescriptor)],
 ) -> Result<()> {
-    let alive_uuids: std::collections::HashSet<String> =
+    // Use BTreeSet instead of HashSet for deterministic iteration order
+    // This is critical for simulation testing to ensure reproducibility
+    let alive_uuids: std::collections::BTreeSet<String> =
         alive.iter().map(|(uuid, _)| uuid.clone()).collect();
 
     let (start, end) = processes_range(subspace);
