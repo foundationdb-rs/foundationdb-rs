@@ -364,6 +364,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "foundationdb-recipes-simulation"
+version = "0.1.0"
+dependencies = [
+ "foundationdb",
+ "foundationdb-simulation",
+]
+
+[[package]]
 name = "foundationdb-simulation"
 version = "0.2.3"
 dependencies = [
