@@ -391,26 +391,49 @@ impl RustWorkload for LeaderElectionWorkload {
                 self.heartbeat_timeout_secs,
             ));
 
-            let result = db
-                .run(|mut trx, _maybe_committed| {
-                    let election = election.clone();
-                    let config = config.clone();
-                    async move {
-                        trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                        election
-                            .initialize_with_config(&mut trx, config)
-                            .await
-                            .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
-                        Ok(())
-                    }
-                })
-                .await;
+            const MAX_INIT_RETRIES: u32 = 10;
+            let mut init_success = false;
 
-            if let Err(e) = result {
+            for attempt in 1..=MAX_INIT_RETRIES {
+                let result = db
+                    .run(|mut trx, _maybe_committed| {
+                        let election = election.clone();
+                        let config = config.clone();
+                        async move {
+                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
+                            election
+                                .initialize_with_config(&mut trx, config)
+                                .await
+                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
+                            Ok(())
+                        }
+                    })
+                    .await;
+
+                match result {
+                    Ok(()) => {
+                        init_success = true;
+                        break;
+                    }
+                    Err(e) => {
+                        self.context.trace(
+                            Severity::Warn,
+                            "LeaderElectionInitRetry",
+                            details![
+                                "Attempt" => attempt,
+                                "MaxAttempts" => MAX_INIT_RETRIES,
+                                "Error" => format!("{:?}", e)
+                            ],
+                        );
+                    }
+                }
+            }
+
+            if !init_success {
                 self.context.trace(
                     Severity::Error,
                     "LeaderElectionInitFailed",
-                    details!["Error" => format!("{:?}", e)],
+                    details!["Error" => "Exhausted all retry attempts"],
                 );
             }
         }
