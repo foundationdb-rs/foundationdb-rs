@@ -10,9 +10,10 @@
 //! 1. **Safety (No Overlapping Leadership)**: At most one leader at any time
 //! 2. **Ballot Conservation**: Expected ballot from logs matches actual ballot in FDB
 
-mod check;
+mod helpers;
 mod invariants;
 mod types;
+mod workload;
 
 use foundationdb::tuple::Subspace;
 use foundationdb_simulation::{SingleRustWorkload, WorkloadContext};

@@ -126,9 +126,6 @@ impl LeaderElectionWorkload {
     /// The current leader must be in the candidate list.
     /// This verifies the data structure invariant that leadership
     /// can only be claimed by registered candidates.
-    ///
-    /// Note: This is a soft invariant because a candidate may timeout
-    /// while still holding a valid lease. We warn but don't fail.
     pub(crate) fn verify_leader_is_candidate(&self, snapshot: &DatabaseSnapshot) -> (bool, String) {
         match &snapshot.leader_state {
             Some(leader) => {
@@ -143,13 +140,16 @@ impl LeaderElectionWorkload {
                         format!("Leader {} is registered candidate", leader.leader_id),
                     )
                 } else {
-                    // This can happen legitimately if candidate timed out but lease is still valid
-                    // We report as warning/info rather than failure
+                    let candidate_ids: Vec<_> = snapshot
+                        .candidates
+                        .iter()
+                        .map(|c| c.process_id.as_str())
+                        .collect();
                     (
-                        true, // Soft pass - the algorithm allows this edge case
+                        false,
                         format!(
-                            "Leader {} not in candidate list (may have timed out while holding lease)",
-                            leader.leader_id
+                            "Leader {} not in candidate list (candidates: {:?})",
+                            leader.leader_id, candidate_ids
                         ),
                     )
                 }
@@ -238,11 +238,6 @@ impl LeaderElectionWorkload {
     /// Every client that successfully claimed leadership must have
     /// previously registered (logged a Register operation).
     /// This verifies the registration requirement of the protocol.
-    ///
-    /// NOTE: This is a SOFT invariant because:
-    /// 1. Log operations can fail under chaos conditions
-    /// 2. Registration might succeed but log_operation might fail
-    /// 3. We log warnings but don't fail the test
     pub(crate) fn verify_registration_coverage(&self, entries: &LogEntries) -> (bool, String) {
         // Track which clients have registered (either success or attempted)
         let mut registered_clients: BTreeMap<i32, bool> = BTreeMap::new();
@@ -277,12 +272,10 @@ impl LeaderElectionWorkload {
                 ),
             )
         } else {
-            // SOFT: Return true but with warning message
-            // Under chaos, log entries can be lost - this is informational
             (
-                true, // Soft pass - don't fail the test
+                false,
                 format!(
-                    "WARNING: {} clients claimed leadership without logged registration: {}",
+                    "VIOLATION: {} clients claimed leadership without registration: {}",
                     unregistered_leaders.len(),
                     unregistered_leaders.join(", ")
                 ),
