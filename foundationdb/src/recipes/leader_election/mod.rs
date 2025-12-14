@@ -8,35 +8,63 @@
 //! Leader Election module for FoundationDB
 //!
 //! This module implements a distributed leader election protocol using FoundationDB
-//! as shared memory. The algorithm is based on the paper "Leader Election Using NewSQL
-//! Database Systems" but differs by directly leveraging FoundationDB's strictly
-//! serializable transactions and versionstamps instead of timestamps.
+//! as shared memory. The algorithm is inspired by Active Disk Paxos and uses ballot
+//! numbers (similar to Raft's term) for consistency.
 //!
 //! # Key Properties
 //!
-//! - **Integrity**: Guarantees at most one leader at any time through serializable
-//!   transactions and atomic operations
-//! - **Termination**: A correct process eventually becomes leader if processes keep
-//!   sending heartbeats
-//! - **Liveness**: Observers can retrieve the current leader ID through read-only
-//!   operations without participating in the election
+//! - **Safety**: At most one leader at any time (FDB serializable transactions)
+//! - **Liveness**: A correct process eventually becomes leader
+//! - **O(1) Operations**: Leadership checks and claims are constant time
 //!
 //! # Algorithm Overview
 //!
-//! The election algorithm works as follows:
+//! The election algorithm uses a ballot-based approach:
 //!
-//! 1. **Process Registration**: Each process registers with a unique UUID and receives
-//!    a versionstamp that captures the transaction's commit version, providing a
-//!    time-based ordering using FoundationDB's internal clock
+//! 1. **Candidate Registration**: Each process registers with a unique ID and receives
+//!    a versionstamp for ordering. The versionstamp is fixed at registration.
 //!
-//! 2. **Heartbeat Mechanism**: Processes periodically send heartbeats by updating
-//!    their versionstamp. Processes that miss too many heartbeats are considered dead
+//! 2. **Leadership Claims**: Processes attempt to claim leadership by reading the
+//!    leader key and writing with an incremented ballot if eligible.
 //!
-//! 3. **Leader Selection**: The process with the earliest registration/heartbeat time
-//!    (smallest versionstamp) among alive processes becomes the leader
+//! 3. **Lease Refresh**: Leaders must periodically refresh their lease to maintain
+//!    leadership. Each refresh increments the ballot.
 //!
-//! 4. **Timeout Management**: Leaders are valid as long as their heartbeat is within the configured
-//!    timeout period, preventing split-brain scenarios
+//! 4. **Preemption**: Higher priority candidates can preempt lower priority leaders
+//!    (if enabled in configuration).
+//!
+//! # Ballot Numbers
+//!
+//! Ballot numbers work like Raft's term:
+//! - Monotonically increasing counter
+//! - Higher ballot always wins
+//! - Prevents split-brain after recovery/partition
+//!
+//! # Example
+//!
+//! ```ignore
+//! let election = LeaderElection::new(subspace);
+//!
+//! // Initialize (once)
+//! db.run(|txn| election.initialize(&txn)).await?;
+//!
+//! // Register as candidate (once)
+//! db.run(|txn| election.register_candidate(&txn, "my-id", 0, now())).await?;
+//!
+//! // Main loop
+//! loop {
+//!     let result = db.run(|txn| {
+//!         election.run_election_cycle(&txn, "my-id", 0, my_versionstamp, now())
+//!     }).await?;
+//!
+//!     match result {
+//!         ElectionResult::Leader(state) => { /* do leader work */ }
+//!         ElectionResult::Follower(_) => { /* follow */ }
+//!     }
+//!
+//!     sleep(config.heartbeat_interval).await;
+//! }
+//! ```
 
 mod algorithm;
 mod errors;
@@ -44,10 +72,11 @@ mod keys;
 mod types;
 
 pub use errors::{LeaderElectionError, Result};
-pub use types::{ElectionConfig, LeaderInfo, ProcessDescriptor};
+pub use types::{CandidateInfo, ElectionConfig, ElectionResult, LeaderInfo, LeaderState};
 
 use crate::{tuple::Subspace, Transaction};
 use std::ops::Deref;
+use std::time::Duration;
 
 /// Main leader election coordinator
 ///
@@ -71,16 +100,22 @@ impl LeaderElection {
         Self { subspace }
     }
 
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
+
     /// Initialize the leader election system with default settings
     ///
     /// This must be called once before any processes can participate in the election.
-    /// It sets up the necessary data structures and configuration with sensible defaults:
-    /// - Max missed heartbeats: 10M (approximately 10 seconds at normal version rate)
-    /// - Election enabled: true
+    /// Sets up the necessary configuration with sensible defaults:
+    /// - 10 second lease duration
+    /// - 3 second heartbeat interval
+    /// - 15 second candidate timeout
+    /// - Elections enabled
+    /// - Preemption enabled
     ///
-    /// This operation is idempotent - calling it multiple times has no effect
-    /// if the election is already initialized.
-    pub async fn initialize<T>(&self, txn: &mut T) -> Result<()>
+    /// This operation is idempotent - calling it multiple times has no effect.
+    pub async fn initialize<T>(&self, txn: &T) -> Result<()>
     where
         T: Deref<Target = Transaction>,
     {
@@ -93,185 +128,276 @@ impl LeaderElection {
     /// This must be called once before any processes can participate.
     ///
     /// # Arguments
-    /// * `config` - Custom election configuration including heartbeat tolerance
-    pub async fn initialize_with_config<T>(&self, txn: &mut T, config: ElectionConfig) -> Result<()>
+    /// * `config` - Custom election configuration
+    pub async fn initialize_with_config<T>(&self, txn: &T, config: ElectionConfig) -> Result<()>
     where
         T: Deref<Target = Transaction>,
     {
         algorithm::initialize(txn, &self.subspace, config).await
     }
 
-    /// Register a new process in the election
+    /// Write election configuration
     ///
-    /// Registers a process with a unique identifier and assigns it a versionstamp
-    /// that captures the transaction's commit version. This versionstamp provides
-    /// a time-based ordering - processes that register earlier (lower commit versions)
-    /// are preferred for leadership.
-    ///
-    /// # Arguments
-    /// * `process_id` - Unique identifier for the process (e.g., hostname, UUID)
-    /// * `timestamp` - Current time to use for timeout detection
-    ///
-    /// # Errors
-    /// Returns `LeaderElectionError::ElectionDisabled` if elections are disabled
-    ///
-    /// # Note
-    /// The process ID should be globally unique. Using duplicate IDs will cause
-    /// processes to overwrite each other's heartbeats.
-    pub async fn register_process<T>(
-        &self,
-        txn: &mut T,
-        process_id: &str,
-        timestamp: std::time::Duration,
-    ) -> Result<()>
-    where
-        T: Deref<Target = Transaction>,
-    {
-        algorithm::register_process(txn, &self.subspace, process_id, timestamp).await
-    }
-
-    /// Send a heartbeat for the given process
-    ///
-    /// Updates the process's timestamp to indicate it's still alive.
-    /// This should be called periodically (e.g., every 5-10 seconds) to maintain
-    /// process liveness.
-    ///
-    /// # Arguments
-    /// * `process_uuid` - The unique identifier used during registration
-    /// * `timestamp` - Current time to use for timeout detection
-    ///
-    /// # Errors
-    /// Returns `LeaderElectionError::ElectionDisabled` if elections are disabled
-    ///
-    /// # Important
-    /// Failing to send heartbeats will cause the process to be evicted from
-    /// the election after `heartbeat_timeout` expires.
-    pub async fn heartbeat<T>(
-        &self,
-        txn: &mut T,
-        process_uuid: &str,
-        timestamp: std::time::Duration,
-    ) -> Result<()>
-    where
-        T: Deref<Target = Transaction>,
-    {
-        algorithm::heartbeat(txn, &self.subspace, process_uuid, timestamp).await
-    }
-
-    /// Try to become the leader
-    ///
-    /// Attempts to claim leadership if this process was registered/heartbeat earliest
-    /// (has the smallest versionstamp) among all alive processes. This operation uses
-    /// serializable transactions to ensure at most one leader.
-    ///
-    /// # Arguments
-    /// * `process_uuid` - The unique identifier of the process attempting leadership
-    /// * `timestamp` - Current time to use for timeout detection
-    ///
-    /// # Returns
-    /// * `Ok(true)` - Successfully became the leader
-    /// * `Ok(false)` - Did not become leader (another process has priority)
-    /// * `Err(_)` - Transaction or system error
-    ///
-    /// # Algorithm
-    /// 1. Checks if elections are enabled (creates implicit read conflict)
-    /// 2. Finds all alive processes (recent heartbeats)
-    /// 3. Checks if this process has the smallest versionstamp
-    /// 4. If yes, updates leader state and evicts dead processes
-    ///
-    /// # Performance
-    /// This operation uses serializable transactions, causing automatic
-    /// retries if concurrent leadership attempts occur.
-    pub async fn try_become_leader<T>(
-        &self,
-        txn: &mut T,
-        process_uuid: &str,
-        timestamp: std::time::Duration,
-    ) -> Result<bool>
-    where
-        T: Deref<Target = Transaction>,
-    {
-        algorithm::try_become_leader(txn, &self.subspace, process_uuid, timestamp).await
-    }
-
-    /// Get the current leader (read-only, for observers)
-    ///
-    /// Retrieves information about the current leader without participating
-    /// in the election. This is a read-only operation that doesn't cause
-    /// conflicts with the election process.
-    ///
-    /// # Arguments
-    /// * `timestamp` - Current time to use for lease validation
-    ///
-    /// # Returns
-    /// * `Some(LeaderInfo)` - Current leader information including lease expiry
-    /// * `None` - No current leader (election in progress or disabled)
-    ///
-    /// # Use Cases
-    /// - Observers that need to know the leader without participating
-    /// - Load balancers routing requests to the leader
-    /// - Monitoring systems tracking leadership changes
-    ///
-    /// # Note
-    /// Leadership is determined by whether the leader's last heartbeat is within
-    /// the configured timeout period. Stale leaders are automatically considered invalid.
-    pub async fn get_current_leader<T>(
-        &self,
-        txn: &mut T,
-        timestamp: std::time::Duration,
-    ) -> Result<Option<LeaderInfo>>
-    where
-        T: Deref<Target = Transaction>,
-    {
-        algorithm::get_current_leader(txn, &self.subspace, timestamp).await
-    }
-
-    /// Check if a specific process is the current leader
-    ///
-    /// Convenience method to check if a specific process holds leadership.
-    /// This combines leader retrieval with identity comparison.
-    ///
-    /// # Arguments
-    /// * `process_uuid` - The process identifier to check
-    /// * `timestamp` - Current time to use for timeout detection
-    ///
-    /// # Returns
-    /// * `true` - The specified process is the current leader
-    /// * `false` - Process is not leader or election is disabled
-    ///
-    /// # Note
-    /// This is more efficient than calling `get_current_leader()` and comparing
-    /// manually as it can short-circuit in some cases.
-    pub async fn is_leader<T>(
-        &self,
-        txn: &mut T,
-        process_uuid: &str,
-        timestamp: std::time::Duration,
-    ) -> Result<bool>
-    where
-        T: Deref<Target = Transaction>,
-    {
-        algorithm::is_leader(txn, &self.subspace, process_uuid, timestamp).await
-    }
-
-    /// Write global election configuration
-    ///
-    /// Updates the election configuration dynamically. This can be used to:
-    /// - Adjust heartbeat tolerance based on network conditions
-    /// - Temporarily disable elections for maintenance
-    /// - Fine-tune election behavior in production
-    ///
-    /// # Arguments
-    /// * `config` - New configuration to apply
+    /// Updates the global election parameters dynamically.
     ///
     /// # Warning
     /// Changing configuration during active elections may cause temporary
-    /// leadership instability. Consider disabling elections first, then
-    /// re-enabling with new parameters.
-    pub async fn write_config<T>(&self, txn: &mut T, config: &ElectionConfig) -> Result<()>
+    /// leadership instability.
+    pub async fn write_config<T>(&self, txn: &T, config: &ElectionConfig) -> Result<()>
     where
         T: Deref<Target = Transaction>,
     {
         algorithm::write_config(txn, &self.subspace, config).await
+    }
+
+    /// Read current election configuration
+    pub async fn read_config<T>(&self, txn: &T) -> Result<ElectionConfig>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::read_config(txn, &self.subspace).await
+    }
+
+    // ========================================================================
+    // CANDIDATE MANAGEMENT
+    // ========================================================================
+
+    /// Register as a candidate
+    ///
+    /// Registers this process as a candidate for leadership. Uses SetVersionstampedValue
+    /// to assign a unique versionstamp at registration time.
+    ///
+    /// # Arguments
+    /// * `process_id` - Unique identifier for this process
+    /// * `priority` - Priority level (higher = more preferred for leadership)
+    /// * `current_time` - Current time for heartbeat timestamp
+    ///
+    /// # Note
+    /// The versionstamp is assigned once at registration and preserved on heartbeats.
+    /// You'll need to read the candidate info after commit to get the actual versionstamp.
+    pub async fn register_candidate<T>(
+        &self,
+        txn: &T,
+        process_id: &str,
+        priority: i32,
+        current_time: Duration,
+    ) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::register_candidate(txn, &self.subspace, process_id, priority, current_time).await
+    }
+
+    /// Send heartbeat as candidate
+    ///
+    /// Updates the candidate's timestamp to indicate liveness.
+    /// This should be called periodically (at `heartbeat_interval`).
+    ///
+    /// # Arguments
+    /// * `process_id` - Unique identifier for this process
+    /// * `priority` - Priority level (can be updated on each heartbeat)
+    /// * `current_time` - Current time for heartbeat timestamp
+    ///
+    /// # Errors
+    /// Returns `ProcessNotFound` if not registered
+    pub async fn heartbeat_candidate<T>(
+        &self,
+        txn: &T,
+        process_id: &str,
+        priority: i32,
+        current_time: Duration,
+    ) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::heartbeat_candidate(txn, &self.subspace, process_id, priority, current_time)
+            .await
+    }
+
+    /// Unregister as candidate
+    ///
+    /// Removes this process from the candidate list.
+    /// If leader, call `resign_leadership` first.
+    pub async fn unregister_candidate<T>(&self, txn: &T, process_id: &str) -> Result<()>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::unregister_candidate(txn, &self.subspace, process_id).await
+    }
+
+    /// Get candidate info for a specific process
+    pub async fn get_candidate<T>(&self, txn: &T, process_id: &str) -> Result<Option<CandidateInfo>>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::get_candidate(txn, &self.subspace, process_id).await
+    }
+
+    /// List all alive candidates
+    ///
+    /// O(N) operation - use sparingly, mainly for monitoring.
+    pub async fn list_candidates<T>(
+        &self,
+        txn: &T,
+        current_time: Duration,
+    ) -> Result<Vec<CandidateInfo>>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::list_candidates(txn, &self.subspace, current_time).await
+    }
+
+    /// Remove dead candidates
+    ///
+    /// O(N) operation - should be called by leader periodically.
+    /// Returns count of evicted candidates.
+    pub async fn evict_dead_candidates<T>(&self, txn: &T, current_time: Duration) -> Result<usize>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::evict_dead_candidates(txn, &self.subspace, current_time).await
+    }
+
+    // ========================================================================
+    // LEADERSHIP OPERATIONS (O(1))
+    // ========================================================================
+
+    /// Try to claim leadership
+    ///
+    /// Attempts to become the leader. This is an O(1) operation that:
+    /// 1. Reads the current leader state
+    /// 2. Checks if we can claim (no leader, expired lease, or preemption)
+    /// 3. Writes new leader state with incremented ballot
+    ///
+    /// # Arguments
+    /// * `process_id` - Unique identifier for this process
+    /// * `priority` - Priority level for preemption decisions
+    /// * `versionstamp` - This process's registration versionstamp
+    /// * `current_time` - Current time for lease calculation
+    ///
+    /// # Returns
+    /// * `Ok(Some(state))` - Successfully claimed leadership
+    /// * `Ok(None)` - Cannot claim, another valid leader exists
+    pub async fn try_claim_leadership<T>(
+        &self,
+        txn: &T,
+        process_id: &str,
+        priority: i32,
+        versionstamp: [u8; 12],
+        current_time: Duration,
+    ) -> Result<Option<LeaderState>>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::try_claim_leadership(
+            txn,
+            &self.subspace,
+            process_id,
+            priority,
+            versionstamp,
+            current_time,
+        )
+        .await
+    }
+
+    /// Refresh leadership lease
+    ///
+    /// Called periodically by the leader to extend lease.
+    /// Fails if no longer the leader.
+    ///
+    /// # Returns
+    /// * `Ok(Some(state))` - Lease refreshed
+    /// * `Ok(None)` - No longer the leader
+    pub async fn refresh_lease<T>(
+        &self,
+        txn: &T,
+        process_id: &str,
+        current_time: Duration,
+    ) -> Result<Option<LeaderState>>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::refresh_lease(txn, &self.subspace, process_id, current_time).await
+    }
+
+    /// Voluntarily resign leadership
+    ///
+    /// Immediately releases leadership.
+    ///
+    /// # Returns
+    /// `true` if was leader and resigned, `false` otherwise
+    pub async fn resign_leadership<T>(&self, txn: &T, process_id: &str) -> Result<bool>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::resign_leadership(txn, &self.subspace, process_id).await
+    }
+
+    /// Check if this process is the current leader
+    ///
+    /// O(1) operation.
+    pub async fn is_leader<T>(
+        &self,
+        txn: &T,
+        process_id: &str,
+        current_time: Duration,
+    ) -> Result<bool>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::is_leader(txn, &self.subspace, process_id, current_time).await
+    }
+
+    /// Get current leader information
+    ///
+    /// O(1) operation. Returns None if no leader or lease expired.
+    pub async fn get_leader<T>(
+        &self,
+        txn: &T,
+        current_time: Duration,
+    ) -> Result<Option<LeaderState>>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::get_leader(txn, &self.subspace, current_time).await
+    }
+
+    // ========================================================================
+    // HIGH-LEVEL CONVENIENCE API
+    // ========================================================================
+
+    /// Run a complete election cycle
+    ///
+    /// Combines candidate heartbeat + leadership claim in one operation.
+    /// This is what most users should call in their main loop.
+    ///
+    /// # Arguments
+    /// * `process_id` - Unique identifier for this process
+    /// * `priority` - Priority level
+    /// * `versionstamp` - This process's registration versionstamp
+    /// * `current_time` - Current time
+    ///
+    /// # Returns
+    /// `ElectionResult::Leader` if this process is leader, `ElectionResult::Follower` otherwise
+    pub async fn run_election_cycle<T>(
+        &self,
+        txn: &T,
+        process_id: &str,
+        priority: i32,
+        versionstamp: [u8; 12],
+        current_time: Duration,
+    ) -> Result<ElectionResult>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::run_election_cycle(
+            txn,
+            &self.subspace,
+            process_id,
+            priority,
+            versionstamp,
+            current_time,
+        )
+        .await
     }
 }

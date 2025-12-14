@@ -10,21 +10,26 @@ mod common;
 #[cfg(feature = "recipes-leader-election")]
 mod leader_election_tests {
     use foundationdb::{
-        recipes::leader_election::LeaderElection, tuple::Subspace, Database, FdbBindingError,
+        recipes::leader_election::{ElectionConfig, LeaderElection},
+        tuple::Subspace,
+        Database, FdbBindingError,
     };
+    use std::time::Duration;
 
     #[test]
     fn test_leader_election() {
         let _guard = unsafe { foundationdb::boot() };
         futures::executor::block_on(test_leader_election_basic_async()).expect("failed to run");
         futures::executor::block_on(test_multi_process_leadership_async()).expect("failed to run");
-        futures::executor::block_on(test_heartbeat_and_eviction_async()).expect("failed to run");
-        futures::executor::block_on(test_leadership_transfer_on_stale_leader_async())
+        futures::executor::block_on(test_heartbeat_and_lease_async()).expect("failed to run");
+        futures::executor::block_on(test_leadership_transfer_on_expired_lease_async())
             .expect("failed to run");
         futures::executor::block_on(test_config_change_async()).expect("failed to run");
+        futures::executor::block_on(test_resign_leadership_async()).expect("failed to run");
+        futures::executor::block_on(test_preemption_async()).expect("failed to run");
     }
 
-    fn current_time() -> std::time::Duration {
+    fn current_time() -> Duration {
         std::time::SystemTime::now()
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -54,30 +59,41 @@ mod leader_election_tests {
 
         // Initialize election system
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
-            election_ref.initialize(&mut txn).await?;
+        db.run(|txn, _| async move {
+            election_ref.initialize(&txn).await?;
             Ok(())
         })
         .await?;
 
-        // Register a process
+        // Register as a candidate
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .register_process(&mut txn, process_id, current_time())
+                .register_candidate(&txn, process_id, 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
 
-        // Try to become leader
+        // Read candidate info to get versionstamp
+        let election_ref = &election;
+        let candidate = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, process_id).await?;
+                Ok(candidate)
+            })
+            .await?;
+
+        let versionstamp = candidate.expect("candidate should exist").versionstamp;
+
+        // Try to claim leadership
         let election_ref = &election;
         let became_leader = db
-            .run(|mut txn, _| async move {
-                let became_leader = election_ref
-                    .try_become_leader(&mut txn, process_id, current_time())
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, process_id, 0, versionstamp, current_time())
                     .await?;
-                Ok(became_leader)
+                Ok(result.is_some())
             })
             .await?;
         assert!(
@@ -88,9 +104,9 @@ mod leader_election_tests {
         // Verify leadership
         let election_ref = &election;
         let is_leader = db
-            .run(|mut txn, _| async move {
+            .run(|txn, _| async move {
                 let is_leader = election_ref
-                    .is_leader(&mut txn, process_id, current_time())
+                    .is_leader(&txn, process_id, current_time())
                     .await?;
                 Ok(is_leader)
             })
@@ -107,34 +123,46 @@ mod leader_election_tests {
 
         // Initialize election system
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
-            election_ref.initialize(&mut txn).await?;
+        db.run(|txn, _| async move {
+            election_ref.initialize(&txn).await?;
             Ok(())
         })
         .await?;
 
-        // Register all processes
+        // Register all processes as candidates
+        let mut versionstamps = Vec::new();
         for process_id in &process_ids {
             let election_ref = &election;
-            db.run(|mut txn, _| async move {
+            db.run(|txn, _| async move {
                 election_ref
-                    .register_process(&mut txn, process_id, current_time())
+                    .register_candidate(&txn, process_id, 0, current_time())
                     .await?;
                 Ok(())
             })
             .await?;
+
+            // Get versionstamp
+            let election_ref = &election;
+            let candidate = db
+                .run(|txn, _| async move {
+                    let candidate = election_ref.get_candidate(&txn, process_id).await?;
+                    Ok(candidate)
+                })
+                .await?;
+            versionstamps.push(candidate.expect("candidate should exist").versionstamp);
         }
 
-        // All processes try to become leader
+        // All processes try to claim leadership
         let mut leaders = Vec::new();
-        for process_id in &process_ids {
+        for (i, process_id) in process_ids.iter().enumerate() {
             let election_ref = &election;
+            let vs = versionstamps[i];
             let became_leader = db
-                .run(|mut txn, _| async move {
-                    let became_leader = election_ref
-                        .try_become_leader(&mut txn, process_id, current_time())
+                .run(|txn, _| async move {
+                    let result = election_ref
+                        .try_claim_leadership(&txn, process_id, 0, vs, current_time())
                         .await?;
-                    Ok(became_leader)
+                    Ok(result.is_some())
                 })
                 .await?;
             if became_leader {
@@ -142,16 +170,16 @@ mod leader_election_tests {
             }
         }
 
-        // Only one should become leader
+        // Only one should become leader (the first one to claim)
         assert_eq!(leaders.len(), 1, "Exactly one process should become leader");
 
         // Verify the leader
         let leader_id = leaders[0];
         let election_ref = &election;
         let is_leader = db
-            .run(|mut txn, _| async move {
+            .run(|txn, _| async move {
                 let is_leader = election_ref
-                    .is_leader(&mut txn, leader_id, current_time())
+                    .is_leader(&txn, leader_id, current_time())
                     .await?;
                 Ok(is_leader)
             })
@@ -166,9 +194,9 @@ mod leader_election_tests {
             if *process_id != leader_id {
                 let election_ref = &election;
                 let is_leader = db
-                    .run(|mut txn, _| async move {
+                    .run(|txn, _| async move {
                         let is_leader = election_ref
-                            .is_leader(&mut txn, process_id, current_time())
+                            .is_leader(&txn, process_id, current_time())
                             .await?;
                         Ok(is_leader)
                     })
@@ -180,140 +208,113 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_heartbeat_and_eviction_async() -> Result<(), FdbBindingError> {
-        use foundationdb::recipes::leader_election::ElectionConfig;
+    async fn test_heartbeat_and_lease_async() -> Result<(), FdbBindingError> {
         use std::thread::sleep;
-        use std::time::Duration;
 
         let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_heartbeat_and_eviction_async").await?;
+        let election = setup_test(&db, "test_heartbeat_and_lease_async").await?;
         let leader_id = "leader-process";
         let follower_id = "follower-process";
 
-        // Initialize with short heartbeat timeout for testing
-        let config = ElectionConfig {
-            heartbeat_timeout: Duration::from_secs(5),
-            election_enabled: true,
-        };
+        // Initialize with short lease for testing
+        let config = ElectionConfig::with_lease_duration(Duration::from_secs(5));
 
         let election_ref = &election;
-        db.run(|mut txn, _| {
+        db.run(|txn, _| {
             let config = config.clone();
             async move {
-                election_ref
-                    .initialize_with_config(&mut txn, config)
-                    .await?;
+                election_ref.initialize_with_config(&txn, config).await?;
                 Ok(())
             }
         })
         .await?;
 
-        // Register leader processes
+        // Register both candidates
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .register_process(&mut txn, leader_id, current_time())
+                .register_candidate(&txn, leader_id, 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
 
-        // Register follower processes
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .register_process(&mut txn, follower_id, current_time())
+                .register_candidate(&txn, follower_id, 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
 
-        // Leader becomes leader
+        // Get leader's versionstamp
+        let election_ref = &election;
+        let leader_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, leader_id).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        // Leader claims leadership
         let election_ref = &election;
         let became_leader = db
-            .run(|mut txn, _| async move {
-                let became_leader = election_ref
-                    .try_become_leader(&mut txn, leader_id, current_time())
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, leader_id, 0, leader_vs, current_time())
                     .await?;
-                Ok(became_leader)
+                Ok(result.is_some())
             })
             .await?;
-        dbg!(became_leader);
         assert!(became_leader, "First process should become leader");
 
-        // Send heartbeats for leader but not follower
+        // Leader refreshes lease
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
-            election_ref
-                .heartbeat(&mut txn, leader_id, current_time())
-                .await?;
-            Ok(())
-        })
-        .await?;
+        let refreshed = db
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .refresh_lease(&txn, leader_id, current_time())
+                    .await?;
+                Ok(result.is_some())
+            })
+            .await?;
+        assert!(refreshed, "Leader should be able to refresh lease");
 
-        // Wait for follower to become stale
-        sleep(Duration::from_secs(6));
+        // Wait a bit (not long enough for lease to expire)
+        sleep(Duration::from_secs(2));
 
-        // Send fresh heartbeat for leader before trying to become leader again
-        let election_ref = &election;
-        db.run(|mut txn, _| async move {
-            election_ref
-                .heartbeat(&mut txn, leader_id, current_time())
-                .await?;
-            Ok(())
-        })
-        .await?;
-
-        // Leader tries to become leader again (should trigger eviction)
+        // Leader refreshes again
         let election_ref = &election;
         let still_leader = db
-            .run(|mut txn, _| async move {
-                let still_leader = election_ref
-                    .try_become_leader(&mut txn, leader_id, current_time())
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .refresh_lease(&txn, leader_id, current_time())
                     .await?;
-                Ok(still_leader)
+                Ok(result.is_some())
             })
             .await?;
-        assert!(still_leader, "Active leader should remain leader");
-
-        // Follower should not be leader since it's stale
-        let election_ref = &election;
-        let follower_is_leader = db
-            .run(|mut txn, _| async move {
-                let follower_is_leader = election_ref
-                    .is_leader(&mut txn, follower_id, current_time())
-                    .await?;
-                Ok(follower_is_leader)
-            })
-            .await?;
-        assert!(!follower_is_leader, "Stale follower should not be leader");
+        assert!(still_leader, "Leader should still be able to refresh");
 
         Ok(())
     }
 
-    async fn test_leadership_transfer_on_stale_leader_async() -> Result<(), FdbBindingError> {
-        use foundationdb::recipes::leader_election::ElectionConfig;
+    async fn test_leadership_transfer_on_expired_lease_async() -> Result<(), FdbBindingError> {
         use std::thread::sleep;
-        use std::time::Duration;
 
         let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_leadership_transfer_on_stale_leader_async").await?;
+        let election = setup_test(&db, "test_leadership_transfer_on_expired_lease_async").await?;
         let initial_leader = "initial-leader";
         let new_leader = "new-leader";
 
-        // Initialize with short heartbeat timeout for testing
-        let config = ElectionConfig {
-            heartbeat_timeout: Duration::from_secs(5),
-            election_enabled: true,
-        };
+        // Initialize with short lease for testing
+        let config = ElectionConfig::with_lease_duration(Duration::from_secs(3));
 
         let election_ref = &election;
-        db.run(|mut txn, _| {
+        db.run(|txn, _| {
             let config = config.clone();
             async move {
-                election_ref
-                    .initialize_with_config(&mut txn, config)
-                    .await?;
+                election_ref.initialize_with_config(&txn, config).await?;
                 Ok(())
             }
         })
@@ -321,106 +322,101 @@ mod leader_election_tests {
 
         // Register both processes
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .register_process(&mut txn, initial_leader, current_time())
+                .register_candidate(&txn, initial_leader, 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
 
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .register_process(&mut txn, new_leader, current_time())
+                .register_candidate(&txn, new_leader, 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
 
-        // Initial leader becomes leader
+        // Get versionstamps
+        let election_ref = &election;
+        let initial_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, initial_leader).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        let election_ref = &election;
+        let new_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, new_leader).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        // Initial leader claims leadership
         let election_ref = &election;
         let became_leader = db
-            .run(|mut txn, _| async move {
-                let became_leader = election_ref
-                    .try_become_leader(&mut txn, initial_leader, current_time())
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, initial_leader, 0, initial_vs, current_time())
                     .await?;
-                Ok(became_leader)
+                Ok(result.is_some())
             })
             .await?;
         assert!(became_leader, "Initial process should become leader");
 
-        // Verify initial leadership
-        let election_ref = &election;
-        let is_leader = db
-            .run(|mut txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&mut txn, initial_leader, current_time())
-                    .await?;
-                Ok(is_leader)
-            })
-            .await?;
-        assert!(is_leader, "Initial process should be confirmed as leader");
-
-        // New leader tries to become leader (should fail while initial leader is active)
+        // New leader tries to claim (should fail - lease is valid)
         let election_ref = &election;
         let became_leader = db
-            .run(|mut txn, _| async move {
-                let became_leader = election_ref
-                    .try_become_leader(&mut txn, new_leader, current_time())
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, new_leader, 0, new_vs, current_time())
                     .await?;
-                Ok(became_leader)
+                Ok(result.is_some())
             })
             .await?;
         assert!(
             !became_leader,
-            "New process should not become leader while initial leader is active"
+            "New process should not become leader while initial lease is valid"
         );
 
-        // Send heartbeat for new_leader to keep it fresh
+        // Wait for lease to expire
+        sleep(Duration::from_secs(4));
+
+        // Keep new_leader alive via heartbeat
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .heartbeat(&mut txn, new_leader, current_time())
+                .heartbeat_candidate(&txn, new_leader, 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
 
-        // Wait for initial leader to become stale (longer than heartbeat_timeout)
-        sleep(Duration::from_secs(6));
-
-        // Send fresh heartbeat for new_leader to ensure it's alive
-        let election_ref = &election;
-        db.run(|mut txn, _| async move {
-            election_ref
-                .heartbeat(&mut txn, new_leader, current_time())
-                .await?;
-            Ok(())
-        })
-        .await?;
-
-        // New leader tries to become leader again after initial leader is stale
+        // New leader tries to claim again (should succeed - lease expired)
         let election_ref = &election;
         let became_leader = db
-            .run(|mut txn, _| async move {
-                let became_leader = election_ref
-                    .try_become_leader(&mut txn, new_leader, current_time())
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, new_leader, 0, new_vs, current_time())
                     .await?;
-                Ok(became_leader)
+                Ok(result.is_some())
             })
             .await?;
         assert!(
             became_leader,
-            "New process should become leader after initial leader becomes stale"
+            "New process should become leader after initial lease expires"
         );
 
         // Verify new leadership
         let election_ref = &election;
         let is_leader = db
-            .run(|mut txn, _| async move {
+            .run(|txn, _| async move {
                 let is_leader = election_ref
-                    .is_leader(&mut txn, new_leader, current_time())
+                    .is_leader(&txn, new_leader, current_time())
                     .await?;
                 Ok(is_leader)
             })
@@ -430,73 +426,50 @@ mod leader_election_tests {
         // Initial leader should no longer be leader
         let election_ref = &election;
         let is_leader = db
-            .run(|mut txn, _| async move {
+            .run(|txn, _| async move {
                 let is_leader = election_ref
-                    .is_leader(&mut txn, initial_leader, current_time())
+                    .is_leader(&txn, initial_leader, current_time())
                     .await?;
                 Ok(is_leader)
             })
             .await?;
-        assert!(
-            !is_leader,
-            "Initial stale process should no longer be leader"
-        );
-
-        // Initial leader tries to become leader again (should fail as it's stale)
-        let election_ref = &election;
-        let became_leader = db
-            .run(|mut txn, _| async move {
-                let became_leader = election_ref
-                    .try_become_leader(&mut txn, initial_leader, current_time())
-                    .await?;
-                Ok(became_leader)
-            })
-            .await?;
-        assert!(
-            !became_leader,
-            "Stale initial process should not become leader again"
-        );
+        assert!(!is_leader, "Initial process should no longer be leader");
 
         Ok(())
     }
 
     async fn test_config_change_async() -> Result<(), FdbBindingError> {
-        use foundationdb::recipes::leader_election::ElectionConfig;
-        use std::time::Duration;
-
         let db = crate::common::database().await?;
         let election = setup_test(&db, "test_config_change_async").await?;
 
         // Initialize with default config
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
-            election_ref.initialize(&mut txn).await?;
+        db.run(|txn, _| async move {
+            election_ref.initialize(&txn).await?;
             Ok(())
         })
         .await?;
 
         // Change config to disable elections
-        let new_config = ElectionConfig {
-            heartbeat_timeout: Duration::from_secs(10),
-            election_enabled: false,
-        };
+        let mut new_config = ElectionConfig::default();
+        new_config.election_enabled = false;
 
         let election_ref = &election;
-        db.run(|mut txn, _| {
+        db.run(|txn, _| {
             let config = new_config.clone();
             async move {
-                election_ref.write_config(&mut txn, &config).await?;
+                election_ref.write_config(&txn, &config).await?;
                 Ok(())
             }
         })
         .await?;
 
-        // Try to register process - should fail due to disabled elections
+        // Try to register - should fail due to disabled elections
         let election_ref = &election;
         let registration_failed = db
-            .run(|mut txn, _| async move {
+            .run(|txn, _| async move {
                 match election_ref
-                    .register_process(&mut txn, "test-process", current_time())
+                    .register_candidate(&txn, "test-process", 0, current_time())
                     .await
                 {
                     Err(_) => Ok(true), // Registration failed as expected
@@ -510,55 +483,15 @@ mod leader_election_tests {
             "Registration should fail when elections are disabled"
         );
 
-        // Also test that try_become_leader fails when elections are disabled
-        let election_ref = &election;
-        let leadership_failed = db
-            .run(|mut txn, _| async move {
-                match election_ref
-                    .try_become_leader(&mut txn, "test-process", current_time())
-                    .await
-                {
-                    Err(_) => Ok(true), // Leadership attempt failed as expected
-                    Ok(_) => Ok(false), // Leadership attempt succeeded unexpectedly
-                }
-            })
-            .await?;
-
-        assert!(
-            leadership_failed,
-            "try_become_leader should fail when elections are disabled"
-        );
-
-        // Also test that is_leader fails when elections are disabled
-        let election_ref = &election;
-        let is_leader_failed = db
-            .run(|mut txn, _| async move {
-                match election_ref
-                    .is_leader(&mut txn, "test-process", current_time())
-                    .await
-                {
-                    Err(_) => Ok(true), // is_leader failed as expected
-                    Ok(_) => Ok(false), // is_leader succeeded unexpectedly
-                }
-            })
-            .await?;
-
-        assert!(
-            is_leader_failed,
-            "is_leader should fail when elections are disabled"
-        );
-
         // Re-enable elections
-        let enabled_config = ElectionConfig {
-            heartbeat_timeout: Duration::from_secs(10),
-            election_enabled: true,
-        };
+        let mut enabled_config = ElectionConfig::default();
+        enabled_config.election_enabled = true;
 
         let election_ref = &election;
-        db.run(|mut txn, _| {
+        db.run(|txn, _| {
             let config = enabled_config.clone();
             async move {
-                election_ref.write_config(&mut txn, &config).await?;
+                election_ref.write_config(&txn, &config).await?;
                 Ok(())
             }
         })
@@ -566,13 +499,211 @@ mod leader_election_tests {
 
         // Now registration should work
         let election_ref = &election;
-        db.run(|mut txn, _| async move {
+        db.run(|txn, _| async move {
             election_ref
-                .register_process(&mut txn, "test-process", current_time())
+                .register_candidate(&txn, "test-process", 0, current_time())
                 .await?;
             Ok(())
         })
         .await?;
+
+        Ok(())
+    }
+
+    async fn test_resign_leadership_async() -> Result<(), FdbBindingError> {
+        let db = crate::common::database().await?;
+        let election = setup_test(&db, "test_resign_leadership_async").await?;
+        let leader_id = "leader-process";
+        let follower_id = "follower-process";
+
+        // Initialize
+        let election_ref = &election;
+        db.run(|txn, _| async move {
+            election_ref.initialize(&txn).await?;
+            Ok(())
+        })
+        .await?;
+
+        // Register both
+        let election_ref = &election;
+        db.run(|txn, _| async move {
+            election_ref
+                .register_candidate(&txn, leader_id, 0, current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        let election_ref = &election;
+        db.run(|txn, _| async move {
+            election_ref
+                .register_candidate(&txn, follower_id, 0, current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        // Get versionstamps
+        let election_ref = &election;
+        let leader_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, leader_id).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        let election_ref = &election;
+        let follower_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, follower_id).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        // Leader claims leadership
+        let election_ref = &election;
+        db.run(|txn, _| async move {
+            election_ref
+                .try_claim_leadership(&txn, leader_id, 0, leader_vs, current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        // Leader resigns
+        let election_ref = &election;
+        let resigned = db
+            .run(|txn, _| async move {
+                let resigned = election_ref.resign_leadership(&txn, leader_id).await?;
+                Ok(resigned)
+            })
+            .await?;
+        assert!(resigned, "Leader should be able to resign");
+
+        // Follower can now claim leadership
+        let election_ref = &election;
+        let became_leader = db
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, follower_id, 0, follower_vs, current_time())
+                    .await?;
+                Ok(result.is_some())
+            })
+            .await?;
+        assert!(
+            became_leader,
+            "Follower should become leader after resignation"
+        );
+
+        Ok(())
+    }
+
+    async fn test_preemption_async() -> Result<(), FdbBindingError> {
+        let db = crate::common::database().await?;
+        let election = setup_test(&db, "test_preemption_async").await?;
+        let low_priority = "low-priority";
+        let high_priority = "high-priority";
+
+        // Initialize with preemption enabled
+        let mut config = ElectionConfig::default();
+        config.allow_preemption = true;
+
+        let election_ref = &election;
+        db.run(|txn, _| {
+            let config = config.clone();
+            async move {
+                election_ref.initialize_with_config(&txn, config).await?;
+                Ok(())
+            }
+        })
+        .await?;
+
+        // Register both with different priorities
+        let election_ref = &election;
+        db.run(|txn, _| async move {
+            election_ref
+                .register_candidate(&txn, low_priority, 1, current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        let election_ref = &election;
+        db.run(|txn, _| async move {
+            election_ref
+                .register_candidate(&txn, high_priority, 10, current_time())
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        // Get versionstamps
+        let election_ref = &election;
+        let low_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, low_priority).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        let election_ref = &election;
+        let high_vs = db
+            .run(|txn, _| async move {
+                let candidate = election_ref.get_candidate(&txn, high_priority).await?;
+                Ok(candidate.expect("candidate should exist").versionstamp)
+            })
+            .await?;
+
+        // Low priority claims leadership first
+        let election_ref = &election;
+        let became_leader = db
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, low_priority, 1, low_vs, current_time())
+                    .await?;
+                Ok(result.is_some())
+            })
+            .await?;
+        assert!(became_leader, "Low priority should become leader initially");
+
+        // High priority preempts
+        let election_ref = &election;
+        let became_leader = db
+            .run(|txn, _| async move {
+                let result = election_ref
+                    .try_claim_leadership(&txn, high_priority, 10, high_vs, current_time())
+                    .await?;
+                Ok(result.is_some())
+            })
+            .await?;
+        assert!(
+            became_leader,
+            "High priority should preempt low priority leader"
+        );
+
+        // Verify high priority is now leader
+        let election_ref = &election;
+        let is_leader = db
+            .run(|txn, _| async move {
+                let is_leader = election_ref
+                    .is_leader(&txn, high_priority, current_time())
+                    .await?;
+                Ok(is_leader)
+            })
+            .await?;
+        assert!(is_leader, "High priority should be the leader");
+
+        // Low priority should not be leader
+        let election_ref = &election;
+        let is_leader = db
+            .run(|txn, _| async move {
+                let is_leader = election_ref
+                    .is_leader(&txn, low_priority, current_time())
+                    .await?;
+                Ok(is_leader)
+            })
+            .await?;
+        assert!(!is_leader, "Low priority should not be the leader anymore");
 
         Ok(())
     }

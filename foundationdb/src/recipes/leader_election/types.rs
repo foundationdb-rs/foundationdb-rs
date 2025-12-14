@@ -7,159 +7,251 @@
 
 //! Core data structures for leader election
 //!
-//! This module defines the fundamental types used in the leader election algorithm,
-//! including process descriptors, configuration, and leader information.
+//! This module defines the fundamental types used in the Active Disk Paxos-inspired
+//! leader election algorithm, including leader state, candidate info, and configuration.
+//!
+//! # Design Overview
+//!
+//! The election algorithm uses a ballot-based approach (similar to Raft's term):
+//! - **LeaderState**: Stored at a single key, contains ballot number and leader identity
+//! - **CandidateInfo**: Per-candidate registration with versionstamp for ordering
+//! - **Ballot Numbers**: Monotonically increasing, higher ballot always wins
 
 use std::time::Duration;
 
-/// Process descriptor with hybrid versionstamp and Duration-based tracking
+/// Default lease duration for leadership
+pub const DEFAULT_LEASE_DURATION: Duration = Duration::from_secs(10);
+
+/// Default heartbeat interval (should be lease_duration / 3 approximately)
+pub const DEFAULT_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(3);
+
+/// Default candidate timeout (when to consider a candidate dead)
+pub const DEFAULT_CANDIDATE_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// The core leader state - stored at a single key
 ///
-/// Represents a process participating in leader election. Uses a hybrid approach:
-/// - Versionstamp for process ordering (immune to FDB recovery version jumps)
-/// - Duration timestamp for timeout detection (survives FDB recovery)
+/// This is the "active disk" in Active Disk Paxos. Contains all information
+/// needed to determine leadership without scanning candidates.
 ///
-/// # Key Design
+/// # Ballot Numbers
 ///
-/// The descriptor separates concerns:
-/// - **Ordering**: Uses versionstamp which provides total ordering based on registration time
-/// - **Timeout Detection**: Uses Duration since epoch for robust timeout calculations
-///
-/// This design survives FoundationDB cluster recovery where version numbers can
-/// jump by millions, breaking version-based timeout detection.
+/// The ballot number works like Raft's term:
+/// - Monotonically increasing counter
+/// - Higher ballot always wins
+/// - Prevents split-brain after recovery/partition
+/// - Incremented on every leadership claim or refresh
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProcessDescriptor {
-    /// The transaction version from the versionstamp (first 8 bytes as u64)
+pub struct LeaderState {
+    /// Ballot number (like Raft's term)
     ///
-    /// Used ONLY for process ordering. The process with the smallest versionstamp
-    /// (earliest registration) becomes the leader.
-    pub version: u64,
-    /// The user version from the versionstamp (last 2 bytes as u16)
+    /// Always increments when claiming or refreshing leadership.
+    /// Higher ballot wins in any conflict.
+    pub ballot: u64,
+
+    /// Unique identifier of the leader process
+    pub leader_id: String,
+
+    /// Leader's priority (higher = more preferred)
     ///
-    /// Can be used to differentiate between processes that register in the
-    /// same transaction. Typically 0 for normal operations.
-    pub user_version: u16,
-    /// Duration since Unix epoch when this descriptor was created
+    /// Used for preemption decisions when `allow_preemption` is enabled.
+    pub priority: i32,
+
+    /// Absolute timestamp when lease expires (nanos since epoch)
     ///
-    /// Used for timeout detection. This is immune to FoundationDB version jumps
-    /// during cluster recovery and provides accurate timeout calculations.
-    pub timestamp: Duration,
+    /// Leadership is only valid while `current_time < lease_expiry_nanos`.
+    pub lease_expiry_nanos: u64,
+
+    /// Versionstamp assigned when this process registered
+    ///
+    /// Used for identity consistency and ordering.
+    pub versionstamp: [u8; 12],
 }
 
-/// Manual implementation of Ord to ensure ordering by versionstamp only
-/// The timestamp field is NOT used for ordering to maintain consistency
-impl Ord for ProcessDescriptor {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.version
-            .cmp(&other.version)
-            .then_with(|| self.user_version.cmp(&other.user_version))
-    }
-}
-
-impl PartialOrd for ProcessDescriptor {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl ProcessDescriptor {
-    /// Create a ProcessDescriptor from versionstamp and explicit timestamp
+impl LeaderState {
+    /// Check if the lease is still valid
     ///
     /// # Arguments
-    /// * `versionstamp` - Raw versionstamp bytes from FoundationDB
-    /// * `timestamp` - Duration since Unix epoch
-    pub fn from_versionstamp_and_timestamp(versionstamp: [u8; 12], timestamp: Duration) -> Self {
-        let version = u64::from_be_bytes(versionstamp[0..8].try_into().unwrap());
-        let user_version = u16::from_be_bytes([versionstamp[10], versionstamp[11]]);
-        Self {
-            version,
-            user_version,
-            timestamp,
+    /// * `current_time` - Current time as Duration since epoch
+    ///
+    /// # Returns
+    /// `true` if the lease has not expired
+    pub fn is_lease_valid(&self, current_time: Duration) -> bool {
+        current_time.as_nanos() < self.lease_expiry_nanos as u128
+    }
+
+    /// Get remaining lease duration, if any
+    ///
+    /// # Arguments
+    /// * `current_time` - Current time as Duration since epoch
+    ///
+    /// # Returns
+    /// `Some(Duration)` if lease is still valid, `None` if expired
+    pub fn remaining_lease(&self, current_time: Duration) -> Option<Duration> {
+        let current_nanos = current_time.as_nanos() as u64;
+        if current_nanos < self.lease_expiry_nanos {
+            Some(Duration::from_nanos(
+                self.lease_expiry_nanos - current_nanos,
+            ))
+        } else {
+            None
         }
     }
+}
 
-    /// Convert the ProcessDescriptor back to a raw versionstamp
-    ///
-    /// # Returns
-    /// 12-byte array suitable for storage in FoundationDB
-    ///
-    /// # Note
-    /// Bytes 8-9 (batch number) are set to 0 as they're not preserved
-    pub fn to_versionstamp(&self) -> [u8; 12] {
-        let mut vs = [0u8; 12];
-        vs[0..8].copy_from_slice(&self.version.to_be_bytes());
-        vs[10..12].copy_from_slice(&self.user_version.to_be_bytes());
-        vs
-    }
+/// Information about a registered candidate
+///
+/// Candidates exist independently of leadership. A process must register
+/// as a candidate before it can claim leadership.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CandidateInfo {
+    /// Unique identifier for the process
+    pub process_id: String,
 
-    /// Check if this process descriptor is considered alive
+    /// Candidate's priority for leader selection
+    ///
+    /// Higher priority candidates can preempt lower priority leaders
+    /// when preemption is enabled.
+    pub priority: i32,
+
+    /// Last heartbeat timestamp (nanos since epoch)
+    ///
+    /// Used to determine if candidate is still alive.
+    pub last_heartbeat_nanos: u64,
+
+    /// Versionstamp from registration
+    ///
+    /// Fixed at registration time, never changes on heartbeat.
+    /// Provides global ordering of candidates.
+    pub versionstamp: [u8; 12],
+}
+
+impl CandidateInfo {
+    /// Check if this candidate is still alive
     ///
     /// # Arguments
-    /// * `current_time` - Current system time
-    /// * `timeout` - Maximum age before considering the process dead
+    /// * `current_time` - Current time as Duration since epoch
+    /// * `timeout` - Maximum time since last heartbeat
     ///
     /// # Returns
-    /// true if the process is still considered alive
+    /// `true` if the candidate has sent a heartbeat within the timeout
     pub fn is_alive(&self, current_time: Duration, timeout: Duration) -> bool {
-        current_time.saturating_sub(self.timestamp) <= timeout
+        let last_seen = Duration::from_nanos(self.last_heartbeat_nanos);
+        current_time.saturating_sub(last_seen) < timeout
     }
 }
 
-/// Global variables for leader election configuration
+/// Result of an election cycle
 ///
-/// Controls the behavior of the election system. These parameters can be
-/// adjusted at runtime to tune election sensitivity and performance.
+/// Returned by `run_election_cycle` to indicate whether this process
+/// is the leader or a follower.
+#[derive(Debug, Clone)]
+pub enum ElectionResult {
+    /// This process is the leader
+    Leader(LeaderState),
+
+    /// This process is a follower
+    ///
+    /// Contains the current leader state if one exists.
+    Follower(Option<LeaderState>),
+}
+
+impl ElectionResult {
+    /// Check if this result indicates leadership
+    pub fn is_leader(&self) -> bool {
+        matches!(self, ElectionResult::Leader(_))
+    }
+
+    /// Get the leader state, regardless of whether we are leader or follower
+    pub fn leader_state(&self) -> Option<&LeaderState> {
+        match self {
+            ElectionResult::Leader(state) => Some(state),
+            ElectionResult::Follower(Some(state)) => Some(state),
+            ElectionResult::Follower(None) => None,
+        }
+    }
+}
+
+/// Global configuration for the leader election system
+///
+/// Controls the behavior of the election system including lease duration,
+/// timeouts, and preemption policy.
 #[derive(Debug, Clone)]
 pub struct ElectionConfig {
-    /// Maximum age before a process is considered dead
+    /// How long a leadership lease lasts
     ///
-    /// This Duration-based timeout is immune to FoundationDB version jumps
-    /// during cluster recovery, providing reliable failure detection.
+    /// Leader must refresh before this expires to maintain leadership.
+    /// Longer values reduce election traffic but slow failover.
+    pub lease_duration: Duration,
+
+    /// Recommended heartbeat interval
     ///
-    /// # Tuning Guidelines
-    /// - Lower values: Faster failure detection but more sensitive to network hiccups
-    /// - Higher values: More tolerance for temporary issues but slower failover
-    /// - Default: 10 seconds (suitable for most production environments)
-    pub heartbeat_timeout: Duration,
-    /// Whether election is currently enabled
+    /// Candidates and leaders should send heartbeats at this interval.
+    /// Typically `lease_duration / 3` to ensure timely refresh.
+    pub heartbeat_interval: Duration,
+
+    /// How long before a candidate is considered dead
+    ///
+    /// Candidates that haven't sent a heartbeat within this duration
+    /// may be evicted from the candidate list.
+    pub candidate_timeout: Duration,
+
+    /// Master switch to enable/disable elections
     ///
     /// When disabled:
     /// - No new leaders can be elected
     /// - Existing leader remains until lease expires
-    /// - Processes can still register and send heartbeats
-    ///
-    /// Useful for maintenance windows or graceful shutdown scenarios
+    /// - Registration and heartbeats return errors
     pub election_enabled: bool,
+
+    /// Whether higher priority processes can preempt current leader
+    ///
+    /// If `true`, a candidate with higher priority can take over
+    /// leadership even if the current leader's lease is valid.
+    /// If `false`, must wait for lease to expire.
+    pub allow_preemption: bool,
 }
 
 impl Default for ElectionConfig {
     /// Creates default configuration with sensible production values
     ///
-    /// - 10 second heartbeat timeout
+    /// - 10 second lease duration
+    /// - 3 second heartbeat interval
+    /// - 15 second candidate timeout
     /// - Elections enabled
+    /// - Preemption enabled
     fn default() -> Self {
         Self {
-            heartbeat_timeout: DEFAULT_HEARTBEAT_TIMEOUT,
+            lease_duration: DEFAULT_LEASE_DURATION,
+            heartbeat_interval: DEFAULT_HEARTBEAT_INTERVAL,
+            candidate_timeout: DEFAULT_CANDIDATE_TIMEOUT,
             election_enabled: true,
+            allow_preemption: true,
         }
     }
 }
 
-/// Information about the current leader
-///
-/// Contains the leader's identity. Leadership is determined by
-/// whether the leader's last heartbeat is within the timeout period.
-#[derive(Debug, Clone)]
-pub struct LeaderInfo {
-    /// The leader's process descriptor
+impl ElectionConfig {
+    /// Create a new ElectionConfig with custom lease duration
     ///
-    /// Contains the versionstamp identifying the leading process.
-    /// Can be compared with local process descriptors to check leadership.
-    pub leader: ProcessDescriptor,
+    /// Other values are derived from the lease duration:
+    /// - heartbeat_interval = lease_duration / 3
+    /// - candidate_timeout = lease_duration * 1.5
+    pub fn with_lease_duration(lease_duration: Duration) -> Self {
+        Self {
+            lease_duration,
+            heartbeat_interval: lease_duration / 3,
+            candidate_timeout: lease_duration + lease_duration / 2,
+            election_enabled: true,
+            allow_preemption: true,
+        }
+    }
 }
 
-/// Default heartbeat timeout duration
+/// Information about the current leader (for backward compatibility)
 ///
-/// Maximum age before a process is considered dead.
-/// This Duration-based timeout is immune to FoundationDB version jumps
-/// during cluster recovery, providing reliable failure detection.
-pub const DEFAULT_HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(10);
+/// This is a simplified view of leadership for read-only queries.
+#[derive(Debug, Clone)]
+pub struct LeaderInfo {
+    /// The current leader state
+    pub leader: LeaderState,
+}
