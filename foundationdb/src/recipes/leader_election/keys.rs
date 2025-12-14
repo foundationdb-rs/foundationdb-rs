@@ -10,15 +10,21 @@
 //! This module defines the key structure and namespace organization for
 //! storing leader election data in FoundationDB. All keys are scoped
 //! within a user-provided subspace to allow multiple elections to coexist.
+//!
+//! # Key Schema
+//!
+//! ```text
+//! <subspace>/config           - Election configuration
+//! <subspace>/leader           - Current leader state (single key, O(1) access)
+//! <subspace>/candidates/<id>  - Per-candidate registration and heartbeat
+//! ```
 
 use crate::tuple::Subspace;
 
 /// Key prefixes for different data types
-///
-/// These prefixes organize the election data into logical groups within the subspace
 pub const CONFIG_PREFIX: &str = "config";
-pub const PROCESSES_PREFIX: &str = "processes";
-pub const LEADER_STATE_PREFIX: &str = "leader_state";
+pub const LEADER_PREFIX: &str = "leader";
+pub const CANDIDATES_PREFIX: &str = "candidates";
 
 /// Generate the key for global configuration
 ///
@@ -30,42 +36,44 @@ pub fn config_key(subspace: &Subspace) -> Vec<u8> {
     subspace.pack(&(CONFIG_PREFIX,))
 }
 
-/// Generate the key for a specific process
-///
-/// Returns the key for storing a process's versionstamp.
-///
-/// # Key Structure
-/// `<subspace>/processes/<process_uuid>`
-///
-/// # Arguments
-/// * `process_uuid` - Unique identifier for the process
-pub fn process_key(subspace: &Subspace, process_uuid: &str) -> Vec<u8> {
-    subspace.pack(&(PROCESSES_PREFIX, process_uuid))
-}
-
-/// Generate the key range for all processes
-///
-/// Returns the start and end keys for scanning all registered processes.
-///
-/// # Key Structure
-/// Range: `<subspace>/processes/` to `<subspace>/processes/\xff`
-///
-/// # Usage
-/// Used for finding all alive processes during leader election
-pub fn processes_range(subspace: &Subspace) -> (Vec<u8>, Vec<u8>) {
-    let start = subspace.subspace(&(PROCESSES_PREFIX,));
-    start.range()
-}
-
 /// Generate the key for leader state
 ///
 /// Returns the key where current leader information is stored.
+/// This is the core "active disk" key for O(1) leadership operations.
 ///
 /// # Key Structure
-/// `<subspace>/leader_state`
+/// `<subspace>/leader`
 ///
 /// # Contents
-/// Stores the current leader's versionstamp and lease information
-pub fn leader_state_key(subspace: &Subspace) -> Vec<u8> {
-    subspace.pack(&(LEADER_STATE_PREFIX,))
+/// Stores the current leader's ballot, ID, priority, lease expiry, and versionstamp
+pub fn leader_key(subspace: &Subspace) -> Vec<u8> {
+    subspace.pack(&(LEADER_PREFIX,))
+}
+
+/// Generate the key for a specific candidate
+///
+/// Returns the key for storing a candidate's registration and heartbeat info.
+///
+/// # Key Structure
+/// `<subspace>/candidates/<process_id>`
+///
+/// # Arguments
+/// * `process_id` - Unique identifier for the candidate process
+pub fn candidate_key(subspace: &Subspace, process_id: &str) -> Vec<u8> {
+    subspace.pack(&(CANDIDATES_PREFIX, process_id))
+}
+
+/// Generate the key range for all candidates
+///
+/// Returns the start and end keys for scanning all registered candidates.
+///
+/// # Key Structure
+/// Range: `<subspace>/candidates/` to `<subspace>/candidates/\xff`
+///
+/// # Usage
+/// Used for listing candidates, evicting dead candidates, or monitoring.
+/// Note: Leadership determination is O(1) and doesn't require scanning.
+pub fn candidates_range(subspace: &Subspace) -> (Vec<u8>, Vec<u8>) {
+    let start = subspace.subspace(&(CANDIDATES_PREFIX,));
+    start.range()
 }
