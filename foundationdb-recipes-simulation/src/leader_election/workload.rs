@@ -118,29 +118,6 @@ impl RustWorkload for LeaderElectionWorkload {
 
         self.op_num += 1;
 
-        // Retrieve the versionstamp after successful registration
-        if result.is_ok() {
-            let election = LeaderElection::new(self.election_subspace.clone());
-            let process_id = self.process_id.clone();
-
-            let versionstamp_result: Result<Option<_>, _> = db
-                .run(|trx, _maybe_committed| {
-                    let election = election.clone();
-                    let process_id = process_id.clone();
-                    async move {
-                        election
-                            .get_candidate(&trx, &process_id)
-                            .await
-                            .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
-                    }
-                })
-                .await;
-
-            if let Ok(Some(candidate)) = versionstamp_result {
-                self.versionstamp = Some(candidate.versionstamp);
-            }
-        }
-
         self.context.trace(
             Severity::Info,
             "ProcessRegistered",
@@ -213,7 +190,6 @@ impl RustWorkload for LeaderElectionWorkload {
             {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
-                let versionstamp = self.versionstamp.unwrap_or([0u8; 12]);
                 let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
                 let result: Result<Option<_>, _> = db
@@ -224,13 +200,7 @@ impl RustWorkload for LeaderElectionWorkload {
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             let claim_result = election
-                                .try_claim_leadership(
-                                    &mut trx,
-                                    &process_id,
-                                    0,
-                                    versionstamp,
-                                    timestamp,
-                                )
+                                .try_claim_leadership(&mut trx, &process_id, 0, timestamp)
                                 .await
                                 .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
 

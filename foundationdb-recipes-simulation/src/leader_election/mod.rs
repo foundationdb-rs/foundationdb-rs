@@ -34,7 +34,6 @@ pub struct LeaderElectionWorkload {
     // State
     pub(crate) process_id: String,
     pub(crate) op_num: u64,
-    pub(crate) versionstamp: Option<[u8; 12]>,
 
     // Metrics
     pub(crate) heartbeat_count: u64,
@@ -58,7 +57,6 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             client_count,
             context,
             op_num: 0,
-            versionstamp: None,
             heartbeat_count: 0,
             leadership_attempts: 0,
             times_became_leader: 0,

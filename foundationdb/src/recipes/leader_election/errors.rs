@@ -45,6 +45,10 @@ pub enum LeaderElectionError {
     ///
     /// Failed to pack/unpack data using the tuple layer
     PackError(PackError),
+    /// Candidate not registered
+    ///
+    /// The process attempted to claim leadership without being registered as a candidate
+    UnregisteredCandidate,
 }
 
 impl fmt::Display for LeaderElectionError {
@@ -56,6 +60,7 @@ impl fmt::Display for LeaderElectionError {
             Self::InvalidState(msg) => write!(f, "Invalid state: {msg}"),
             Self::Fdb(e) => write!(f, "Database error: {e}"),
             Self::PackError(e) => write!(f, "Pack error: {e:?}"),
+            Self::UnregisteredCandidate => write!(f, "Candidate not registered"),
         }
     }
 }
