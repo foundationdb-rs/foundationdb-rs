@@ -12,51 +12,13 @@ use foundationdb::{
 use foundationdb_simulation::{details, Metric, Metrics, RustWorkload, Severity, SimDatabase};
 use futures::TryStreamExt;
 
-use super::types::{ClientStats, DatabaseSnapshot, LogEntries, OpType};
+use super::types::{
+    ClientStats, DatabaseSnapshot, LogEntries, OpType, OP_HEARTBEAT, OP_REGISTER,
+    OP_TRY_BECOME_LEADER,
+};
 use super::LeaderElectionWorkload;
 
 impl LeaderElectionWorkload {
-    /// Log an operation to the log subspace for verification
-    pub(crate) async fn log_operation(
-        &mut self,
-        db: &SimDatabase,
-        op_type: OpType,
-        success: bool,
-        became_leader: bool,
-    ) {
-        let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
-        let timestamp_secs = self.context.now();
-
-        // Pack log entry as tuple: (op_type, success, timestamp, became_leader)
-        // Use i64 for op_type since u8 doesn't implement TuplePack
-        let log_value = pack(&(op_type.as_i64(), success, timestamp_secs, became_leader));
-
-        let result = db
-            .run(|trx, _maybe_committed| {
-                let log_key = log_key.clone();
-                let log_value = log_value.clone();
-                async move {
-                    trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                    trx.set(&log_key, &log_value);
-                    Ok(())
-                }
-            })
-            .await;
-
-        if result.is_err() {
-            self.context.trace(
-                Severity::Warn,
-                "LogOperationFailed",
-                details![
-                    "Client" => self.client_id,
-                    "OpNum" => self.op_num
-                ],
-            );
-        }
-
-        self.op_num += 1;
-    }
-
     // ========================================================================
     // TRACE HELPERS
     // ========================================================================
@@ -456,21 +418,34 @@ impl RustWorkload for LeaderElectionWorkload {
         // All clients register their process
         let election = LeaderElection::new(self.election_subspace.clone());
         let process_id = self.process_id.clone();
-        let timestamp = Duration::from_secs_f64(self.context.now());
+        let timestamp_secs = self.context.now();
+        let timestamp = Duration::from_secs_f64(timestamp_secs);
+
+        // Prepare log entry components
+        let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
         let result = db
             .run(|mut trx, _maybe_committed| {
                 let election = election.clone();
                 let process_id = process_id.clone();
+                let log_key = log_key.clone();
                 async move {
                     trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                    election
+                    let reg_result = election
                         .register_candidate(&mut trx, &process_id, 0, timestamp)
-                        .await
-                        .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                        .await;
+
+                    // Log in SAME transaction - atomic with the operation
+                    let success = reg_result.is_ok();
+                    let log_value = pack(&(OP_REGISTER, success, timestamp_secs, false));
+                    trx.set(&log_key, &log_value);
+
+                    reg_result.map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
                 }
             })
             .await;
+
+        self.op_num += 1;
 
         // Retrieve the versionstamp after successful registration
         if result.is_ok() {
@@ -494,10 +469,6 @@ impl RustWorkload for LeaderElectionWorkload {
                 self.versionstamp = Some(candidate.versionstamp);
             }
         }
-
-        // Log the registration
-        self.log_operation(&db, OpType::Register, result.is_ok(), false)
-            .await;
 
         self.context.trace(
             Severity::Info,
@@ -534,30 +505,36 @@ impl RustWorkload for LeaderElectionWorkload {
             {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
+                let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
                 let result = db
                     .run(|mut trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
+                        let log_key = log_key.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            election
+                            let hb_result = election
                                 .heartbeat_candidate(&mut trx, &process_id, 0, timestamp)
-                                .await
-                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
-                            Ok(())
+                                .await;
+
+                            // Log in SAME transaction - atomic with the operation
+                            let success = hb_result.is_ok();
+                            let log_value = pack(&(OP_HEARTBEAT, success, current_time, false));
+                            trx.set(&log_key, &log_value);
+
+                            hb_result.map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
                         }
                     })
                     .await;
+
+                self.op_num += 1;
 
                 if result.is_ok() {
                     self.heartbeat_count += 1;
                 } else {
                     self.error_count += 1;
                 }
-
-                self.log_operation(&db, OpType::Heartbeat, result.is_ok(), false)
-                    .await;
             }
 
             // Try to become leader
@@ -565,14 +542,16 @@ impl RustWorkload for LeaderElectionWorkload {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
                 let versionstamp = self.versionstamp.unwrap_or([0u8; 12]);
+                let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
                 let result: Result<Option<LeaderState>, _> = db
                     .run(|mut trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
+                        let log_key = log_key.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            election
+                            let claim_result = election
                                 .try_claim_leadership(
                                     &mut trx,
                                     &process_id,
@@ -581,11 +560,21 @@ impl RustWorkload for LeaderElectionWorkload {
                                     timestamp,
                                 )
                                 .await
-                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
+
+                            // Log in SAME transaction - atomic with the operation
+                            // became_leader is true only if we got Some(state)
+                            let became_leader = claim_result.is_some();
+                            let log_value =
+                                pack(&(OP_TRY_BECOME_LEADER, true, current_time, became_leader));
+                            trx.set(&log_key, &log_value);
+
+                            Ok(claim_result)
                         }
                     })
                     .await;
 
+                self.op_num += 1;
                 self.leadership_attempts += 1;
                 let became_leader = matches!(&result, Ok(Some(_)));
                 if became_leader {
@@ -622,9 +611,6 @@ impl RustWorkload for LeaderElectionWorkload {
                 if result.is_err() {
                     self.error_count += 1;
                 }
-
-                self.log_operation(&db, OpType::TryBecomeLeader, result.is_ok(), became_leader)
-                    .await;
             }
         }
 
