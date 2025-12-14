@@ -403,6 +403,25 @@ where
     }
 }
 
+/// Get current leader information without lease validation
+///
+/// Returns the leader state regardless of whether the lease has expired.
+/// Useful for debugging and invariant checking.
+///
+/// # Arguments
+/// * `txn` - The FoundationDB transaction
+/// * `subspace` - The subspace for storing election data
+///
+/// # Returns
+/// Current leader state if one exists, regardless of lease validity
+pub async fn get_leader_raw<T>(txn: &T, subspace: &Subspace) -> Result<Option<LeaderState>>
+where
+    T: Deref<Target = Transaction>,
+{
+    let key = leader_key(subspace);
+    read_leader_state(txn, &key).await
+}
+
 // ============================================================================
 // CANDIDATE MANAGEMENT
 // ============================================================================
