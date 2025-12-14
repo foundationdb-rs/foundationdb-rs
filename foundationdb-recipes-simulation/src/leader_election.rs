@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use foundationdb::{
     options::TransactionOption,
-    recipes::leader_election::{ElectionConfig, LeaderElection},
+    recipes::leader_election::{CandidateInfo, ElectionConfig, LeaderElection, LeaderState},
     tuple::{pack, unpack, Subspace},
     FdbBindingError, RangeOption,
 };
@@ -16,6 +16,7 @@ use foundationdb_simulation::{
     details, Metric, Metrics, RustWorkload, Severity, SimDatabase, SingleRustWorkload,
     WorkloadContext,
 };
+use futures::TryStreamExt;
 
 // Use i64 instead of u8 for tuple packing (u8 is not supported)
 const OP_REGISTER: i64 = 0;
@@ -59,6 +60,7 @@ pub struct LeaderElectionWorkload {
     // State
     process_id: String,
     op_num: u64,
+    versionstamp: Option<[u8; 12]>,
 
     // Metrics
     heartbeat_count: u64,
@@ -82,6 +84,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             client_count,
             context,
             op_num: 0,
+            versionstamp: None,
             heartbeat_count: 0,
             leadership_attempts: 0,
             times_became_leader: 0,
@@ -145,7 +148,8 @@ impl LeaderElectionWorkload {
         }
 
         // Sort by timestamp
-        leadership_events.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        leadership_events
+            .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
         self.context.trace(
             Severity::Info,
@@ -197,10 +201,9 @@ impl RustWorkload for LeaderElectionWorkload {
         // Client 0 initializes the leader election
         if self.client_id == 0 {
             let election = LeaderElection::new(self.election_subspace.clone());
-            let config = ElectionConfig {
-                heartbeat_timeout: Duration::from_secs(self.heartbeat_timeout_secs),
-                election_enabled: true,
-            };
+            let config = ElectionConfig::with_lease_duration(Duration::from_secs(
+                self.heartbeat_timeout_secs,
+            ));
 
             let result = db
                 .run(|mut trx, _maybe_committed| {
@@ -238,12 +241,35 @@ impl RustWorkload for LeaderElectionWorkload {
                 async move {
                     trx.set_option(TransactionOption::AutomaticIdempotency)?;
                     election
-                        .register_process(&mut trx, &process_id, timestamp)
+                        .register_candidate(&mut trx, &process_id, 0, timestamp)
                         .await
                         .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
                 }
             })
             .await;
+
+        // Retrieve the versionstamp after successful registration
+        if result.is_ok() {
+            let election = LeaderElection::new(self.election_subspace.clone());
+            let process_id = self.process_id.clone();
+
+            let versionstamp_result: Result<Option<CandidateInfo>, _> = db
+                .run(|trx, _maybe_committed| {
+                    let election = election.clone();
+                    let process_id = process_id.clone();
+                    async move {
+                        election
+                            .get_candidate(&trx, &process_id)
+                            .await
+                            .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                    }
+                })
+                .await;
+
+            if let Ok(Some(candidate)) = versionstamp_result {
+                self.versionstamp = Some(candidate.versionstamp);
+            }
+        }
 
         // Log the registration
         self.log_operation(&db, OpType::Register, result.is_ok(), false)
@@ -292,7 +318,7 @@ impl RustWorkload for LeaderElectionWorkload {
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             election
-                                .heartbeat(&mut trx, &process_id, timestamp)
+                                .heartbeat_candidate(&mut trx, &process_id, 0, timestamp)
                                 .await
                                 .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
                             Ok(())
@@ -314,15 +340,22 @@ impl RustWorkload for LeaderElectionWorkload {
             {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
+                let versionstamp = self.versionstamp.unwrap_or([0u8; 12]);
 
-                let result = db
+                let result: Result<Option<LeaderState>, _> = db
                     .run(|mut trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             election
-                                .try_become_leader(&mut trx, &process_id, timestamp)
+                                .try_claim_leadership(
+                                    &mut trx,
+                                    &process_id,
+                                    0,
+                                    versionstamp,
+                                    timestamp,
+                                )
                                 .await
                                 .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
                         }
@@ -330,7 +363,7 @@ impl RustWorkload for LeaderElectionWorkload {
                     .await;
 
                 self.leadership_attempts += 1;
-                let became_leader = matches!(&result, Ok(true));
+                let became_leader = matches!(&result, Ok(Some(_)));
                 if became_leader {
                     self.times_became_leader += 1;
                     self.context.trace(
@@ -391,9 +424,10 @@ impl RustWorkload for LeaderElectionWorkload {
                     // Collect all log entries, sorted by (timestamp_millis, client_id, op_num)
                     let mut all_entries: LogEntries = BTreeMap::new();
 
-                    let range = log_subspace.range();
-                    let kvs = trx
-                        .get_range(&RangeOption::from(range), 0, false)
+                    let range = RangeOption::from(log_subspace.range());
+                    let kvs: Vec<_> = trx
+                        .get_ranges_keyvalues(range, false)
+                        .try_collect()
                         .await
                         .map_err(FdbBindingError::from)?;
 
