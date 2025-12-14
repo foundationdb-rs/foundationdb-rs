@@ -75,23 +75,12 @@ mod leader_election_tests {
         })
         .await?;
 
-        // Read candidate info to get versionstamp
-        let election_ref = &election;
-        let candidate = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, process_id).await?;
-                Ok(candidate)
-            })
-            .await?;
-
-        let versionstamp = candidate.expect("candidate should exist").versionstamp;
-
         // Try to claim leadership
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, process_id, 0, versionstamp, current_time())
+                    .try_claim_leadership(&txn, process_id, 0, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -130,7 +119,6 @@ mod leader_election_tests {
         .await?;
 
         // Register all processes as candidates
-        let mut versionstamps = Vec::new();
         for process_id in &process_ids {
             let election_ref = &election;
             db.run(|txn, _| async move {
@@ -140,27 +128,16 @@ mod leader_election_tests {
                 Ok(())
             })
             .await?;
-
-            // Get versionstamp
-            let election_ref = &election;
-            let candidate = db
-                .run(|txn, _| async move {
-                    let candidate = election_ref.get_candidate(&txn, process_id).await?;
-                    Ok(candidate)
-                })
-                .await?;
-            versionstamps.push(candidate.expect("candidate should exist").versionstamp);
         }
 
         // All processes try to claim leadership
         let mut leaders = Vec::new();
-        for (i, process_id) in process_ids.iter().enumerate() {
+        for process_id in process_ids.iter() {
             let election_ref = &election;
-            let vs = versionstamps[i];
             let became_leader = db
                 .run(|txn, _| async move {
                     let result = election_ref
-                        .try_claim_leadership(&txn, process_id, 0, vs, current_time())
+                        .try_claim_leadership(&txn, process_id, 0, current_time())
                         .await?;
                     Ok(result.is_some())
                 })
@@ -248,21 +225,12 @@ mod leader_election_tests {
         })
         .await?;
 
-        // Get leader's versionstamp
-        let election_ref = &election;
-        let leader_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, leader_id).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
         // Leader claims leadership
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, leader_id, 0, leader_vs, current_time())
+                    .try_claim_leadership(&txn, leader_id, 0, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -339,29 +307,12 @@ mod leader_election_tests {
         })
         .await?;
 
-        // Get versionstamps
-        let election_ref = &election;
-        let initial_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, initial_leader).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
-        let election_ref = &election;
-        let new_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, new_leader).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
         // Initial leader claims leadership
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, initial_leader, 0, initial_vs, current_time())
+                    .try_claim_leadership(&txn, initial_leader, 0, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -373,7 +324,7 @@ mod leader_election_tests {
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, new_leader, 0, new_vs, current_time())
+                    .try_claim_leadership(&txn, new_leader, 0, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -401,7 +352,7 @@ mod leader_election_tests {
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, new_leader, 0, new_vs, current_time())
+                    .try_claim_leadership(&txn, new_leader, 0, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -543,28 +494,11 @@ mod leader_election_tests {
         })
         .await?;
 
-        // Get versionstamps
-        let election_ref = &election;
-        let leader_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, leader_id).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
-        let election_ref = &election;
-        let follower_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, follower_id).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
         // Leader claims leadership
         let election_ref = &election;
         db.run(|txn, _| async move {
             election_ref
-                .try_claim_leadership(&txn, leader_id, 0, leader_vs, current_time())
+                .try_claim_leadership(&txn, leader_id, 0, current_time())
                 .await?;
             Ok(())
         })
@@ -585,7 +519,7 @@ mod leader_election_tests {
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, follower_id, 0, follower_vs, current_time())
+                    .try_claim_leadership(&txn, follower_id, 0, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -637,29 +571,12 @@ mod leader_election_tests {
         })
         .await?;
 
-        // Get versionstamps
-        let election_ref = &election;
-        let low_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, low_priority).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
-        let election_ref = &election;
-        let high_vs = db
-            .run(|txn, _| async move {
-                let candidate = election_ref.get_candidate(&txn, high_priority).await?;
-                Ok(candidate.expect("candidate should exist").versionstamp)
-            })
-            .await?;
-
         // Low priority claims leadership first
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, low_priority, 1, low_vs, current_time())
+                    .try_claim_leadership(&txn, low_priority, 1, current_time())
                     .await?;
                 Ok(result.is_some())
             })
@@ -671,7 +588,7 @@ mod leader_election_tests {
         let became_leader = db
             .run(|txn, _| async move {
                 let result = election_ref
-                    .try_claim_leadership(&txn, high_priority, 10, high_vs, current_time())
+                    .try_claim_leadership(&txn, high_priority, 10, current_time())
                     .await?;
                 Ok(result.is_some())
             })

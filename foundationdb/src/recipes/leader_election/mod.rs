@@ -54,7 +54,7 @@
 //! // Main loop
 //! loop {
 //!     let result = db.run(|txn| {
-//!         election.run_election_cycle(&txn, "my-id", 0, my_versionstamp, now())
+//!         election.run_election_cycle(&txn, "my-id", 0, now())
 //!     }).await?;
 //!
 //!     match result {
@@ -265,39 +265,32 @@ impl LeaderElection {
     /// Try to claim leadership
     ///
     /// Attempts to become the leader. This is an O(1) operation that:
-    /// 1. Reads the current leader state
-    /// 2. Checks if we can claim (no leader, expired lease, or preemption)
-    /// 3. Writes new leader state with incremented ballot
+    /// 1. Looks up candidate registration to get versionstamp
+    /// 2. Reads the current leader state
+    /// 3. Checks if we can claim (no leader, expired lease, or preemption)
+    /// 4. Writes new leader state with incremented ballot
     ///
     /// # Arguments
     /// * `process_id` - Unique identifier for this process
     /// * `priority` - Priority level for preemption decisions
-    /// * `versionstamp` - This process's registration versionstamp
     /// * `current_time` - Current time for lease calculation
     ///
     /// # Returns
     /// * `Ok(Some(state))` - Successfully claimed leadership
     /// * `Ok(None)` - Cannot claim, another valid leader exists
+    /// * `Err(UnregisteredCandidate)` - Process is not registered as a candidate
     pub async fn try_claim_leadership<T>(
         &self,
         txn: &T,
         process_id: &str,
         priority: i32,
-        versionstamp: [u8; 12],
         current_time: Duration,
     ) -> Result<Option<LeaderState>>
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::try_claim_leadership(
-            txn,
-            &self.subspace,
-            process_id,
-            priority,
-            versionstamp,
-            current_time,
-        )
-        .await
+        algorithm::try_claim_leadership(txn, &self.subspace, process_id, priority, current_time)
+            .await
     }
 
     /// Refresh leadership lease
@@ -385,7 +378,6 @@ impl LeaderElection {
     /// # Arguments
     /// * `process_id` - Unique identifier for this process
     /// * `priority` - Priority level
-    /// * `versionstamp` - This process's registration versionstamp
     /// * `current_time` - Current time
     ///
     /// # Returns
@@ -395,20 +387,12 @@ impl LeaderElection {
         txn: &T,
         process_id: &str,
         priority: i32,
-        versionstamp: [u8; 12],
         current_time: Duration,
     ) -> Result<ElectionResult>
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::run_election_cycle(
-            txn,
-            &self.subspace,
-            process_id,
-            priority,
-            versionstamp,
-            current_time,
-        )
-        .await
+        algorithm::run_election_cycle(txn, &self.subspace, process_id, priority, current_time)
+            .await
     }
 }

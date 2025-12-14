@@ -205,9 +205,10 @@ where
 /// Try to claim leadership
 ///
 /// This is the core Active Disk Paxos operation:
-/// 1. Read current leader state (O(1))
-/// 2. Decide if we can claim based on ballot/priority/lease
-/// 3. Write new state with incremented ballot (O(1))
+/// 1. Look up candidate registration (O(1))
+/// 2. Read current leader state (O(1))
+/// 3. Decide if we can claim based on ballot/priority/lease
+/// 4. Write new state with incremented ballot (O(1))
 ///
 /// FDB transaction conflict detection ensures safety.
 ///
@@ -216,19 +217,18 @@ where
 /// * `subspace` - The subspace for storing election data
 /// * `process_id` - ID of the process attempting to claim leadership
 /// * `my_priority` - This process's priority (higher = more preferred)
-/// * `my_versionstamp` - This process's registration versionstamp
 /// * `current_time` - Current time for lease calculation
 ///
 /// # Returns
 /// * `Ok(Some(state))` - Successfully claimed leadership
 /// * `Ok(None)` - Cannot claim, another valid leader exists
-/// * `Err(_)` - Error occurred
+/// * `Err(UnregisteredCandidate)` - Process is not registered as a candidate
+/// * `Err(_)` - Other error occurred
 pub async fn try_claim_leadership<T>(
     txn: &T,
     subspace: &Subspace,
     process_id: &str,
     my_priority: i32,
-    my_versionstamp: [u8; 12],
     current_time: Duration,
 ) -> Result<Option<LeaderState>>
 where
@@ -238,6 +238,12 @@ where
     if !config.election_enabled {
         return Err(LeaderElectionError::ElectionDisabled);
     }
+
+    // Look up candidate to get versionstamp - only registered candidates can claim leadership
+    let candidate = get_candidate(txn, subspace, process_id)
+        .await?
+        .ok_or(LeaderElectionError::UnregisteredCandidate)?;
+    let my_versionstamp = candidate.versionstamp;
 
     let key = leader_key(subspace);
     let current_leader = read_leader_state(txn, &key).await?;
@@ -699,7 +705,6 @@ where
 /// * `subspace` - The subspace for storing election data
 /// * `process_id` - Unique identifier for this process
 /// * `my_priority` - This process's priority
-/// * `my_versionstamp` - This process's registration versionstamp
 /// * `current_time` - Current time
 ///
 /// # Returns
@@ -709,7 +714,7 @@ where
 /// ```ignore
 /// loop {
 ///     let result = db.run(|txn| {
-///         run_election_cycle(&txn, &subspace, &my_id, my_priority, my_vs, now())
+///         run_election_cycle(&txn, &subspace, &my_id, my_priority, now())
 ///     }).await?;
 ///
 ///     match result {
@@ -732,7 +737,6 @@ pub async fn run_election_cycle<T>(
     subspace: &Subspace,
     process_id: &str,
     my_priority: i32,
-    my_versionstamp: [u8; 12],
     current_time: Duration,
 ) -> Result<ElectionResult>
 where
@@ -742,16 +746,7 @@ where
     heartbeat_candidate(txn, subspace, process_id, my_priority, current_time).await?;
 
     // 2. Try to claim/maintain leadership
-    match try_claim_leadership(
-        txn,
-        subspace,
-        process_id,
-        my_priority,
-        my_versionstamp,
-        current_time,
-    )
-    .await?
-    {
+    match try_claim_leadership(txn, subspace, process_id, my_priority, current_time).await? {
         Some(state) => Ok(ElectionResult::Leader(state)),
         None => {
             let current_leader = get_leader(txn, subspace, current_time).await?;
