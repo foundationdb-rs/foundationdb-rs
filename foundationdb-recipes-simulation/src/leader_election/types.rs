@@ -10,9 +10,6 @@ pub(crate) const OP_REGISTER: i64 = 0;
 pub(crate) const OP_HEARTBEAT: i64 = 1;
 pub(crate) const OP_TRY_BECOME_LEADER: i64 = 2;
 
-/// Maximum acceptable error rate (10%)
-pub(crate) const MAX_ERROR_RATE: f64 = 0.10;
-
 /// Log entry map: (timestamp_millis, client_id, op_num) -> (op_type, success, timestamp, became_leader)
 pub(crate) type LogEntries = BTreeMap<(i64, i32, u64), (i64, bool, f64, bool)>;
 

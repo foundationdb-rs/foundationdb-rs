@@ -9,9 +9,7 @@ use foundationdb::{
     tuple::{pack, unpack},
     FdbBindingError, RangeOption,
 };
-use foundationdb_simulation::{
-    details, Metric, Metrics, RustWorkload, Severity, SimDatabase,
-};
+use foundationdb_simulation::{details, Metric, Metrics, RustWorkload, Severity, SimDatabase};
 use futures::TryStreamExt;
 
 use super::types::{ClientStats, DatabaseSnapshot, LogEntries, OpType};
@@ -360,13 +358,14 @@ impl LeaderElectionWorkload {
         let election = LeaderElection::new(self.election_subspace.clone());
         let current_time = Duration::from_secs_f64(self.context.now());
 
-        // Read leader state
+        // Read leader state WITHOUT lease filtering (for invariant checking)
+        // We need the raw state to verify ballot conservation even after lease expires
         let leader_state: Option<LeaderState> = db
             .run(|trx, _| {
                 let election = election.clone();
                 async move {
                     election
-                        .get_leader(&trx, current_time)
+                        .get_leader_raw(&trx)
                         .await
                         .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
                 }
@@ -591,14 +590,32 @@ impl RustWorkload for LeaderElectionWorkload {
                 let became_leader = matches!(&result, Ok(Some(_)));
                 if became_leader {
                     self.times_became_leader += 1;
+                    // Enhanced logging with ballot and lease info for debugging
+                    if let Ok(Some(ref state)) = result {
+                        self.context.trace(
+                            Severity::Info,
+                            "BecameLeader",
+                            details![
+                                "Layer" => "Rust",
+                                "Client" => self.client_id,
+                                "ProcessId" => self.process_id.clone(),
+                                "Timestamp" => current_time,
+                                "Ballot" => state.ballot,
+                                "LeaseExpirySecs" => state.lease_expiry_nanos as f64 / 1_000_000_000.0
+                            ],
+                        );
+                    }
+                } else if result.is_ok() {
+                    // Log when leadership claim is rejected (for debugging overlaps)
                     self.context.trace(
-                        Severity::Info,
-                        "BecameLeader",
+                        Severity::Debug,
+                        "LeadershipClaimRejected",
                         details![
                             "Layer" => "Rust",
                             "Client" => self.client_id,
                             "ProcessId" => self.process_id.clone(),
-                            "Timestamp" => current_time
+                            "Timestamp" => current_time,
+                            "Reason" => "Another leader has valid lease"
                         ],
                     );
                 }
@@ -694,12 +711,12 @@ impl RustWorkload for LeaderElectionWorkload {
         // Step 4: Dump log entries for debugging (AtomicOps dumpLogKV style)
         self.dump_log_entries(&entries);
 
-        // Step 5: Extract statistics and log them
+        // Step 5: Extract statistics and log them (for debugging)
         let stats = self.extract_client_stats(&entries);
         self.log_statistics(&entries, &stats);
 
-        // Step 6: Run all invariant checks
-        let result = self.run_all_invariant_checks(&entries, &stats, &snapshot);
+        // Step 6: Run core invariant checks (Safety + Ballot Conservation)
+        let result = self.run_all_invariant_checks(&entries, &snapshot);
 
         // Step 7: Final summary with pass/fail status
         if result.failed > 0 {

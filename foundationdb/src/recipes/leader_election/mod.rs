@@ -362,6 +362,17 @@ impl LeaderElection {
         algorithm::get_leader(txn, &self.subspace, current_time).await
     }
 
+    /// Get current leader information without lease validation
+    ///
+    /// O(1) operation. Returns leader state regardless of whether lease has expired.
+    /// Useful for debugging, monitoring, and invariant checking.
+    pub async fn get_leader_raw<T>(&self, txn: &T) -> Result<Option<LeaderState>>
+    where
+        T: Deref<Target = Transaction>,
+    {
+        algorithm::get_leader_raw(txn, &self.subspace).await
+    }
+
     // ========================================================================
     // HIGH-LEVEL CONVENIENCE API
     // ========================================================================

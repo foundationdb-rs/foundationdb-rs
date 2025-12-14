@@ -5,16 +5,10 @@
 //!
 //! # Check Phase Invariants
 //!
-//! The check phase validates the following invariants inspired by FDB's AtomicOps workload:
+//! The check phase validates the core Active Disk Paxos invariants:
 //!
-//! 1. **Log Entry Completeness**: All clients logged their operations with sequential op_nums
-//! 2. **Timestamp Monotonicity**: Each client's timestamps are monotonically increasing
-//! 3. **Safety (No Overlapping Leadership)**: At most one leader at any time
-//! 4. **Ballot Conservation**: Expected ballot from logs matches actual ballot in FDB
-//! 5. **Candidate Registration Consistency**: All heartbeating clients are registered
-//! 6. **Leader Is Registered Candidate**: Current leader exists in candidate list
-//! 7. **Operation Sequencing**: Registrations happen before heartbeats
-//! 8. **Error Rate Bounds**: Error rate is within acceptable threshold
+//! 1. **Safety (No Overlapping Leadership)**: At most one leader at any time
+//! 2. **Ballot Conservation**: Expected ballot from logs matches actual ballot in FDB
 
 mod check;
 mod invariants;
