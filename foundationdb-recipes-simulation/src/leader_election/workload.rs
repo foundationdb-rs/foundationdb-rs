@@ -17,7 +17,7 @@ use foundationdb::{
 use foundationdb_simulation::{details, Metric, Metrics, RustWorkload, Severity, SimDatabase};
 use futures::TryStreamExt;
 
-use super::types::{LogEntries, OP_HEARTBEAT, OP_REGISTER, OP_TRY_BECOME_LEADER};
+use super::types::{LogEntries, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER};
 use super::LeaderElectionWorkload;
 
 impl RustWorkload for LeaderElectionWorkload {
@@ -200,7 +200,7 @@ impl RustWorkload for LeaderElectionWorkload {
             }
 
             // Try to become leader
-            {
+            let became_leader = {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
                 let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
@@ -266,6 +266,57 @@ impl RustWorkload for LeaderElectionWorkload {
                 if result.is_err() {
                     self.error_count += 1;
                 }
+                became_leader
+            };
+
+            // Randomly resign if we became leader
+            if became_leader {
+                let rnd_val = self.context.rnd() as f64 / u32::MAX as f64;
+                if rnd_val < self.resign_probability {
+                    let process_id = self.process_id.clone();
+                    let election = election.clone();
+                    let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
+
+                    let resign_result: Result<bool, _> = db
+                        .run(|trx, _maybe_committed| {
+                            let election = election.clone();
+                            let process_id = process_id.clone();
+                            let log_key = log_key.clone();
+                            async move {
+                                trx.set_option(TransactionOption::AutomaticIdempotency)?;
+                                let did_resign = election
+                                    .resign_leadership(&trx, &process_id)
+                                    .await
+                                    .map_err(FdbBindingError::from)?;
+
+                                // Log in SAME transaction - atomic with the operation
+                                let log_value = pack(&(OP_RESIGN, did_resign, current_time, false));
+                                trx.set(&log_key, &log_value);
+
+                                Ok(did_resign)
+                            }
+                        })
+                        .await;
+
+                    self.op_num += 1;
+
+                    if matches!(resign_result, Ok(true)) {
+                        self.resign_count += 1;
+                        self.context.trace(
+                            Severity::Info,
+                            "LeaderResigned",
+                            details![
+                                "Layer" => "Rust",
+                                "Client" => self.client_id,
+                                "ProcessId" => self.process_id.clone(),
+                                "Timestamp" => current_time
+                            ],
+                        );
+                    }
+                    if resign_result.is_err() {
+                        self.error_count += 1;
+                    }
+                }
             }
         }
 
@@ -277,7 +328,8 @@ impl RustWorkload for LeaderElectionWorkload {
                 "Client" => self.client_id,
                 "HeartbeatCount" => self.heartbeat_count,
                 "LeadershipAttempts" => self.leadership_attempts,
-                "TimesBecameLeader" => self.times_became_leader
+                "TimesBecameLeader" => self.times_became_leader,
+                "ResignCount" => self.resign_count
             ],
         );
     }
@@ -394,6 +446,7 @@ impl RustWorkload for LeaderElectionWorkload {
             Metric::val("heartbeat_count", self.heartbeat_count as f64),
             Metric::val("leadership_attempts", self.leadership_attempts as f64),
             Metric::val("times_became_leader", self.times_became_leader as f64),
+            Metric::val("resign_count", self.resign_count as f64),
             Metric::val("error_count", self.error_count as f64),
             Metric::val("op_count", self.op_num as f64),
         ]);

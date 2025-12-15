@@ -9,6 +9,7 @@ use foundationdb::recipes::leader_election::{CandidateInfo, ElectionConfig, Lead
 pub(crate) const OP_REGISTER: i64 = 0;
 pub(crate) const OP_HEARTBEAT: i64 = 1;
 pub(crate) const OP_TRY_BECOME_LEADER: i64 = 2;
+pub(crate) const OP_RESIGN: i64 = 3;
 
 /// Log entry map: (timestamp_micros, client_id, op_num) -> (op_type, success, timestamp, became_leader)
 pub(crate) type LogEntries = BTreeMap<(i64, i32, u64), (i64, bool, f64, bool)>;
@@ -19,6 +20,7 @@ pub(crate) enum OpType {
     Register,
     Heartbeat,
     TryBecomeLeader,
+    Resign,
 }
 
 impl OpType {
@@ -27,6 +29,7 @@ impl OpType {
             OP_REGISTER => Some(OpType::Register),
             OP_HEARTBEAT => Some(OpType::Heartbeat),
             OP_TRY_BECOME_LEADER => Some(OpType::TryBecomeLeader),
+            OP_RESIGN => Some(OpType::Resign),
             _ => None,
         }
     }
@@ -36,6 +39,7 @@ impl OpType {
             OpType::Register => "Register",
             OpType::Heartbeat => "Heartbeat",
             OpType::TryBecomeLeader => "TryBecomeLeader",
+            OpType::Resign => "Resign",
         }
     }
 }
@@ -61,6 +65,7 @@ pub(crate) struct ClientStats {
     pub(crate) heartbeat_count: usize,
     pub(crate) leadership_attempt_count: usize,
     pub(crate) leadership_success_count: usize,
+    pub(crate) resign_count: usize,
     pub(crate) error_count: usize,
     pub(crate) first_timestamp: Option<f64>,
     pub(crate) last_timestamp: Option<f64>,

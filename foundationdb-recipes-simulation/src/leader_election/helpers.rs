@@ -304,6 +304,11 @@ impl LeaderElectionWorkload {
                         client_stats.error_count += 1;
                     }
                 }
+                Some(OpType::Resign) => {
+                    if *success {
+                        client_stats.resign_count += 1;
+                    }
+                }
                 None => {}
             }
         }
@@ -316,6 +321,7 @@ impl LeaderElectionWorkload {
         let total_entries = entries.len();
         let total_leadership_claims: usize =
             stats.values().map(|s| s.leadership_success_count).sum();
+        let total_resigns: usize = stats.values().map(|s| s.resign_count).sum();
         let total_errors: usize = stats.values().map(|s| s.error_count).sum();
 
         self.context.trace(
@@ -326,6 +332,7 @@ impl LeaderElectionWorkload {
                 "TotalLogEntries" => total_entries,
                 "TotalClients" => stats.len(),
                 "TotalLeadershipClaims" => total_leadership_claims,
+                "TotalResigns" => total_resigns,
                 "TotalErrors" => total_errors
             ],
         );
@@ -341,6 +348,7 @@ impl LeaderElectionWorkload {
                     "HeartbeatCount" => client_stats.heartbeat_count,
                     "LeadershipAttempts" => client_stats.leadership_attempt_count,
                     "LeadershipSuccesses" => client_stats.leadership_success_count,
+                    "ResignCount" => client_stats.resign_count,
                     "Errors" => client_stats.error_count,
                     "OpCount" => client_stats.op_nums.len()
                 ],

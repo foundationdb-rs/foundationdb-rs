@@ -28,6 +28,7 @@ pub struct LeaderElectionWorkload {
     // Configuration from TOML
     pub(crate) operation_count: usize,
     pub(crate) heartbeat_timeout_secs: u64,
+    pub(crate) resign_probability: f64,
 
     // Subspaces
     pub(crate) election_subspace: Subspace,
@@ -46,6 +47,7 @@ pub struct LeaderElectionWorkload {
     pub(crate) heartbeat_count: u64,
     pub(crate) leadership_attempts: u64,
     pub(crate) times_became_leader: u64,
+    pub(crate) resign_count: u64,
     pub(crate) error_count: u64,
 }
 
@@ -73,6 +75,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
         Self {
             operation_count: context.get_option("operationCount").unwrap_or(50),
             heartbeat_timeout_secs: context.get_option("heartbeatTimeoutSecs").unwrap_or(10),
+            resign_probability: context.get_option("resignProbability").unwrap_or(0.1),
             election_subspace: Subspace::all().subspace(&("leader_election",)),
             log_subspace: Subspace::all().subspace(&("le_log",)),
             process_id: format!("process_{client_id}"),
@@ -86,6 +89,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             heartbeat_count: 0,
             leadership_attempts: 0,
             times_became_leader: 0,
+            resign_count: 0,
             error_count: 0,
         }
     }
