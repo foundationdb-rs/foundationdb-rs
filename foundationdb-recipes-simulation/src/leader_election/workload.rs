@@ -65,7 +65,7 @@ impl RustWorkload for LeaderElectionWorkload {
                             election
                                 .initialize_with_config(&mut trx, config)
                                 .await
-                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
+                                .map_err(FdbBindingError::from)?;
                             Ok(())
                         }
                     })
@@ -125,7 +125,7 @@ impl RustWorkload for LeaderElectionWorkload {
                     let log_value = pack(&(OP_REGISTER, success, timestamp_secs, false));
                     trx.set(&log_key, &log_value);
 
-                    reg_result.map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                    reg_result.map_err(FdbBindingError::from)
                 }
             })
             .await;
@@ -186,8 +186,7 @@ impl RustWorkload for LeaderElectionWorkload {
                             let log_value = pack(&(OP_HEARTBEAT, success, current_time, false));
                             trx.set(&log_key, &log_value);
 
-                            hb_result
-                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                            hb_result.map_err(FdbBindingError::from)
                         }
                     })
                     .await;
@@ -217,7 +216,7 @@ impl RustWorkload for LeaderElectionWorkload {
                             let claim_result = election
                                 .try_claim_leadership(&mut trx, &process_id, 0, timestamp)
                                 .await
-                                .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
+                                .map_err(FdbBindingError::from)?;
 
                             // Log in SAME transaction - atomic with the operation
                             // became_leader is true only if we got Some(state)
@@ -319,12 +318,12 @@ impl RustWorkload for LeaderElectionWorkload {
                         // Unpack key: (client_id, op_num)
                         let key_tuple: (i32, u64) = log_subspace
                             .unpack(kv.key())
-                            .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
+                            .map_err(FdbBindingError::PackError)?;
                         let (client_id, op_num) = key_tuple;
 
                         // Unpack value: (op_type, success, timestamp, became_leader)
                         let value_tuple: (i64, bool, f64, bool) = unpack(kv.value())
-                            .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))?;
+                            .map_err(FdbBindingError::PackError)?;
 
                         // Key for sorting: (timestamp_millis, client_id, op_num)
                         let timestamp_millis = (value_tuple.2 * 1000.0) as i64;

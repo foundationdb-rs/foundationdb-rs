@@ -360,49 +360,98 @@ impl LeaderElectionWorkload {
         let election = LeaderElection::new(self.election_subspace.clone());
         let current_time = Duration::from_secs_f64(self.context.now());
 
+        // Trace the subspace we're using
+        self.context.trace(
+            Severity::Info,
+            "CaptureStateStart",
+            details![
+                "Layer" => "Rust",
+                "ElectionSubspace" => format!("{:?}", self.election_subspace.bytes()),
+                "CurrentTime" => current_time.as_secs_f64()
+            ],
+        );
+
         // Read leader state WITHOUT lease filtering (for invariant checking)
         // We need the raw state to verify ballot conservation even after lease expires
-        let leader_state: Option<LeaderState> = db
+        let leader_result = db
             .run(|trx, _| {
                 let election = election.clone();
                 async move {
                     election
                         .get_leader_raw(&trx)
                         .await
-                        .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                        .map_err(FdbBindingError::from)
                 }
             })
-            .await
-            .ok()
-            .flatten();
+            .await;
+
+        // Trace the leader read result
+        self.context.trace(
+            Severity::Info,
+            "LeaderReadResult",
+            details![
+                "Layer" => "Rust",
+                "Success" => leader_result.is_ok(),
+                "HasLeader" => leader_result.as_ref().map(|l| l.is_some()).unwrap_or(false),
+                "Error" => leader_result.as_ref().err().map(|e| format!("{:?}", e)).unwrap_or_default()
+            ],
+        );
+
+        let leader_state: Option<LeaderState> = leader_result.ok().flatten();
 
         // Read all candidates
-        let candidates: Vec<CandidateInfo> = db
+        let candidates_result = db
             .run(|trx, _| {
                 let election = election.clone();
                 async move {
                     election
                         .list_candidates(&trx, current_time)
                         .await
-                        .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                        .map_err(FdbBindingError::from)
                 }
             })
-            .await
-            .unwrap_or_default();
+            .await;
+
+        // Trace candidates read result
+        self.context.trace(
+            Severity::Info,
+            "CandidatesReadResult",
+            details![
+                "Layer" => "Rust",
+                "Success" => candidates_result.is_ok(),
+                "Count" => candidates_result.as_ref().map(|c| c.len()).unwrap_or(0),
+                "Error" => candidates_result.as_ref().err().map(|e| format!("{:?}", e)).unwrap_or_default()
+            ],
+        );
+
+        let candidates: Vec<CandidateInfo> = candidates_result.unwrap_or_default();
 
         // Read config
-        let config: Option<ElectionConfig> = db
+        let config_result = db
             .run(|trx, _| {
                 let election = election.clone();
                 async move {
                     election
                         .read_config(&trx)
                         .await
-                        .map_err(|e| FdbBindingError::CustomError(e.to_string().into()))
+                        .map_err(FdbBindingError::from)
                 }
             })
-            .await
-            .ok();
+            .await;
+
+        // Trace config read result
+        self.context.trace(
+            Severity::Info,
+            "ConfigReadResult",
+            details![
+                "Layer" => "Rust",
+                "Success" => config_result.is_ok(),
+                "HasConfig" => config_result.is_ok(),
+                "Error" => config_result.as_ref().err().map(|e| format!("{:?}", e)).unwrap_or_default()
+            ],
+        );
+
+        let config: Option<ElectionConfig> = config_result.ok();
 
         DatabaseSnapshot {
             leader_state,
