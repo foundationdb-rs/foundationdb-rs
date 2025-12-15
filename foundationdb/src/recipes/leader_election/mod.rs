@@ -392,7 +392,6 @@ impl LeaderElection {
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::run_election_cycle(txn, &self.subspace, process_id, priority, current_time)
-            .await
+        algorithm::run_election_cycle(txn, &self.subspace, process_id, priority, current_time).await
     }
 }

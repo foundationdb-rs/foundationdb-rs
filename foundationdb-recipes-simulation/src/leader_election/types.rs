@@ -10,7 +10,7 @@ pub(crate) const OP_REGISTER: i64 = 0;
 pub(crate) const OP_HEARTBEAT: i64 = 1;
 pub(crate) const OP_TRY_BECOME_LEADER: i64 = 2;
 
-/// Log entry map: (timestamp_millis, client_id, op_num) -> (op_type, success, timestamp, became_leader)
+/// Log entry map: (timestamp_micros, client_id, op_num) -> (op_type, success, timestamp, became_leader)
 pub(crate) type LogEntries = BTreeMap<(i64, i32, u64), (i64, bool, f64, bool)>;
 
 /// Operation types for logging

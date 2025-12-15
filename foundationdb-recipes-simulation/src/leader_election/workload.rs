@@ -322,12 +322,13 @@ impl RustWorkload for LeaderElectionWorkload {
                         let (client_id, op_num) = key_tuple;
 
                         // Unpack value: (op_type, success, timestamp, became_leader)
-                        let value_tuple: (i64, bool, f64, bool) = unpack(kv.value())
-                            .map_err(FdbBindingError::PackError)?;
+                        let value_tuple: (i64, bool, f64, bool) =
+                            unpack(kv.value()).map_err(FdbBindingError::PackError)?;
 
-                        // Key for sorting: (timestamp_millis, client_id, op_num)
-                        let timestamp_millis = (value_tuple.2 * 1000.0) as i64;
-                        all_entries.insert((timestamp_millis, client_id, op_num), value_tuple);
+                        // Key for sorting: (timestamp_micros, client_id, op_num)
+                        // Use microseconds to avoid sub-millisecond ordering issues
+                        let timestamp_micros = (value_tuple.2 * 1_000_000.0) as i64;
+                        all_entries.insert((timestamp_micros, client_id, op_num), value_tuple);
                     }
 
                     Ok(all_entries)

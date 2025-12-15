@@ -39,7 +39,9 @@ impl LeaderElectionWorkload {
         self.clock_timer_time += self.rnd_f64() * (target - self.clock_timer_time) / 2.0;
 
         // Ensure timer doesn't go backwards (monotonic-ish)
-        self.clock_timer_time = self.clock_timer_time.max(real_time + self.clock_offset_secs);
+        self.clock_timer_time = self
+            .clock_timer_time
+            .max(real_time + self.clock_offset_secs);
 
         // 2. Calculate offset from real time
         let offset = self.clock_timer_time - real_time;
