@@ -22,14 +22,6 @@ pub(crate) enum OpType {
 }
 
 impl OpType {
-    pub(crate) fn as_i64(self) -> i64 {
-        match self {
-            OpType::Register => OP_REGISTER,
-            OpType::Heartbeat => OP_HEARTBEAT,
-            OpType::TryBecomeLeader => OP_TRY_BECOME_LEADER,
-        }
-    }
-
     pub(crate) fn from_i64(val: i64) -> Option<Self> {
         match val {
             OP_REGISTER => Some(OpType::Register),

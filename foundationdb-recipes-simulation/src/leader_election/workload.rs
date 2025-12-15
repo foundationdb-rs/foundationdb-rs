@@ -57,13 +57,13 @@ impl RustWorkload for LeaderElectionWorkload {
 
             for attempt in 1..=MAX_INIT_RETRIES {
                 let result = db
-                    .run(|mut trx, _maybe_committed| {
+                    .run(|trx, _maybe_committed| {
                         let election = election.clone();
                         let config = config.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             election
-                                .initialize_with_config(&mut trx, config)
+                                .initialize_with_config(&trx, config)
                                 .await
                                 .map_err(FdbBindingError::from)?;
                             Ok(())
@@ -110,14 +110,14 @@ impl RustWorkload for LeaderElectionWorkload {
         let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
         let result = db
-            .run(|mut trx, _maybe_committed| {
+            .run(|trx, _maybe_committed| {
                 let election = election.clone();
                 let process_id = process_id.clone();
                 let log_key = log_key.clone();
                 async move {
                     trx.set_option(TransactionOption::AutomaticIdempotency)?;
                     let reg_result = election
-                        .register_candidate(&mut trx, &process_id, 0, timestamp)
+                        .register_candidate(&trx, &process_id, 0, timestamp)
                         .await;
 
                     // Log in SAME transaction - atomic with the operation
@@ -171,14 +171,14 @@ impl RustWorkload for LeaderElectionWorkload {
                 let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
                 let result = db
-                    .run(|mut trx, _maybe_committed| {
+                    .run(|trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
                         let log_key = log_key.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             let hb_result = election
-                                .heartbeat_candidate(&mut trx, &process_id, 0, timestamp)
+                                .heartbeat_candidate(&trx, &process_id, 0, timestamp)
                                 .await;
 
                             // Log in SAME transaction - atomic with the operation
@@ -207,14 +207,14 @@ impl RustWorkload for LeaderElectionWorkload {
                 let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
 
                 let result: Result<Option<_>, _> = db
-                    .run(|mut trx, _maybe_committed| {
+                    .run(|trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
                         let log_key = log_key.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             let claim_result = election
-                                .try_claim_leadership(&mut trx, &process_id, 0, timestamp)
+                                .try_claim_leadership(&trx, &process_id, 0, timestamp)
                                 .await
                                 .map_err(FdbBindingError::from)?;
 

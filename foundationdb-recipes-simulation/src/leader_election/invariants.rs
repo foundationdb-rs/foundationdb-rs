@@ -55,8 +55,7 @@ impl LeaderElectionWorkload {
                 // Only flag if DIFFERENT client claims during valid lease
                 if curr_client != *client_id && *start < curr_end {
                     issues.push(format!(
-                        "SAFETY VIOLATION: Client {} (lease until {:.3}) overlaps with Client {} (start {:.3})",
-                        curr_client, curr_end, client_id, start
+                        "SAFETY VIOLATION: Client {curr_client} (lease until {curr_end:.3}) overlaps with Client {client_id} (start {start:.3})"
                     ));
                 }
             }
@@ -103,20 +102,13 @@ impl LeaderElectionWorkload {
         if expected_ballot == actual_ballot {
             (
                 true,
-                format!(
-                    "Ballot conservation holds: expected={}, actual={}",
-                    expected_ballot, actual_ballot
-                ),
+                format!("Ballot conservation holds: expected={expected_ballot}, actual={actual_ballot}"),
             )
         } else {
+            let diff = (actual_ballot as i64 - expected_ballot as i64).abs();
             (
                 false,
-                format!(
-                    "Ballot conservation VIOLATED: expected={}, actual={}, diff={}",
-                    expected_ballot,
-                    actual_ballot,
-                    (actual_ballot as i64 - expected_ballot as i64).abs()
-                ),
+                format!("Ballot conservation VIOLATED: expected={expected_ballot}, actual={actual_ballot}, diff={diff}"),
             )
         }
     }
@@ -188,9 +180,10 @@ impl LeaderElectionWorkload {
     /// or bugs in timestamp handling.
     ///
     /// With clock skew simulation enabled, we allow tolerance for:
-    /// - clock_offset: up to ±1.0s (Extreme level)
-    /// - drift ahead: up to 1.0s (max_ahead)
-    /// - jitter: up to 1.1x multiplier on offset
+    ///   - clock_offset: up to ±1.0s (Extreme level)
+    ///   - drift ahead: up to 1.0s (max_ahead)
+    ///   - jitter: up to 1.1x multiplier on offset
+    ///
     /// Max theoretical offset: (1.0 + 1.0) * 1.1 = 2.2s, use 3s for margin.
     pub(crate) fn verify_candidate_timestamps(
         &self,
@@ -240,8 +233,7 @@ impl LeaderElectionWorkload {
                 if let Some(last_ts) = client_last_leadership.get(client_id) {
                     if *timestamp < *last_ts {
                         violations.push(format!(
-                            "Client {} leadership at {:.3} before previous at {:.3}",
-                            client_id, timestamp, last_ts
+                            "Client {client_id} leadership at {timestamp:.3} before previous at {last_ts:.3}"
                         ));
                     }
                 }
@@ -254,10 +246,7 @@ impl LeaderElectionWorkload {
         if violations.is_empty() {
             (
                 true,
-                format!(
-                    "Leadership sequence valid ({} clients claimed leadership)",
-                    clients_with_leadership
-                ),
+                format!("Leadership sequence valid ({clients_with_leadership} clients claimed leadership)"),
             )
         } else {
             (false, violations.join("; "))
@@ -289,27 +278,23 @@ impl LeaderElectionWorkload {
         let mut unregistered_leaders = Vec::new();
         for (client_id, count) in &clients_with_leadership {
             if !registered_clients.contains_key(client_id) {
-                unregistered_leaders.push(format!("Client {} ({} claims)", client_id, count));
+                unregistered_leaders.push(format!("Client {client_id} ({count} claims)"));
             }
         }
 
         if unregistered_leaders.is_empty() {
+            let leadership_count = clients_with_leadership.len();
+            let registered_count = registered_clients.len();
             (
                 true,
-                format!(
-                    "All {} clients with leadership have registration entries ({} total registered)",
-                    clients_with_leadership.len(),
-                    registered_clients.len()
-                ),
+                format!("All {leadership_count} clients with leadership have registration entries ({registered_count} total registered)"),
             )
         } else {
+            let unregistered_count = unregistered_leaders.len();
+            let unregistered_list = unregistered_leaders.join(", ");
             (
                 false,
-                format!(
-                    "VIOLATION: {} clients claimed leadership without registration: {}",
-                    unregistered_leaders.len(),
-                    unregistered_leaders.join(", ")
-                ),
+                format!("VIOLATION: {unregistered_count} clients claimed leadership without registration: {unregistered_list}"),
             )
         }
     }

@@ -56,11 +56,6 @@ impl LeaderElectionWorkload {
         Duration::from_secs_f64(local.max(0.0))
     }
 
-    /// Get real simulated time (global truth, for invariant checking)
-    pub(crate) fn real_time(&self) -> Duration {
-        Duration::from_secs_f64(self.context.now())
-    }
-
     // ========================================================================
     // TRACE HELPERS
     // ========================================================================
@@ -395,7 +390,7 @@ impl LeaderElectionWorkload {
                 "Layer" => "Rust",
                 "Success" => leader_result.is_ok(),
                 "HasLeader" => leader_result.as_ref().map(|l| l.is_some()).unwrap_or(false),
-                "Error" => leader_result.as_ref().err().map(|e| format!("{:?}", e)).unwrap_or_default()
+                "Error" => leader_result.as_ref().err().map(|e| format!("{e:?}")).unwrap_or_default()
             ],
         );
 
@@ -422,7 +417,7 @@ impl LeaderElectionWorkload {
                 "Layer" => "Rust",
                 "Success" => candidates_result.is_ok(),
                 "Count" => candidates_result.as_ref().map(|c| c.len()).unwrap_or(0),
-                "Error" => candidates_result.as_ref().err().map(|e| format!("{:?}", e)).unwrap_or_default()
+                "Error" => candidates_result.as_ref().err().map(|e| format!("{e:?}")).unwrap_or_default()
             ],
         );
 
@@ -449,7 +444,7 @@ impl LeaderElectionWorkload {
                 "Layer" => "Rust",
                 "Success" => config_result.is_ok(),
                 "HasConfig" => config_result.is_ok(),
-                "Error" => config_result.as_ref().err().map(|e| format!("{:?}", e)).unwrap_or_default()
+                "Error" => config_result.as_ref().err().map(|e| format!("{e:?}")).unwrap_or_default()
             ],
         );
 
