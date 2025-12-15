@@ -9,10 +9,56 @@ use foundationdb::{
 };
 use foundationdb_simulation::{details, Severity, SimDatabase};
 
-use super::types::{ClientStats, DatabaseSnapshot, LogEntries, OpType};
+use super::types::{
+    ClientStats, DatabaseSnapshot, LogEntries, OpType, DEFAULT_CLOCK_JITTER_OFFSET,
+    DEFAULT_CLOCK_JITTER_RANGE,
+};
 use super::LeaderElectionWorkload;
 
 impl LeaderElectionWorkload {
+    // ========================================================================
+    // CLOCK SKEW SIMULATION (mimics FDB's sim2.actor.cpp timer())
+    // ========================================================================
+
+    /// Helper to get random f64 in [0, 1) using context.rnd()
+    fn rnd_f64(&self) -> f64 {
+        self.context.rnd() as f64 / u32::MAX as f64
+    }
+
+    /// Get local time with simulated clock skew (mimics FDB's timer())
+    ///
+    /// FDB strategy from sim2.actor.cpp:
+    /// timerTime += random01() * (time + 0.1 - timerTime) / 2.0
+    pub(crate) fn local_time(&mut self) -> Duration {
+        let real_time = self.context.now();
+
+        // 1. Apply FDB-style timer drift
+        // Timer moves partway toward (real_time + base_offset + max_drift)
+        let max_ahead = self.clock_skew_level.max_offset_secs();
+        let target = real_time + self.clock_offset_secs + max_ahead;
+        self.clock_timer_time += self.rnd_f64() * (target - self.clock_timer_time) / 2.0;
+
+        // Ensure timer doesn't go backwards (monotonic-ish)
+        self.clock_timer_time = self.clock_timer_time.max(real_time + self.clock_offset_secs);
+
+        // 2. Calculate offset from real time
+        let offset = self.clock_timer_time - real_time;
+
+        // 3. Apply jitter to the OFFSET only (not the entire time)
+        // FDB's DELAY_JITTER applies to delay amounts, not absolute times
+        let jitter_multiplier =
+            DEFAULT_CLOCK_JITTER_OFFSET + DEFAULT_CLOCK_JITTER_RANGE * self.rnd_f64();
+        let jittered_offset = offset * jitter_multiplier;
+
+        let local = real_time + jittered_offset;
+        Duration::from_secs_f64(local.max(0.0))
+    }
+
+    /// Get real simulated time (global truth, for invariant checking)
+    pub(crate) fn real_time(&self) -> Duration {
+        Duration::from_secs_f64(self.context.now())
+    }
+
     // ========================================================================
     // TRACE HELPERS
     // ========================================================================

@@ -126,9 +126,32 @@ impl LeaderElectionWorkload {
     /// The current leader must be in the candidate list.
     /// This verifies the data structure invariant that leadership
     /// can only be claimed by registered candidates.
-    pub(crate) fn verify_leader_is_candidate(&self, snapshot: &DatabaseSnapshot) -> (bool, String) {
+    ///
+    /// NOTE: If the leader's lease has expired, the candidate may have been
+    /// evicted due to timeout. This is valid - we only enforce this invariant
+    /// for leaders with active leases.
+    pub(crate) fn verify_leader_is_candidate(
+        &self,
+        snapshot: &DatabaseSnapshot,
+        current_time: f64,
+    ) -> (bool, String) {
         match &snapshot.leader_state {
             Some(leader) => {
+                // Check if lease has expired - if so, candidate eviction is valid
+                let lease_expiry_secs = leader.lease_expiry_nanos as f64 / 1_000_000_000.0;
+                let lease_expired = current_time > lease_expiry_secs;
+
+                if lease_expired {
+                    // Lease expired - candidate may have been evicted, this is OK
+                    return (
+                        true,
+                        format!(
+                            "Leader {} lease expired ({:.3} > {:.3}), candidate eviction valid",
+                            leader.leader_id, current_time, lease_expiry_secs
+                        ),
+                    );
+                }
+
                 let is_candidate = snapshot
                     .candidates
                     .iter()
@@ -163,6 +186,12 @@ impl LeaderElectionWorkload {
     /// All candidate heartbeat timestamps should be in the past or present,
     /// not in the future. Future timestamps would indicate clock skew issues
     /// or bugs in timestamp handling.
+    ///
+    /// With clock skew simulation enabled, we allow tolerance for:
+    /// - clock_offset: up to ±1.0s (Extreme level)
+    /// - drift ahead: up to 1.0s (max_ahead)
+    /// - jitter: up to 1.1x multiplier on offset
+    /// Max theoretical offset: (1.0 + 1.0) * 1.1 = 2.2s, use 3s for margin.
     pub(crate) fn verify_candidate_timestamps(
         &self,
         snapshot: &DatabaseSnapshot,
@@ -170,11 +199,13 @@ impl LeaderElectionWorkload {
     ) -> (bool, String) {
         let mut issues = Vec::new();
 
+        // Tolerance accounts for clock skew simulation (Extreme level + jitter)
+        const MAX_CLOCK_SKEW_TOLERANCE: f64 = 3.0;
+
         for candidate in &snapshot.candidates {
             let heartbeat_secs = candidate.last_heartbeat_nanos as f64 / 1_000_000_000.0;
 
-            // Allow 1 second tolerance for timing variations
-            if heartbeat_secs > current_time + 1.0 {
+            if heartbeat_secs > current_time + MAX_CLOCK_SKEW_TOLERANCE {
                 issues.push(format!(
                     "{} has future timestamp: {:.3} > {:.3}",
                     candidate.process_id, heartbeat_secs, current_time
@@ -303,7 +334,7 @@ impl LeaderElectionWorkload {
         results.push(("BallotConservation", pass, detail));
 
         // Invariant 3: Leader Is Candidate (structural integrity)
-        let (pass, detail) = self.verify_leader_is_candidate(snapshot);
+        let (pass, detail) = self.verify_leader_is_candidate(snapshot, current_time);
         results.push(("LeaderIsCandidate", pass, detail));
 
         // Invariant 4: Candidate Timestamps (no future timestamps)

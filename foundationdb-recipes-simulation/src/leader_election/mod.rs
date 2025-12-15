@@ -18,6 +18,8 @@ mod workload;
 use foundationdb::tuple::Subspace;
 use foundationdb_simulation::{SingleRustWorkload, WorkloadContext};
 
+use types::ClockSkewLevel;
+
 pub struct LeaderElectionWorkload {
     pub(crate) context: WorkloadContext,
     pub(crate) client_id: i32,
@@ -35,6 +37,11 @@ pub struct LeaderElectionWorkload {
     pub(crate) process_id: String,
     pub(crate) op_num: u64,
 
+    // Clock skew simulation (mimics FDB sim2)
+    pub(crate) clock_skew_level: ClockSkewLevel,
+    pub(crate) clock_offset_secs: f64,
+    pub(crate) clock_timer_time: f64,
+
     // Metrics
     pub(crate) heartbeat_count: u64,
     pub(crate) leadership_attempts: u64,
@@ -47,6 +54,22 @@ impl SingleRustWorkload for LeaderElectionWorkload {
         let client_id = context.client_id();
         let client_count = context.client_count();
 
+        // Randomize clock skew level per client (deterministic via context.rnd())
+        let clock_skew_level = match context.rnd() % 3 {
+            0 => ClockSkewLevel::Light,
+            1 => ClockSkewLevel::Moderate,
+            _ => ClockSkewLevel::Extreme,
+        };
+
+        // Random offset per node using context.rnd() for determinism
+        // Scale rnd() output (u32) to range [-max_offset, +max_offset]
+        let max_offset = clock_skew_level.max_offset_secs();
+        let rnd_val = context.rnd() as f64 / u32::MAX as f64; // 0.0 to 1.0
+        let clock_offset_secs = (rnd_val * 2.0 - 1.0) * max_offset; // -max to +max
+
+        // Start timer at current time + offset
+        let clock_timer_time = context.now() + clock_offset_secs;
+
         Self {
             operation_count: context.get_option("operationCount").unwrap_or(50),
             heartbeat_timeout_secs: context.get_option("heartbeatTimeoutSecs").unwrap_or(10),
@@ -57,6 +80,9 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             client_count,
             context,
             op_num: 0,
+            clock_skew_level,
+            clock_offset_secs,
+            clock_timer_time,
             heartbeat_count: 0,
             leadership_attempts: 0,
             times_became_leader: 0,

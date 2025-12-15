@@ -32,6 +32,19 @@ impl RustWorkload for LeaderElectionWorkload {
             ],
         );
 
+        // Log clock skew configuration for this client
+        self.context.trace(
+            Severity::Info,
+            "ClockSkewConfig",
+            details![
+                "Layer" => "Rust",
+                "ClientId" => self.client_id,
+                "ClockSkewLevel" => format!("{:?}", self.clock_skew_level),
+                "ClockOffsetSecs" => format!("{:.4}", self.clock_offset_secs),
+                "ClockTimerTime" => format!("{:.4}", self.clock_timer_time)
+            ],
+        );
+
         // Client 0 initializes the leader election
         if self.client_id == 0 {
             let election = LeaderElection::new(self.election_subspace.clone());
@@ -89,8 +102,9 @@ impl RustWorkload for LeaderElectionWorkload {
         // All clients register their process
         let election = LeaderElection::new(self.election_subspace.clone());
         let process_id = self.process_id.clone();
-        let timestamp_secs = self.context.now();
-        let timestamp = Duration::from_secs_f64(timestamp_secs);
+        // Use local_time() for clock skew simulation
+        let timestamp = self.local_time();
+        let timestamp_secs = timestamp.as_secs_f64();
 
         // Prepare log entry components
         let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
@@ -146,8 +160,9 @@ impl RustWorkload for LeaderElectionWorkload {
 
         // Count-based loop (not time-based - simulation time only advances on async ops)
         for _ in 0..self.operation_count {
-            let current_time = self.context.now();
-            let timestamp = Duration::from_secs_f64(current_time);
+            // Use local_time() for clock skew simulation
+            let timestamp = self.local_time();
+            let current_time = timestamp.as_secs_f64();
 
             // Send heartbeat
             {

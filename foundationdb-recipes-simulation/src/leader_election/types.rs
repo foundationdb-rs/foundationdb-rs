@@ -83,3 +83,33 @@ pub(crate) fn get_lease_duration(snapshot: &DatabaseSnapshot, default_secs: u64)
         .map(|c| c.lease_duration)
         .unwrap_or(Duration::from_secs(default_secs))
 }
+
+// ============================================================================
+// CLOCK SKEW SIMULATION (mimics FDB's sim2.actor.cpp)
+// ============================================================================
+
+/// Clock skew defaults (mimicking FDB's sim2)
+pub const DEFAULT_CLOCK_JITTER_RANGE: f64 = 0.2; // ±10% like DELAY_JITTER_RANGE
+pub const DEFAULT_CLOCK_JITTER_OFFSET: f64 = 0.9; // Like DELAY_JITTER_OFFSET
+
+/// Clock skew levels for simulation
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ClockSkewLevel {
+    /// Light: ±100ms (like FDB's timer() vs now())
+    Light,
+    /// Moderate: ±500ms (cloud NTP worst case)
+    Moderate,
+    /// Extreme: ±1s (stress test, will cause election churn)
+    Extreme,
+}
+
+impl ClockSkewLevel {
+    /// Maximum clock offset in seconds for this skew level
+    pub fn max_offset_secs(&self) -> f64 {
+        match self {
+            ClockSkewLevel::Light => 0.1,
+            ClockSkewLevel::Moderate => 0.5,
+            ClockSkewLevel::Extreme => 1.0,
+        }
+    }
+}
