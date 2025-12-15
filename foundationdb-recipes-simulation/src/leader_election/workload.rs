@@ -97,51 +97,50 @@ impl RustWorkload for LeaderElectionWorkload {
                     details!["Error" => "Exhausted all retry attempts"],
                 );
             }
+
+            // Register ALL candidates (Client 0 does this for everyone to avoid race condition)
+            for cid in 0..self.client_count {
+                let process_id = format!("process_{}", cid);
+                let timestamp = self.local_time();
+                let timestamp_secs = timestamp.as_secs_f64();
+                let log_key = self.log_subspace.pack(&(cid, 0_u64)); // op_num 0 for each client
+
+                let result = db
+                    .run(|trx, _maybe_committed| {
+                        let election = election.clone();
+                        let process_id = process_id.clone();
+                        let log_key = log_key.clone();
+                        async move {
+                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
+                            let reg_result = election
+                                .register_candidate(&trx, &process_id, 0, timestamp)
+                                .await;
+
+                            // Log in SAME transaction - atomic with the operation
+                            let success = reg_result.is_ok();
+                            let log_value = pack(&(OP_REGISTER, success, timestamp_secs, false));
+                            trx.set(&log_key, &log_value);
+
+                            reg_result.map_err(FdbBindingError::from)
+                        }
+                    })
+                    .await;
+
+                self.context.trace(
+                    Severity::Info,
+                    "ProcessRegistered",
+                    details![
+                        "Layer" => "Rust",
+                        "Client" => cid,
+                        "ProcessId" => process_id,
+                        "Success" => result.is_ok()
+                    ],
+                );
+            }
         }
 
-        // All clients register their process
-        let election = LeaderElection::new(self.election_subspace.clone());
-        let process_id = self.process_id.clone();
-        // Use local_time() for clock skew simulation
-        let timestamp = self.local_time();
-        let timestamp_secs = timestamp.as_secs_f64();
-
-        // Prepare log entry components
-        let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
-
-        let result = db
-            .run(|trx, _maybe_committed| {
-                let election = election.clone();
-                let process_id = process_id.clone();
-                let log_key = log_key.clone();
-                async move {
-                    trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                    let reg_result = election
-                        .register_candidate(&trx, &process_id, 0, timestamp)
-                        .await;
-
-                    // Log in SAME transaction - atomic with the operation
-                    let success = reg_result.is_ok();
-                    let log_value = pack(&(OP_REGISTER, success, timestamp_secs, false));
-                    trx.set(&log_key, &log_value);
-
-                    reg_result.map_err(FdbBindingError::from)
-                }
-            })
-            .await;
-
-        self.op_num += 1;
-
-        self.context.trace(
-            Severity::Info,
-            "ProcessRegistered",
-            details![
-                "Layer" => "Rust",
-                "Client" => self.client_id,
-                "ProcessId" => self.process_id.clone(),
-                "Success" => result.is_ok()
-            ],
-        );
+        // All clients start with op_num = 1 (registration was op 0, done by Client 0)
+        self.op_num = 1;
     }
 
     async fn start(&mut self, db: SimDatabase) {
