@@ -10,13 +10,7 @@ cargo build -p foundationdb-recipes-simulation --release
 
 ## Running
 
-### Single run
-
-```bash
-fdbserver -r simulation -f foundationdb-recipes-simulation/test_leader_election.toml -b on --trace-format json
-```
-
-### Multiple iterations
+### Searching for bugs
 
 Use the provided script to run multiple iterations:
 
@@ -26,12 +20,16 @@ Use the provided script to run multiple iterations:
 
 # Run 10 iterations
 ./scripts/run_leader_election_simulation.sh 10
-
-# Run infinitely until failure
-./scripts/run_leader_election_simulation.sh 0
 ```
 
 Traces are stored in `./target/traces/`.
+
+### Debugging
+
+```bash
+# Don't forget to rm old traces to facilitate the search inside the traces
+fdbserver -r simulation -f foundationdb-recipes-simulation/test_leader_election.toml -b on --trace-format json -L ./target/traces --logsize 1GiB --seed <SEED>
+```
 
 ## Workloads
 

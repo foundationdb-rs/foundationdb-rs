@@ -1,9 +1,9 @@
 //! Types, constants, and enums for leader election simulation workload.
 
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use foundationdb::recipes::leader_election::{CandidateInfo, ElectionConfig, LeaderState};
+use foundationdb::tuple::Versionstamp;
 
 // Use i64 instead of u8 for tuple packing (u8 is not supported)
 pub(crate) const OP_REGISTER: i64 = 0;
@@ -11,8 +11,19 @@ pub(crate) const OP_HEARTBEAT: i64 = 1;
 pub(crate) const OP_TRY_BECOME_LEADER: i64 = 2;
 pub(crate) const OP_RESIGN: i64 = 3;
 
-/// Log entry map: (timestamp_micros, client_id, op_num) -> (op_type, success, timestamp, became_leader)
-pub(crate) type LogEntries = BTreeMap<(i64, i32, u64), (i64, bool, f64, bool)>;
+/// A single log entry - entries are read in FDB commit order (versionstamp ordering)
+#[derive(Debug, Clone)]
+pub(crate) struct LogEntry {
+    pub versionstamp: Versionstamp,
+    pub client_id: i32,
+    pub op_num: u64,
+    pub op_type: i64,
+    pub success: bool,
+    pub became_leader: bool,
+}
+
+/// Log entries in FDB commit order (versionstamp-ordered keys give us true ordering)
+pub(crate) type LogEntries = Vec<LogEntry>;
 
 /// Operation types for logging
 #[derive(Clone, Copy, Debug)]
@@ -67,8 +78,6 @@ pub(crate) struct ClientStats {
     pub(crate) leadership_success_count: usize,
     pub(crate) resign_count: usize,
     pub(crate) error_count: usize,
-    pub(crate) first_timestamp: Option<f64>,
-    pub(crate) last_timestamp: Option<f64>,
     pub(crate) op_nums: Vec<u64>,
 }
 

@@ -3,11 +3,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use foundationdb::{
-    recipes::leader_election::{CandidateInfo, ElectionConfig, LeaderElection, LeaderState},
-    FdbBindingError,
-};
-use foundationdb_simulation::{details, Severity, SimDatabase};
+use foundationdb_simulation::{details, Severity};
 
 use super::types::{
     ClientStats, DatabaseSnapshot, LogEntries, OpType, DEFAULT_CLOCK_JITTER_OFFSET,
@@ -122,19 +118,18 @@ impl LeaderElectionWorkload {
     // ========================================================================
 
     /// Dump all log entries with running statistics (like AtomicOps dumpLogKV)
+    /// Entries are already in FDB commit order (versionstamp-ordered keys)
     pub(crate) fn dump_log_entries(&self, entries: &LogEntries) {
         let mut running_leadership_count: u64 = 0;
         let mut per_client_ops: BTreeMap<i32, usize> = BTreeMap::new();
 
-        for ((ts_millis, client_id, op_num), (op_type, success, timestamp, became_leader)) in
-            entries
-        {
-            if *became_leader {
+        for (idx, entry) in entries.iter().enumerate() {
+            if entry.became_leader {
                 running_leadership_count += 1;
             }
-            *per_client_ops.entry(*client_id).or_default() += 1;
+            *per_client_ops.entry(entry.client_id).or_default() += 1;
 
-            let op_name = OpType::from_i64(*op_type)
+            let op_name = OpType::from_i64(entry.op_type)
                 .map(|o| o.as_str())
                 .unwrap_or("Unknown");
 
@@ -143,13 +138,13 @@ impl LeaderElectionWorkload {
                 "LogEntryDump",
                 details![
                     "Layer" => "Rust",
-                    "TimestampMillis" => ts_millis,
-                    "ClientId" => client_id,
-                    "OpNum" => op_num,
+                    "Index" => idx,
+                    "Versionstamp" => format!("{:?}", entry.versionstamp),
+                    "ClientId" => entry.client_id,
+                    "OpNum" => entry.op_num,
                     "OpType" => op_name,
-                    "Success" => success,
-                    "Timestamp" => timestamp,
-                    "BecameLeader" => became_leader,
+                    "Success" => entry.success,
+                    "BecameLeader" => entry.became_leader,
                     "RunningLeadershipCount" => running_leadership_count
                 ],
             );
@@ -262,50 +257,39 @@ impl LeaderElectionWorkload {
     // ========================================================================
 
     /// Extract per-client statistics from log entries
+    /// Entries are already in FDB commit order (versionstamp-ordered keys)
     pub(crate) fn extract_client_stats(&self, entries: &LogEntries) -> BTreeMap<i32, ClientStats> {
         let mut stats: BTreeMap<i32, ClientStats> = BTreeMap::new();
 
-        for ((_, client_id, op_num), (op_type, success, timestamp, became_leader)) in entries {
-            let client_stats = stats.entry(*client_id).or_default();
-            client_stats.op_nums.push(*op_num);
-
-            // Update timestamps
-            if client_stats.first_timestamp.is_none()
-                || *timestamp < client_stats.first_timestamp.unwrap()
-            {
-                client_stats.first_timestamp = Some(*timestamp);
-            }
-            if client_stats.last_timestamp.is_none()
-                || *timestamp > client_stats.last_timestamp.unwrap()
-            {
-                client_stats.last_timestamp = Some(*timestamp);
-            }
+        for entry in entries {
+            let client_stats = stats.entry(entry.client_id).or_default();
+            client_stats.op_nums.push(entry.op_num);
 
             // Count by operation type
-            match OpType::from_i64(*op_type) {
+            match OpType::from_i64(entry.op_type) {
                 Some(OpType::Register) => {
                     client_stats.register_count += 1;
-                    if !*success {
+                    if !entry.success {
                         client_stats.error_count += 1;
                     }
                 }
                 Some(OpType::Heartbeat) => {
                     client_stats.heartbeat_count += 1;
-                    if !*success {
+                    if !entry.success {
                         client_stats.error_count += 1;
                     }
                 }
                 Some(OpType::TryBecomeLeader) => {
                     client_stats.leadership_attempt_count += 1;
-                    if *became_leader {
+                    if entry.became_leader {
                         client_stats.leadership_success_count += 1;
                     }
-                    if !*success {
+                    if !entry.success {
                         client_stats.error_count += 1;
                     }
                 }
                 Some(OpType::Resign) => {
-                    if *success {
+                    if entry.success {
                         client_stats.resign_count += 1;
                     }
                 }
@@ -353,115 +337,6 @@ impl LeaderElectionWorkload {
                     "OpCount" => client_stats.op_nums.len()
                 ],
             );
-        }
-    }
-
-    // ========================================================================
-    // DATABASE STATE CAPTURE
-    // ========================================================================
-
-    /// Capture database state snapshot for invariant checking
-    pub(crate) async fn capture_database_state(&self, db: &SimDatabase) -> DatabaseSnapshot {
-        let election = LeaderElection::new(self.election_subspace.clone());
-        let current_time = Duration::from_secs_f64(self.context.now());
-
-        // Trace the subspace we're using
-        self.context.trace(
-            Severity::Info,
-            "CaptureStateStart",
-            details![
-                "Layer" => "Rust",
-                "ElectionSubspace" => format!("{:?}", self.election_subspace.bytes()),
-                "CurrentTime" => current_time.as_secs_f64()
-            ],
-        );
-
-        // Read leader state WITHOUT lease filtering (for invariant checking)
-        // We need the raw state to verify ballot conservation even after lease expires
-        let leader_result = db
-            .run(|trx, _| {
-                let election = election.clone();
-                async move {
-                    election
-                        .get_leader_raw(&trx)
-                        .await
-                        .map_err(FdbBindingError::from)
-                }
-            })
-            .await;
-
-        // Trace the leader read result
-        self.context.trace(
-            Severity::Info,
-            "LeaderReadResult",
-            details![
-                "Layer" => "Rust",
-                "Success" => leader_result.is_ok(),
-                "HasLeader" => leader_result.as_ref().map(|l| l.is_some()).unwrap_or(false),
-                "Error" => leader_result.as_ref().err().map(|e| format!("{e:?}")).unwrap_or_default()
-            ],
-        );
-
-        let leader_state: Option<LeaderState> = leader_result.ok().flatten();
-
-        // Read all candidates
-        let candidates_result = db
-            .run(|trx, _| {
-                let election = election.clone();
-                async move {
-                    election
-                        .list_candidates(&trx, current_time)
-                        .await
-                        .map_err(FdbBindingError::from)
-                }
-            })
-            .await;
-
-        // Trace candidates read result
-        self.context.trace(
-            Severity::Info,
-            "CandidatesReadResult",
-            details![
-                "Layer" => "Rust",
-                "Success" => candidates_result.is_ok(),
-                "Count" => candidates_result.as_ref().map(|c| c.len()).unwrap_or(0),
-                "Error" => candidates_result.as_ref().err().map(|e| format!("{e:?}")).unwrap_or_default()
-            ],
-        );
-
-        let candidates: Vec<CandidateInfo> = candidates_result.unwrap_or_default();
-
-        // Read config
-        let config_result = db
-            .run(|trx, _| {
-                let election = election.clone();
-                async move {
-                    election
-                        .read_config(&trx)
-                        .await
-                        .map_err(FdbBindingError::from)
-                }
-            })
-            .await;
-
-        // Trace config read result
-        self.context.trace(
-            Severity::Info,
-            "ConfigReadResult",
-            details![
-                "Layer" => "Rust",
-                "Success" => config_result.is_ok(),
-                "HasConfig" => config_result.is_ok(),
-                "Error" => config_result.as_ref().err().map(|e| format!("{e:?}")).unwrap_or_default()
-            ],
-        );
-
-        let config: Option<ElectionConfig> = config_result.ok();
-
-        DatabaseSnapshot {
-            leader_state,
-            candidates,
-            config,
         }
     }
 }

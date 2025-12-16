@@ -1,12 +1,15 @@
 //! Invariant verification methods for leader election simulation.
 //!
 //! Contains the core Active Disk Paxos invariants:
-//! 1. Safety (No Overlapping Leadership) - At most one leader at any time
-//! 2. Ballot Conservation - Expected ballot from logs matches actual ballot in FDB
-//! 3. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
-//! 4. Candidate Timestamps - No future timestamps in candidates
-//! 5. Leadership Sequence - Per-client leadership events are monotonic in time
+//! 1. Dual-Path Validation (NEW) - Replay logs vs FDB state must match
+//! 2. Safety (No Overlapping Leadership) - At most one leader at any time
+//! 3. Ballot Conservation - Expected ballot from logs matches actual ballot in FDB
+//! 4. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
+//! 5. Candidate Timestamps - No future timestamps in candidates
 //! 6. Registration Coverage - All leadership claims come from registered processes
+//!
+//! Note: Log entries are now in FDB commit order (versionstamp-ordered keys),
+//! so we have true causal ordering without clock skew issues.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -18,17 +21,66 @@ use super::types::{
 use super::LeaderElectionWorkload;
 
 impl LeaderElectionWorkload {
-    /// Invariant 1: Safety - No Overlapping Leadership
+    /// Invariant 1: Dual-Path Validation (AtomicOps pattern)
     ///
-    /// Process events in log order (BTreeMap iteration order), tracking current leader.
-    /// When the same client refreshes their lease, the old lease is superseded.
+    /// Replay log entries (in true FDB commit order via versionstamp keys)
+    /// to compute expected leader state, then compare with actual FDB state.
+    ///
+    /// This is the key insight: with versionstamp-ordered keys, we have TRUE
+    /// causal ordering, so replay gives us the exact expected state.
+    pub(crate) fn verify_dual_path(
+        &self,
+        entries: &LogEntries,
+        snapshot: &DatabaseSnapshot,
+    ) -> (bool, String) {
+        // Path 1: Replay logs in versionstamp order (true commit order)
+        let mut expected_leader: Option<String> = None;
+        let mut expected_ballot: u64 = 0;
+
+        for entry in entries {
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                expected_ballot += 1;
+                expected_leader = Some(format!("process_{}", entry.client_id));
+            }
+            if entry.op_type == OP_RESIGN && entry.success {
+                let resigning = format!("process_{}", entry.client_id);
+                if expected_leader.as_ref() == Some(&resigning) {
+                    expected_leader = None;
+                    expected_ballot = 0; // Ballot resets after resign
+                }
+            }
+        }
+
+        // Path 2: Actual FDB state
+        let (actual_leader, actual_ballot) = match &snapshot.leader_state {
+            Some(l) => (Some(l.leader_id.clone()), l.ballot),
+            None => (None, 0),
+        };
+
+        // Compare
+        let leader_matches = expected_leader == actual_leader;
+        let ballot_matches = expected_ballot == actual_ballot;
+
+        if leader_matches && ballot_matches {
+            (
+                true,
+                format!("Dual-path OK: leader={actual_leader:?}, ballot={actual_ballot}"),
+            )
+        } else {
+            (
+                false,
+                format!(
+                    "Dual-path MISMATCH: expected ({expected_leader:?}, {expected_ballot}), actual ({actual_leader:?}, {actual_ballot})"
+                ),
+            )
+        }
+    }
+
+    /// Invariant 2: Safety - No Overlapping Leadership
+    ///
+    /// Process events in log order (versionstamp order = true FDB commit order).
     /// When a client resigns, their leadership ends immediately.
-    /// Only flag overlap when a DIFFERENT client claims while another client is leader
-    /// (and hasn't resigned).
-    ///
-    /// IMPORTANT: We use log entry order (not timestamp order) because clock skew
-    /// can cause timestamps to be out of causal order. The log entry keys
-    /// (timestamp_micros, client_id, op_num) preserve FDB transaction ordering.
+    /// Track leadership transitions for debugging.
     pub(crate) fn verify_no_overlapping_leadership(
         &self,
         entries: &LogEntries,
@@ -38,50 +90,32 @@ impl LeaderElectionWorkload {
         let mut claim_count = 0usize;
         let mut resign_count = 0usize;
 
-        // Track who is currently the leader (based on log order, not timestamps)
-        // We don't track lease_end because with clock skew we can't rely on timestamps
-        // Instead, a client is leader until: (a) another client claims, or (b) they resign
+        // Track who is currently the leader (based on true commit order via versionstamp)
         let mut current_leader: Option<i32> = None;
 
-        for ((_, client_id, _), (op_type, success, _timestamp, became_leader)) in entries {
-            if *op_type == OP_TRY_BECOME_LEADER && *success && *became_leader {
+        for entry in entries {
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
                 claim_count += 1;
-
-                if let Some(curr_client) = current_leader {
-                    // Check if a DIFFERENT client is claiming
-                    // This is only a violation if the current leader hasn't resigned
-                    // (which would have set current_leader to None)
-                    if curr_client != *client_id {
-                        // Another client is taking over leadership
-                        // This is allowed by FDB (lease expiry, preemption, etc.)
-                        // We track it but don't flag as error
-                    }
-                }
                 // Update current leader
-                current_leader = Some(*client_id);
+                current_leader = Some(entry.client_id);
             }
 
-            if *op_type == OP_RESIGN && *success {
+            if entry.op_type == OP_RESIGN && entry.success {
                 // Resign event - clear the current leader if it's this client
-                if let Some(curr_client) = current_leader {
-                    if curr_client == *client_id {
-                        current_leader = None;
-                        resign_count += 1;
-                    }
+                if current_leader == Some(entry.client_id) {
+                    current_leader = None;
+                    resign_count += 1;
                 }
             }
         }
 
-        // With clock skew simulation, we can't reliably detect overlap based on timestamps
-        // The actual safety is enforced by FDB's transaction semantics
-        // This invariant now just tracks that our logging is consistent
-
+        // Safety is enforced by FDB's transaction semantics
+        // This invariant tracks that our logging is consistent
         if issues.is_empty() {
             (
                 true,
                 format!(
-                    "Leadership tracking consistent ({} claims, {} resigns processed)",
-                    claim_count, resign_count
+                    "Leadership tracking consistent ({claim_count} claims, {resign_count} resigns processed)"
                 ),
             )
         } else {
@@ -89,20 +123,13 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 2: Ballot Conservation Law
+    /// Invariant 3: Ballot Conservation Law
     ///
-    /// With clock skew simulation, we cannot rely on timestamp-based ordering.
-    /// Instead, we verify a simpler property:
+    /// Now that we have true commit ordering via versionstamp keys, we can
+    /// verify exact ballot conservation by replaying the logs.
     ///
-    /// If there's a leader in FDB:
-    ///   - Count total successful claims in logs
-    ///   - Count total successful resigns in logs
-    ///   - Each resign resets the ballot to 0, so effective ballot = claims_after_last_resign
-    ///
-    /// Due to clock skew, we can't determine exact ordering, so we verify:
-    ///   - If no resigns: actual_ballot should equal total_claims
-    ///   - If resigns occurred: actual_ballot should be <= total_claims (some claims were "reset")
-    ///   - If no leader: actual_ballot = 0
+    /// Note: This is largely redundant with verify_dual_path, but kept for
+    /// detailed diagnostics and backwards compatibility.
     pub(crate) fn verify_ballot_conservation(
         &self,
         entries: &LogEntries,
@@ -111,11 +138,11 @@ impl LeaderElectionWorkload {
         let mut total_claims: u64 = 0;
         let mut resign_count: u64 = 0;
 
-        for ((_ts, _client_id, _op_num), (op_type, success, _timestamp, became_leader)) in entries {
-            if *op_type == OP_TRY_BECOME_LEADER && *success && *became_leader {
+        for entry in entries {
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
                 total_claims += 1;
             }
-            if *op_type == OP_RESIGN && *success {
+            if entry.op_type == OP_RESIGN && entry.success {
                 resign_count += 1;
             }
         }
@@ -133,7 +160,7 @@ impl LeaderElectionWorkload {
         // - If no leader in snapshot: expect ballot = 0 (last operation was a resign)
         // - If leader exists and no resigns: actual_ballot should equal total_claims
         // - If leader exists and resigns occurred: actual_ballot should be in range [1, total_claims]
-        //   (can't be 0 if there's a leader, can't exceed total claims)
+        //   (at least 1 claim after the last resign, at most all claims)
 
         let is_valid = if !has_leader {
             // No leader means last operation was a resign
@@ -164,7 +191,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 3: Leader Is Candidate - Structural Integrity
+    /// Invariant 4: Leader Is Candidate - Structural Integrity
     ///
     /// The current leader must be in the candidate list.
     /// This verifies the data structure invariant that leadership
@@ -224,7 +251,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 4: Candidate Timestamps - No Future Timestamps
+    /// Invariant 5: Candidate Timestamps - No Future Timestamps
     ///
     /// All candidate heartbeat timestamps should be in the past or present,
     /// not in the future. Future timestamps would indicate clock skew issues
@@ -270,29 +297,36 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 5: Leadership Sequence - Monotonic Per-Client Timestamps
+    /// Invariant 6: Leadership Sequence - Monotonic Per-Client Operations
     ///
-    /// For each client, their successful leadership claims should be
-    /// monotonically increasing in time. A client cannot claim leadership
-    /// "in the past" relative to their previous claim.
+    /// For each client, their op_nums should be monotonically increasing.
+    /// This verifies the log entries are properly ordered per client.
+    /// (Note: With versionstamp ordering, we have true commit order, so this
+    /// is a simpler check now - just verify op_nums are increasing per client)
     pub(crate) fn verify_leadership_sequence(&self, entries: &LogEntries) -> (bool, String) {
-        let mut client_last_leadership: BTreeMap<i32, f64> = BTreeMap::new();
+        let mut client_last_op: BTreeMap<i32, u64> = BTreeMap::new();
+        let mut leadership_count: BTreeMap<i32, usize> = BTreeMap::new();
         let mut violations = Vec::new();
 
-        for ((_, client_id, _), (op_type, success, timestamp, became_leader)) in entries {
-            if *op_type == OP_TRY_BECOME_LEADER && *success && *became_leader {
-                if let Some(last_ts) = client_last_leadership.get(client_id) {
-                    if *timestamp < *last_ts {
-                        violations.push(format!(
-                            "Client {client_id} leadership at {timestamp:.3} before previous at {last_ts:.3}"
-                        ));
-                    }
+        for entry in entries {
+            // Track last op_num per client
+            if let Some(last_op) = client_last_op.get(&entry.client_id) {
+                if entry.op_num <= *last_op {
+                    violations.push(format!(
+                        "Client {} op_num {} not greater than previous {}",
+                        entry.client_id, entry.op_num, last_op
+                    ));
                 }
-                client_last_leadership.insert(*client_id, *timestamp);
+            }
+            client_last_op.insert(entry.client_id, entry.op_num);
+
+            // Count leadership claims
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                *leadership_count.entry(entry.client_id).or_default() += 1;
             }
         }
 
-        let clients_with_leadership = client_last_leadership.len();
+        let clients_with_leadership = leadership_count.len();
 
         if violations.is_empty() {
             (
@@ -304,7 +338,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 6: Registration Coverage - All Leaders Were Registered
+    /// Invariant 7: Registration Coverage - All Leaders Were Registered
     ///
     /// Every client that successfully claimed leadership must have
     /// previously registered (logged a Register operation).
@@ -314,14 +348,14 @@ impl LeaderElectionWorkload {
         let mut registered_clients: BTreeMap<i32, bool> = BTreeMap::new();
         let mut clients_with_leadership: BTreeMap<i32, usize> = BTreeMap::new();
 
-        for ((_, client_id, _), (op_type, success, _, became_leader)) in entries {
+        for entry in entries {
             // Count any registration attempt (success or failure indicates the client tried)
-            if *op_type == OP_REGISTER {
-                registered_clients.insert(*client_id, *success);
+            if entry.op_type == OP_REGISTER {
+                registered_clients.insert(entry.client_id, entry.success);
             }
 
-            if *op_type == OP_TRY_BECOME_LEADER && *success && *became_leader {
-                *clients_with_leadership.entry(*client_id).or_default() += 1;
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                *clients_with_leadership.entry(entry.client_id).or_default() += 1;
             }
         }
 
@@ -361,27 +395,32 @@ impl LeaderElectionWorkload {
 
         let mut results: Vec<(&'static str, bool, String)> = Vec::new();
 
-        // Invariant 1: Safety - No Overlapping Leadership
+        // Invariant 1: Dual-Path Validation (NEW - most important!)
+        // Replay logs in true commit order, compare with FDB state
+        let (pass, detail) = self.verify_dual_path(entries, snapshot);
+        results.push(("DualPathValidation", pass, detail));
+
+        // Invariant 2: Safety - No Overlapping Leadership
         let (pass, detail) = self.verify_no_overlapping_leadership(entries, lease_duration);
         results.push(("NoOverlappingLeadership", pass, detail));
 
-        // Invariant 2: Ballot Conservation
+        // Invariant 3: Ballot Conservation (redundant with dual-path, but more diagnostics)
         let (pass, detail) = self.verify_ballot_conservation(entries, snapshot);
         results.push(("BallotConservation", pass, detail));
 
-        // Invariant 3: Leader Is Candidate (structural integrity)
+        // Invariant 4: Leader Is Candidate (structural integrity)
         let (pass, detail) = self.verify_leader_is_candidate(snapshot, current_time);
         results.push(("LeaderIsCandidate", pass, detail));
 
-        // Invariant 4: Candidate Timestamps (no future timestamps)
+        // Invariant 5: Candidate Timestamps (no future timestamps)
         let (pass, detail) = self.verify_candidate_timestamps(snapshot, current_time);
         results.push(("CandidateTimestamps", pass, detail));
 
-        // Invariant 5: Leadership Sequence (per-client monotonic)
+        // Invariant 6: Leadership Sequence (per-client monotonic op_nums)
         let (pass, detail) = self.verify_leadership_sequence(entries);
         results.push(("LeadershipSequence", pass, detail));
 
-        // Invariant 6: Registration Coverage (all leaders were registered)
+        // Invariant 7: Registration Coverage (all leaders were registered)
         let (pass, detail) = self.verify_registration_coverage(entries);
         results.push(("RegistrationCoverage", pass, detail));
 

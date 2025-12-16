@@ -5,19 +5,20 @@
 //! - start: Execute heartbeats and leadership attempts
 //! - check: Verify invariants against logged operations
 
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use foundationdb::{
-    options::TransactionOption,
+    options::{MutationType, TransactionOption},
     recipes::leader_election::{ElectionConfig, LeaderElection},
-    tuple::{pack, unpack},
+    tuple::{pack, unpack, Versionstamp},
     FdbBindingError, RangeOption,
 };
 use foundationdb_simulation::{details, Metric, Metrics, RustWorkload, Severity, SimDatabase};
 use futures::TryStreamExt;
 
-use super::types::{LogEntries, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER};
+use super::types::{
+    LogEntries, LogEntry, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
+};
 use super::LeaderElectionWorkload;
 
 impl RustWorkload for LeaderElectionWorkload {
@@ -100,26 +101,30 @@ impl RustWorkload for LeaderElectionWorkload {
 
             // Register ALL candidates (Client 0 does this for everyone to avoid race condition)
             for cid in 0..self.client_count {
-                let process_id = format!("process_{}", cid);
+                let process_id = format!("process_{cid}");
                 let timestamp = self.local_time();
-                let timestamp_secs = timestamp.as_secs_f64();
-                let log_key = self.log_subspace.pack(&(cid, 0_u64)); // op_num 0 for each client
+                let log_subspace = self.log_subspace.clone();
 
                 let result = db
                     .run(|trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
-                        let log_key = log_key.clone();
+                        let log_subspace = log_subspace.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             let reg_result = election
                                 .register_candidate(&trx, &process_id, 0, timestamp)
                                 .await;
 
-                            // Log in SAME transaction - atomic with the operation
+                            // Log with versionstamp-ordered key (FDB commit order)
                             let success = reg_result.is_ok();
-                            let log_value = pack(&(OP_REGISTER, success, timestamp_secs, false));
-                            trx.set(&log_key, &log_value);
+                            let log_key = log_subspace.pack_with_versionstamp(&(
+                                Versionstamp::incomplete(0),
+                                cid,
+                                0_u64, // op_num 0 for registration
+                            ));
+                            let log_value = pack(&(OP_REGISTER, success, false));
+                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             reg_result.map_err(FdbBindingError::from)
                         }
@@ -167,23 +172,30 @@ impl RustWorkload for LeaderElectionWorkload {
             {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
-                let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
+                let log_subspace = self.log_subspace.clone();
+                let client_id = self.client_id;
+                let op_num = self.op_num;
 
                 let result = db
                     .run(|trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
-                        let log_key = log_key.clone();
+                        let log_subspace = log_subspace.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             let hb_result = election
                                 .heartbeat_candidate(&trx, &process_id, 0, timestamp)
                                 .await;
 
-                            // Log in SAME transaction - atomic with the operation
+                            // Log with versionstamp-ordered key (FDB commit order)
                             let success = hb_result.is_ok();
-                            let log_value = pack(&(OP_HEARTBEAT, success, current_time, false));
-                            trx.set(&log_key, &log_value);
+                            let log_key = log_subspace.pack_with_versionstamp(&(
+                                Versionstamp::incomplete(0),
+                                client_id,
+                                op_num,
+                            ));
+                            let log_value = pack(&(OP_HEARTBEAT, success, false));
+                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             hb_result.map_err(FdbBindingError::from)
                         }
@@ -203,13 +215,15 @@ impl RustWorkload for LeaderElectionWorkload {
             let became_leader = {
                 let process_id = self.process_id.clone();
                 let election = election.clone();
-                let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
+                let log_subspace = self.log_subspace.clone();
+                let client_id = self.client_id;
+                let op_num = self.op_num;
 
                 let result: Result<Option<_>, _> = db
                     .run(|trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
-                        let log_key = log_key.clone();
+                        let log_subspace = log_subspace.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
                             let claim_result = election
@@ -217,12 +231,15 @@ impl RustWorkload for LeaderElectionWorkload {
                                 .await
                                 .map_err(FdbBindingError::from)?;
 
-                            // Log in SAME transaction - atomic with the operation
-                            // became_leader is true only if we got Some(state)
+                            // Log with versionstamp-ordered key (FDB commit order)
                             let became_leader = claim_result.is_some();
-                            let log_value =
-                                pack(&(OP_TRY_BECOME_LEADER, true, current_time, became_leader));
-                            trx.set(&log_key, &log_value);
+                            let log_key = log_subspace.pack_with_versionstamp(&(
+                                Versionstamp::incomplete(0),
+                                client_id,
+                                op_num,
+                            ));
+                            let log_value = pack(&(OP_TRY_BECOME_LEADER, true, became_leader));
+                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             Ok(claim_result)
                         }
@@ -275,13 +292,15 @@ impl RustWorkload for LeaderElectionWorkload {
                 if rnd_val < self.resign_probability {
                     let process_id = self.process_id.clone();
                     let election = election.clone();
-                    let log_key = self.log_subspace.pack(&(self.client_id, self.op_num));
+                    let log_subspace = self.log_subspace.clone();
+                    let client_id = self.client_id;
+                    let op_num = self.op_num;
 
                     let resign_result: Result<bool, _> = db
                         .run(|trx, _maybe_committed| {
                             let election = election.clone();
                             let process_id = process_id.clone();
-                            let log_key = log_key.clone();
+                            let log_subspace = log_subspace.clone();
                             async move {
                                 trx.set_option(TransactionOption::AutomaticIdempotency)?;
                                 let did_resign = election
@@ -289,9 +308,18 @@ impl RustWorkload for LeaderElectionWorkload {
                                     .await
                                     .map_err(FdbBindingError::from)?;
 
-                                // Log in SAME transaction - atomic with the operation
-                                let log_value = pack(&(OP_RESIGN, did_resign, current_time, false));
-                                trx.set(&log_key, &log_value);
+                                // Log with versionstamp-ordered key (FDB commit order)
+                                let log_key = log_subspace.pack_with_versionstamp(&(
+                                    Versionstamp::incomplete(0),
+                                    client_id,
+                                    op_num,
+                                ));
+                                let log_value = pack(&(OP_RESIGN, did_resign, false));
+                                trx.atomic_op(
+                                    &log_key,
+                                    &log_value,
+                                    MutationType::SetVersionstampedKey,
+                                );
 
                                 Ok(did_resign)
                             }
@@ -342,22 +370,20 @@ impl RustWorkload for LeaderElectionWorkload {
             return;
         }
 
-        // Step 1: Capture database state snapshot (AtomicOps-style)
-        let snapshot = self.capture_database_state(&db).await;
-
-        // Step 2: Dump database state for debugging
-        self.dump_config(&snapshot);
-        self.dump_leader_state(&snapshot);
-        self.dump_candidates(&snapshot);
-
-        // Step 3: Read all log entries
+        // Step 1: Read all log entries and snapshot in a single transaction
+        // Capture read version for debugging (like Cycle.actor.cpp)
         let log_subspace = self.log_subspace.clone();
-        let entries_result = db
+        let election_subspace = self.election_subspace.clone();
+
+        let check_result = db
             .run(|trx, _maybe_committed| {
                 let log_subspace = log_subspace.clone();
+                let election_subspace = election_subspace.clone();
                 async move {
-                    let mut all_entries: LogEntries = BTreeMap::new();
+                    // Get read version for debugging
+                    let read_version = trx.get_read_version().await?;
 
+                    // Read log entries - already in versionstamp (commit) order!
                     let range = RangeOption::from(log_subspace.range());
                     let kvs: Vec<_> = trx
                         .get_ranges_keyvalues(range, false)
@@ -365,34 +391,55 @@ impl RustWorkload for LeaderElectionWorkload {
                         .await
                         .map_err(FdbBindingError::from)?;
 
+                    let mut entries: LogEntries = Vec::with_capacity(kvs.len());
                     for kv in kvs.iter() {
-                        // Unpack key: (client_id, op_num)
-                        let key_tuple: (i32, u64) = log_subspace
+                        // Unpack key: (versionstamp, client_id, op_num)
+                        let key_tuple: (Versionstamp, i32, u64) = log_subspace
                             .unpack(kv.key())
                             .map_err(FdbBindingError::PackError)?;
-                        let (client_id, op_num) = key_tuple;
+                        let (versionstamp, client_id, op_num) = key_tuple;
 
-                        // Unpack value: (op_type, success, timestamp, became_leader)
-                        let value_tuple: (i64, bool, f64, bool) =
+                        // Unpack value: (op_type, success, became_leader)
+                        let value_tuple: (i64, bool, bool) =
                             unpack(kv.value()).map_err(FdbBindingError::PackError)?;
 
-                        // Key for sorting: (timestamp_micros, client_id, op_num)
-                        // Use microseconds to avoid sub-millisecond ordering issues
-                        let timestamp_micros = (value_tuple.2 * 1_000_000.0) as i64;
-                        all_entries.insert((timestamp_micros, client_id, op_num), value_tuple);
+                        entries.push(LogEntry {
+                            versionstamp,
+                            client_id,
+                            op_num,
+                            op_type: value_tuple.0,
+                            success: value_tuple.1,
+                            became_leader: value_tuple.2,
+                        });
                     }
 
-                    Ok(all_entries)
+                    // Read snapshot data
+                    let election = LeaderElection::new(election_subspace);
+                    let current_time = Duration::from_secs_f64(0.0); // Will use context.now() later
+
+                    let leader_state = election
+                        .get_leader_raw(&trx)
+                        .await
+                        .map_err(FdbBindingError::from)?;
+
+                    let candidates = election
+                        .list_candidates(&trx, current_time)
+                        .await
+                        .map_err(FdbBindingError::from)?;
+
+                    let config = election.read_config(&trx).await.ok();
+
+                    Ok((read_version, entries, leader_state, candidates, config))
                 }
             })
             .await;
 
-        let entries = match entries_result {
-            Ok(e) => e,
+        let (read_version, entries, leader_state, candidates, config) = match check_result {
+            Ok(r) => r,
             Err(e) => {
                 self.context.trace(
                     Severity::Error,
-                    "LogEntriesReadFailed",
+                    "CheckPhaseReadFailed",
                     details![
                         "Layer" => "Rust",
                         "Error" => format!("{:?}", e)
@@ -402,23 +449,59 @@ impl RustWorkload for LeaderElectionWorkload {
             }
         };
 
-        // Step 4: Dump log entries for debugging (AtomicOps dumpLogKV style)
-        self.dump_log_entries(&entries);
+        // Build snapshot struct
+        let snapshot = super::types::DatabaseSnapshot {
+            leader_state,
+            candidates,
+            config,
+        };
 
-        // Step 5: Extract statistics and log them (for debugging)
+        // Log read version and entry count
+        self.context.trace(
+            Severity::Info,
+            "CheckPhaseRead",
+            details![
+                "Layer" => "Rust",
+                "ReadVersion" => read_version,
+                "EntryCount" => entries.len(),
+                "HasLeader" => snapshot.leader_state.is_some(),
+                "CandidateCount" => snapshot.candidates.len()
+            ],
+        );
+
+        // Step 2: Run invariant checks FIRST (before dumping)
+        let result = self.run_all_invariant_checks(&entries, &snapshot);
+
+        // Step 3: Conditional dumping - only on failure (AtomicOps pattern)
+        if result.failed > 0 {
+            self.context.trace(
+                Severity::Error,
+                "InvariantFailed_DumpingState",
+                details![
+                    "Layer" => "Rust",
+                    "ReadVersion" => read_version,
+                    "FailedCount" => result.failed
+                ],
+            );
+            // Dump state for debugging
+            self.dump_config(&snapshot);
+            self.dump_leader_state(&snapshot);
+            self.dump_candidates(&snapshot);
+            self.dump_log_entries(&entries);
+        }
+
+        // Step 4: Extract and log statistics
         let stats = self.extract_client_stats(&entries);
         self.log_statistics(&entries, &stats);
 
-        // Step 6: Run core invariant checks (Safety + Ballot Conservation)
-        let result = self.run_all_invariant_checks(&entries, &snapshot);
-
-        // Step 7: Final summary with pass/fail status
+        // Step 5: Final summary with pass/fail status
         if result.failed > 0 {
             self.context.trace(
                 Severity::Error,
                 "LeaderElectionCheckFailed",
                 details![
                     "Layer" => "Rust",
+                    "ReadVersion" => read_version,
                     "InvariantsPassed" => result.passed,
                     "InvariantsFailed" => result.failed,
                     "FailedInvariants" => result.results.iter()
@@ -434,6 +517,7 @@ impl RustWorkload for LeaderElectionWorkload {
                 "LeaderElectionCheckPassed",
                 details![
                     "Layer" => "Rust",
+                    "ReadVersion" => read_version,
                     "InvariantsPassed" => result.passed,
                     "Message" => "All invariants verified successfully"
                 ],
