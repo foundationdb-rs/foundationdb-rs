@@ -54,12 +54,6 @@ name = "foundationdb-simulation"
 publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
-name = "foundationdb-bench"
-publish = false
-git_release_enable = false
-changelog_update = false
-
-[[package]]
 name = "bindingtester"
 publish = false
 git_release_enable = false
