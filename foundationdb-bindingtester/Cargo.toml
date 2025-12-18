@@ -29,5 +29,4 @@ foundationdb-sys = { version = "0.10.0", path = "../foundationdb-sys", features 
 futures = "0.3.31"
 log = "0.4.28"
 num-bigint = "0.4.6"
-structopt = "0.3.26"
 async-trait = "0.1.89"
