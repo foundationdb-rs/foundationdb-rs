@@ -64,6 +64,13 @@ fn main() {
         println!("cargo:rustc-link-search=native={lib_path}");
     }
 
+    // Include the link directory for macOS.
+    // Since Rust 1.91, /usr/local/lib is no longer searched automatically on macOS.
+    // See: https://github.com/rust-lang/rust/pull/131477
+    // See: https://github.com/rust-lang/rust/issues/147010
+    #[cfg(target_os = "macos")]
+    println!("cargo:rustc-link-search=/usr/local/lib");
+
     // Include the link directory for the .lib file on windows (which will resolve to
     // the shared library, at runtime)
     #[cfg(target_os = "windows")]
