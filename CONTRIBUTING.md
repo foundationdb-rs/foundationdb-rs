@@ -68,7 +68,6 @@ For NixOS users, add this to your `configuration.nix` for the FDB cluster file:
 - `foundationdb-gen/` - Code generator for FDB options and types
 - `foundationdb-tuple/` - Tuple layer implementation
 - `foundationdb-macros/` - Procedural macros
-- `foundationdb-bench/` - Benchmarking suite
 - `foundationdb-bindingtester/` - Official binding tester implementation
 - `foundationdb-simulation/` - Simulation testing framework
 

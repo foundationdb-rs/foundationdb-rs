@@ -361,18 +361,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "foundationdb-bench"
-version = "0.5.1"
-dependencies = [
- "env_logger",
- "foundationdb",
- "futures",
- "log",
- "rand",
- "structopt",
-]
-
-[[package]]
 name = "foundationdb-gen"
 version = "0.10.0"
 dependencies = [
