@@ -25,7 +25,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// An slice of mapped keyvalues owned by a foundationDB future produced by the `get_mapped` method.
+/// A slice of mapped keyvalues owned by a foundationDB future produced by the `get_mapped` method.
 pub struct MappedKeyValues {
     _f: FdbFutureHandle,
     mapped_keyvalues: *const FdbMappedKeyValue,
@@ -68,7 +68,7 @@ impl TryFrom<FdbFutureHandle> for MappedKeyValues {
 }
 
 #[repr(C, packed)]
-/// A KeyValue produced by a mapped operation, ownder by a Foundation Future.
+/// A KeyValue produced by a mapped operation, owner of a Foundation Future.
 pub struct FdbMappedKeyValue(fdb_sys::FDBMappedKeyValue);
 
 impl PartialEq for FdbMappedKeyValue {
