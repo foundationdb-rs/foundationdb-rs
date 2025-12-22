@@ -11,7 +11,7 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{Arc, Condvar, Mutex, OnceLock},
-    task::{Context, Poll, RawWaker, RawWakerVTable, Wake, Waker},
+    task::{Context, Poll, Wake, Waker},
     thread::{self, ThreadId},
 };
 
@@ -63,15 +63,10 @@ unsafe impl Sync for FDBWaker {}
 
 /// Poll a waker. This must only be called from the FDB simulation thread.
 fn poll_waker(waker_arc: Arc<FDBWaker>) {
-    let waker_ptr = Arc::into_raw(waker_arc) as *const ();
-    let raw_waker = RawWaker::new(waker_ptr, &VTABLE);
-    let waker = unsafe { Waker::from_raw(raw_waker) };
+    let waker: Waker = waker_arc.clone().into();
     let mut cx = Context::from_waker(&waker);
-
-    let waker_ref = unsafe { &*(waker_ptr as *const FDBWaker) };
-    let f = unsafe { &mut *waker_ref.f.get() };
+    let f = unsafe { &mut *waker_arc.f.get() };
     let _ = f.as_mut().poll(&mut cx);
-    // The waker is dropped here, decreasing the refcount
 }
 
 /// Drain the wake queue and poll all pending futures.
@@ -96,59 +91,40 @@ pub fn drain_wake_queue() -> bool {
     polled_any
 }
 
-/// Handle a wake() call. If we're on the FDB thread, poll immediately.
-/// Otherwise, queue the wakeup for the FDB thread to handle.
-fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
-    if is_fdb_thread() {
-        // We're on the FDB simulation thread - poll immediately (original behavior)
-        let waker_raw = fdbwaker_clone(waker_ref);
-        let waker = unsafe { Waker::from_raw(waker_raw) };
-        let mut cx = Context::from_waker(&waker);
-        let f = unsafe { &mut *waker_ref.f.get() };
-        let _ = f.as_mut().poll(&mut cx);
+impl Wake for FDBWaker {
+    fn wake(self: Arc<Self>) {
+        self.wake_impl();
+    }
 
-        // Also drain any wakeups that were queued by other threads
-        drain_wake_queue();
-
-        if decrease {
-            fdbwaker_drop(waker_ref);
-        }
-    } else {
-        // We're on a non-FDB thread (e.g., Tokio worker) - queue the wakeup
-        let waker_arc = unsafe { Arc::from_raw(waker_ref) };
-
-        if !decrease {
-            // wake_by_ref: keep the original alive
-            std::mem::forget(waker_arc.clone());
-        }
-
-        {
-            let mut queue = WAKE_QUEUE.lock().unwrap_or_else(|e| e.into_inner());
-            queue.push_back(waker_arc);
-        }
-        // Notify the FDB thread that a wakeup is available
-        WAKE_CONDVAR.notify_all();
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.clone().wake_impl();
     }
 }
 
-fn fdbwaker_clone(waker_ref: &FDBWaker) -> RawWaker {
-    let waker_arc = unsafe { Arc::from_raw(waker_ref) };
-    std::mem::forget(waker_arc.clone()); // increase ref count
-    RawWaker::new(Arc::into_raw(waker_arc) as *const (), &VTABLE)
-}
+impl FDBWaker {
+    /// Handle a wake() call. If we're on the FDB thread, poll immediately.
+    /// Otherwise, queue the wakeup for the FDB thread to handle.
+    fn wake_impl(self: Arc<Self>) {
+        if is_fdb_thread() {
+            // We're on the FDB simulation thread - poll immediately (original behavior)
+            let waker: Waker = self.clone().into();
+            let mut cx = Context::from_waker(&waker);
+            let f = unsafe { &mut *self.f.get() };
+            let _ = f.as_mut().poll(&mut cx);
 
-fn fdbwaker_drop(waker_ref: &FDBWaker) {
-    unsafe { Arc::from_raw(waker_ref) };
+            // Also drain any wakeups that were queued by other threads
+            drain_wake_queue();
+        } else {
+            // We're on a non-FDB thread (e.g., Tokio worker) - queue the wakeup
+            {
+                let mut queue = WAKE_QUEUE.lock().unwrap_or_else(|e| e.into_inner());
+                queue.push_back(self);
+            }
+            // Notify the FDB thread that a wakeup is available
+            WAKE_CONDVAR.notify_all();
+        }
+    }
 }
-
-const VTABLE: RawWakerVTable = unsafe {
-    RawWakerVTable::new(
-        |waker_ptr| fdbwaker_clone(&*(waker_ptr as *const FDBWaker)), // clone
-        |waker_ptr| fdbwaker_wake(&*(waker_ptr as *const FDBWaker), true), // wake (decrease refcount)
-        |waker_ptr| fdbwaker_wake(&*(waker_ptr as *const FDBWaker), false), // wake_by_ref (don't decrease refcount)
-        |waker_ptr| fdbwaker_drop(&*(waker_ptr as *const FDBWaker)), // drop (decrease refcount)
-    )
-};
 
 /// Spawn an async block and resolve all contained FoundationDB futures
 pub fn fdb_spawn<F>(future: F)
@@ -160,9 +136,7 @@ where
 
     let f = UnsafeCell::new(Box::pin(future));
     let waker_arc = Arc::new(FDBWaker { f });
-    let waker_ptr = Arc::into_raw(waker_arc) as *const ();
-    let raw_waker = RawWaker::new(waker_ptr, &VTABLE);
-    let waker = unsafe { Waker::from_raw(raw_waker) };
+    let waker: Waker = waker_arc.into();
     waker.wake();
 }
 
