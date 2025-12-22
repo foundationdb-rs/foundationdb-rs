@@ -10,14 +10,38 @@ use std::{
     collections::VecDeque,
     future::Future,
     pin::Pin,
-    sync::{Arc, Condvar, Mutex},
-    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
-    time::Duration,
+    sync::{Arc, Condvar, Mutex, OnceLock},
+    task::{Context, Poll, RawWaker, RawWakerVTable, Wake, Waker},
+    thread::{self, ThreadId},
 };
 
-thread_local! {
-    /// Marker for the FDB simulation thread. Only this thread is allowed to poll futures.
-    static IS_FDB_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+/// Stores the thread ID of the FDB simulation thread.
+/// Only this thread is allowed to poll futures directly.
+static FDB_THREAD_ID: OnceLock<ThreadId> = OnceLock::new();
+
+/// Register the current thread as the FDB simulation thread.
+/// Panics if called from a different thread than a previous call.
+fn set_fdb_thread() {
+    let current = thread::current().id();
+    match FDB_THREAD_ID.get() {
+        Some(stored) if *stored != current => {
+            panic!(
+                "fdb_spawn called from multiple threads! First: {stored:?}, Current: {current:?}"
+            );
+        }
+        Some(_) => {} // Same thread, OK
+        None => {
+            FDB_THREAD_ID.get_or_init(|| current);
+        }
+    }
+}
+
+/// Check if the current thread is the FDB simulation thread.
+fn is_fdb_thread() -> bool {
+    FDB_THREAD_ID
+        .get()
+        .map(|id| *id == thread::current().id())
+        .unwrap_or(false)
 }
 
 /// Thread-safe queue for pending wakeups from non-FDB threads.
@@ -57,7 +81,7 @@ pub fn drain_wake_queue() -> bool {
     let mut polled_any = false;
     loop {
         let waker_arc = {
-            let mut queue = WAKE_QUEUE.lock().unwrap();
+            let mut queue = WAKE_QUEUE.lock().unwrap_or_else(|e| e.into_inner());
             queue.pop_front()
         };
 
@@ -72,23 +96,10 @@ pub fn drain_wake_queue() -> bool {
     polled_any
 }
 
-/// Wait for a wakeup to be queued (with timeout).
-/// Returns true if a wakeup was queued, false on timeout.
-fn wait_for_wakeup(timeout: Duration) -> bool {
-    let queue = WAKE_QUEUE.lock().unwrap();
-    if !queue.is_empty() {
-        return true;
-    }
-    let (queue, result) = WAKE_CONDVAR.wait_timeout(queue, timeout).unwrap();
-    !queue.is_empty() || !result.timed_out()
-}
-
 /// Handle a wake() call. If we're on the FDB thread, poll immediately.
 /// Otherwise, queue the wakeup for the FDB thread to handle.
 fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
-    let is_fdb_thread = IS_FDB_THREAD.with(|f| f.get());
-
-    if is_fdb_thread {
+    if is_fdb_thread() {
         // We're on the FDB simulation thread - poll immediately (original behavior)
         let waker_raw = fdbwaker_clone(waker_ref);
         let waker = unsafe { Waker::from_raw(waker_raw) };
@@ -112,7 +123,7 @@ fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
         }
 
         {
-            let mut queue = WAKE_QUEUE.lock().unwrap();
+            let mut queue = WAKE_QUEUE.lock().unwrap_or_else(|e| e.into_inner());
             queue.push_back(waker_arc);
         }
         // Notify the FDB thread that a wakeup is available
@@ -144,8 +155,8 @@ pub fn fdb_spawn<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    // Mark this thread as the FDB simulation thread
-    IS_FDB_THREAD.with(|f| f.set(true));
+    // Register this thread as the FDB simulation thread (validates single-thread invariant)
+    set_fdb_thread();
 
     let f = UnsafeCell::new(Box::pin(future));
     let waker_arc = Arc::new(FDBWaker { f });
@@ -155,11 +166,35 @@ where
     waker.wake();
 }
 
+/// Signal used by `block_on_external` to receive wakeups from external runtimes.
+/// Implements the `Wake` trait to properly integrate with Rust's async machinery.
+struct BlockOnSignal {
+    ready: Mutex<bool>,
+    condvar: Condvar,
+}
+
+impl Wake for BlockOnSignal {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        // Use unwrap_or_else to avoid panicking if mutex is poisoned.
+        // This is critical because wake() is called from Tokio worker threads.
+        let mut ready = self.ready.lock().unwrap_or_else(|e| e.into_inner());
+        *ready = true;
+        self.condvar.notify_one();
+    }
+}
+
 /// Block the current thread until a future completes, integrating with external async runtimes.
 ///
 /// This function is designed for use within FDB simulation workloads when you need to
 /// await futures from external runtimes like Tokio. It will block the current thread
 /// and poll the future until completion, properly handling wakeups from other threads.
+///
+/// Unlike the previous implementation that polled every 10ms, this version uses a proper
+/// signaling waker that wakes up immediately when the external runtime signals completion.
 ///
 /// # Example
 /// ```ignore
@@ -170,32 +205,40 @@ where
 /// let handle = tokio::spawn(async { 42 });
 /// let result = block_on_external(handle);
 /// ```
-pub fn block_on_external<F: Future>(mut future: F) -> F::Output {
-    // Create a simple waker that does nothing - we'll poll manually
-    static NOOP_VTABLE: RawWakerVTable = RawWakerVTable::new(
-        |_| RawWaker::new(std::ptr::null(), &NOOP_VTABLE),
-        |_| {},
-        |_| {},
-        |_| {},
-    );
-    let raw_waker = RawWaker::new(std::ptr::null(), &NOOP_VTABLE);
-    let waker = unsafe { Waker::from_raw(raw_waker) };
+pub fn block_on_external<F: Future>(future: F) -> F::Output {
+    // Create a signaling waker that notifies via condvar when wake() is called
+    let signal = Arc::new(BlockOnSignal {
+        ready: Mutex::new(false),
+        condvar: Condvar::new(),
+    });
+    let waker: Waker = signal.clone().into();
     let mut cx = Context::from_waker(&waker);
 
-    // Pin the future
-    // SAFETY: we're not moving the future after this
-    let mut future = unsafe { Pin::new_unchecked(&mut future) };
+    // Pin the future on the stack
+    let mut future = std::pin::pin!(future);
 
     loop {
-        // Drain any pending external wakeups first
+        // Drain any pending external wakeups first (for FDBWaker futures)
         drain_wake_queue();
+
+        // Reset ready flag BEFORE polling, so any wake() during poll is captured
+        {
+            let mut ready = signal.ready.lock().unwrap_or_else(|e| e.into_inner());
+            *ready = false;
+        }
 
         // Poll the future
         match future.as_mut().poll(&mut cx) {
             Poll::Ready(result) => return result,
             Poll::Pending => {
-                // Wait for a wakeup from an external thread
-                wait_for_wakeup(Duration::from_millis(10));
+                // Wait for wake() to be called by the external runtime
+                let mut ready = signal.ready.lock().unwrap_or_else(|e| e.into_inner());
+                while !*ready {
+                    ready = signal
+                        .condvar
+                        .wait(ready)
+                        .unwrap_or_else(|e| e.into_inner());
+                }
             }
         }
     }
