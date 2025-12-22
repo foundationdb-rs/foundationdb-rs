@@ -43,3 +43,11 @@ crate-type = ["cdylib"]
 name = "noop"
 path = "examples/noop/lib.rs"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "tokio_compat"
+path = "examples/tokio-compat/lib.rs"
+crate-type = ["cdylib"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }

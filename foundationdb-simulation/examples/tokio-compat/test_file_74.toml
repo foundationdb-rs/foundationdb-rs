@@ -1,0 +1,10 @@
+[[test]]
+testTitle = 'TokioCompatWorkload'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'tokio_compat'
+    workloadName = 'TokioCompatWorkload'
+    libraryPath = './target/release/examples'
+    task_count = 10

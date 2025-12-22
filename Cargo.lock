@@ -366,6 +366,7 @@ dependencies = [
  "cc",
  "foundationdb",
  "foundationdb-sys",
+ "tokio",
 ]
 
 [[package]]
