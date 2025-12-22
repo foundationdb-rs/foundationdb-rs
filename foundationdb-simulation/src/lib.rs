@@ -12,6 +12,7 @@ mod fdb_rt;
 use bindings::{FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, OpaqueWorkload, Promise};
 pub use bindings::{Metric, Metrics, Severity, WorkloadContext};
 use fdb_rt::fdb_spawn;
+pub use fdb_rt::block_on_external;
 
 // -----------------------------------------------------------------------------
 // User friendly types

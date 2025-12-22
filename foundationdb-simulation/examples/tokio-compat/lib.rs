@@ -2,8 +2,8 @@ use std::sync::OnceLock;
 use tokio::runtime::Runtime;
 
 use foundationdb_simulation::{
-    details, register_workload, Metric, Metrics, RustWorkload, Severity, SimDatabase,
-    SingleRustWorkload, WorkloadContext,
+    block_on_external, details, register_workload, Metric, Metrics, RustWorkload, Severity,
+    SimDatabase, SingleRustWorkload, WorkloadContext,
 };
 
 static TOKIO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -80,9 +80,6 @@ impl RustWorkload for TokioCompatWorkload {
             let _guard = rt.enter();
 
             // Spawn task on Tokio worker thread.
-            // This is where the bug manifests - when this task completes,
-            // the Tokio worker thread will call wake() on the FDBWaker
-            // from a different thread, causing undefined behavior.
             let handle = tokio::spawn(async move {
                 // Yield to ensure we actually run on a worker thread
                 tokio::task::yield_now().await;
@@ -92,8 +89,9 @@ impl RustWorkload for TokioCompatWorkload {
 
             self.tasks_spawned += 1;
 
-            // Awaiting triggers cross-thread wake
-            match handle.await {
+            // Use block_on_external to wait for the Tokio task
+            // This blocks the FDB thread but properly handles wakeups from Tokio workers
+            match block_on_external(handle) {
                 Ok(result) => {
                     assert_eq!(result, (0..100i32).sum::<i32>());
                     self.tasks_completed += 1;
