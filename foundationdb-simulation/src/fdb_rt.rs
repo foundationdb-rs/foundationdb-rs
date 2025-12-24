@@ -1,7 +1,31 @@
-//! Asynchronous runtime module
+//! # FDB Simulation Async Runtime
 //!
-//! This module defines the `fdb_spawn` method to run to completion asynchronous tasks containing
-//! FoundationDB futures
+//! This module provides the async execution infrastructure for FoundationDB simulation workloads.
+//!
+//! ## Threading Model
+//!
+//! FDB simulation is **strictly single-threaded**. All future polling must occur on the
+//! simulation thread to maintain determinism. This module enforces this invariant and provides
+//! mechanisms to safely integrate with multi-threaded runtimes like Tokio.
+//!
+//! ## Key Components
+//!
+//! - [`fdb_spawn`]: Spawn a future to be driven by the FDB simulation event loop
+//! - [`block_on_external`]: Block until an external runtime's future completes (experimental)
+//! - [`drain_wake_queue`]: Process pending wakeups from other threads
+//!
+//! ## When to Use What
+//!
+//! | Scenario | Function |
+//! |----------|----------|
+//! | Awaiting FDB operations | `fdb_spawn` (automatic via workload phases) |
+//! | Awaiting Tokio tasks | [`block_on_external`] |
+//! | Processing queued wakeups | [`drain_wake_queue`] (usually automatic) |
+//!
+//! ## Detailed Documentation
+//!
+//! For a comprehensive explanation of the architecture, threading model, and flow diagrams,
+//! see the included documentation below.
 
 #![doc = include_str!("../docs/fdb_rt.md")]
 
@@ -52,12 +76,32 @@ static WAKE_QUEUE: Mutex<VecDeque<Arc<FDBWaker>>> = Mutex::new(VecDeque::new());
 /// Condition variable to notify the FDB thread when a wakeup is queued.
 static WAKE_CONDVAR: Condvar = Condvar::new();
 
+/// Waker implementation for FDB simulation futures.
+///
+/// Wraps a pinned future and provides the [`Wake`] trait implementation needed
+/// to integrate with Rust's async machinery.
+///
+/// # Thread Safety
+///
+/// This struct uses [`UnsafeCell`] for interior mutability of the pinned future.
+/// Despite implementing `Send + Sync`, this is safe because:
+///
+/// 1. The future is **only polled from the FDB simulation thread**
+/// 2. Non-FDB threads only interact with the [`Arc`] wrapper and queue mechanism
+/// 3. The [`wake_impl`](Self::wake_impl) method detects which thread it's on and acts accordingly
+///
+/// # Wake Behavior
+///
+/// - **On FDB thread**: Polls the future immediately (original single-threaded behavior)
+/// - **On other threads**: Queues the waker for later polling by the FDB thread via [`WAKE_QUEUE`]
 struct FDBWaker {
+    /// The wrapped future. Only accessed from the FDB simulation thread.
     f: UnsafeCell<Pin<Box<dyn Future<Output = ()>>>>,
 }
 
 // SAFETY: We only poll `f` from the FDB simulation thread.
 // Non-FDB threads only queue wakers, they don't access `f`.
+// The wake_impl() method checks is_fdb_thread() before accessing `f`.
 unsafe impl Send for FDBWaker {}
 unsafe impl Sync for FDBWaker {}
 
@@ -140,10 +184,28 @@ where
     waker.wake();
 }
 
-/// Signal used by `block_on_external` to receive wakeups from external runtimes.
-/// Implements the `Wake` trait to properly integrate with Rust's async machinery.
+/// Signaling mechanism for [`block_on_external`].
+///
+/// This struct implements the [`Wake`] trait to receive notifications from external
+/// async runtimes (like Tokio) when their futures are ready to make progress.
+///
+/// # How It Works
+///
+/// 1. [`block_on_external`] creates a `BlockOnSignal` with `ready = false`
+/// 2. A [`Waker`] is created from this signal and passed to the external future
+/// 3. When the external runtime completes work, it calls `wake()`
+/// 4. `wake()` sets `ready = true` and notifies the condvar
+/// 5. [`block_on_external`] wakes up and re-polls the future
+///
+/// # Thread Safety
+///
+/// This struct is designed to be called from external runtime threads (e.g., Tokio workers).
+/// The mutex is accessed with `unwrap_or_else` to avoid panicking on poison, since worker
+/// threads may panic independently.
 struct BlockOnSignal {
+    /// Flag indicating whether a wake signal has been received.
     ready: Mutex<bool>,
+    /// Condition variable used to block the FDB thread until wake() is called.
     condvar: Condvar,
 }
 
@@ -161,24 +223,66 @@ impl Wake for BlockOnSignal {
     }
 }
 
-/// Block the current thread until a future completes, integrating with external async runtimes.
+/// Block the current thread until a future from an external runtime completes.
 ///
-/// This function is designed for use within FDB simulation workloads when you need to
-/// await futures from external runtimes like Tokio. It will block the current thread
-/// and poll the future until completion, properly handling wakeups from other threads.
+/// # WARNING: Experimental Feature
 ///
-/// Unlike the previous implementation that polled every 10ms, this version uses a proper
-/// signaling waker that wakes up immediately when the external runtime signals completion.
+/// Using multiple async runtimes is generally **a bad idea** and `block_on_external`
+/// is **an ugly hack** for when you cannot modify a library that depends on Tokio.
+/// The ideal solution is always to avoid external runtimes in simulation workloads.
+///
+/// **Use with extreme caution.**
+///
+/// # Purpose
+///
+/// FDB simulation uses a custom single-threaded executor that cooperates with the
+/// fdbserver event loop. External runtimes like Tokio have their own executors
+/// with worker thread pools. This function bridges the two worlds.
+///
+/// Valid use cases include libraries that internally require `tokio::spawn` for
+/// distributed/parallel execution (e.g., DataFusion query execution, gRPC clients).
+///
+/// # Why Not Just `.await`?
+///
+/// Directly awaiting a Tokio `JoinHandle` inside an FDB workload would:
+///
+/// 1. **Block the FDB thread** - The Tokio future's waker would be called from
+///    a Tokio worker thread
+/// 2. **Cause cross-thread polling** - The `FDBWaker::wake()` would be called
+///    from the wrong thread
+/// 3. **Violate safety invariants** - Potentially cause undefined behavior
 ///
 /// # Example
+///
 /// ```ignore
 /// use foundationdb_simulation::block_on_external;
+/// use tokio::runtime::Runtime;
+/// use std::sync::OnceLock;
 ///
-/// let rt = tokio::runtime::Runtime::new().unwrap();
+/// static RT: OnceLock<Runtime> = OnceLock::new();
+///
+/// fn get_runtime() -> &'static Runtime {
+///     RT.get_or_init(|| {
+///         tokio::runtime::Builder::new_multi_thread()
+///             .worker_threads(2)
+///             .build()
+///             .unwrap()
+///     })
+/// }
+///
+/// // Inside a workload:
+/// let rt = get_runtime();
 /// let _guard = rt.enter();
-/// let handle = tokio::spawn(async { 42 });
-/// let result = block_on_external(handle);
+/// let handle = tokio::spawn(async { expensive_computation() });
+/// let result = block_on_external(handle).unwrap();
 /// ```
+///
+/// # Caveats
+///
+/// - **Blocks the FDB thread**: While waiting, no FDB simulation progress occurs
+/// - **Not for FDB futures**: Use regular `.await` for FDB operations
+/// - **Runtime must be initialized**: You need a running Tokio runtime
+/// - **Non-deterministic**: The external runtime portion is not simulation-deterministic
 pub fn block_on_external<F: Future>(future: F) -> F::Output {
     // Create a signaling waker that notifies via condvar when wake() is called
     let signal = Arc::new(BlockOnSignal {

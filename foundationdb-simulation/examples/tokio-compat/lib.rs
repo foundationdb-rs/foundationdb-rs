@@ -1,3 +1,52 @@
+//! # Tokio Compatibility Example
+//!
+//! > **WARNING: Experimental Feature - Use with Extreme Caution**
+//! >
+//! > Using multiple async runtimes is generally **a bad idea** and this is
+//! > **an ugly hack** for when you cannot modify a library that depends on Tokio.
+//! > The ideal solution is always to avoid Tokio in simulation workloads.
+//!
+//! This example demonstrates how to use Tokio alongside FDB simulation workloads
+//! using the [`block_on_external`] function.
+//!
+//! ## The Problem
+//!
+//! FDB simulation is strictly single-threaded. When you spawn a Tokio task, it runs
+//! on Tokio's worker threads. If you try to `.await` a `JoinHandle` directly, Tokio
+//! will call `wake()` from a worker thread, violating the single-thread invariant
+//! and potentially causing undefined behavior.
+//!
+//! ## The Solution
+//!
+//! The [`block_on_external`] function provides a safe bridge:
+//!
+//! 1. It creates a `Waker` that uses a condvar for signaling
+//! 2. Polls the Tokio future
+//! 3. When Tokio calls `wake()` from a worker thread, it signals the condvar
+//! 4. The FDB thread wakes up and re-polls
+//!
+//! ## Valid Use Cases
+//!
+//! This pattern is useful when integrating with libraries that internally require
+//! `tokio::spawn` for distributed/parallel execution, such as:
+//!
+//! - Query engines (e.g., DataFusion) that parallelize execution via Tokio tasks
+//! - gRPC clients that spawn background tasks for connection management
+//! - HTTP clients with internal worker threads
+//!
+//! ## Key Patterns Demonstrated
+//!
+//! - **Static Runtime**: Use [`OnceLock<Runtime>`] to lazily initialize Tokio
+//! - **Enter Guard**: Use `rt.enter()` to set the Tokio context before spawning
+//! - **block_on_external**: Use this instead of `.await` for Tokio futures
+//!
+//! ## Running This Example
+//!
+//! ```bash
+//! cargo build --release --example tokio_compat
+//! fdbserver -r simulation -f foundationdb-simulation/examples/tokio-compat/test_file_74.toml
+//! ```
+
 use std::sync::OnceLock;
 use tokio::runtime::Runtime;
 
@@ -6,8 +55,21 @@ use foundationdb_simulation::{
     SimDatabase, SingleRustWorkload, WorkloadContext,
 };
 
+/// Global Tokio runtime, lazily initialized.
+///
+/// We use [`OnceLock`] instead of `lazy_static` for:
+/// - No extra dependency
+/// - Explicit initialization timing
+/// - Thread-safe single initialization
+///
+/// The runtime persists for the entire simulation lifetime.
 static TOKIO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
+/// Get or create the global Tokio runtime.
+///
+/// Creates a multi-threaded runtime with 2 worker threads.
+/// The runtime is initialized lazily on first access and persists
+/// for the entire simulation.
 fn get_runtime() -> &'static Runtime {
     TOKIO_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
@@ -17,11 +79,20 @@ fn get_runtime() -> &'static Runtime {
     })
 }
 
+/// Example workload demonstrating Tokio integration with FDB simulation.
+///
+/// This workload spawns tasks on Tokio worker threads and uses [`block_on_external`]
+/// to safely await their completion from the FDB simulation thread.
 pub struct TokioCompatWorkload {
+    /// Workload context for tracing and configuration.
     context: WorkloadContext,
+    /// The ID of this client instance.
     client_id: i32,
+    /// Number of Tokio tasks to spawn (configurable via test file).
     task_count: usize,
+    /// Counter for tasks that have been spawned.
     tasks_spawned: usize,
+    /// Counter for tasks that have completed successfully.
     tasks_completed: usize,
 }
 
@@ -75,21 +146,32 @@ impl RustWorkload for TokioCompatWorkload {
                 ],
             );
 
-            // Enter Tokio runtime context
+            // PATTERN 1: Enter Tokio runtime context.
+            // This is REQUIRED so that tokio::spawn knows which runtime to use.
+            // The guard must be held while spawning the task.
             let _guard = rt.enter();
 
-            // Spawn task on Tokio worker thread.
+            // PATTERN 2: Spawn task on Tokio worker thread.
+            // This task will run asynchronously on Tokio's thread pool,
+            // completely separate from the FDB simulation thread.
             let handle = tokio::spawn(async move {
-                // Yield to ensure we actually run on a worker thread
+                // yield_now() ensures we actually context-switch to a worker thread,
+                // demonstrating that the cross-thread wake mechanism works correctly.
                 tokio::task::yield_now().await;
-                // Simulate some computation
+                // Simulate some CPU-bound computation
                 (0..100i32).sum::<i32>()
             });
 
             self.tasks_spawned += 1;
 
-            // Use block_on_external to wait for the Tokio task
-            // This blocks the FDB thread but properly handles wakeups from Tokio workers
+            // PATTERN 3: Use block_on_external to wait for the Tokio task.
+            //
+            // This blocks the FDB simulation thread but properly handles wakeups
+            // from Tokio worker threads via a condvar-based signaling mechanism.
+            //
+            // WITHOUT this, directly awaiting `handle` would cause cross-thread wake
+            // violations and potential undefined behavior, because Tokio would call
+            // wake() on our FDBWaker from a worker thread.
             match block_on_external(handle) {
                 Ok(result) => {
                     assert_eq!(result, (0..100i32).sum::<i32>());

@@ -261,3 +261,88 @@ fn get_metrics(&self, out: Metrics) {
   use the fresh `&mut self` and `db` references passed to the next phase. Storing `SimDatabase`,
   `Transaction`, or `Future` objects across phases will lead to segmentation faults or other
   undefined behavior.
+
+# Using External Async Runtimes (Tokio)
+
+> **WARNING: Experimental Feature**
+>
+> Using multiple async runtimes (FDB simulation + Tokio) is **experimental** and
+> generally **a bad idea**. It adds significant complexity and potential for subtle bugs.
+>
+> **This is an ugly hack** for situations where you must use a library that internally
+> depends on Tokio and you cannot modify that library. The ideal solution is always
+> to avoid Tokio entirely in simulation workloads.
+>
+> **Use with extreme caution.**
+
+FDB simulation workloads can integrate with external async runtimes like Tokio for
+operations that require external libraries. Valid use cases include libraries that
+internally use `tokio::spawn` for distributed/parallel execution, such as:
+
+- Query engines (e.g., DataFusion) that parallelize execution via Tokio tasks
+- gRPC clients that spawn background tasks for connection management
+- HTTP clients with internal worker threads
+
+## The Problem
+
+FDB simulation uses a custom single-threaded executor. If you try to directly await
+a Tokio task, the wake signal will come from a Tokio worker thread, violating the
+single-threaded invariant and potentially causing undefined behavior.
+
+```rust
+// DON'T DO THIS - cross-thread wake violation!
+async fn start(&mut self, _db: SimDatabase) {
+    let handle = tokio::spawn(async { 42 });
+    let _ = handle.await; // Wake comes from wrong thread!
+}
+```
+
+## The Solution: `block_on_external`
+
+Use `block_on_external` to safely await futures from external runtimes:
+
+```rust
+use foundationdb_simulation::block_on_external;
+
+async fn start(&mut self, _db: SimDatabase) {
+    let rt = get_runtime(); // Your Tokio runtime
+    let _guard = rt.enter();
+
+    let handle = tokio::spawn(async {
+        // Runs on Tokio worker thread
+        expensive_computation()
+    });
+
+    // Safely blocks FDB thread until Tokio task completes
+    let result = block_on_external(handle).unwrap();
+}
+```
+
+## Setting Up Tokio
+
+Use a lazily-initialized static runtime:
+
+```rust
+use std::sync::OnceLock;
+use tokio::runtime::Runtime;
+
+static TOKIO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+fn get_runtime() -> &'static Runtime {
+    TOKIO_RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .build()
+            .expect("Failed to create Tokio runtime")
+    })
+}
+```
+
+## Caveats
+
+- **Blocking**: `block_on_external` blocks the FDB simulation thread
+- **No FDB operations**: Don't perform FDB operations inside Tokio tasks
+- **Use sparingly**: Only for truly external work that cannot be adapted
+- **Non-deterministic**: The Tokio portion is not simulation-deterministic
+
+See the `tokio-compat` example for a complete working implementation.

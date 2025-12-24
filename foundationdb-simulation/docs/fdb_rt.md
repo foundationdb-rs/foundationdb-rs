@@ -1,225 +1,334 @@
-Here is an explanation of how `fdb_spawn` communicates with the simulation through the
-foundationdb-rs SDK.
-```rs
-    fdb_spawn(async move {
-        ... // code that relies on polling FdbFutures
-    }
+# FDB Simulation Async Runtime
+
+This document explains how the `fdb_rt` module provides async execution for FoundationDB
+simulation workloads, including the threading model, waker infrastructure, and integration
+with external runtimes like Tokio.
+
+## Architecture Overview
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         FDB Simulation Process                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────┐    ┌──────────────────────────────────┐   │
+│  │   FDB Simulation Thread      │    │     External Runtime Threads      │   │
+│  │   (single, deterministic)    │    │     (e.g., Tokio workers)         │   │
+│  │                              │    │                                   │   │
+│  │  ┌────────────────────────┐  │    │  ┌─────────────────────────────┐  │   │
+│  │  │     fdb_spawn()        │  │    │  │    tokio::spawn()           │  │   │
+│  │  │  Polls FDBWaker        │  │    │  │  Runs async tasks           │  │   │
+│  │  └───────────┬────────────┘  │    │  └──────────────┬──────────────┘  │   │
+│  │              │               │    │                 │                 │   │
+│  │              │ poll()        │    │                 │ wake()          │   │
+│  │              ▼               │    │                 ▼                 │   │
+│  │  ┌────────────────────────┐  │    │                                   │   │
+│  │  │     drain_wake_queue() │◄─┼────┼──── WAKE_QUEUE + WAKE_CONDVAR ◄──│   │
+│  │  │  Process queued wakes  │  │    │     (cross-thread signaling)     │   │
+│  │  └────────────────────────┘  │    │                                   │   │
+│  │                              │    │                                   │   │
+│  │  FDB_THREAD_ID: OnceLock     │    │                                   │   │
+│  │  (validates single-thread)   │    │                                   │   │
+│  └──────────────────────────────┘    └──────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`fdb_spawn` takes in a Rust Future and polls it until Ready.
-```rs
-pub fn fdb_spawn<F>(f: F)
+## Threading Model
+
+FDB simulation is **strictly single-threaded**. All future polling must occur on the
+simulation thread to maintain determinism. The `fdb_rt` module enforces this invariant:
+
+- **`FDB_THREAD_ID`**: A `OnceLock<ThreadId>` that stores the simulation thread's ID
+- **`set_fdb_thread()`**: Registers the current thread as the FDB thread (called by `fdb_spawn`)
+- **`is_fdb_thread()`**: Checks if the current thread is the FDB simulation thread
+
+This detection is critical for safe integration with multi-threaded runtimes.
+
+## The `fdb_spawn` Function
+
+`fdb_spawn` is the entry point for running async code in the simulation. It takes a future
+and drives it to completion using the FDB event loop.
+
+```rust
+pub fn fdb_spawn<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    // Pins the Future in memory, this is mandatory for the Future to execute properly
-    // The UnsafeCell is used for interior mutability
-    let f = UnsafeCell::new(Box::pin(f));
-    // The Future is wrapped into an FDBWaker and ref counted by an Arc
+    // Register this thread as the FDB simulation thread
+    set_fdb_thread();
+
+    // Wrap the future in an FDBWaker
+    let f = UnsafeCell::new(Box::pin(future));
     let waker_arc = Arc::new(FDBWaker { f });
-    // We build a RawWaker containing both the Arc<FdbWaker> as data and a pointer to VTABLE
-    // VTABLE contains a custom implementation of a Waker
-    let raw_waker = RawWaker::new(Arc::into_raw(waker_arc) as *const (), &VTABLE);
-    // Finally we build a Waker from the RawWaker
-    // Waker is only a wrapper around a RawWaker which maps the function of the Waker trait to
-    // the RawWaker's vtable
-    let waker = unsafe { Waker::from_raw(raw_waker) };
-    // Here calling wake is stricly equivalent to any of:
-    // - waker.inner.vtable.wake(waker.inner.data)
-    // - raw_waker.vtable.wake(raw_waker.data)
-    // - VTABLE[1](Arc::into_raw(waker_arc) as *const ())
-    // - fdbwaker_wake(Arc::into_raw(waker_arc) as *const (), true)
+
+    // Convert to a standard Waker using the Wake trait
+    let waker: Waker = waker_arc.into();
+
+    // Start execution by calling wake()
     waker.wake();
-    // waker is dropped here
 }
 ```
 
-`wake()` calls `fdbwaker_wake` (through `VTABLE[1]`) with `decrease` set to `true`.
-> note: waker_ref reference the `Arc<FDBWaker>`, not directly `FDBWaker`
-```rs
-fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
-    println!("wake {}", decrease);
-    // This increases the ref counter of the Arc and gives back a RawWaker
-    let waker_raw = fdbwaker_clone(waker_ref);
-    // We build a Waker from the RawWaker
-    let waker = unsafe { Waker::from_raw(waker_raw) };
-    // We build a Context from the Waker
-    // Context is only a wrapper around the Waker
-    let mut cx = Context::from_waker(&waker);
-    // We get the Future stored by the FDBWaker to poll it and discard the result
-    let f = unsafe { &mut *waker_ref.f.get() };
-    match f.as_mut().poll(&mut cx) {
-        std::task::Poll::Ready(_) => println!("READY"),
-        std::task::Poll::Pending => println!("PENDING"),
-    }
-    if decrease {
-        // This decreases the ref counter of the Arc
-        fdbwaker_drop(waker_ref);
-    }
+### How It Works
+
+1. **Thread Registration**: `set_fdb_thread()` records the current thread ID
+2. **Future Wrapping**: The future is pinned and wrapped in an `FDBWaker` with an `Arc`
+3. **Waker Creation**: The `Arc<FDBWaker>` is converted to a `Waker` via the `Wake` trait
+4. **Initial Poll**: Calling `wake()` triggers the first poll of the future
+
+## The `FDBWaker`
+
+`FDBWaker` wraps a future and implements the `Wake` trait for polling.
+
+```rust
+struct FDBWaker {
+    f: UnsafeCell<Pin<Box<dyn Future<Output = ()>>>>,
 }
+
+// SAFETY: We only poll `f` from the FDB simulation thread.
+// Non-FDB threads only queue wakers, they don't access `f`.
+unsafe impl Send for FDBWaker {}
+unsafe impl Sync for FDBWaker {}
 ```
 
-`poll()` runs the closure until encountering an `await`. `await` calls `poll` on its future and so on.
-The case that we are interested in takes place when the foundationdb-rs issues a call to the fdbserver
-using the C-API through `fdb_sys`. Calls that return a `FdbFutureHandle` are wrapped into `FdbFuture`
-which implement poll in the following manner:
-```rs
-pub(crate) struct FdbFuture<T> {
-    f: Option<FdbFutureHandle>,
-    waker: Option<Arc<AtomicWaker>>,
-    phantom: std::marker::PhantomData<T>,
-}
+### Thread Safety
 
-impl<T> Future for FdbFuture<T>
-where
-    T: TryFrom<FdbFutureHandle, Error = FdbError> + Unpin,
-{
-    type Output = FdbResult<T>;
+The `UnsafeCell` provides interior mutability for the pinned future. While `FDBWaker`
+implements `Send + Sync`, this is safe because:
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<FdbResult<T>> {
-        println!("  POLL");
-        let f = self.f.as_ref().expect("cannot poll after resolve");
-        let ready = unsafe { fdb_sys::fdb_future_is_ready(f.as_ptr()) };
-        if ready == 0 {
-            // If the Future is not ready yet we try to get the AtomicWaker of the Future
-            // If the AtomicWaker wasn't already set (if it is the first time poll() is called on
-            // the Future) a new one is created (and ref counted with an Arc) and register is set
-            // to true
-            let f_ptr = f.as_ptr();
-            let mut register = false;
-            let waker = self.waker.get_or_insert_with(|| {
-                register = true;
-                Arc::new(AtomicWaker::new())
-            });
-            // Recall that Context is only a wrapper around a Waker
-            // Here `cx` contains our FDBWaker
-            /*
-            Context {
-                waker: Waker {
-                    waker: RawWaker {
-                        data: *const Arc<FDBWaker> as *const (),
-                        vtable: &'static RawWakerVTable,
-                    }
-                }
-            }
-            */
-            // register clones the Waker, which calls fdbwaker_clone through the vtable of the
-            // RawWaker and atomically sets it as its latest waker
-            waker.register(cx.waker());
-            if register {
-                println!("  REGISTER");
-                // If it is the first time poll() is called on the Future
-                // fdb_sys::fdb_future_set_callback is called to register a callback for this
-                // FdbFutureHandle the second argument is a pointer that will be passed as argument
-                // to the callback when called
-                let network_waker: Arc<AtomicWaker> = waker.clone();
-                let network_waker_ptr = Arc::into_raw(network_waker);
-                unsafe {
-                    fdb_sys::fdb_future_set_callback(
-                        f_ptr,
-                        Some(fdb_future_callback),
-                        network_waker_ptr as *mut _,
-                    );
-                }
-            }
-            println!("  PENDING");
-            Poll::Pending
+1. The future is **only polled from the FDB simulation thread**
+2. Non-FDB threads only interact with the `Arc` wrapper and queue mechanism
+3. The `wake_impl` method detects which thread it's on and acts accordingly
+
+### Wake Behavior
+
+The `Wake` trait implementation handles wakeups differently based on the calling thread:
+
+```rust
+impl FDBWaker {
+    fn wake_impl(self: Arc<Self>) {
+        if is_fdb_thread() {
+            // On FDB thread: poll immediately (original behavior)
+            let waker: Waker = self.clone().into();
+            let mut cx = Context::from_waker(&waker);
+            let f = unsafe { &mut *self.f.get() };
+            let _ = f.as_mut().poll(&mut cx);
+
+            // Also drain any wakeups queued by other threads
+            drain_wake_queue();
         } else {
-            println!("  READY");
-            // If the Future is ready its result is querried and propagated
-            Poll::Ready(
-                error::eval(unsafe { fdb_sys::fdb_future_get_error(f.as_ptr()) })
-                    .and_then(|()| T::try_from(self.f.take().expect("self.f.is_some()"))),
-            )
+            // On non-FDB thread: queue the wakeup
+            {
+                let mut queue = WAKE_QUEUE.lock().unwrap();
+                queue.push_back(self);
+            }
+            // Notify the FDB thread
+            WAKE_CONDVAR.notify_all();
         }
     }
 }
 ```
 
-To sum up what happened until now:
-- `fdb_spawn` builds a ref counted `FDBWaker`, wraps it in a Waker and calls wake on it
-- `fdbwaker_wake` was called with `decrease=true`, it increases the `FDBWaker` ref count and polls its Future
-- in case an `FdbFuture` is polled, it:
-  - registers our `Waker` into an `AtomicWaker` (cloning it in the process)
-  - set an `fdb_future_callback` as callback and the `AtomicWaker` as argument for the `FdbFutureHandle`
-  - returns `Poll::Pending`
-- `fdbwaker_wake` decreases the ref count (because `decrease==true`) and returns
-- `fdb_spawn` drops the `Waker`, decreasing the ref count
+## Cross-Thread Wake Queue
 
-```
-wake true   // fdbwaker_wake
-clone       // fdbwaker_wake
-  POLL      // FdbFuture::Poll
-clone       // FdbFuture::Poll
-  REGISTER  // FdbFuture::Poll
-  PENDING   // FdbFuture::Poll
-PENDING     // fdbwaker_wake
-drop        // fdbwaker_wake
-drop        // fdb_spawn
+When external runtimes (like Tokio) call `wake()` from their worker threads, the wakeup
+must be safely forwarded to the FDB simulation thread.
+
+```rust
+/// Queue for pending wakeups from non-FDB threads
+static WAKE_QUEUE: Mutex<VecDeque<Arc<FDBWaker>>> = Mutex::new(VecDeque::new());
+
+/// Condition variable to notify the FDB thread
+static WAKE_CONDVAR: Condvar = Condvar::new();
 ```
 
-After this, the Future was handed to the simulation and `fdb_spawn` returns. If your Workload is
-valid, execution should be returned to the simulation. The fdbserver runs, internally resolving the
-Future and, when done, notifies `FdbFutureHandle` by calling its callback with its argument.
+### The `drain_wake_queue` Function
 
-```rs
-extern "C" fn fdb_future_callback(
-    _f: *mut fdb_sys::FDBFuture,
-    callback_parameter: *mut ::std::os::raw::c_void,
-) {
-    println!("  CALLBACK");
-    // The AtomicWaker is reconstructed from the callback_parameter
-    let network_waker: Arc<AtomicWaker> = unsafe { Arc::from_raw(callback_parameter as *const _) };
-    // The last Waker registered is woken up
-    if let Some(waker) = network_waker.take() {
-        waker.wake();
-        // waker is dropped here
+Called from the FDB thread to process all pending wakeups:
+
+```rust
+pub fn drain_wake_queue() -> bool {
+    let mut polled_any = false;
+    loop {
+        let waker_arc = {
+            let mut queue = WAKE_QUEUE.lock().unwrap();
+            queue.pop_front()
+        };
+
+        match waker_arc {
+            Some(arc) => {
+                poll_waker(arc);
+                polled_any = true;
+            }
+            None => break,
+        }
+    }
+    polled_any
+}
+```
+
+## The `block_on_external` Function (EXPERIMENTAL)
+
+> **WARNING: Experimental Feature**
+>
+> Using multiple async runtimes is generally **a bad idea** and `block_on_external` is
+> **an ugly hack** for when you cannot modify a library that depends on Tokio. The ideal
+> solution is always to avoid external runtimes in simulation workloads entirely.
+>
+> **Use with extreme caution.**
+
+### When This Is Actually Useful
+
+A valid use case is integrating with libraries that internally require `tokio::spawn` for
+distributed/parallel execution.
+
+In these cases, you cannot modify the library to use FDB-compatible async primitives.
+The `block_on_external` function provides a bridge to execute these workloads within
+simulation, understanding that the external runtime portion is not deterministic.
+
+`block_on_external` allows blocking on futures from external runtimes like Tokio:
+
+```rust
+pub fn block_on_external<F: Future>(future: F) -> F::Output {
+    let signal = Arc::new(BlockOnSignal {
+        ready: Mutex::new(false),
+        condvar: Condvar::new(),
+    });
+    let waker: Waker = signal.clone().into();
+    let mut cx = Context::from_waker(&waker);
+    let mut future = std::pin::pin!(future);
+
+    loop {
+        // Drain any pending FDBWaker wakeups
+        drain_wake_queue();
+
+        // Reset ready flag before polling
+        {
+            let mut ready = signal.ready.lock().unwrap();
+            *ready = false;
+        }
+
+        // Poll the future
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(result) => return result,
+            Poll::Pending => {
+                // Wait for external runtime to call wake()
+                let mut ready = signal.ready.lock().unwrap();
+                while !*ready {
+                    ready = signal.condvar.wait(ready).unwrap();
+                }
+            }
+        }
     }
 }
 ```
 
-The last `Waker` was registered by:
-```rs
-waker.register(cx.waker());
-```
-so in this case the `AtomicWaker` wakes our `Waker`, which calls `fdbwaker_wake` with `decrease=true`
-which increases the ref count of `FDBWorker` and polls its Future.
-This time `fdb_sys::fdb_future_is_ready` should return a non-zero value indicating the `FdbFuture`
-was resolved by the fdbserver. So the `Waker` is not registered, and thus not cloned.
-`FdbFuture::poll` returns `Poll::Ready`, and the closure continues to execute code until it reaches
-a new `await`. In case it encounters a new `FdbFuture` the cycle continues exactly in the same way:
-- `FdbFuture::poll` is called which:
-  - registers the `Waker`, increasing the ref count
-  - fdb_sys::fdb_future_set_callback is called with `fdb_future_callback` and the `AtomicWaker`
-  - returns `Poll::Pending`
-- `fdbwaker_wake` decreases the ref count (because `decrease==true`) and returns
-- `fdb_future_callback` drops the `Waker` which decreases the ref count
+### The `BlockOnSignal` Struct
 
-```
-wake true   // fdbwaker_wake
-clone       // fdbwaker_wake
-  POLL      // FdbFuture::Poll
-  READY     // FdbFuture::Poll => a new FdbFuture is polled
-  POLL      // FdbFuture::Poll
-clone       // FdbFuture::Poll
-  REGISTER  // FdbFuture::Poll
-  PENDING   // FdbFuture::Poll
-PENDING     // fdbwaker_wake
-drop        // fdbwaker_wake
-drop        // fdb_future_callback
+A signaling mechanism that implements `Wake` for external runtime integration:
+
+```rust
+struct BlockOnSignal {
+    ready: Mutex<bool>,
+    condvar: Condvar,
+}
+
+impl Wake for BlockOnSignal {
+    fn wake(self: Arc<Self>) {
+        let mut ready = self.ready.lock().unwrap();
+        *ready = true;
+        self.condvar.notify_one();
+    }
+}
 ```
 
-On the other hand if the `FDBWaker`'s closure doesn't set a new callback in the simulation and
-finishes it returns `Poll::Ready(())`.
-The `Waker` was not registered and thus not cloned either.
-The ref count decreases 2 times and reaches 0, freeing `FDBWaker` and its Pinned Future.
+## Complete Flow Examples
+
+### Pure FDB Async Flow
+
+When awaiting only FDB operations:
+
+```text
+fdb_spawn(async { db.get(key).await })
+│
+├─► FDBWaker created with pinned future
+│
+├─► wake() called (on FDB thread)
+│   │
+│   └─► poll() the future
+│       │
+│       └─► FdbFuture::poll() returns Pending
+│           │
+│           └─► Registers callback with fdb_future_set_callback()
+│
+├─► Control returns to fdbserver event loop
+│
+├─► fdbserver resolves the future internally
+│
+├─► Callback fires: fdb_future_callback()
+│   │
+│   └─► wake() called (still on FDB thread)
+│       │
+│       └─► poll() the future
+│           │
+│           └─► FdbFuture::poll() returns Ready(value)
+│
+└─► Future completes, FDBWaker dropped
 ```
-wake true   // fdbwaker_wake
-clone       // fdbwaker_wake
-  POLL      // FdbFuture::Poll
-  READY     // FdbFuture::Poll => no FdbFuture to poll anymore
-READY       // FdbFuture::Poll
-drop        // fdbwaker_wake
-drop        // fdb_future_callback
-DROPPED     // FDBWaker::drop
+
+### Mixed FDB + Tokio Flow
+
+When using `block_on_external` with Tokio:
+
+```text
+fdb_spawn(async {
+    let result = block_on_external(tokio::spawn(async { 42 }));
+})
+│
+├─► FDBWaker created for outer async block
+│
+├─► wake() called, poll() the outer future
+│   │
+│   └─► block_on_external() entered
+│       │
+│       ├─► BlockOnSignal created (ready=false)
+│       │
+│       ├─► poll() the JoinHandle
+│       │   │
+│       │   └─► Pending (task not complete)
+│       │
+│       └─► Wait on condvar...
+│
+├─► [Meanwhile, on Tokio worker thread]
+│   │
+│   └─► Task completes, Tokio calls wake() on BlockOnSignal
+│       │
+│       └─► Sets ready=true, notifies condvar
+│
+├─► block_on_external wakes up
+│   │
+│   ├─► drain_wake_queue() (process any FDBWaker wakeups)
+│   │
+│   └─► poll() the JoinHandle
+│       │
+│       └─► Ready(42)
+│
+├─► block_on_external returns 42
+│
+└─► Outer future completes
 ```
+
+## FDB Future Integration
+
+The FDB simulation executor integrates with FoundationDB's C API through callbacks.
+When an `FdbFuture` is polled:
+
+1. If not ready, it registers a callback via `fdb_future_set_callback`
+2. The callback receives an `AtomicWaker` that holds our `FDBWaker`
+3. When the fdbserver resolves the future, the callback fires
+4. The callback calls `wake()` on our waker, triggering re-poll
+5. This time `fdb_future_is_ready` returns true, and the value is extracted
+
+This allows Rust async/await syntax to work seamlessly with the FDB simulation
+event loop, maintaining determinism as long as you only use FDB-compatible futures.
