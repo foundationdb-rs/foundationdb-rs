@@ -65,7 +65,7 @@ async-trait = "0.1.89"
 async-recursion = "1.1.1"
 # Required to deserialize tenant info
 serde = { version = "1.0.228", features = ["derive"], optional = true }
-serde_json = { version = "1.0.145", optional = true }
+serde_json = { version = "1.0.148", optional = true }
 serde_bytes = { version = "0.11.19", optional = true }
 tracing = { version = "0.1.44", optional = true }
 
