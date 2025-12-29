@@ -301,7 +301,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -312,7 +312,7 @@ checksum = "645cbb3a84e60b7531617d5ae4e57f7e27308f6445f5abf653209ea76dec8dff"
 
 [[package]]
 name = "foundationdb"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -341,14 +341,14 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-gen"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "xml-rs",
 ]
 
 [[package]]
 name = "foundationdb-macros"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-simulation"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "bindgen",
  "cc",
@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-sys"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "bindgen",
  "libc",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-tuple"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "memchr",
  "num-bigint",
