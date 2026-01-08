@@ -10,13 +10,14 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 
 static POLL_COUNT: AtomicU64 = AtomicU64::new(0);
+static IN_POLL: AtomicBool = AtomicBool::new(false);
 
 struct FDBWaker {
     f: UnsafeCell<Pin<Box<dyn Future<Output = ()>>>>,
@@ -24,15 +25,31 @@ struct FDBWaker {
 
 fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
     let poll_id = POLL_COUNT.fetch_add(1, Ordering::SeqCst);
+
+    // Re-entrancy detection
+    if IN_POLL.load(Ordering::SeqCst) {
+        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        println!("!!! RE-ENTRANCY DETECTED: fdbwaker_wake called while already polling !!!");
+        println!("!!! poll_id={}, decrease={}", poll_id, decrease);
+        println!("!!! This creates two mutable references to UnsafeCell - UNDEFINED BEHAVIOR !!!");
+        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    }
+
     println!(
         "[fdb_rt] fdbwaker_wake #{}: polling (decrease={})",
         poll_id, decrease
     );
+
+    IN_POLL.store(true, Ordering::SeqCst);
+
     let waker_raw = fdbwaker_clone(waker_ref);
     let waker = unsafe { Waker::from_raw(waker_raw) };
     let mut cx = Context::from_waker(&waker);
     let f = unsafe { &mut *waker_ref.f.get() };
     let result = f.as_mut().poll(&mut cx);
+
+    IN_POLL.store(false, Ordering::SeqCst);
+
     match &result {
         Poll::Ready(()) => println!("[fdb_rt] fdbwaker_wake #{}: poll returned Ready", poll_id),
         Poll::Pending => println!("[fdb_rt] fdbwaker_wake #{}: poll returned Pending", poll_id),
