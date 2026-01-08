@@ -43,10 +43,15 @@ fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
     IN_POLL.store(true, Ordering::SeqCst);
 
     let waker_raw = fdbwaker_clone(waker_ref);
+    println!("[fdb_rt] #{}: after fdbwaker_clone", poll_id);
     let waker = unsafe { Waker::from_raw(waker_raw) };
+    println!("[fdb_rt] #{}: after Waker::from_raw", poll_id);
     let mut cx = Context::from_waker(&waker);
+    println!("[fdb_rt] #{}: after Context::from_waker", poll_id);
     let f = unsafe { &mut *waker_ref.f.get() };
+    println!("[fdb_rt] #{}: after getting &mut future, about to poll", poll_id);
     let result = f.as_mut().poll(&mut cx);
+    println!("[fdb_rt] #{}: poll completed", poll_id);
 
     IN_POLL.store(false, Ordering::SeqCst);
 
