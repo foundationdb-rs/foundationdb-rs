@@ -102,7 +102,9 @@ unsafe extern "C" fn workload_setup<W: RustWorkload + 'static>(
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
     fdb_spawn(async move {
+        println!("[workload] setup: starting");
         workload.setup(database.clone()).await;
+        println!("[workload] setup: completed, sending done");
         check_database_ref(database);
         done.send(true);
     });
@@ -116,7 +118,9 @@ unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
     fdb_spawn(async move {
+        println!("[workload] start: starting");
         workload.start(database.clone()).await;
+        println!("[workload] start: completed, sending done");
         check_database_ref(database);
         done.send(true);
     });
@@ -130,7 +134,9 @@ unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     let database = database_new(raw_database);
     let done = Promise::new(raw_promise);
     fdb_spawn(async move {
+        println!("[workload] check: starting");
         workload.check(database.clone()).await;
+        println!("[workload] check: completed, sending done");
         check_database_ref(database);
         done.send(true);
     });

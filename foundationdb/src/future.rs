@@ -98,6 +98,7 @@ where
         tracing::instrument(level = "debug", skip(self, cx))
     )]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<FdbResult<T>> {
+        println!("[fdb_future] poll: checking if ready");
         let f = self.f.as_ref().expect("cannot poll after resolve");
         let ready = unsafe { fdb_sys::fdb_future_is_ready(f.as_ptr()) };
         if ready == 0 {
@@ -108,7 +109,9 @@ where
                 Arc::new(AtomicWaker::new())
             });
             waker.register(cx.waker());
+            println!("[fdb_future] poll: NOT ready, register={}", register);
             if register {
+                println!("[fdb_future] poll: registering FDB callback for first time");
                 let network_waker: Arc<AtomicWaker> = waker.clone();
                 let network_waker_ptr = Arc::into_raw(network_waker);
                 unsafe {
@@ -118,9 +121,13 @@ where
                         network_waker_ptr as *mut _,
                     );
                 }
+            } else {
+                println!("[fdb_future] poll: callback already registered, just updating waker");
             }
+            println!("[fdb_future] poll: returning Pending");
             Poll::Pending
         } else {
+            println!("[fdb_future] poll: IS ready, returning Ready");
             Poll::Ready(
                 error::eval(unsafe { fdb_sys::fdb_future_get_error(f.as_ptr()) })
                     .and_then(|()| T::try_from(self.f.take().expect("self.f.is_some()"))),
@@ -135,6 +142,7 @@ extern "C" fn fdb_future_callback(
     _f: *mut fdb_sys::FDBFuture,
     callback_parameter: *mut ::std::os::raw::c_void,
 ) {
+    println!("[fdb_future] callback: FDB operation completed, waking waker");
     let network_waker: Arc<AtomicWaker> = unsafe { Arc::from_raw(callback_parameter as *const _) };
     network_waker.wake();
 }
