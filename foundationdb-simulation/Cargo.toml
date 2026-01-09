@@ -1,6 +1,10 @@
 [package]
 name = "foundationdb-simulation"
 version = "0.2.3"
+authors = [
+    "Eloi DEMOLIS <eloi.demolis@clever-cloud.com>",
+    "Pierre Zemb <contact@pierrezemb.fr>"
+]
 edition = "2021"
 description = """
 Embed Rust code within FoundationDB's simulation
@@ -22,6 +26,9 @@ foundationdb-sys = { version = "0.10.0", path = "../foundationdb-sys", default-f
 cc = "1.2.51"
 bindgen = "0.72.1"
 
+[dev-dependencies]
+futures-util = "0.3.31"
+
 [features]
 default = ["embedded-fdb-include"]
 cpp-abi = []
@@ -42,4 +49,9 @@ crate-type = ["cdylib"]
 [[example]]
 name = "noop"
 path = "examples/noop/lib.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "shared"
+path = "examples/shared/lib.rs"
 crate-type = ["cdylib"]
