@@ -174,6 +174,7 @@ impl WrappedWorkload {
 /// Primitives exposed for the registrations hooks, should not be used otherwise
 pub mod internals {
     pub use crate::bindings::{str_from_c, FDBWorkloadContext};
+    pub use crate::fdb_rt::poll_pending_tasks;
 
     #[cfg(feature = "cpp-abi")]
     extern "C" {
@@ -214,6 +215,9 @@ macro_rules! register_factory {
                     .set_runtime_version(version as i32)
                     .build();
                 println!("FDB API version selected: {version}");
+                foundationdb::future::CUSTOM_EXECUTOR_HOOK
+                    .set($crate::internals::poll_pending_tasks)
+                    .unwrap();
             }
             let name = $crate::internals::str_from_c(raw_name);
             let context = $crate::WorkloadContext::new(raw_context);
@@ -247,6 +251,9 @@ macro_rules! register_workload {
                     .set_runtime_version(version as i32)
                     .build();
                 println!("FDB API version selected: {version}");
+                foundationdb::future::CUSTOM_EXECUTOR_HOOK
+                    .set($crate::internals::poll_pending_tasks)
+                    .unwrap();
             }
             let name = $crate::internals::str_from_c(raw_name);
             let context = $crate::WorkloadContext::new(raw_context);

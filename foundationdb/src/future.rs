@@ -129,14 +129,23 @@ where
     }
 }
 
+pub static CUSTOM_EXECUTOR_HOOK: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
 // The callback from fdb C API can be called from multiple threads. so this callback should be
 // thread-safe.
 extern "C" fn fdb_future_callback(
     _f: *mut fdb_sys::FDBFuture,
     callback_parameter: *mut ::std::os::raw::c_void,
 ) {
+    // resolve all wakeup chain
     let network_waker: Arc<AtomicWaker> = unsafe { Arc::from_raw(callback_parameter as *const _) };
     network_waker.wake();
+
+    // polling phase for a custom executor (e.g. the simulation)
+    match CUSTOM_EXECUTOR_HOOK.get() {
+        Some(poll_pending_tasks) => poll_pending_tasks(),
+        None => {}
+    }
 }
 
 /// A slice of bytes owned by a foundationDB future
