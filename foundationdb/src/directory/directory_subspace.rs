@@ -48,20 +48,14 @@ impl DirectorySubspace {
         path: &[String],
         directory_layer: Option<DirectoryLayer>,
     ) -> Result<Vec<String>, DirectoryError> {
-        let directory = match directory_layer {
-            None => self.directory_layer.clone(),
-            Some(d) => d,
-        };
-
+        let directory = directory_layer.unwrap_or_else(|| self.directory_layer.clone());
         if directory.path.len() > self.path.len() {
             return Err(DirectoryError::CannotCreateSubpath);
         }
 
-        let mut new_path = vec![];
-
+        let mut new_path = Vec::with_capacity(self.path.len() - directory.path.len() + path.len());
         new_path.extend_from_slice(&self.path[directory.path.len()..]);
         new_path.extend_from_slice(path);
-
         Ok(new_path)
     }
 }
@@ -170,23 +164,16 @@ impl Directory for DirectorySubspace {
 
         for (i, path) in directory_layer_path.iter().enumerate() {
             match new_path.get(i) {
-                None => return Err(DirectoryError::CannotMoveBetweenPartition),
-                Some(new_path_item) => {
-                    if !new_path_item.eq(path) {
-                        return Err(DirectoryError::CannotMoveBetweenPartition);
-                    }
-                }
+                Some(new_path_item) if new_path_item.eq(path) => {}
+                _ => return Err(DirectoryError::CannotMoveBetweenPartition),
             }
         }
-
-        let mut new_relative_path = vec![];
-        new_relative_path.extend_from_slice(&new_path[directory_layer_path.len()..]);
 
         directory_layer
             .move_to(
                 trx,
                 &self.get_partition_subpath(&[], Some(directory_layer.clone()))?,
-                &new_relative_path,
+                &new_path[directory_layer_path.len()..],
             )
             .await
     }
