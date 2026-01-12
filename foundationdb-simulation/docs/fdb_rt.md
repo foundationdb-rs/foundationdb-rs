@@ -6,63 +6,104 @@ foundationdb-rs SDK.
     }
 ```
 
-`fdb_spawn` takes in a Rust Future and polls it until Ready.
+The executor uses a two-phase model: **wakeup** (which queues tasks) and **polling** (which
+executes them). This separation enables proper handling of shared futures and prevents
+re-entrancy issues.
+
+## Core Data Structures
+
+A thread-local queue holds tasks that have been woken and are waiting to be polled:
 ```rs
-pub fn fdb_spawn<F>(f: F)
+thread_local! {
+    static TASKS: RefCell<Vec<Arc<Task>>> = const { RefCell::new(Vec::new()) };
+}
+```
+
+The `Task` struct wraps a pinned future. The `Option` allows the future to be taken out
+during polling and put back if it returns `Pending`:
+```rs
+struct Task {
+    f: UnsafeCell<Option<Pin<Box<dyn Future<Output = ()>>>>>,
+}
+```
+
+## Spawning a Task
+
+`fdb_spawn` takes in a Rust Future, wraps it in a `Task`, and immediately polls it:
+```rs
+pub(crate) fn fdb_spawn<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    // Pins the Future in memory, this is mandatory for the Future to execute properly
-    // The UnsafeCell is used for interior mutability
-    let f = UnsafeCell::new(Box::pin(f));
-    // The Future is wrapped into an FDBWaker and ref counted by an Arc
-    let waker_arc = Arc::new(FDBWaker { f });
-    // We build a RawWaker containing both the Arc<FdbWaker> as data and a pointer to VTABLE
-    // VTABLE contains a custom implementation of a Waker
-    let raw_waker = RawWaker::new(Arc::into_raw(waker_arc) as *const (), &VTABLE);
-    // Finally we build a Waker from the RawWaker
-    // Waker is only a wrapper around a RawWaker which maps the function of the Waker trait to
-    // the RawWaker's vtable
-    let waker = unsafe { Waker::from_raw(raw_waker) };
-    // Here calling wake is stricly equivalent to any of:
-    // - waker.inner.vtable.wake(waker.inner.data)
-    // - raw_waker.vtable.wake(raw_waker.data)
-    // - VTABLE[1](Arc::into_raw(waker_arc) as *const ())
-    // - fdbwaker_wake(Arc::into_raw(waker_arc) as *const (), true)
-    waker.wake();
-    // waker is dropped here
+    // Create a Task containing the pinned future wrapped in Option
+    let task = Arc::new(Task {
+        f: UnsafeCell::new(Some(Box::pin(future))),
+    });
+    // Immediately poll the task to start execution
+    task.poll();
 }
 ```
 
-`wake()` calls `fdbwaker_wake` (through `VTABLE[1]`) with `decrease` set to `true`.
-> note: waker_ref reference the `Arc<FDBWaker>`, not directly `FDBWaker`
+## Polling a Task
+
+`Task::poll` creates a waker from itself and polls the future:
 ```rs
-fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
-    println!("wake {}", decrease);
-    // This increases the ref counter of the Arc and gives back a RawWaker
-    let waker_raw = fdbwaker_clone(waker_ref);
-    // We build a Waker from the RawWaker
-    let waker = unsafe { Waker::from_raw(waker_raw) };
-    // We build a Context from the Waker
-    // Context is only a wrapper around the Waker
-    let mut cx = Context::from_waker(&waker);
-    // We get the Future stored by the FDBWaker to poll it and discard the result
-    let f = unsafe { &mut *waker_ref.f.get() };
-    match f.as_mut().poll(&mut cx) {
-        std::task::Poll::Ready(_) => println!("READY"),
-        std::task::Poll::Pending => println!("PENDING"),
-    }
-    if decrease {
-        // This decreases the ref counter of the Arc
-        fdbwaker_drop(waker_ref);
+impl Task {
+    fn poll(self: Arc<Self>) {
+        // Create a Waker that references this Task
+        let waker = unsafe { Waker::from_raw(self.clone().into_waker()) };
+        let cx = &mut Context::from_waker(&waker);
+        // Take the future out of the slot
+        let slot = unsafe { &mut *self.f.get() };
+        if let Some(mut f) = slot.take() {
+            // Poll the future
+            if f.as_mut().poll(cx).is_pending() {
+                // If Pending, put the future back for later polling
+                *slot = Some(f);
+            }
+            // If Ready, the future is dropped (not put back)
+        }
     }
 }
 ```
 
-`poll()` runs the closure until encountering an `await`. `await` calls `poll` on its future and so on.
-The case that we are interested in takes place when the foundationdb-rs issues a call to the fdbserver
-using the C-API through `fdb_sys`. Calls that return a `FdbFutureHandle` are wrapped into `FdbFuture`
-which implement poll in the following manner:
+## Waking a Task
+
+The key insight of this architecture: **waking a task does not poll it**. Instead, it
+queues the task for later polling:
+```rs
+impl Task {
+    // Called when Waker::wake() is invoked (consumes the waker)
+    fn wake(ptr: *const ()) {
+        let task = Self::from_ptr(ptr);
+        // Just push to the queue - don't poll yet
+        TASKS.with_borrow_mut(|tasks| tasks.push(task))
+    }
+
+    // Called when Waker::wake_by_ref() is invoked (doesn't consume the waker)
+    fn wake_by_ref(ptr: *const ()) {
+        let task = Self::from_ptr(ptr);
+        TASKS.with_borrow_mut(|tasks| tasks.push(task.clone()));
+        mem::forget(task);  // Don't decrement ref count since we cloned
+    }
+}
+```
+
+## Draining the Queue
+
+`poll_pending_tasks` drains the queue and polls all waiting tasks:
+```rs
+pub fn poll_pending_tasks() {
+    let mut tasks = TASKS.with_borrow_mut(mem::take);
+    tasks.drain(..).for_each(Task::poll);
+}
+```
+
+## FdbFuture Polling
+
+`poll()` runs the closure until encountering an `await`. The case we're interested in takes
+place when foundationdb-rs issues a call to fdbserver using the C-API through `fdb_sys`.
+Calls that return an `FDBFuture*` are wrapped into `FdbFuture` which implements poll:
 ```rs
 pub(crate) struct FdbFuture<T> {
     f: Option<FdbFutureHandle>,
@@ -77,41 +118,21 @@ where
     type Output = FdbResult<T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<FdbResult<T>> {
-        println!("  POLL");
         let f = self.f.as_ref().expect("cannot poll after resolve");
         let ready = unsafe { fdb_sys::fdb_future_is_ready(f.as_ptr()) };
         if ready == 0 {
-            // If the Future is not ready yet we try to get the AtomicWaker of the Future
-            // If the AtomicWaker wasn't already set (if it is the first time poll() is called on
-            // the Future) a new one is created (and ref counted with an Arc) and register is set
-            // to true
+            // Future not ready yet - set up the callback
             let f_ptr = f.as_ptr();
             let mut register = false;
             let waker = self.waker.get_or_insert_with(|| {
                 register = true;
                 Arc::new(AtomicWaker::new())
             });
-            // Recall that Context is only a wrapper around a Waker
-            // Here `cx` contains our FDBWaker
-            /*
-            Context {
-                waker: Waker {
-                    waker: RawWaker {
-                        data: *const Arc<FDBWaker> as *const (),
-                        vtable: &'static RawWakerVTable,
-                    }
-                }
-            }
-            */
-            // register clones the Waker, which calls fdbwaker_clone through the vtable of the
-            // RawWaker and atomically sets it as its latest waker
+            // Register our Task's waker into the AtomicWaker
+            // This clones the waker
             waker.register(cx.waker());
             if register {
-                println!("  REGISTER");
-                // If it is the first time poll() is called on the Future
-                // fdb_sys::fdb_future_set_callback is called to register a callback for this
-                // FdbFutureHandle the second argument is a pointer that will be passed as argument
-                // to the callback when called
+                // First poll: set up the FDB callback
                 let network_waker: Arc<AtomicWaker> = waker.clone();
                 let network_waker_ptr = Arc::into_raw(network_waker);
                 unsafe {
@@ -122,11 +143,9 @@ where
                     );
                 }
             }
-            println!("  PENDING");
             Poll::Pending
         } else {
-            println!("  READY");
-            // If the Future is ready its result is querried and propagated
+            // Future is ready - extract the result
             Poll::Ready(
                 error::eval(unsafe { fdb_sys::fdb_future_get_error(f.as_ptr()) })
                     .and_then(|()| T::try_from(self.f.take().expect("self.f.is_some()"))),
@@ -136,90 +155,130 @@ where
 }
 ```
 
-To sum up what happened until now:
-- `fdb_spawn` builds a ref counted `FDBWaker`, wraps it in a Waker and calls wake on it
-- `fdbwaker_wake` was called with `decrease=true`, it increases the `FDBWaker` ref count and polls its Future
-- in case an `FdbFuture` is polled, it:
-  - registers our `Waker` into an `AtomicWaker` (cloning it in the process)
-  - set an `fdb_future_callback` as callback and the `AtomicWaker` as argument for the `FdbFutureHandle`
-  - returns `Poll::Pending`
-- `fdbwaker_wake` decreases the ref count (because `decrease==true`) and returns
-- `fdb_spawn` drops the `Waker`, decreasing the ref count
+## Initial Spawn Summary
+
+To summarize what happens when `fdb_spawn` is called:
+- `fdb_spawn` creates a `Task` wrapping the pinned future and immediately calls `task.poll()`
+- `Task::poll` creates a waker and polls the future
+- When an `FdbFuture` is polled, it:
+  - Registers our `Waker` into an `AtomicWaker` (cloning it)
+  - Sets `fdb_future_callback` as callback with the `AtomicWaker` as argument
+  - Returns `Poll::Pending`
+- `Task::poll` sees `Pending` and puts the future back in the slot
+- `fdb_spawn` returns
 
 ```
-wake true   // fdbwaker_wake
-clone       // fdbwaker_wake
-  POLL      // FdbFuture::Poll
-clone       // FdbFuture::Poll
-  REGISTER  // FdbFuture::Poll
-  PENDING   // FdbFuture::Poll
-PENDING     // fdbwaker_wake
-drop        // fdbwaker_wake
-drop        // fdb_spawn
+fdb_spawn
+  └─ Task::poll
+       └─ FdbFuture::poll
+            ├─ waker.register(cx.waker())  // clones our waker into AtomicWaker
+            ├─ fdb_future_set_callback     // registers callback with FDB
+            └─ returns Pending
+       └─ future put back in slot
+  └─ returns
 ```
 
-After this, the Future was handed to the simulation and `fdb_spawn` returns. If your Workload is
-valid, execution should be returned to the simulation. The fdbserver runs, internally resolving the
-Future and, when done, notifies `FdbFutureHandle` by calling its callback with its argument.
+After this, the future has been handed to the simulation and `fdb_spawn` returns. If your
+Workload is valid, execution is returned to the simulation. The fdbserver runs, internally
+resolving the future and, when done, notifies `FdbFutureHandle` by calling its callback.
 
+## The Callback and Executor Hook
+
+When FDB resolves a future, it calls `fdb_future_callback`. This is where the two-phase
+model comes together:
 ```rs
+pub static CUSTOM_EXECUTOR_HOOK: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
 extern "C" fn fdb_future_callback(
     _f: *mut fdb_sys::FDBFuture,
     callback_parameter: *mut ::std::os::raw::c_void,
 ) {
-    println!("  CALLBACK");
-    // The AtomicWaker is reconstructed from the callback_parameter
+    // Phase 1: Wakeup - resolve all wakeup chain
     let network_waker: Arc<AtomicWaker> = unsafe { Arc::from_raw(callback_parameter as *const _) };
-    // The last Waker registered is woken up
-    if let Some(waker) = network_waker.take() {
-        waker.wake();
-        // waker is dropped here
+    network_waker.wake();  // This calls Task::wake(), which queues the task
+
+    // Phase 2: Polling - poll all queued tasks
+    if let Some(poll_pending_tasks) = CUSTOM_EXECUTOR_HOOK.get() {
+        poll_pending_tasks();
     }
 }
 ```
 
-The last `Waker` was registered by:
+The simulation registers `poll_pending_tasks` as the executor hook during workload
+initialization (in `register_workload!` or `register_factory!`):
 ```rs
-waker.register(cx.waker());
+foundationdb::future::CUSTOM_EXECUTOR_HOOK
+    .set(foundationdb_simulation::internals::poll_pending_tasks)
+    .unwrap();
 ```
-so in this case the `AtomicWaker` wakes our `Waker`, which calls `fdbwaker_wake` with `decrease=true`
-which increases the ref count of `FDBWorker` and polls its Future.
-This time `fdb_sys::fdb_future_is_ready` should return a non-zero value indicating the `FdbFuture`
-was resolved by the fdbserver. So the `Waker` is not registered, and thus not cloned.
-`FdbFuture::poll` returns `Poll::Ready`, and the closure continues to execute code until it reaches
-a new `await`. In case it encounters a new `FdbFuture` the cycle continues exactly in the same way:
+
+## Callback Execution Flow
+
+When `fdb_future_callback` is called:
+1. `network_waker.wake()` calls the waker stored in `AtomicWaker`
+2. This invokes `Task::wake()`, which pushes the task to `TASKS` queue
+3. `poll_pending_tasks()` drains the queue and polls all tasks
+4. `Task::poll` polls the future, which finds `fdb_future_is_ready` returns non-zero
+5. `FdbFuture::poll` returns `Poll::Ready` with the result
+
+```
+fdb_future_callback
+  ├─ network_waker.wake()
+  │    └─ Task::wake() -> pushes task to TASKS queue
+  └─ poll_pending_tasks()
+       └─ Task::poll
+            └─ FdbFuture::poll
+                 └─ fdb_future_is_ready == true
+                 └─ returns Ready(result)
+            └─ future continues executing...
+```
+
+## Encountering Another FdbFuture
+
+If the closure encounters another `FdbFuture`, the cycle continues:
 - `FdbFuture::poll` is called which:
-  - registers the `Waker`, increasing the ref count
-  - fdb_sys::fdb_future_set_callback is called with `fdb_future_callback` and the `AtomicWaker`
-  - returns `Poll::Pending`
-- `fdbwaker_wake` decreases the ref count (because `decrease==true`) and returns
-- `fdb_future_callback` drops the `Waker` which decreases the ref count
+  - Registers the `Waker` (cloning it)
+  - Sets `fdb_future_callback` as callback
+  - Returns `Poll::Pending`
+- `Task::poll` puts the future back in the slot
+- Later, when FDB resolves the new future, `fdb_future_callback` is called again
 
 ```
-wake true   // fdbwaker_wake
-clone       // fdbwaker_wake
-  POLL      // FdbFuture::Poll
-  READY     // FdbFuture::Poll => a new FdbFuture is polled
-  POLL      // FdbFuture::Poll
-clone       // FdbFuture::Poll
-  REGISTER  // FdbFuture::Poll
-  PENDING   // FdbFuture::Poll
-PENDING     // fdbwaker_wake
-drop        // fdbwaker_wake
-drop        // fdb_future_callback
+fdb_future_callback (for first future)
+  ├─ network_waker.wake() -> queues task
+  └─ poll_pending_tasks()
+       └─ Task::poll
+            └─ FdbFuture::poll (first)
+                 └─ returns Ready
+            └─ ... more code runs ...
+            └─ FdbFuture::poll (second)
+                 ├─ waker.register()
+                 ├─ fdb_future_set_callback
+                 └─ returns Pending
+            └─ future put back in slot
+
+... later, fdbserver resolves second future ...
+
+fdb_future_callback (for second future)
+  ├─ network_waker.wake() -> queues task
+  └─ poll_pending_tasks()
+       └─ Task::poll
+            └─ ... continues from where it left off ...
 ```
 
-On the other hand if the `FDBWaker`'s closure doesn't set a new callback in the simulation and
-finishes it returns `Poll::Ready(())`.
-The `Waker` was not registered and thus not cloned either.
-The ref count decreases 2 times and reaches 0, freeing `FDBWaker` and its Pinned Future.
+## Completion
+
+When the task's future finishes without setting a new callback (no more `FdbFuture`s to
+await), `Task::poll` sees `Poll::Ready(())` and does not put the future back in the slot.
+The future is dropped, and when all references to the `Task` are dropped, the `Task` itself
+is freed:
+
 ```
-wake true   // fdbwaker_wake
-clone       // fdbwaker_wake
-  POLL      // FdbFuture::Poll
-  READY     // FdbFuture::Poll => no FdbFuture to poll anymore
-READY       // FdbFuture::Poll
-drop        // fdbwaker_wake
-drop        // fdb_future_callback
-DROPPED     // FDBWaker::drop
+fdb_future_callback
+  ├─ network_waker.wake() -> queues task
+  └─ poll_pending_tasks()
+       └─ Task::poll
+            └─ future.poll() returns Ready(())
+            └─ future is dropped (not put back)
+       └─ Task dropped (if no more references)
 ```

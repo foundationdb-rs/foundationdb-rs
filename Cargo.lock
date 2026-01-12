@@ -376,6 +376,7 @@ dependencies = [
  "cc",
  "foundationdb",
  "foundationdb-sys",
+ "futures-util",
 ]
 
 [[package]]

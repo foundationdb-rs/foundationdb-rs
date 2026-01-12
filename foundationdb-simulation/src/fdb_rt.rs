@@ -6,55 +6,76 @@
 #![doc = include_str!("../docs/fdb_rt.md")]
 
 use std::{
-    cell::UnsafeCell,
+    cell::{RefCell, UnsafeCell},
     future::Future,
+    mem,
     pin::Pin,
     sync::Arc,
     task::{Context, RawWaker, RawWakerVTable, Waker},
 };
 
-struct FDBWaker {
-    f: UnsafeCell<Pin<Box<dyn Future<Output = ()>>>>,
+thread_local! {
+    static TASKS: RefCell<Vec<Arc<Task>>> = const { RefCell::new(Vec::new()) };
 }
 
-fn fdbwaker_wake(waker_ref: &FDBWaker, decrease: bool) {
-    let waker_raw = fdbwaker_clone(waker_ref);
-    let waker = unsafe { Waker::from_raw(waker_raw) };
-    let mut cx = Context::from_waker(&waker);
-    let f = unsafe { &mut *waker_ref.f.get() };
-    let _ = f.as_mut().poll(&mut cx);
-    if decrease {
-        fdbwaker_drop(waker_ref);
+struct Task {
+    f: UnsafeCell<Option<Pin<Box<dyn Future<Output = ()>>>>>,
+}
+
+impl Task {
+    const VTABLE: RawWakerVTable =
+        RawWakerVTable::new(Self::clone, Self::wake, Self::wake_by_ref, Self::drop);
+
+    fn poll(self: Arc<Self>) {
+        let waker = unsafe { Waker::from_raw(self.clone().into_waker()) };
+        let cx = &mut Context::from_waker(&waker);
+        let slot = unsafe { &mut *self.f.get() };
+        if let Some(mut f) = slot.take() {
+            if f.as_mut().poll(cx).is_pending() {
+                *slot = Some(f);
+            }
+        }
+    }
+
+    fn from_ptr(ptr: *const ()) -> Arc<Self> {
+        unsafe { Arc::from_raw(&*(ptr as *const Self)) }
+    }
+    fn into_waker(self: Arc<Self>) -> RawWaker {
+        RawWaker::new(Arc::into_raw(self) as *const (), &Self::VTABLE)
+    }
+
+    fn clone(ptr: *const ()) -> RawWaker {
+        let task = Self::from_ptr(ptr);
+        mem::forget(task.clone());
+        task.into_waker()
+    }
+    fn wake(ptr: *const ()) {
+        let task = Self::from_ptr(ptr);
+        TASKS.with_borrow_mut(|tasks| tasks.push(task))
+    }
+    fn wake_by_ref(ptr: *const ()) {
+        let task = Self::from_ptr(ptr);
+        TASKS.with_borrow_mut(|tasks| tasks.push(task.clone()));
+        mem::forget(task);
+    }
+    fn drop(ptr: *const ()) {
+        drop(Self::from_ptr(ptr))
     }
 }
 
-fn fdbwaker_clone(waker_ref: &FDBWaker) -> RawWaker {
-    let waker_arc = unsafe { Arc::from_raw(waker_ref) };
-    std::mem::forget(waker_arc.clone()); // increase ref count
-    RawWaker::new(Arc::into_raw(waker_arc) as *const (), &VTABLE)
+/// Poll all tasks in the pending queue
+pub fn poll_pending_tasks() {
+    let mut tasks = TASKS.with_borrow_mut(mem::take);
+    tasks.drain(..).for_each(Task::poll);
 }
-
-fn fdbwaker_drop(waker_ref: &FDBWaker) {
-    unsafe { Arc::from_raw(waker_ref) };
-}
-
-const VTABLE: RawWakerVTable = unsafe {
-    RawWakerVTable::new(
-        |waker_ptr| fdbwaker_clone(&*(waker_ptr as *const FDBWaker)), // clone
-        |waker_ptr| fdbwaker_wake(&*(waker_ptr as *const FDBWaker), true), // wake (decrease refcount)
-        |waker_ptr| fdbwaker_wake(&*(waker_ptr as *const FDBWaker), false), // wake_by_ref (don't decrease refcount)
-        |waker_ptr| fdbwaker_drop(&*(waker_ptr as *const FDBWaker)), // drop (decrease refcount)
-    )
-};
 
 /// Spawn an async block and resolve all contained FoundationDB futures
-pub fn fdb_spawn<F>(future: F)
+pub(crate) fn fdb_spawn<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    let f = UnsafeCell::new(Box::pin(future));
-    let waker_arc = Arc::new(FDBWaker { f });
-    let raw_waker = RawWaker::new(Arc::into_raw(waker_arc) as *const (), &VTABLE);
-    let waker = unsafe { Waker::from_raw(raw_waker) };
-    waker.wake();
+    let task = Arc::new(Task {
+        f: UnsafeCell::new(Some(Box::pin(future))),
+    });
+    task.poll();
 }

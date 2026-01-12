@@ -58,8 +58,14 @@ jobs:
         with:
           toolchain: "stable"
 
-      - name: Build
+      - name: Build atomic workload
         run: cargo build -p foundationdb-simulation --release --example atomic --features fdb-7_4
 
-      - name: Test
+      - name: Build shared workload
+        run: cargo build -p foundationdb-simulation --release --example shared --features fdb-7_4
+
+      - name: Test atomic workload
         run: fdbserver -r simulation -f foundationdb-simulation/examples/atomic/test_file_74.toml -b on --trace-format json
+
+      - name: Test shared workload
+        run: fdbserver -r simulation -f foundationdb-simulation/examples/shared/test_file.toml -b on --trace-format json
