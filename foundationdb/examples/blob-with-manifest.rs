@@ -1,6 +1,6 @@
+use bytesize::ByteSize;
 use foundationdb::tuple::{pack, unpack, PackError, Subspace};
 use foundationdb::{Database, RangeOption};
-use pretty_bytes::converter::convert;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -289,8 +289,8 @@ impl Display for FileManifest {
             self.uuid,
             self.name,
             self.digest,
-            convert(self.size as f64),
-            convert(self.chunk_size.unwrap_or(CHUNK_SIZE) as f64),
+            ByteSize(self.size as u64).display().si(),
+            ByteSize(self.chunk_size.unwrap_or(CHUNK_SIZE) as u64).display().si(),
             self.nb_chunks
         )
     }
@@ -317,7 +317,10 @@ async fn populate_data(
             let subspace_data = subspace_file.subspace(&("_data"));
             let subspace_manifest = subspace_file.subspace(&("_manifest"));
 
-            println!("\twith chunk of {}", convert(*chunk_size as f64));
+            println!(
+                "\twith chunk of {}",
+                ByteSize(*chunk_size as u64).display().si()
+            );
             let nb_chunks = write_blob(db, &subspace_data, &data, Some(*chunk_size)).await;
 
             let manifest = FileManifest {
