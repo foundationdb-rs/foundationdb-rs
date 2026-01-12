@@ -307,7 +307,7 @@ checksum = "f449e6c6c08c865631d4890cfacf252b3d396c9bcc83adb6623cdb02a8336c41"
 
 [[package]]
 name = "foundationdb"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -336,14 +336,14 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-gen"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "xml-rs",
 ]
 
 [[package]]
 name = "foundationdb-macros"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -365,7 +365,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-simulation"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "bindgen",
  "cc",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-sys"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "bindgen",
  "libc",
@@ -384,7 +384,7 @@ dependencies = [
 
 [[package]]
 name = "foundationdb-tuple"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "memchr",
  "num-bigint",
