@@ -65,7 +65,7 @@ async-trait = "0.1.89"
 async-recursion = "1.1.1"
 # Required to deserialize tenant info
 serde = { version = "1.0.228", features = ["derive"], optional = true }
-serde_json = { version = "1.0.148", optional = true }
+serde_json = { version = "1.0.149", optional = true }
 serde_bytes = { version = "0.11.19", optional = true }
 tracing = { version = "0.1.44", optional = true }
 
@@ -74,7 +74,7 @@ byteorder = "1.5.0"
 lazy_static = "1.5.0"
 tokio = { version = "1.49.0", features = ["full"] }
 sha2 = "0.10.9"
-data-encoding = "2.9.0"
+data-encoding = "2.10.0"
 bytesize = "2.3"
 uuid = { version = "1.19.0", features = ["v4"] }
 futures-util = "0.3.31"
