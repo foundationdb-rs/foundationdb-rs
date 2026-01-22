@@ -39,6 +39,16 @@ where
     ffi::CString::new(buf).unwrap()
 }
 
+/// Capitalizes the first letter of a string.
+/// Used to ensure trace detail names start with a capital letter.
+/// Returns `None` if the string is empty.
+fn capitalize_first(s: &str) -> Option<String> {
+    let mut chars = s.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+}
+
 /// Macro that can be used to create log "details" more easily.
 #[macro_export]
 macro_rules! details {
@@ -109,10 +119,12 @@ impl WorkloadContext {
         let name = str_for_c(name);
         let details_storage = details
             .iter()
-            .map(|(key, val)| {
-                let key = str_for_c(key.as_ref());
-                let val = str_for_c(val.as_ref());
-                (key, val)
+            .filter_map(|(key, val)| {
+                let val = val.as_ref();
+                if val.is_empty() {
+                    return None;
+                }
+                capitalize_first(key.as_ref()).map(|k| (str_for_c(k), str_for_c(val)))
             })
             .collect::<Vec<_>>();
         let details = details_storage
