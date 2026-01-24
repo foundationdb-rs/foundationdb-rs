@@ -20,7 +20,7 @@ pub enum DirectoryError {
     CannotModifyRootDirectory,
     /// prefix is already used
     DirectoryPrefixInUse,
-    /// Directory does not exists
+    /// Directory does not exist
     DirectoryDoesNotExists,
     /// missing path.
     NoPathProvided,
@@ -28,7 +28,7 @@ pub enum DirectoryError {
     DirAlreadyExists,
     /// missing directory.
     PathDoesNotExists,
-    /// Parent does not exists
+    /// Parent does not exist
     ParentDirDoesNotExists,
     /// the layer is incompatible.
     IncompatibleLayer,

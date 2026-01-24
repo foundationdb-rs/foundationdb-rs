@@ -55,7 +55,7 @@ impl<E: TuplePack> From<E> for Subspace {
 
 impl Subspace {
     /// `all` returns the Subspace corresponding to all keys in a FoundationDB database.
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self {
             prefix: Vec::new(),
             versionstamp_offset: VersionstampOffset::None { size: 0 },

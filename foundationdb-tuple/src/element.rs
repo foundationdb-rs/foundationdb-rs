@@ -24,6 +24,7 @@ pub enum Element<'a> {
     Versionstamp(Versionstamp),
 }
 
+#[derive(Eq)]
 struct CmpElement<'a, 'b>(&'a Element<'b>);
 
 impl PartialEq for CmpElement<'_, '_> {
@@ -31,7 +32,6 @@ impl PartialEq for CmpElement<'_, '_> {
         self.cmp(other) == cmp::Ordering::Equal
     }
 }
-impl Eq for CmpElement<'_, '_> {}
 
 impl PartialOrd for CmpElement<'_, '_> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
