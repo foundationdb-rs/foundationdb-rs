@@ -1,7 +1,5 @@
 //! Types, constants, and enums for leader election simulation workload.
 
-use std::time::Duration;
-
 use foundationdb::recipes::leader_election::{CandidateInfo, ElectionConfig, LeaderState};
 use foundationdb::tuple::Versionstamp;
 
@@ -79,15 +77,6 @@ pub(crate) struct ClientStats {
     pub(crate) resign_count: usize,
     pub(crate) error_count: usize,
     pub(crate) op_nums: Vec<u64>,
-}
-
-/// Get lease duration from snapshot or use default
-pub(crate) fn get_lease_duration(snapshot: &DatabaseSnapshot, default_secs: u64) -> Duration {
-    snapshot
-        .config
-        .as_ref()
-        .map(|c| c.lease_duration)
-        .unwrap_or(Duration::from_secs(default_secs))
 }
 
 // ============================================================================

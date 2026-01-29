@@ -1,22 +1,19 @@
 //! Invariant verification methods for leader election simulation.
 //!
 //! Contains the core Active Disk Paxos invariants:
-//! 1. Dual-Path Validation (NEW) - Replay logs vs FDB state must match
-//! 2. Safety (No Overlapping Leadership) - At most one leader at any time
-//! 3. Ballot Conservation - Expected ballot from logs matches actual ballot in FDB
-//! 4. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
-//! 5. Candidate Timestamps - No future timestamps in candidates
-//! 6. Registration Coverage - All leadership claims come from registered processes
+//! 1. Dual-Path Validation - Replay logs vs FDB state must match (safety + conservation)
+//! 2. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
+//! 3. Candidate Timestamps - No future timestamps in candidates
+//! 4. Leadership Sequence - Per-client monotonic op_nums
+//! 5. Registration Coverage - All leadership claims come from registered processes
 //!
 //! Note: Log entries are now in FDB commit order (versionstamp-ordered keys),
 //! so we have true causal ordering without clock skew issues.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use super::types::{
-    get_lease_duration, CheckResult, DatabaseSnapshot, LogEntries, OP_REGISTER, OP_RESIGN,
-    OP_TRY_BECOME_LEADER,
+    CheckResult, DatabaseSnapshot, LogEntries, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
 };
 use super::LeaderElectionWorkload;
 
@@ -28,6 +25,9 @@ impl LeaderElectionWorkload {
     ///
     /// This is the key insight: with versionstamp-ordered keys, we have TRUE
     /// causal ordering, so replay gives us the exact expected state.
+    ///
+    /// This invariant subsumes both safety (at most one leader) and ballot
+    /// conservation (ballot matches claims) by verifying exact state equality.
     pub(crate) fn verify_dual_path(
         &self,
         entries: &LogEntries,
@@ -76,122 +76,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 2: Safety - No Overlapping Leadership
-    ///
-    /// Process events in log order (versionstamp order = true FDB commit order).
-    /// When a client resigns, their leadership ends immediately.
-    /// Track leadership transitions for debugging.
-    pub(crate) fn verify_no_overlapping_leadership(
-        &self,
-        entries: &LogEntries,
-        _lease_duration: Duration,
-    ) -> (bool, String) {
-        let issues: Vec<String> = Vec::new();
-        let mut claim_count = 0usize;
-        let mut resign_count = 0usize;
-
-        // Track who is currently the leader (based on true commit order via versionstamp)
-        let mut current_leader: Option<i32> = None;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                claim_count += 1;
-                // Update current leader
-                current_leader = Some(entry.client_id);
-            }
-
-            if entry.op_type == OP_RESIGN && entry.success {
-                // Resign event - clear the current leader if it's this client
-                if current_leader == Some(entry.client_id) {
-                    current_leader = None;
-                    resign_count += 1;
-                }
-            }
-        }
-
-        // Safety is enforced by FDB's transaction semantics
-        // This invariant tracks that our logging is consistent
-        if issues.is_empty() {
-            (
-                true,
-                format!(
-                    "Leadership tracking consistent ({claim_count} claims, {resign_count} resigns processed)"
-                ),
-            )
-        } else {
-            (false, issues.join("; "))
-        }
-    }
-
-    /// Invariant 3: Ballot Conservation Law
-    ///
-    /// Now that we have true commit ordering via versionstamp keys, we can
-    /// verify exact ballot conservation by replaying the logs.
-    ///
-    /// Note: This is largely redundant with verify_dual_path, but kept for
-    /// detailed diagnostics and backwards compatibility.
-    pub(crate) fn verify_ballot_conservation(
-        &self,
-        entries: &LogEntries,
-        snapshot: &DatabaseSnapshot,
-    ) -> (bool, String) {
-        let mut total_claims: u64 = 0;
-        let mut resign_count: u64 = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                total_claims += 1;
-            }
-            if entry.op_type == OP_RESIGN && entry.success {
-                resign_count += 1;
-            }
-        }
-
-        // Get actual ballot from FDB (will be None/0 if leader was resigned)
-        let actual_ballot = snapshot
-            .leader_state
-            .as_ref()
-            .map(|l| l.ballot)
-            .unwrap_or(0);
-
-        let has_leader = snapshot.leader_state.is_some();
-
-        // Validation logic:
-        // - If no leader in snapshot: expect ballot = 0 (last operation was a resign)
-        // - If leader exists and no resigns: actual_ballot should equal total_claims
-        // - If leader exists and resigns occurred: actual_ballot should be in range [1, total_claims]
-        //   (at least 1 claim after the last resign, at most all claims)
-
-        let is_valid = if !has_leader {
-            // No leader means last operation was a resign
-            actual_ballot == 0
-        } else if resign_count == 0 {
-            // No resigns, ballot should equal total claims
-            actual_ballot == total_claims
-        } else {
-            // Resigns occurred, ballot should be between 1 and total_claims
-            // (at least 1 claim after the last resign, at most all claims)
-            actual_ballot >= 1 && actual_ballot <= total_claims
-        };
-
-        if is_valid {
-            (
-                true,
-                format!(
-                    "Ballot conservation holds: actual={actual_ballot}, total_claims={total_claims}, resigns={resign_count}, has_leader={has_leader}"
-                ),
-            )
-        } else {
-            (
-                false,
-                format!(
-                    "Ballot conservation VIOLATED: actual={actual_ballot}, total_claims={total_claims}, resigns={resign_count}, has_leader={has_leader}"
-                ),
-            )
-        }
-    }
-
-    /// Invariant 4: Leader Is Candidate - Structural Integrity
+    /// Invariant 2: Leader Is Candidate - Structural Integrity
     ///
     /// The current leader must be in the candidate list.
     /// This verifies the data structure invariant that leadership
@@ -251,7 +136,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 5: Candidate Timestamps - No Future Timestamps
+    /// Invariant 3: Candidate Timestamps - No Future Timestamps
     ///
     /// All candidate heartbeat timestamps should be in the past or present,
     /// not in the future. Future timestamps would indicate clock skew issues
@@ -297,7 +182,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 6: Leadership Sequence - Monotonic Per-Client Operations
+    /// Invariant 4: Leadership Sequence - Monotonic Per-Client Operations
     ///
     /// For each client, their op_nums should be monotonically increasing.
     /// This verifies the log entries are properly ordered per client.
@@ -338,7 +223,7 @@ impl LeaderElectionWorkload {
         }
     }
 
-    /// Invariant 7: Registration Coverage - All Leaders Were Registered
+    /// Invariant 5: Registration Coverage - All Leaders Were Registered
     ///
     /// Every client that successfully claimed leadership must have
     /// previously registered (logged a Register operation).
@@ -390,37 +275,29 @@ impl LeaderElectionWorkload {
         entries: &LogEntries,
         snapshot: &DatabaseSnapshot,
     ) -> CheckResult {
-        let lease_duration = get_lease_duration(snapshot, self.heartbeat_timeout_secs);
         let current_time = self.context.now();
 
         let mut results: Vec<(&'static str, bool, String)> = Vec::new();
 
-        // Invariant 1: Dual-Path Validation (NEW - most important!)
+        // Invariant 1: Dual-Path Validation (most important!)
         // Replay logs in true commit order, compare with FDB state
+        // Subsumes safety (at most one leader) and ballot conservation
         let (pass, detail) = self.verify_dual_path(entries, snapshot);
         results.push(("DualPathValidation", pass, detail));
 
-        // Invariant 2: Safety - No Overlapping Leadership
-        let (pass, detail) = self.verify_no_overlapping_leadership(entries, lease_duration);
-        results.push(("NoOverlappingLeadership", pass, detail));
-
-        // Invariant 3: Ballot Conservation (redundant with dual-path, but more diagnostics)
-        let (pass, detail) = self.verify_ballot_conservation(entries, snapshot);
-        results.push(("BallotConservation", pass, detail));
-
-        // Invariant 4: Leader Is Candidate (structural integrity)
+        // Invariant 2: Leader Is Candidate (structural integrity)
         let (pass, detail) = self.verify_leader_is_candidate(snapshot, current_time);
         results.push(("LeaderIsCandidate", pass, detail));
 
-        // Invariant 5: Candidate Timestamps (no future timestamps)
+        // Invariant 3: Candidate Timestamps (no future timestamps)
         let (pass, detail) = self.verify_candidate_timestamps(snapshot, current_time);
         results.push(("CandidateTimestamps", pass, detail));
 
-        // Invariant 6: Leadership Sequence (per-client monotonic op_nums)
+        // Invariant 4: Leadership Sequence (per-client monotonic op_nums)
         let (pass, detail) = self.verify_leadership_sequence(entries);
         results.push(("LeadershipSequence", pass, detail));
 
-        // Invariant 7: Registration Coverage (all leaders were registered)
+        // Invariant 5: Registration Coverage (all leaders were registered)
         let (pass, detail) = self.verify_registration_coverage(entries);
         results.push(("RegistrationCoverage", pass, detail));
 

@@ -247,11 +247,3 @@ impl ElectionConfig {
     }
 }
 
-/// Information about the current leader (for backward compatibility)
-///
-/// This is a simplified view of leadership for read-only queries.
-#[derive(Debug, Clone)]
-pub struct LeaderInfo {
-    /// The current leader state
-    pub leader: LeaderState,
-}

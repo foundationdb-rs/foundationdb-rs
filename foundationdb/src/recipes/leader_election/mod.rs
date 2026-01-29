@@ -72,7 +72,7 @@ mod keys;
 mod types;
 
 pub use errors::{LeaderElectionError, Result};
-pub use types::{CandidateInfo, ElectionConfig, ElectionResult, LeaderInfo, LeaderState};
+pub use types::{CandidateInfo, ElectionConfig, ElectionResult, LeaderState};
 
 use crate::{tuple::Subspace, Transaction};
 use std::ops::Deref;
