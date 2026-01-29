@@ -18,6 +18,16 @@ pub(crate) struct LogEntry {
     pub op_type: i64,
     pub success: bool,
     pub became_leader: bool,
+
+    // Ballot tracking for invariant checks
+    /// Ballot number after the operation completed
+    pub ballot: u64,
+    /// Ballot number before the operation (for detecting transitions)
+    pub previous_ballot: u64,
+
+    // Lease tracking for overlap detection
+    /// Lease expiry timestamp in nanoseconds (for leadership claims)
+    pub lease_expiry_nanos: i64,
 }
 
 /// Log entries in FDB commit order (versionstamp-ordered keys give us true ordering)

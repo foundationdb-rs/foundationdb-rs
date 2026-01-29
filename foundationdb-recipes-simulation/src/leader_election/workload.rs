@@ -123,7 +123,8 @@ impl RustWorkload for LeaderElectionWorkload {
                                 cid,
                                 0_u64, // op_num 0 for registration
                             ));
-                            let log_value = pack(&(OP_REGISTER, success, false));
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                            let log_value = pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             reg_result.map_err(FdbBindingError::from)
@@ -194,7 +195,8 @@ impl RustWorkload for LeaderElectionWorkload {
                                 client_id,
                                 op_num,
                             ));
-                            let log_value = pack(&(OP_HEARTBEAT, success, false));
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                            let log_value = pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             hb_result.map_err(FdbBindingError::from)
@@ -226,19 +228,37 @@ impl RustWorkload for LeaderElectionWorkload {
                         let log_subspace = log_subspace.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
+
+                            // Get previous ballot before claim attempt
+                            let current = election.get_leader_raw(&trx).await.ok().flatten();
+                            let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
+
                             let claim_result = election
                                 .try_claim_leadership(&trx, &process_id, 0, timestamp)
                                 .await
                                 .map_err(FdbBindingError::from)?;
 
+                            // Extract ballot and lease info from result
+                            let (became_leader, ballot, lease_expiry) = match &claim_result {
+                                Some(state) => (true, state.ballot, state.lease_expiry_nanos as i64),
+                                None => (false, previous_ballot, 0_i64),
+                            };
+
                             // Log with versionstamp-ordered key (FDB commit order)
-                            let became_leader = claim_result.is_some();
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
                             let log_key = log_subspace.pack_with_versionstamp(&(
                                 Versionstamp::incomplete(0),
                                 client_id,
                                 op_num,
                             ));
-                            let log_value = pack(&(OP_TRY_BECOME_LEADER, true, became_leader));
+                            let log_value = pack(&(
+                                OP_TRY_BECOME_LEADER,
+                                true,
+                                became_leader,
+                                ballot,
+                                previous_ballot,
+                                lease_expiry,
+                            ));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             Ok(claim_result)
@@ -303,18 +323,25 @@ impl RustWorkload for LeaderElectionWorkload {
                             let log_subspace = log_subspace.clone();
                             async move {
                                 trx.set_option(TransactionOption::AutomaticIdempotency)?;
+
+                                // Get previous ballot before resign
+                                let current = election.get_leader_raw(&trx).await.ok().flatten();
+                                let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
+
                                 let did_resign = election
                                     .resign_leadership(&trx, &process_id)
                                     .await
                                     .map_err(FdbBindingError::from)?;
 
                                 // Log with versionstamp-ordered key (FDB commit order)
+                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
                                 let log_key = log_subspace.pack_with_versionstamp(&(
                                     Versionstamp::incomplete(0),
                                     client_id,
                                     op_num,
                                 ));
-                                let log_value = pack(&(OP_RESIGN, did_resign, false));
+                                let log_value =
+                                    pack(&(OP_RESIGN, did_resign, false, 0_u64, previous_ballot, 0_i64));
                                 trx.atomic_op(
                                     &log_key,
                                     &log_value,
@@ -399,8 +426,8 @@ impl RustWorkload for LeaderElectionWorkload {
                             .map_err(FdbBindingError::PackError)?;
                         let (versionstamp, client_id, op_num) = key_tuple;
 
-                        // Unpack value: (op_type, success, became_leader)
-                        let value_tuple: (i64, bool, bool) =
+                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                        let value_tuple: (i64, bool, bool, u64, u64, i64) =
                             unpack(kv.value()).map_err(FdbBindingError::PackError)?;
 
                         entries.push(LogEntry {
@@ -410,6 +437,9 @@ impl RustWorkload for LeaderElectionWorkload {
                             op_type: value_tuple.0,
                             success: value_tuple.1,
                             became_leader: value_tuple.2,
+                            ballot: value_tuple.3,
+                            previous_ballot: value_tuple.4,
+                            lease_expiry_nanos: value_tuple.5,
                         });
                     }
 
