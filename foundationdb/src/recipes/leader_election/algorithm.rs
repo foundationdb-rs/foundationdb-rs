@@ -5,10 +5,10 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Active Disk Paxos-inspired Leader Election Algorithm
+//! Ballot-based Leader Election Algorithm
 //!
 //! This module implements an O(1) leader election protocol using a ballot-based
-//! approach inspired by Active Disk Paxos and Raft's term concept.
+//! approach similar to Raft's term concept.
 //!
 //! # Design Overview
 //!
@@ -204,7 +204,7 @@ where
 
 /// Try to claim leadership
 ///
-/// This is the core Active Disk Paxos operation:
+/// This is the core leader election operation:
 /// 1. Look up candidate registration (O(1))
 /// 2. Read current leader state (O(1))
 /// 3. Decide if we can claim based on ballot/priority/lease

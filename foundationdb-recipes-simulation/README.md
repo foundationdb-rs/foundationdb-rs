@@ -41,7 +41,7 @@ fdbserver -r simulation -f foundationdb-recipes-simulation/test_leader_election.
 
 ### LeaderElectionWorkload
 
-Tests the leader election recipe (Active Disk Paxos algorithm) with:
+Tests the leader election recipe with:
 - Multiple clients registering as candidates
 - Periodic heartbeats and leadership attempts
 - Ballot-based leadership claims with lease expiry
@@ -63,21 +63,40 @@ Tests the leader election recipe (Active Disk Paxos algorithm) with:
 
 **Invariants Verified (11 total):**
 
-Core Invariants:
-1. **DualPathValidation**: Replay logs in FDB commit order matches actual state
-2. **LeaderIsCandidate**: Current leader must be a registered candidate
-3. **CandidateTimestamps**: No candidate has future timestamps
-4. **LeadershipSequence**: Per-client operation numbers are monotonic
-5. **RegistrationCoverage**: All leaders were previously registered
+### Core Invariants (Foundational Safety)
 
-Split-Brain Detection:
-6. **NoOverlappingLeadership**: No two clients have overlapping leadership periods
-7. **BallotValueBinding**: Each ballot number maps to exactly one leader
+**1. DualPathValidation** - The keystone invariant using the "atomic ops pattern". Replays all logged operations in true FDB commit order (versionstamp-ordered keys) to compute expected leader state, then compares with the actual FDB snapshot. This single invariant subsumes both safety (at most one leader at a time) and ballot conservation (ballot matches claims). If the replayed state diverges from the database state, it indicates a bug in the leader election logic or logging.
 
-Timing and Ballot Bug Detection:
-8. **FencingTokenMonotonicity**: Ballot numbers increase monotonically across claims
-9. **GlobalBallotSuccession**: Each new leader has ballot > previous leader's ballot
+**2. LeaderIsCandidate** - Validates structural integrity: the current leader must exist in the candidates list. This ensures leadership can only be claimed by registered candidates. Exception: if the leader's lease has expired, candidate eviction is valid (the candidate may have timed out).
 
-Correctness:
-10. **MutexLinearizability**: Leadership history linearizes to valid mutex model
-11. **LeaseOverlapCheck**: No active lease overlaps between leaders
+**3. CandidateTimestamps** - Clock skew detection: ensures no candidate has a heartbeat timestamp more than 3 seconds in the future. This tolerance accounts for extreme clock skew simulation (up to ±1s offset, 1s drift ahead, 1.1x jitter multiplier). Future timestamps beyond this threshold indicate clock handling bugs.
+
+**4. LeadershipSequence** - Validates log ordering: each client's operation numbers (`op_num`) must be strictly monotonically increasing. With versionstamp-ordered logging, this verifies the log entries are properly sequenced per client.
+
+**5. RegistrationCoverage** - Protocol compliance: every client that successfully claimed leadership must have a prior registration entry in the log. This ensures the registration requirement of the leader election protocol is enforced.
+
+### Split-Brain Detection
+
+**6. NoOverlappingLeadership** - Ensures leadership claims have distinct versionstamps. Since FDB commits are serialized and each successful leadership claim commits atomically, versionstamp ordering guarantees sequential transitions. Duplicate versionstamps would indicate a logging bug. This invariant catches split-brain scenarios where two clients might incorrectly believe they are both leaders.
+
+**7. BallotValueBinding** - Validates ballot progression within each claim: the new ballot must be greater than the previous ballot read in the same transaction. This ensures the fencing token mechanism is working correctly and prevents duplicate elections at the same ballot number.
+
+### Timing and Ballot Bug Detection
+
+**8. FencingTokenMonotonicity** - Ensures ballots never regress: each successful leadership claim must have `ballot > previous_ballot` (or `previous_ballot == 0` for first claims after system reset). This catches stale leader writes where an old leader might attempt to use an outdated fencing token.
+
+**9. GlobalBallotSuccession** - State machine safety: each new leader's ballot must be strictly greater than the predecessor's ballot. This invariant catches state regression bugs where the system might accept a lower ballot number.
+
+### Correctness
+
+**10. MutexLinearizability** - Leadership transfers must happen sequentially with at most one holder at a time in log order. In lease-based systems, a new leader claiming leadership implicitly ends the previous leader's tenure (lease expired or preempted). This tracks both explicit resigns and implicit releases to verify the leadership history linearizes to a valid mutex model.
+
+**11. LeaseOverlapCheck** - Validates each successful leadership claim has a positive, non-zero `lease_expiry_nanos`. This ensures every leader has a bounded lease duration, which is essential for the lease-based leadership protocol to function correctly.
+
+### Architecture Notes
+
+**Versionstamp-Ordered Logging**: All log entries use FDB versionstamp-ordered keys, providing true causal ordering based on actual FDB commit order rather than wall-clock time. This eliminates clock skew issues in log replay.
+
+**Dual-Path Validation Pattern**: The simulation uses a "dual-path" approach where one path replays the operation log to compute expected state, while the other path reads the actual FDB state. Comparing these two paths catches bugs that might only manifest under specific timing or failure conditions.
+
+**Clock Skew Simulation**: The simulation injects extreme clock skew (up to 2.2s total deviation) to stress-test time-dependent logic like lease expiry handling.

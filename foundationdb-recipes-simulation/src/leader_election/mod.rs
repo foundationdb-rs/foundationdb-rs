@@ -5,7 +5,7 @@
 //!
 //! # Check Phase Invariants
 //!
-//! The check phase validates the core Active Disk Paxos invariants:
+//! The check phase validates the core leader election invariants:
 //!
 //! 1. **Safety (No Overlapping Leadership)**: At most one leader at any time
 //! 2. **Ballot Conservation**: Expected ballot from logs matches actual ballot in FDB

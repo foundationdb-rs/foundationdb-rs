@@ -124,7 +124,8 @@ impl RustWorkload for LeaderElectionWorkload {
                                 0_u64, // op_num 0 for registration
                             ));
                             // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
-                            let log_value = pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64));
+                            let log_value =
+                                pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             reg_result.map_err(FdbBindingError::from)
@@ -196,7 +197,8 @@ impl RustWorkload for LeaderElectionWorkload {
                                 op_num,
                             ));
                             // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
-                            let log_value = pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64));
+                            let log_value =
+                                pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             hb_result.map_err(FdbBindingError::from)
@@ -240,7 +242,9 @@ impl RustWorkload for LeaderElectionWorkload {
 
                             // Extract ballot and lease info from result
                             let (became_leader, ballot, lease_expiry) = match &claim_result {
-                                Some(state) => (true, state.ballot, state.lease_expiry_nanos as i64),
+                                Some(state) => {
+                                    (true, state.ballot, state.lease_expiry_nanos as i64)
+                                }
                                 None => (false, previous_ballot, 0_i64),
                             };
 
@@ -340,8 +344,14 @@ impl RustWorkload for LeaderElectionWorkload {
                                     client_id,
                                     op_num,
                                 ));
-                                let log_value =
-                                    pack(&(OP_RESIGN, did_resign, false, 0_u64, previous_ballot, 0_i64));
+                                let log_value = pack(&(
+                                    OP_RESIGN,
+                                    did_resign,
+                                    false,
+                                    0_u64,
+                                    previous_ballot,
+                                    0_i64,
+                                ));
                                 trx.atomic_op(
                                     &log_key,
                                     &log_value,

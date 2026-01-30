@@ -1,6 +1,6 @@
 //! Invariant verification methods for leader election simulation.
 //!
-//! Contains the core Active Disk Paxos invariants:
+//! Contains the core leader election invariants:
 //! 1. Dual-Path Validation - Replay logs vs FDB state must match (safety + conservation)
 //! 2. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
 //! 3. Candidate Timestamps - No future timestamps in candidates
@@ -292,10 +292,7 @@ impl LeaderElectionWorkload {
     /// This invariant verifies:
     /// - Each leadership period ends (explicitly via resign or implicitly via new claim) before the next starts
     /// - No two clients claim leadership at the exact same versionstamp
-    pub(crate) fn verify_no_overlapping_leadership(
-        &self,
-        entries: &LogEntries,
-    ) -> (bool, String) {
+    pub(crate) fn verify_no_overlapping_leadership(&self, entries: &LogEntries) -> (bool, String) {
         // Track leadership transitions in versionstamp order
         // Since FDB commits are serialized, a successful leadership claim at versionstamp V
         // implicitly ends any previous leadership (either lease expired or was preempted)
@@ -384,10 +381,7 @@ impl LeaderElectionWorkload {
     /// This verifies the fencing token mechanism is working as expected.
     ///
     /// ballot = previous_ballot + 1 for each successful claim
-    pub(crate) fn verify_fencing_token_monotonicity(
-        &self,
-        entries: &LogEntries,
-    ) -> (bool, String) {
+    pub(crate) fn verify_fencing_token_monotonicity(&self, entries: &LogEntries) -> (bool, String) {
         let mut violations = Vec::new();
         let mut proper_increments = 0;
         let mut first_claims = 0; // Claims where previous_ballot was 0 (no prior leader)
@@ -431,10 +425,7 @@ impl LeaderElectionWorkload {
     ///
     /// Each new leader must have a ballot strictly greater than the previous leader's ballot.
     /// Uses the previous_ballot field to verify proper succession.
-    pub(crate) fn verify_global_ballot_succession(
-        &self,
-        entries: &LogEntries,
-    ) -> (bool, String) {
+    pub(crate) fn verify_global_ballot_succession(&self, entries: &LogEntries) -> (bool, String) {
         let mut violations = Vec::new();
         let mut leadership_transitions = 0;
 

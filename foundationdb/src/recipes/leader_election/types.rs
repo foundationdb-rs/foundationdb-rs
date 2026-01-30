@@ -7,7 +7,7 @@
 
 //! Core data structures for leader election
 //!
-//! This module defines the fundamental types used in the Active Disk Paxos-inspired
+//! This module defines the fundamental types used in the ballot-based
 //! leader election algorithm, including leader state, candidate info, and configuration.
 //!
 //! # Design Overview
@@ -30,7 +30,7 @@ pub const DEFAULT_CANDIDATE_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// The core leader state - stored at a single key
 ///
-/// This is the "active disk" in Active Disk Paxos. Contains all information
+/// Contains all information
 /// needed to determine leadership without scanning candidates.
 ///
 /// # Ballot Numbers
@@ -246,4 +246,3 @@ impl ElectionConfig {
         }
     }
 }
-
