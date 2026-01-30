@@ -8,7 +8,7 @@
 //! Leader Election module for FoundationDB
 //!
 //! This module implements a distributed leader election protocol using FoundationDB
-//! as shared memory. The algorithm is inspired by Active Disk Paxos and uses ballot
+//! as shared memory. The algorithm uses ballot
 //! numbers (similar to Raft's term) for consistency.
 //!
 //! # Key Properties
@@ -39,6 +39,27 @@
 //! - Monotonically increasing counter
 //! - Higher ballot always wins
 //! - Prevents split-brain after recovery/partition
+//!
+//! # Testing & Validation
+//!
+//! This implementation is validated through comprehensive simulation testing
+//! using FoundationDB's deterministic simulation framework. The simulation
+//! subjects the leader election algorithm to extreme conditions including:
+//!
+//! - **Network chaos**: Packet loss, reordering, and partitions
+//! - **Process failures**: Random machine kills and restarts
+//! - **Clock skew**: Up to ±1 second offset with jitter
+//!
+//! Eleven invariants are verified on every simulation run:
+//!
+//! 1. **Dual-path validation**: Replayed log state matches FDB snapshot
+//! 2. **No overlapping leadership**: Sequential versionstamp ordering
+//! 3. **Ballot monotonicity**: Ballots never regress across leaders
+//! 4. **Fencing token validity**: Each claim increments ballot correctly
+//! 5. **Mutex linearizability**: At most one leader at any time
+//!
+//! See the `foundationdb-recipes-simulation` crate for test configurations
+//! and the full invariant implementation.
 //!
 //! # Example
 //!
@@ -83,6 +104,9 @@ use std::time::Duration;
 /// This struct provides the primary interface for participating in leader elections.
 /// It encapsulates all election operations within a specific FoundationDB subspace,
 /// allowing multiple independent elections to coexist in the same database.
+///
+/// The implementation has been validated through deterministic simulation testing
+/// under network partitions, process failures, and clock skew conditions.
 #[derive(Clone)]
 pub struct LeaderElection {
     subspace: Subspace,
