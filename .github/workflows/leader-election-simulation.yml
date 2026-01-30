@@ -1,0 +1,34 @@
+name: Leader Election Simulation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  simulation:
+    name: "Leader Election Simulation (Nix) - ${{ matrix.instance }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        instance: [1, 2, 3, 4]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Run leader election simulation (25 iterations)
+        run: nix develop -c ./scripts/run_leader_election_simulation.sh 25
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-traces-${{ matrix.instance }}
+          path: ./target/traces/
+          retention-days: 7

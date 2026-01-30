@@ -18,6 +18,9 @@ while [ "$MAX_ITERATIONS" -eq 0 ] || [ "$iteration" -le "$MAX_ITERATIONS" ]; do
     echo "Running iteration $iteration"
     echo "----------------------"
 
+    # Clean up traces from previous iteration to avoid accumulating terabytes of JSON
+    rm -rf ./target/traces/*
+
     if ! fdbserver -r simulation -f foundationdb-recipes-simulation/test_leader_election.toml -b on --trace-format json -L ./target/traces --logsize 1GiB; then
         echo "Simulation failed on iteration $iteration"
         echo "Check traces in ./target/traces"
