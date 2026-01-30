@@ -15,17 +15,11 @@ cargo build -p foundationdb-recipes-simulation --release
 Use the provided scripts to run simulations:
 
 ```bash
-# Run single test configuration (1 iteration by default)
+# Run all test configurations (1 iteration each by default)
 ./scripts/run_leader_election_simulation.sh
 
-# Run single test configuration with 10 iterations
+# Run all test configurations with 10 iterations each
 ./scripts/run_leader_election_simulation.sh 10
-
-# Run ALL test configurations (recommended for thorough testing)
-./scripts/run_all_leader_election_tests.sh
-
-# Run all tests with 5 iterations each
-./scripts/run_all_leader_election_tests.sh 5
 ```
 
 Traces are stored in `./target/traces/`.
