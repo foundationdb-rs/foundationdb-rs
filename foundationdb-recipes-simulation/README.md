@@ -61,7 +61,7 @@ Tests the leader election recipe with:
 | `test_rapid_leadership.toml` | Fast leadership turnover with high resign probability |
 | `test_short_lease.toml` | Short lease duration for timing edge cases |
 
-**Invariants Verified (11 total):**
+**Invariants Verified (13 total):**
 
 ### Core Invariants (Foundational Safety)
 
@@ -92,6 +92,10 @@ Tests the leader election recipe with:
 **10. MutexLinearizability** - Leadership transfers must happen sequentially with at most one holder at a time in log order. In lease-based systems, a new leader claiming leadership implicitly ends the previous leader's tenure (lease expired or preempted). This tracks both explicit resigns and implicit releases to verify the leadership history linearizes to a valid mutex model.
 
 **11. LeaseOverlapCheck** - Validates each successful leadership claim has a positive, non-zero `lease_expiry_nanos`. This ensures every leader has a bounded lease duration, which is essential for the lease-based leadership protocol to function correctly.
+
+**12. OneValuePerBallot** - Paxos safety property within each tenure: each ballot number must map to exactly one client between ballot resets. The ballot resets to 0 after a resign, starting a new tenure. This catches broken conflict ranges or ballot assignment logic where two clients might somehow both claim the same ballot within the same tenure.
+
+**13. LeaseExpiryAfterClaim** - Validates that every successful leadership claim has a lease that expires AFTER the claim was made. This catches incorrect lease duration calculations, clock skew causing past-expiry leases, or missing lease assignments. Uses the logged `claim_timestamp_nanos` to verify `lease_expiry > claim_time`.
 
 ### Architecture Notes
 

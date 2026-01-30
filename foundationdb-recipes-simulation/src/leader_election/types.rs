@@ -28,6 +28,8 @@ pub(crate) struct LogEntry {
     // Lease tracking for overlap detection
     /// Lease expiry timestamp in nanoseconds (for leadership claims)
     pub lease_expiry_nanos: i64,
+    /// Timestamp when leadership claim was made (for lease validity checks)
+    pub claim_timestamp_nanos: i64,
 }
 
 /// Log entries in FDB commit order (versionstamp-ordered keys give us true ordering)

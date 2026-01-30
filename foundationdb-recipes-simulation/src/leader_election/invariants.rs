@@ -14,6 +14,8 @@
 //! 9. Global Ballot Succession - Each new leader has ballot > previous leader's ballot
 //! 10. Mutex Linearizability - Leadership history linearizes to valid mutex model
 //! 11. Lease Overlap Check - Use lease_expiry_nanos to verify no active lease overlaps
+//! 12. One Value Per Ballot - Paxos safety: each ballot maps to one client within a tenure
+//! 13. Lease Expiry After Claim - Lease must expire after claim timestamp
 //!
 //! Note: Log entries are now in FDB commit order (versionstamp-ordered keys),
 //! so we have true causal ordering without clock skew issues.
@@ -365,10 +367,7 @@ impl LeaderElectionWorkload {
         if violations.is_empty() {
             (
                 true,
-                format!(
-                    "Ballot progression OK ({} valid claims)",
-                    valid_progressions
-                ),
+                format!("Ballot progression OK ({valid_progressions} valid claims)"),
             )
         } else {
             (false, violations.join("; "))
@@ -412,8 +411,7 @@ impl LeaderElectionWorkload {
             (
                 true,
                 format!(
-                    "Fencing token increment OK ({} increments, {} first claims)",
-                    proper_increments, first_claims
+                    "Fencing token increment OK ({proper_increments} increments, {first_claims} first claims)"
                 ),
             )
         } else {
@@ -445,10 +443,7 @@ impl LeaderElectionWorkload {
         if violations.is_empty() {
             (
                 true,
-                format!(
-                    "Global ballot succession OK ({} transitions)",
-                    leadership_transitions
-                ),
+                format!("Global ballot succession OK ({leadership_transitions} transitions)"),
             )
         } else {
             (false, violations.join("; "))
@@ -498,8 +493,7 @@ impl LeaderElectionWorkload {
         (
             true,
             format!(
-                "Mutex linearizability OK ({} acquires, {} explicit releases, {} implicit releases)",
-                acquire_count, release_count, implicit_releases
+                "Mutex linearizability OK ({acquire_count} acquires, {release_count} explicit releases, {implicit_releases} implicit releases)"
             ),
         )
     }
@@ -532,10 +526,7 @@ impl LeaderElectionWorkload {
         if violations.is_empty() {
             (
                 true,
-                format!(
-                    "Lease validity OK ({} claims with valid leases)",
-                    claims_with_lease
-                ),
+                format!("Lease validity OK ({claims_with_lease} claims with valid leases)"),
             )
         } else {
             // Note: This might be expected if the logging doesn't capture lease properly
@@ -543,10 +534,106 @@ impl LeaderElectionWorkload {
             (
                 true,
                 format!(
-                    "Lease check: {} with lease, {} without (may need logging fix)",
-                    claims_with_lease, claims_without_lease
+                    "Lease check: {claims_with_lease} with lease, {claims_without_lease} without (may need logging fix)"
                 ),
             )
+        }
+    }
+
+    /// Invariant 12: One Value Per Ballot (Paxos Safety)
+    ///
+    /// Within each leadership tenure (between ballot resets), each ballot number
+    /// must map to exactly one client. The ballot resets to 0 after a resign,
+    /// starting a new tenure.
+    ///
+    /// This catches broken conflict ranges or ballot assignment logic where
+    /// two clients somehow both claim the same ballot within the same tenure.
+    pub(crate) fn verify_one_value_per_ballot(&self, entries: &LogEntries) -> (bool, String) {
+        let mut ballot_to_client: BTreeMap<u64, i32> = BTreeMap::new();
+        let mut violations = Vec::new();
+        let mut tenure_count = 1;
+        let mut total_unique_ballots = 0;
+
+        for entry in entries {
+            // Reset tracking on resign (ballot resets to 0, new tenure starts)
+            if entry.op_type == OP_RESIGN && entry.success {
+                total_unique_ballots += ballot_to_client.len();
+                ballot_to_client.clear();
+                tenure_count += 1;
+            }
+
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                if entry.ballot == 0 {
+                    continue; // Skip ballot 0 (initial state)
+                }
+
+                if let Some(&prev_client) = ballot_to_client.get(&entry.ballot) {
+                    if prev_client != entry.client_id {
+                        violations.push(format!(
+                            "Tenure {}: Ballot {} claimed by client {} and client {}",
+                            tenure_count, entry.ballot, prev_client, entry.client_id
+                        ));
+                    }
+                }
+                ballot_to_client.insert(entry.ballot, entry.client_id);
+            }
+        }
+
+        total_unique_ballots += ballot_to_client.len();
+
+        if violations.is_empty() {
+            (
+                true,
+                format!(
+                    "Paxos safety OK: {total_unique_ballots} unique ballots across {tenure_count} tenures"
+                ),
+            )
+        } else {
+            (false, violations.join("; "))
+        }
+    }
+
+    /// Invariant 13: Lease Expiry After Claim Time
+    ///
+    /// Every successful leadership claim must have a lease that expires
+    /// AFTER the claim was made. This catches:
+    /// - Incorrect lease duration calculation
+    /// - Clock skew causing past-expiry leases
+    /// - Missing lease assignment
+    pub(crate) fn verify_lease_expiry_after_claim(&self, entries: &LogEntries) -> (bool, String) {
+        let mut violations = Vec::new();
+        let mut valid_leases = 0;
+
+        for entry in entries {
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                let claim_time = entry.claim_timestamp_nanos;
+                let lease_expiry = entry.lease_expiry_nanos;
+
+                if claim_time <= 0 {
+                    // Skip entries without claim timestamp (shouldn't happen after update)
+                    continue;
+                }
+
+                if lease_expiry <= claim_time {
+                    violations.push(format!(
+                        "Client {} claimed at {} but lease expires at {} (already expired or invalid)",
+                        entry.client_id,
+                        claim_time as f64 / 1_000_000_000.0,
+                        lease_expiry as f64 / 1_000_000_000.0
+                    ));
+                } else {
+                    valid_leases += 1;
+                }
+            }
+        }
+
+        if violations.is_empty() {
+            (
+                true,
+                format!("Lease timing OK: {valid_leases} claims with valid future leases"),
+            )
+        } else {
+            (false, violations.join("; "))
         }
     }
 
@@ -607,6 +694,14 @@ impl LeaderElectionWorkload {
         // Invariant 11: Lease Overlap Check (medium priority - lease extension races)
         let (pass, detail) = self.verify_lease_overlap_check(entries);
         results.push(("LeaseOverlapCheck", pass, detail));
+
+        // Invariant 12: One Value Per Ballot (critical - Paxos safety within tenure)
+        let (pass, detail) = self.verify_one_value_per_ballot(entries);
+        results.push(("OneValuePerBallot", pass, detail));
+
+        // Invariant 13: Lease Expiry After Claim Time (critical - lease validity)
+        let (pass, detail) = self.verify_lease_expiry_after_claim(entries);
+        results.push(("LeaseExpiryAfterClaim", pass, detail));
 
         // Log each result
         for (name, passed, detail) in &results {

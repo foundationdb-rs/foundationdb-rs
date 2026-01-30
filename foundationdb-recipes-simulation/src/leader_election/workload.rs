@@ -123,9 +123,9 @@ impl RustWorkload for LeaderElectionWorkload {
                                 cid,
                                 0_u64, // op_num 0 for registration
                             ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
                             let log_value =
-                                pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64));
+                                pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             reg_result.map_err(FdbBindingError::from)
@@ -196,9 +196,9 @@ impl RustWorkload for LeaderElectionWorkload {
                                 client_id,
                                 op_num,
                             ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
                             let log_value =
-                                pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64));
+                                pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             hb_result.map_err(FdbBindingError::from)
@@ -249,7 +249,8 @@ impl RustWorkload for LeaderElectionWorkload {
                             };
 
                             // Log with versionstamp-ordered key (FDB commit order)
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
+                            let claim_timestamp_nanos = timestamp.as_nanos() as i64;
                             let log_key = log_subspace.pack_with_versionstamp(&(
                                 Versionstamp::incomplete(0),
                                 client_id,
@@ -262,6 +263,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                 ballot,
                                 previous_ballot,
                                 lease_expiry,
+                                claim_timestamp_nanos,
                             ));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
@@ -338,7 +340,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                     .map_err(FdbBindingError::from)?;
 
                                 // Log with versionstamp-ordered key (FDB commit order)
-                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
+                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
                                 let log_key = log_subspace.pack_with_versionstamp(&(
                                     Versionstamp::incomplete(0),
                                     client_id,
@@ -350,6 +352,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                     false,
                                     0_u64,
                                     previous_ballot,
+                                    0_i64,
                                     0_i64,
                                 ));
                                 trx.atomic_op(
@@ -436,8 +439,8 @@ impl RustWorkload for LeaderElectionWorkload {
                             .map_err(FdbBindingError::PackError)?;
                         let (versionstamp, client_id, op_num) = key_tuple;
 
-                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos)
-                        let value_tuple: (i64, bool, bool, u64, u64, i64) =
+                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
+                        let value_tuple: (i64, bool, bool, u64, u64, i64, i64) =
                             unpack(kv.value()).map_err(FdbBindingError::PackError)?;
 
                         entries.push(LogEntry {
@@ -450,6 +453,7 @@ impl RustWorkload for LeaderElectionWorkload {
                             ballot: value_tuple.3,
                             previous_ballot: value_tuple.4,
                             lease_expiry_nanos: value_tuple.5,
+                            claim_timestamp_nanos: value_tuple.6,
                         });
                     }
 
