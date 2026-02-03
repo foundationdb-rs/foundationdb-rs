@@ -5,87 +5,108 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Leader Election module for FoundationDB
+//! # Leader Election for FoundationDB
 //!
-//! This module implements a distributed leader election protocol using FoundationDB
-//! as shared memory. The algorithm uses ballot
-//! numbers (similar to Raft's term) for consistency.
+//! A distributed leader election recipe using FoundationDB as coordination backend.
+//! Similar to [Apache Curator's LeaderLatch](https://curator.apache.org/) for ZooKeeper,
+//! but leveraging FDB's serializable transactions for stronger guarantees.
 //!
-//! # Key Properties
+//! ## When to Use This
 //!
-//! - **Safety**: At most one leader at any time (FDB serializable transactions)
+//! **Good use cases:**
+//! - Singleton services (only one instance should be active)
+//! - Job schedulers (one coordinator assigns work)
+//! - Primary/backup failover
+//! - Exclusive access to external resources
+//!
+//! **Consider alternatives if:**
+//! - You need mutex/lock semantics for short critical sections
+//!   (use FoundationDB transactions directly)
+//! - You need fair queuing (this uses priority-based preemption)
+//!
+//! ## API Overview
+//!
+//! The main entry point is [`LeaderElection`](leader_election::LeaderElection). Typical usage follows this pattern:
+//!
+//! | Step | Method | Frequency |
+//! |------|--------|-----------|
+//! | 1. Setup | [`new`](leader_election::LeaderElection::new) | Once per process |
+//! | 2. Initialize | [`initialize`](leader_election::LeaderElection::initialize) | Once globally (idempotent) |
+//! | 3. Register | [`register_candidate`](leader_election::LeaderElection::register_candidate) | Once per process |
+//! | 4. Election loop | [`run_election_cycle`](leader_election::LeaderElection::run_election_cycle) | Every heartbeat interval |
+//! | 5. Shutdown | [`resign_leadership`](leader_election::LeaderElection::resign_leadership) + [`unregister_candidate`](leader_election::LeaderElection::unregister_candidate) | On graceful exit |
+//!
+//! For advanced use cases, lower-level methods are available:
+//! - [`try_claim_leadership`](leader_election::LeaderElection::try_claim_leadership) - Attempt to become leader
+//! - [`refresh_lease`](leader_election::LeaderElection::refresh_lease) - Extend leadership lease
+//! - [`get_leader`](leader_election::LeaderElection::get_leader) - Query current leader
+//! - [`is_leader`](leader_election::LeaderElection::is_leader) - Check if this process is leader
+//!
+//! ## Key Concepts
+//!
+//! ### Ballots
+//! Ballot numbers work like Raft's term - a monotonically increasing counter
+//! that establishes ordering. Higher ballot always wins. Each leadership claim
+//! or lease refresh increments the ballot. This prevents split-brain scenarios
+//! after network partitions heal.
+//!
+//! The ballot is returned in [`LeaderState::ballot`](leader_election::LeaderState::ballot) and can be used as a
+//! fencing token when accessing external resources.
+//!
+//! ### Leases
+//! Leaders hold time-bounded leases configured via [`lease_duration`](leader_election::ElectionConfig::lease_duration).
+//! A leader must call [`run_election_cycle`](leader_election::LeaderElection::run_election_cycle) (or [`refresh_lease`](leader_election::LeaderElection::refresh_lease))
+//! before the lease expires to maintain leadership.
+//!
+//! If a leader fails to refresh (crash, network partition), other candidates
+//! can claim leadership after the lease expires.
+//!
+//! ### Preemption
+//! When [`allow_preemption`](leader_election::ElectionConfig::allow_preemption) is true, higher-priority candidates
+//! can preempt lower-priority leaders. Priority is set via the `priority` parameter
+//! in [`register_candidate`](leader_election::LeaderElection::register_candidate). This enables graceful leadership migration
+//! to new machines during rolling deployments or infrastructure upgrades.
+//!
+//! ## Configuration
+//!
+//! Configure via [`ElectionConfig`](leader_election::ElectionConfig) passed to [`initialize_with_config`](leader_election::LeaderElection::initialize_with_config):
+//!
+//! | Field | Default | Description |
+//! |-------|---------|-------------|
+//! | [`lease_duration`](leader_election::ElectionConfig::lease_duration) | 10s | How long leadership is valid without refresh |
+//! | [`heartbeat_interval`](leader_election::ElectionConfig::heartbeat_interval) | 3s | Recommended interval for calling `run_election_cycle` |
+//! | [`candidate_timeout`](leader_election::ElectionConfig::candidate_timeout) | 15s | When to consider candidates dead |
+//! | [`election_enabled`](leader_election::ElectionConfig::election_enabled) | true | Enable/disable elections globally |
+//! | [`allow_preemption`](leader_election::ElectionConfig::allow_preemption) | true | Allow priority-based preemption |
+//!
+//! **Rule of thumb:** `heartbeat_interval` should be less than `lease_duration / 3`
+//! to allow retries before lease expires.
+//!
+//! ## Return Types
+//!
+//! - [`ElectionResult`](leader_election::ElectionResult) - Returned by [`run_election_cycle`](leader_election::LeaderElection::run_election_cycle), indicates
+//!   whether this process is the leader or a follower
+//! - [`LeaderState`](leader_election::LeaderState) - Information about a leader: process ID, ballot, lease expiry
+//! - [`CandidateInfo`](leader_election::CandidateInfo) - Information about a registered candidate
+//!
+//! ## Safety Properties
+//!
+//! - **Mutual Exclusion**: At most one leader at any time (guaranteed by FDB serializable transactions)
 //! - **Liveness**: A correct process eventually becomes leader
-//! - **O(1) Operations**: Leadership checks and claims are constant time
+//! - **Consistency**: Ballot numbers provide total ordering of leadership changes
 //!
-//! # Algorithm Overview
+//! ## Simulation Testing
 //!
-//! The election algorithm uses a ballot-based approach:
+//! This implementation is validated through FoundationDB's deterministic simulation
+//! framework under extreme conditions including network partitions, process failures,
+//! and clock skew up to ±2 seconds.
 //!
-//! 1. **Candidate Registration**: Each process registers with a unique ID and receives
-//!    a versionstamp for ordering. The versionstamp is fixed at registration.
+//! Key invariants verified:
+//! - No overlapping leadership (mutual exclusion)
+//! - Ballot monotonicity (ballots never regress)
+//! - Fencing token validity (each claim increments ballot)
 //!
-//! 2. **Leadership Claims**: Processes attempt to claim leadership by reading the
-//!    leader key and writing with an incremented ballot if eligible.
-//!
-//! 3. **Lease Refresh**: Leaders must periodically refresh their lease to maintain
-//!    leadership. Each refresh increments the ballot.
-//!
-//! 4. **Preemption**: Higher priority candidates can preempt lower priority leaders
-//!    (if enabled in configuration).
-//!
-//! # Ballot Numbers
-//!
-//! Ballot numbers work like Raft's term:
-//! - Monotonically increasing counter
-//! - Higher ballot always wins
-//! - Prevents split-brain after recovery/partition
-//!
-//! # Testing & Validation
-//!
-//! This implementation is validated through comprehensive simulation testing
-//! using FoundationDB's deterministic simulation framework. The simulation
-//! subjects the leader election algorithm to extreme conditions including:
-//!
-//! - **Network chaos**: Packet loss, reordering, and partitions
-//! - **Process failures**: Random machine kills and restarts
-//! - **Clock skew**: Up to ±1 second offset with jitter
-//!
-//! Eleven invariants are verified on every simulation run:
-//!
-//! 1. **Dual-path validation**: Replayed log state matches FDB snapshot
-//! 2. **No overlapping leadership**: Sequential versionstamp ordering
-//! 3. **Ballot monotonicity**: Ballots never regress across leaders
-//! 4. **Fencing token validity**: Each claim increments ballot correctly
-//! 5. **Mutex linearizability**: At most one leader at any time
-//!
-//! See the `foundationdb-recipes-simulation` crate for test configurations
-//! and the full invariant implementation.
-//!
-//! # Example
-//!
-//! ```ignore
-//! let election = LeaderElection::new(subspace);
-//!
-//! // Initialize (once)
-//! db.run(|txn| election.initialize(&txn)).await?;
-//!
-//! // Register as candidate (once)
-//! db.run(|txn| election.register_candidate(&txn, "my-id", 0, now())).await?;
-//!
-//! // Main loop
-//! loop {
-//!     let result = db.run(|txn| {
-//!         election.run_election_cycle(&txn, "my-id", 0, now())
-//!     }).await?;
-//!
-//!     match result {
-//!         ElectionResult::Leader(state) => { /* do leader work */ }
-//!         ElectionResult::Follower(_) => { /* follow */ }
-//!     }
-//!
-//!     sleep(config.heartbeat_interval).await;
-//! }
-//! ```
+//! See `foundationdb-recipes-simulation` crate for test configurations.
 
 mod algorithm;
 mod errors;
@@ -99,14 +120,72 @@ use crate::{tuple::Subspace, Transaction};
 use std::ops::Deref;
 use std::time::Duration;
 
-/// Main leader election coordinator
+/// Coordinator for distributed leader election.
 ///
-/// This struct provides the primary interface for participating in leader elections.
-/// It encapsulates all election operations within a specific FoundationDB subspace,
-/// allowing multiple independent elections to coexist in the same database.
+/// `LeaderElection` provides the interface for participating in leader elections
+/// backed by FoundationDB. Multiple independent elections can coexist by using
+/// different [`Subspace`]s.
 ///
-/// The implementation has been validated through deterministic simulation testing
-/// under network partitions, process failures, and clock skew conditions.
+/// # Lifecycle
+///
+/// ```text
+/// ┌─────────────────────────────────────────────────────────────────┐
+/// │  1. new()              Create instance with subspace            │
+/// │  2. initialize()       Set up election (once globally)          │
+/// │  3. register_candidate() Join as candidate (once per process)   │
+/// │  4. run_election_cycle()  Main loop (every heartbeat_interval)  │
+/// │  5. resign_leadership() + unregister_candidate()  Cleanup       │
+/// └─────────────────────────────────────────────────────────────────┘
+/// ```
+///
+/// # Methods by Category
+///
+/// ## Setup
+/// - [`new`](Self::new) - Create election instance
+/// - [`initialize`](Self::initialize) - Initialize with defaults
+/// - [`initialize_with_config`](Self::initialize_with_config) - Initialize with custom [`ElectionConfig`]
+///
+/// ## Candidate Management
+/// - [`register_candidate`](Self::register_candidate) - Join the election
+/// - [`heartbeat_candidate`](Self::heartbeat_candidate) - Send liveness heartbeat
+/// - [`unregister_candidate`](Self::unregister_candidate) - Leave the election
+/// - [`get_candidate`](Self::get_candidate) - Query candidate info
+/// - [`list_candidates`](Self::list_candidates) - List all alive candidates (O(N))
+/// - [`evict_dead_candidates`](Self::evict_dead_candidates) - Remove timed-out candidates (O(N))
+///
+/// ## Leadership Operations (O(1))
+/// - [`try_claim_leadership`](Self::try_claim_leadership) - Attempt to become leader
+/// - [`refresh_lease`](Self::refresh_lease) - Extend leadership lease
+/// - [`resign_leadership`](Self::resign_leadership) - Voluntarily step down
+/// - [`is_leader`](Self::is_leader) - Check if this process is leader
+/// - [`get_leader`](Self::get_leader) - Get current leader (lease-validated)
+/// - [`get_leader_raw`](Self::get_leader_raw) - Get current leader (no lease check)
+///
+/// ## High-Level API
+/// - [`run_election_cycle`](Self::run_election_cycle) - Combined heartbeat + claim (recommended for main loop)
+///
+/// ## Configuration
+/// - [`read_config`](Self::read_config) - Read current configuration
+/// - [`write_config`](Self::write_config) - Update configuration dynamically
+///
+/// # Thread Safety
+///
+/// `LeaderElection` is [`Clone`], [`Send`], and [`Sync`]. It holds only a
+/// [`Subspace`] and can be safely shared across tasks.
+/// Each method operates within the provided transaction's scope.
+///
+/// # Related Types
+///
+/// - [`ElectionConfig`] - Configuration parameters
+/// - [`ElectionResult`] - Return type from [`run_election_cycle`](Self::run_election_cycle)
+/// - [`LeaderState`] - Leader information including ballot (fencing token)
+/// - [`CandidateInfo`] - Registered candidate information
+/// - [`LeaderElectionError`] - Error types for this module
+///
+/// # See Also
+///
+/// See the [module documentation](self) for algorithm details, key concepts
+/// (ballots, leases, preemption), and configuration guidelines.
 #[derive(Clone)]
 pub struct LeaderElection {
     subspace: Subspace,

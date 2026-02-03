@@ -22,7 +22,7 @@ keywords = ["foundationdb", "kv"]
 categories = ["database"]
 
 [package.metadata.docs.rs]
-features = ["embedded-fdb-include", "fdb-7_4", "uuid"]
+features = ["embedded-fdb-include", "fdb-7_4", "uuid", "recipes"]
 
 [badges]
 codecov = { repository = "foundationdb-rs/foundationdb-rs", branch = "main", service = "github" }
