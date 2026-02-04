@@ -6,6 +6,7 @@ use crate::directory::DirectoryOutput;
 use crate::tuple::Subspace;
 use crate::RangeOption;
 use crate::Transaction;
+use futures::TryStreamExt;
 
 #[derive(Debug, Clone)]
 pub(super) struct Node {
@@ -39,18 +40,21 @@ impl Node {
         &self,
         trx: &Transaction,
     ) -> Result<Vec<String>, DirectoryError> {
-        let mut results = vec![];
-
         let range_option = RangeOption::from(&self.subspace.subspace(&DEFAULT_SUB_DIRS));
 
-        let fdb_values = trx.get_range(&range_option, 1_024, false).await?;
+        let results: Vec<String> = trx
+            .get_ranges_keyvalues(range_option, false)
+            .map_ok(|fdb_value| {
+                let subspace = Subspace::from_bytes(fdb_value.key());
+                // stripping from subspace
+                let sub_directory: (i64, String) = self.subspace.unpack(subspace.bytes())?;
+                Ok(sub_directory.1)
+            })
+            .try_collect::<Vec<Result<String, DirectoryError>>>()
+            .await?
+            .into_iter()
+            .collect::<Result<Vec<String>, DirectoryError>>()?;
 
-        for fdb_value in fdb_values {
-            let subspace = Subspace::from_bytes(fdb_value.key());
-            // stripping from subspace
-            let sub_directory: (i64, String) = self.subspace.unpack(subspace.bytes())?;
-            results.push(sub_directory.1);
-        }
         Ok(results)
     }
 

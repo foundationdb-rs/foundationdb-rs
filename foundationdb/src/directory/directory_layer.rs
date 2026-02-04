@@ -20,6 +20,7 @@ use crate::RangeOption;
 use crate::{FdbResult, Transaction};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use futures::TryStreamExt;
 use std::cmp::Ordering;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -367,14 +368,18 @@ impl DirectoryLayer {
             return Ok(false);
         }
 
-        let range_option = RangeOption::from((
+        let mut range_option = RangeOption::from((
             self.node_subspace.pack(&prefix),
             self.node_subspace.pack(&strinc(prefix.to_vec())),
         ));
+        range_option.limit = Some(1);
 
-        let result = trx.get_range(&range_option, 1, snapshot).await?;
+        let result = trx
+            .get_ranges_keyvalues(range_option, snapshot)
+            .try_next()
+            .await?;
 
-        Ok(result.is_empty())
+        Ok(result.is_none())
     }
 
     async fn node_containing_key(
@@ -398,20 +403,19 @@ impl DirectoryLayer {
         range_option.limit = Some(1);
 
         // checking range
-        let fdb_values = trx.get_range(&range_option, 1, snapshot).await?;
+        let fdb_value = trx
+            .get_ranges_keyvalues(range_option, snapshot)
+            .try_next()
+            .await?;
 
-        match fdb_values.first() {
-            None => {}
-            Some(fdb_key_value) => {
-                let previous_prefix: Vec<Element> =
-                    self.node_subspace.unpack(fdb_key_value.key())?;
+        if let Some(fdb_key_value) = fdb_value {
+            let previous_prefix: Vec<Element> = self.node_subspace.unpack(fdb_key_value.key())?;
 
-                if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
-                    if key.starts_with(previous_prefix) {
-                        return Ok(Some(self.node_with_prefix(previous_prefix)));
-                    };
+            if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
+                if key.starts_with(previous_prefix) {
+                    return Ok(Some(self.node_with_prefix(previous_prefix)));
                 };
-            }
+            };
         }
         Ok(None)
     }
@@ -428,11 +432,15 @@ impl DirectoryLayer {
                 let subspace = self.content_subspace.subspace(&allocator);
 
                 // checking range
+                let mut range_option = RangeOption::from(subspace.range());
+                range_option.limit = Some(1);
+
                 let result = trx
-                    .get_range(&RangeOption::from(subspace.range()), 1, false)
+                    .get_ranges_keyvalues(range_option, false)
+                    .try_next()
                     .await?;
 
-                if !result.is_empty() {
+                if result.is_some() {
                     return Err(DirectoryError::PrefixNotEmpty);
                 }
 
@@ -692,23 +700,12 @@ impl DirectoryLayer {
         node_sub: &Subspace,
     ) -> Result<(), DirectoryError> {
         let sub_dir = node_sub.subspace(&DEFAULT_SUB_DIRS);
-        let (mut begin, end) = sub_dir.range();
+        let range_option = RangeOption::from(&sub_dir);
 
-        loop {
-            let range_option = RangeOption::from((begin.as_slice(), end.as_slice()));
-
-            let range = trx.get_range(&range_option, 1024, false).await?;
-            let has_more = range.more();
-
-            for row_key in range {
-                let sub_node = self.node_with_prefix(&row_key.value());
-                self.remove_recursive(trx, &sub_node).await?;
-                begin = row_key.key().pack_to_vec();
-            }
-
-            if !has_more {
-                break;
-            }
+        let mut stream = std::pin::pin!(trx.get_ranges_keyvalues(range_option, false));
+        while let Some(row_key) = stream.try_next().await? {
+            let sub_node = self.node_with_prefix(&row_key.value());
+            self.remove_recursive(trx, &sub_node).await?;
         }
 
         let node_prefix: Vec<u8> = self.node_subspace.unpack(node_sub.bytes())?;
