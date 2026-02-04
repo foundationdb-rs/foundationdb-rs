@@ -23,7 +23,7 @@ foundationdb = { version = "0.10.0", path = "../foundationdb", default-features 
 foundationdb-sys = { version = "0.10.0", path = "../foundationdb-sys", default-features = false }
 
 [build-dependencies]
-cc = "1.2.52"
+cc = "1.2.55"
 bindgen = "0.72.1"
 
 [dev-dependencies]
