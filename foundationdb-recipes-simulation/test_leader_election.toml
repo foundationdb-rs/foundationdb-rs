@@ -1,0 +1,25 @@
+[[test]]
+testTitle = 'LeaderElectionWorkload'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 50
+    heartbeatTimeoutSecs = 10
+
+  [[test.workload]]
+    # Introduce network partitions
+    testName = 'RandomClogging'
+    testDuration = 30.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Reboot processes to test failover
+    testName = 'Attrition'
+    machinesToKill = 5
+    machinesToLeave = 3
+    reboot = true
+    testDuration = 30.0

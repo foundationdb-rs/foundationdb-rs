@@ -1,0 +1,45 @@
+# Leader Election Ballot Stress Test
+#
+# Purpose: High contention test with many clients competing rapidly for leadership.
+# This test is designed to stress-test ballot collision handling and ensure proper
+# ordering even under heavy contention.
+#
+# Scenario:
+# - High operation count (200) creates many leadership transitions
+# - Short heartbeat timeout (5s) forces frequent re-election attempts
+# - High resign probability (0.3) creates rapid leadership turnover
+# - RandomClogging with swizzle=2 creates more severe network partitions
+# - Attrition kills 6 machines but leaves 2 running to maintain progress
+#
+# Bug classes this test catches:
+# - Ballot collision (two leaders with same ballot)
+# - Split-brain during network partitions
+# - Stale leader writes after partition heal
+# - Race conditions in rapid leadership transitions
+
+[[test]]
+testTitle = 'LeaderElectionBallotStress'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 200
+    heartbeatTimeoutSecs = 5
+    resignProbability = 0.3
+
+  [[test.workload]]
+    # More severe network partitions to stress ballot handling
+    testName = 'RandomClogging'
+    testDuration = 45.0
+    swizzle = 2
+
+  [[test.workload]]
+    # Aggressive machine failures with reboot
+    testName = 'Attrition'
+    machinesToKill = 6
+    machinesToLeave = 2
+    reboot = true
+    testDuration = 45.0

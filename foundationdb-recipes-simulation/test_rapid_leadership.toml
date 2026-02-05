@@ -1,0 +1,44 @@
+# Leader Election Rapid Turnover Test
+#
+# Purpose: Test fast leadership turnover with high resign probability.
+# This test focuses on validating proper state transitions when leaders
+# frequently give up leadership voluntarily.
+#
+# Scenario:
+# - Moderate operation count (150) with longer heartbeat (10s)
+# - Very high resign probability (0.5) means leaders resign quickly
+# - RandomClogging with swizzle=1 creates moderate network disruption
+# - Attrition kills 4 machines and leaves 4, allowing better recovery
+#
+# Bug classes this test catches:
+# - State corruption during rapid leadership transitions
+# - Improper ballot succession after resignation
+# - Race conditions between resign and new leadership claims
+# - Mutex linearizability violations
+
+[[test]]
+testTitle = 'LeaderElectionRapidTurnover'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 150
+    heartbeatTimeoutSecs = 10
+    resignProbability = 0.5
+
+  [[test.workload]]
+    # Moderate network disruption
+    testName = 'RandomClogging'
+    testDuration = 40.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Balanced machine failures
+    testName = 'Attrition'
+    machinesToKill = 4
+    machinesToLeave = 4
+    reboot = true
+    testDuration = 40.0

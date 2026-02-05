@@ -1,0 +1,342 @@
+//! Tracing, statistics, and database capture helpers for leader election simulation.
+
+use std::collections::BTreeMap;
+use std::time::Duration;
+
+use foundationdb_simulation::{details, Severity};
+
+use super::types::{
+    ClientStats, DatabaseSnapshot, LogEntries, OpType, DEFAULT_CLOCK_JITTER_OFFSET,
+    DEFAULT_CLOCK_JITTER_RANGE,
+};
+use super::LeaderElectionWorkload;
+
+impl LeaderElectionWorkload {
+    // ========================================================================
+    // CLOCK SKEW SIMULATION (mimics FDB's sim2.actor.cpp timer())
+    // ========================================================================
+
+    /// Helper to get random f64 in [0, 1) using context.rnd()
+    fn rnd_f64(&self) -> f64 {
+        self.context.rnd() as f64 / u32::MAX as f64
+    }
+
+    /// Get local time with simulated clock skew (mimics FDB's timer())
+    ///
+    /// FDB strategy from sim2.actor.cpp:
+    /// timerTime += random01() * (time + 0.1 - timerTime) / 2.0
+    pub(crate) fn local_time(&mut self) -> Duration {
+        let real_time = self.context.now();
+
+        // 1. Apply FDB-style timer drift
+        // Timer moves partway toward (real_time + base_offset + max_drift)
+        let max_ahead = self.clock_skew_level.max_offset_secs();
+        let target = real_time + self.clock_offset_secs + max_ahead;
+        self.clock_timer_time += self.rnd_f64() * (target - self.clock_timer_time) / 2.0;
+
+        // Ensure timer doesn't go backwards (monotonic-ish)
+        self.clock_timer_time = self
+            .clock_timer_time
+            .max(real_time + self.clock_offset_secs);
+
+        // 2. Calculate offset from real time
+        let offset = self.clock_timer_time - real_time;
+
+        // 3. Apply jitter to the OFFSET only (not the entire time)
+        // FDB's DELAY_JITTER applies to delay amounts, not absolute times
+        let jitter_multiplier =
+            DEFAULT_CLOCK_JITTER_OFFSET + DEFAULT_CLOCK_JITTER_RANGE * self.rnd_f64();
+        let jittered_offset = offset * jitter_multiplier;
+
+        let local = real_time + jittered_offset;
+        Duration::from_secs_f64(local.max(0.0))
+    }
+
+    // ========================================================================
+    // TRACE HELPERS
+    // ========================================================================
+
+    pub(crate) fn trace_check_start(&self) {
+        self.context.trace(
+            Severity::Info,
+            "CheckPhaseStart",
+            details![
+                "Layer" => "Rust",
+                "Client" => self.client_id,
+                "ClientCount" => self.client_count,
+                "OperationCount" => self.operation_count
+            ],
+        );
+    }
+
+    pub(crate) fn trace_invariant_pass(&self, name: &str, details_str: &str) {
+        self.context.trace(
+            Severity::Info,
+            "InvariantPassed",
+            details![
+                "Layer" => "Rust",
+                "Invariant" => name,
+                "Details" => details_str
+            ],
+        );
+    }
+
+    pub(crate) fn trace_invariant_fail(&self, name: &str, expected: &str, actual: &str) {
+        self.context.trace(
+            Severity::Error,
+            "InvariantFailed",
+            details![
+                "Layer" => "Rust",
+                "Invariant" => name,
+                "Expected" => expected,
+                "Actual" => actual
+            ],
+        );
+    }
+
+    pub(crate) fn trace_check_summary(&self, passed: usize, failed: usize) {
+        let severity = if failed > 0 {
+            Severity::Error
+        } else {
+            Severity::Info
+        };
+        self.context.trace(
+            severity,
+            "CheckPhaseSummary",
+            details![
+                "Layer" => "Rust",
+                "InvariantsPassed" => passed,
+                "InvariantsFailed" => failed,
+                "TotalInvariants" => passed + failed,
+                "Success" => failed == 0
+            ],
+        );
+    }
+
+    // ========================================================================
+    // DATABASE STATE DUMP HELPERS (AtomicOps-style)
+    // ========================================================================
+
+    /// Dump all log entries with running statistics (like AtomicOps dumpLogKV)
+    /// Entries are already in FDB commit order (versionstamp-ordered keys)
+    pub(crate) fn dump_log_entries(&self, entries: &LogEntries) {
+        let mut running_leadership_count: u64 = 0;
+        let mut per_client_ops: BTreeMap<i32, usize> = BTreeMap::new();
+
+        for (idx, entry) in entries.iter().enumerate() {
+            if entry.became_leader {
+                running_leadership_count += 1;
+            }
+            *per_client_ops.entry(entry.client_id).or_default() += 1;
+
+            let op_name = OpType::from_i64(entry.op_type)
+                .map(|o| o.as_str())
+                .unwrap_or("Unknown");
+
+            self.context.trace(
+                Severity::Debug,
+                "LogEntryDump",
+                details![
+                    "Layer" => "Rust",
+                    "Index" => idx,
+                    "Versionstamp" => format!("{:?}", entry.versionstamp),
+                    "ClientId" => entry.client_id,
+                    "OpNum" => entry.op_num,
+                    "OpType" => op_name,
+                    "Success" => entry.success,
+                    "BecameLeader" => entry.became_leader,
+                    "RunningLeadershipCount" => running_leadership_count
+                ],
+            );
+        }
+
+        // Summary per client
+        for (client_id, count) in &per_client_ops {
+            self.context.trace(
+                Severity::Debug,
+                "LogEntryClientSummary",
+                details![
+                    "Layer" => "Rust",
+                    "ClientId" => client_id,
+                    "TotalOps" => count
+                ],
+            );
+        }
+    }
+
+    /// Dump current leader state from FDB (like AtomicOps dumpOpsKV)
+    pub(crate) fn dump_leader_state(&self, snapshot: &DatabaseSnapshot) {
+        match &snapshot.leader_state {
+            Some(leader) => {
+                self.context.trace(
+                    Severity::Info,
+                    "LeaderStateDump",
+                    details![
+                        "Layer" => "Rust",
+                        "HasLeader" => true,
+                        "LeaderId" => leader.leader_id.clone(),
+                        "Ballot" => leader.ballot,
+                        "Priority" => leader.priority,
+                        "LeaseExpiryNanos" => leader.lease_expiry_nanos,
+                        "Versionstamp" => format!("{:?}", leader.versionstamp)
+                    ],
+                );
+            }
+            None => {
+                self.context.trace(
+                    Severity::Info,
+                    "LeaderStateDump",
+                    details![
+                        "Layer" => "Rust",
+                        "HasLeader" => false
+                    ],
+                );
+            }
+        }
+    }
+
+    /// Dump all candidates from FDB (like AtomicOps dumpDebugKV)
+    pub(crate) fn dump_candidates(&self, snapshot: &DatabaseSnapshot) {
+        self.context.trace(
+            Severity::Info,
+            "CandidatesDumpStart",
+            details![
+                "Layer" => "Rust",
+                "CandidateCount" => snapshot.candidates.len()
+            ],
+        );
+
+        for candidate in &snapshot.candidates {
+            self.context.trace(
+                Severity::Debug,
+                "CandidateDump",
+                details![
+                    "Layer" => "Rust",
+                    "ProcessId" => candidate.process_id.clone(),
+                    "Priority" => candidate.priority,
+                    "LastHeartbeatNanos" => candidate.last_heartbeat_nanos,
+                    "Versionstamp" => format!("{:?}", candidate.versionstamp)
+                ],
+            );
+        }
+    }
+
+    /// Dump election config
+    pub(crate) fn dump_config(&self, snapshot: &DatabaseSnapshot) {
+        match &snapshot.config {
+            Some(config) => {
+                self.context.trace(
+                    Severity::Info,
+                    "ConfigDump",
+                    details![
+                        "Layer" => "Rust",
+                        "HasConfig" => true,
+                        "LeaseDurationSecs" => config.lease_duration.as_secs_f64(),
+                        "HeartbeatIntervalSecs" => config.heartbeat_interval.as_secs_f64(),
+                        "CandidateTimeoutSecs" => config.candidate_timeout.as_secs_f64(),
+                        "ElectionEnabled" => config.election_enabled,
+                        "AllowPreemption" => config.allow_preemption
+                    ],
+                );
+            }
+            None => {
+                self.context.trace(
+                    Severity::Warn,
+                    "ConfigDump",
+                    details![
+                        "Layer" => "Rust",
+                        "HasConfig" => false
+                    ],
+                );
+            }
+        }
+    }
+
+    // ========================================================================
+    // STATISTICS EXTRACTION
+    // ========================================================================
+
+    /// Extract per-client statistics from log entries
+    /// Entries are already in FDB commit order (versionstamp-ordered keys)
+    pub(crate) fn extract_client_stats(&self, entries: &LogEntries) -> BTreeMap<i32, ClientStats> {
+        let mut stats: BTreeMap<i32, ClientStats> = BTreeMap::new();
+
+        for entry in entries {
+            let client_stats = stats.entry(entry.client_id).or_default();
+            client_stats.op_nums.push(entry.op_num);
+
+            // Count by operation type
+            match OpType::from_i64(entry.op_type) {
+                Some(OpType::Register) => {
+                    client_stats.register_count += 1;
+                    if !entry.success {
+                        client_stats.error_count += 1;
+                    }
+                }
+                Some(OpType::Heartbeat) => {
+                    client_stats.heartbeat_count += 1;
+                    if !entry.success {
+                        client_stats.error_count += 1;
+                    }
+                }
+                Some(OpType::TryBecomeLeader) => {
+                    client_stats.leadership_attempt_count += 1;
+                    if entry.became_leader {
+                        client_stats.leadership_success_count += 1;
+                    }
+                    if !entry.success {
+                        client_stats.error_count += 1;
+                    }
+                }
+                Some(OpType::Resign) => {
+                    if entry.success {
+                        client_stats.resign_count += 1;
+                    }
+                }
+                None => {}
+            }
+        }
+
+        stats
+    }
+
+    /// Log statistics summary
+    pub(crate) fn log_statistics(&self, entries: &LogEntries, stats: &BTreeMap<i32, ClientStats>) {
+        let total_entries = entries.len();
+        let total_leadership_claims: usize =
+            stats.values().map(|s| s.leadership_success_count).sum();
+        let total_resigns: usize = stats.values().map(|s| s.resign_count).sum();
+        let total_errors: usize = stats.values().map(|s| s.error_count).sum();
+
+        self.context.trace(
+            Severity::Info,
+            "LogStatistics",
+            details![
+                "Layer" => "Rust",
+                "TotalLogEntries" => total_entries,
+                "TotalClients" => stats.len(),
+                "TotalLeadershipClaims" => total_leadership_claims,
+                "TotalResigns" => total_resigns,
+                "TotalErrors" => total_errors
+            ],
+        );
+
+        for (client_id, client_stats) in stats {
+            self.context.trace(
+                Severity::Info,
+                "ClientStatistics",
+                details![
+                    "Layer" => "Rust",
+                    "ClientId" => client_id,
+                    "RegisterCount" => client_stats.register_count,
+                    "HeartbeatCount" => client_stats.heartbeat_count,
+                    "LeadershipAttempts" => client_stats.leadership_attempt_count,
+                    "LeadershipSuccesses" => client_stats.leadership_success_count,
+                    "ResignCount" => client_stats.resign_count,
+                    "Errors" => client_stats.error_count,
+                    "OpCount" => client_stats.op_nums.len()
+                ],
+            );
+        }
+    }
+}

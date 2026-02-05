@@ -1,0 +1,45 @@
+# Leader Election Short Lease Test
+#
+# Purpose: Test timing edge cases with short lease duration.
+# This test uses a very short heartbeat timeout to create many lease
+# expirations and tests the boundary conditions of lease handling.
+#
+# Scenario:
+# - Lower operation count (100) to focus on timing edge cases
+# - Very short heartbeat timeout (3s) means leases expire frequently
+# - Low resign probability (0.1) so most transitions are from lease expiry
+# - RandomClogging creates network delays that can cause lease expiry
+# - Attrition kills 5 machines and leaves 3 for moderate recovery
+#
+# Bug classes this test catches:
+# - Lease overlap races (two leaders think they have valid leases)
+# - Timing issues around lease expiry boundaries
+# - Clock skew handling during lease validation
+# - Fencing token monotonicity violations
+
+[[test]]
+testTitle = 'LeaderElectionShortLease'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 100
+    heartbeatTimeoutSecs = 3
+    resignProbability = 0.1
+
+  [[test.workload]]
+    # Network disruption to cause lease expiry
+    testName = 'RandomClogging'
+    testDuration = 35.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Machine failures to test failover
+    testName = 'Attrition'
+    machinesToKill = 5
+    machinesToLeave = 3
+    reboot = true
+    testDuration = 35.0
