@@ -1,2 +1,2 @@
-window.ALL_CRATES = ["bindingtester","foundationdb","foundationdb_gen","foundationdb_macros","foundationdb_options_gen","foundationdb_profiling","foundationdb_simulation","foundationdb_sys","foundationdb_tuple"];
-//{"start":21,"fragment_lengths":[15,15,19,22,27,25,26,19,21]}
+window.ALL_CRATES = ["bindingtester","foundationdb","foundationdb_gen","foundationdb_macros","foundationdb_options_gen","foundationdb_profiling","foundationdb_recipes_simulation","foundationdb_simulation","foundationdb_sys","foundationdb_tuple"];
+//{"start":21,"fragment_lengths":[15,15,19,22,27,25,34,26,19,21]}

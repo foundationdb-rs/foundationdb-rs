@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ElectionResult","LeaderElectionError"],"struct":["CandidateInfo","ElectionConfig","LeaderElection","LeaderState"],"type":["Result"]};
