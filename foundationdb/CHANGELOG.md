@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-02-11
+
+### <!-- 1 -->🚀 Features
+
+- Feat: first draft of leader election recipe implementation
+- Use Deref<Target=Transaction>
+- Feat(leader_election): implement O(1) ballot-based Active Disk Paxos algorithm
+
+### <!-- 2 -->🐛 Bug Fixes
+
+- Fix(directory): use get_ranges_keyvalues for proper pagination
+- Fix: replace version-based timeouts with Duration-based approach
+- Fix(simulation): simplify leader election invariants to core algorithm properties
+- Fix(leader-election): internalize versionstamp to prevent unregistered leadership claims
+- Fix(simulation): use microsecond precision for log entry ordering
+
+### <!-- 4 -->🚜 Refactor
+
+- Refactor(simulation): remove redundant invariants and unused types
+
+### <!-- 5 -->📚 Documentation
+
+- Docs(leader-election): add simulation testing documentation
+- Docs(leader-election): improve module and struct documentation
+
+### <!-- 8 -->⚙️ Miscellaneous
+
+- Format code and update invariants
+
+### <!-- 9 -->📦 Other Changes
+
+- Rewrite fdb_rt to split wakeup and polling phase
+
+[0.11.0]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.10.0..0.11.0
+
+
 ## [0.10.0] - 2025-10-24
 
 ### <!-- 1 -->🚀 Features
