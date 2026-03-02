@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb-tuple"
-version = "0.10.0"
+version = "0.10.1"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
