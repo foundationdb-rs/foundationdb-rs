@@ -15,4 +15,4 @@ futures-util = "0.3.31"
 thiserror = "2.0.18"
 
 [dev-dependencies]
-tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread"] }
