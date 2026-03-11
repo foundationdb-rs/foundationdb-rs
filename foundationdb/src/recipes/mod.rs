@@ -32,3 +32,7 @@
 /// Leader election recipe for distributed consensus
 #[cfg(feature = "recipes-leader-election")]
 pub mod leader_election;
+
+/// Ranked register recipe for Paxos-style ballot fencing
+#[cfg(feature = "recipes-ranked-register")]
+pub mod ranked_register;
