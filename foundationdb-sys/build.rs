@@ -60,6 +60,17 @@ fn main() {
     // Link against fdb_c.
     println!("cargo:rustc-link-lib=fdb_c");
 
+    // On Linux, link the libraries required by libfdb_c.so.
+    // libdl is needed for dlsym(RTLD_NEXT, ...) used in flow/SignalSafeUnwind.cpp.
+    // See: https://apple.github.io/foundationdb/api-c.html
+    #[cfg(target_os = "linux")]
+    {
+        println!("cargo:rustc-link-lib=dl");
+        println!("cargo:rustc-link-lib=m");
+        println!("cargo:rustc-link-lib=pthread");
+        println!("cargo:rustc-link-lib=rt");
+    }
+
     if let Ok(lib_path) = env::var("FDB_CLIENT_LIB_PATH") {
         println!("cargo:rustc-link-search=native={lib_path}");
     }
