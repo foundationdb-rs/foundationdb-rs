@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RankedRegisterError","WriteResult"],"struct":["Rank","RankedRegister","ReadResult","RegisterState"],"type":["Result"]};

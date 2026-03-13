@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["leader_election"]};
+window.SIDEBAR_ITEMS = {"mod":["leader_election","ranked_register"]};

@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Ranked register recipe for Paxos-style ballot fencing"><title>foundationdb::recipes::ranked_register - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module ranked_register</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../foundationdb/index.html">foundationdb</a><span class="version">0.10.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module ranked_<wbr>register</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#ranked-register-for-foundationdb" title="Ranked Register for FoundationDB">Ranked Register for FoundationDB</a><ul><li><a href="#operations" title="Operations">Operations</a></li><li><a href="#composing-with-leader-election" title="Composing with Leader Election">Composing with Leader Election</a></li></ul></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In foundationdb::<wbr>recipes</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">foundationdb</a>::<wbr><a href="../index.html">recipes</a></div><h1>Module <span>ranked_<wbr>register</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/foundationdb/recipes/ranked_register/mod.rs.html#8-145">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Ranked register recipe for Paxos-style ballot fencing</p>
+<h2 id="ranked-register-for-foundationdb"><a class="doc-anchor" href="#ranked-register-for-foundationdb">§</a>Ranked Register for FoundationDB</h2>
+<p>A shared memory abstraction that encapsulates Paxos ballots, based on
+Chockler &amp; Malkhi’s “Active Disk Paxos with infinitely many processes”
+(PODC 2002). A ranked register is a mutable register with conflict detection
+via ranks, supporting unbounded processes with finite storage.</p>
+<h3 id="operations"><a class="doc-anchor" href="#operations">§</a>Operations</h3><div><table><thead><tr><th>Operation</th><th>Who</th><th>Effect</th></tr></thead><tbody>
+<tr><td><a href="RankedRegister::read"><code>read(rank)</code></a></td><td>Leader</td><td>Updates max_read_rank (installs fence), returns current value</td></tr>
+<tr><td><a href="RankedRegister::write"><code>write(rank, value)</code></a></td><td>Leader</td><td>Commits only if rank is high enough</td></tr>
+<tr><td><a href="RankedRegister::value"><code>value()</code></a></td><td>Followers</td><td>Plain read, no fence installed</td></tr>
+</tbody></table>
+</div><h3 id="composing-with-leader-election"><a class="doc-anchor" href="#composing-with-leader-election">§</a>Composing with Leader Election</h3>
+<p>The ranked register is designed to work with the leader election recipe.
+The leader election’s ballot serves as the rank for register operations,
+providing automatic fencing against stale leaders.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>foundationdb::recipes::leader_election::LeaderElection;
+<span class="kw">use </span>foundationdb::recipes::ranked_register::{RankedRegister, Rank};
+<span class="kw">use </span>foundationdb::tuple::Subspace;
+
+<span class="kw">let </span>election = LeaderElection::new(Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">"my-election"</span>));
+<span class="kw">let </span>register = RankedRegister::new(Subspace::all().subspace(<span class="kw-2">&amp;</span><span class="string">"my-state"</span>));
+
+<span class="comment">// In the leader's main loop:
+// db.run(|txn, _| async move {
+//     let result = election.run_election_cycle(&amp;txn, process_id, priority, now).await?;
+//     match result {
+//         ElectionResult::Leader(state) =&gt; {
+//             let rank = Rank::from(state.ballot);
+//             // Read current state (installs fence at this ballot)
+//             let current = register.read(&amp;txn, rank).await?;
+//             // Mutate and write back
+//             register.write(&amp;txn, rank, b"new_value").await?;
+//         }
+//         ElectionResult::Follower(_) =&gt; {
+//             // Safe read — doesn't interfere with leader's writes
+//             let current = register.value(&amp;txn).await?;
+//         }
+//     }
+//     Ok(())
+// }).await?;</span></code></pre></div><h4 id="why-this-works"><a class="doc-anchor" href="#why-this-works">§</a>Why This Works</h4>
+<ul>
+<li>Leader election’s ballot is monotonically increasing</li>
+<li>A deposed leader has a lower ballot than the new leader</li>
+<li><code>read(rank)</code> installs a fence at the ballot value</li>
+<li>Any write with a lower rank is automatically rejected</li>
+<li><code>value()</code> is safe for followers — it never installs a fence</li>
+</ul>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Rank.html" title="struct foundationdb::recipes::ranked_register::Rank">Rank</a></dt><dd>A rank value for ordering register operations</dd><dt><a class="struct" href="struct.RankedRegister.html" title="struct foundationdb::recipes::ranked_register::RankedRegister">Ranked<wbr>Register</a></dt><dd>A ranked register backed by FoundationDB</dd><dt><a class="struct" href="struct.ReadResult.html" title="struct foundationdb::recipes::ranked_register::ReadResult">Read<wbr>Result</a></dt><dd>Result of a ranked read operation</dd><dt><a class="struct" href="struct.RegisterState.html" title="struct foundationdb::recipes::ranked_register::RegisterState">Register<wbr>State</a></dt><dd>Internal state of the ranked register as stored in FoundationDB</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.RankedRegisterError.html" title="enum foundationdb::recipes::ranked_register::RankedRegisterError">Ranked<wbr>Register<wbr>Error</a></dt><dd>Ranked register specific errors</dd><dt><a class="enum" href="enum.WriteResult.html" title="enum foundationdb::recipes::ranked_register::WriteResult">Write<wbr>Result</a></dt><dd>Result of a ranked write operation</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.Result.html" title="type foundationdb::recipes::ranked_register::Result">Result</a></dt><dd>Result type for ranked register operations</dd></dl></section></div></main></body></html>
