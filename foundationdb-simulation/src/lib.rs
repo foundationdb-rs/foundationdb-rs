@@ -9,7 +9,10 @@ use foundationdb_sys::FDBDatabase as FDBDatabaseAlias;
 mod bindings;
 mod fdb_rt;
 
-use bindings::{FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, OpaqueWorkload, Promise};
+use bindings::{
+    FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, FDBWorkload_VT, OpaqueWorkload, Promise,
+    FDB_WORKLOAD_API_VERSION,
+};
 pub use bindings::{Metric, Metrics, Severity, WorkloadContext};
 use fdb_rt::fdb_spawn;
 
@@ -23,7 +26,7 @@ pub type WrappedWorkload = FDBWorkload;
 
 /// Equivalent to the C++ abstract class `FDBWorkload`
 #[allow(async_fn_in_trait)]
-pub trait RustWorkload {
+pub trait RustWorkload: Sized + 'static {
     /// This method is called by the tester during the setup phase.
     /// It should be used to populate the database.
     ///
@@ -57,6 +60,26 @@ pub trait RustWorkload {
 
     /// Set the check timeout in simulated seconds for this workload.
     fn get_check_timeout(&self) -> f64;
+
+    /// Virtual Table used by the C API
+    const VT: FDBWorkload_VT = FDBWorkload_VT {
+        setup: Some(workload_setup::<Self>),
+        start: Some(workload_start::<Self>),
+        check: Some(workload_check::<Self>),
+        getMetrics: Some(workload_get_metrics::<Self>),
+        getCheckTimeout: Some(workload_get_check_timeout::<Self>),
+        free: Some(workload_drop::<Self>),
+    };
+
+    /// Wrap the underlying Rust type so it can be passed to the C API
+    fn wrap(self) -> WrappedWorkload {
+        let inner = Box::into_raw(Box::new(self));
+        WrappedWorkload {
+            api_version: FDB_WORKLOAD_API_VERSION,
+            inner: inner as *mut _,
+            vt: &Self::VT as *const _ as *mut _,
+        }
+    }
 }
 
 /// Equivalent to the C++ abstract class `FDBWorkloadFactory`
@@ -153,20 +176,6 @@ unsafe extern "C" fn workload_drop<W: RustWorkload>(raw_workload: *mut OpaqueWor
     unsafe { drop(Box::from_raw(raw_workload as *mut W)) };
 }
 
-impl WrappedWorkload {
-    pub fn new<W: RustWorkload + 'static>(workload: W) -> Self {
-        let workload = Box::into_raw(Box::new(workload));
-        WrappedWorkload {
-            inner: workload as *mut _,
-            setup: Some(workload_setup::<W>),
-            start: Some(workload_start::<W>),
-            check: Some(workload_check::<W>),
-            getMetrics: Some(workload_get_metrics::<W>),
-            getCheckTimeout: Some(workload_get_check_timeout::<W>),
-            free: Some(workload_drop::<W>),
-        }
-    }
-}
 // -----------------------------------------------------------------------------
 // Registration hooks
 
@@ -257,7 +266,7 @@ macro_rules! register_workload {
             }
             let name = $crate::internals::str_from_c(raw_name);
             let context = $crate::WorkloadContext::new(raw_context);
-            $crate::WrappedWorkload::new(<$name as $crate::SingleRustWorkload>::new(name, context))
+            $crate::RustWorkload::wrap(<$name as $crate::SingleRustWorkload>::new(name, context))
         }
         #[no_mangle]
         extern "C" fn workloadFactory(logger: *const u8) -> *const u8 {

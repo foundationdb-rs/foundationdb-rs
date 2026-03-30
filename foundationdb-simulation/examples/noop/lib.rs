@@ -74,7 +74,7 @@ impl RustWorkloadFactory for NoopFactory {
             context.get_option::<String>("my_c_option")
         );
         match name.as_str() {
-            "NoopWorkload" => WrappedWorkload::new(NoopWorkload::new(name, client_id, context)),
+            "NoopWorkload" => NoopWorkload::new(name, client_id, context).wrap(),
             _ => panic!("Unknown workload name: {name}"),
         }
     }
