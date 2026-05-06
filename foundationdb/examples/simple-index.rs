@@ -26,7 +26,7 @@ async fn clear_subspaces(db: &Database, subspaces: &[Subspace]) {
         for subspace in subspaces {
             trx.clear_subspace_range(subspace);
         }
-        Ok::<(), FdbBindingError>(())
+        Ok(())
     })
     .await
     .expect("Unable to commit transaction");
@@ -67,7 +67,6 @@ async fn get_user(
         name,
     })
 }
-
 
 async fn search_user_by_zipcode(
     db: &Database,
@@ -116,10 +115,8 @@ async fn main() {
         5000,
     ))
     .expect("failed to set transaction timeout");
-    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(
-        3,
-    ))
-    .expect("failed to set transaction retry limit");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
 
     let user_subspace = Subspace::from_bytes("user");
     let zipcode_index_subspace = Subspace::from_bytes("zipcode_index");

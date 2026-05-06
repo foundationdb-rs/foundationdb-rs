@@ -69,23 +69,24 @@ async fn main() {
             let mut buf = [0u8; 8];
             byteorder::LE::write_i64(&mut buf, 1);
             trx.atomic_op(&key, &buf, options::MutationType::Add);
-            Ok::<(), foundationdb::FdbBindingError>(())
+            Ok(())
         }
     })
     .await
     .expect("could not commit");
 
     // read counter value
-    let raw_counter = db.run(|trx, _| {
-        let key = key.clone();
-        async move {
-            let result = trx.get(&key, true).await?;
-            Ok::<_, foundationdb::FdbBindingError>(result)
-        }
-    })
-    .await
-    .expect("could not read key")
-    .expect("no value found");
+    let raw_counter = db
+        .run(|trx, _| {
+            let key = key.clone();
+            async move {
+                let result = trx.get(&key, true).await?;
+                Ok(result)
+            }
+        })
+        .await
+        .expect("could not read key")
+        .expect("no value found");
 
     let counter = byteorder::LE::read_i64(raw_counter.as_ref());
     dbg!(counter);

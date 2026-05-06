@@ -110,7 +110,7 @@ async fn clear_subspace(db: &Database, subspaces: Vec<&Subspace>) {
             for subspace in subspaces {
                 transaction.clear_subspace_range(subspace)
             }
-            Ok::<(), foundationdb::FdbBindingError>(())
+            Ok(())
         }
     })
     .await
@@ -164,7 +164,7 @@ async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
 
     db.run(|transaction, _| async move {
         transaction.set(subspace.bytes(), data.as_slice());
-        Ok::<(), foundationdb::FdbBindingError>(())
+        Ok(())
     })
     .await
     .expect("Unable to commit transaction");
@@ -195,7 +195,7 @@ async fn write_blob(
             chunk_number += 1;
         });
 
-        Ok::<usize, foundationdb::FdbBindingError>(chunk_number)
+        Ok(chunk_number)
     })
     .await
     .expect("Unable to commit transaction")
@@ -205,7 +205,7 @@ async fn write_blob(
 async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
     db.run(|transaction, _| async move {
         let get_result = transaction.get(subspace.bytes(), false).await?;
-        Ok::<_, foundationdb::FdbBindingError>(get_result.map(|data| data.to_vec()))
+        Ok(get_result.map(|data| data.to_vec()))
     })
     .await
     .ok()
@@ -213,7 +213,7 @@ async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 }
 
 /// Gets data from database from the given subspace with specified key name.
-async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
+async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
     db.run(|transaction, _| async move {
         let range = RangeOption::from(subspace.range());
         let results = transaction.get_range(&range, 1_024, false).await?;
@@ -225,11 +225,10 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
             data.extend(value.iter());
         }
 
-        Ok::<Option<Vec<u8>>, foundationdb::FdbBindingError>(Some(data))
+        Ok(data)
     })
     .await
-    .ok()
-    .flatten()
+    .expect("Unable to read blob")
 }
 
 struct FileManifest {
@@ -364,7 +363,7 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
 
         let data_from_database = read_blob(db, &data_subspace).await;
 
-        let data_from_database = Cursor::new(data_from_database.unwrap());
+        let data_from_database = Cursor::new(data_from_database);
         let digest_data_from_database = sha256_hex_digest(data_from_database);
 
         println!("{manifest}");
@@ -383,10 +382,8 @@ async fn main() {
         5000,
     ))
     .expect("failed to set transaction timeout");
-    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(
-        3,
-    ))
-    .expect("failed to set transaction retry limit");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
 
     // Create the subspace handling image data
     let images_subspace = Subspace::all().subspace(&("images"));

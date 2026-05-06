@@ -19,9 +19,7 @@ use rand::prelude::IndexedRandom;
 
 use foundationdb as fdb;
 use foundationdb::tuple::{pack, unpack, Subspace};
-use foundationdb::{
-    Database, FdbBindingError, FdbResult, RangeOption, Transaction,
-};
+use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
 
 type Result<T> = std::result::Result<T, FdbBindingError>;
 
@@ -332,24 +330,23 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
         thread.join().expect("failed to join thread");
 
         let student_id = format!("s{id}");
-        
+
         let student_id_clone = student_id.clone();
-        
+
         db.run(move |trx, _maybe_committed| {
             let student_id_inner = student_id_clone.clone();
             async move {
                 let attends_range = RangeOption::from(&("attends", &student_id_inner).into());
-                let range = trx
-                    .get_range(&attends_range, 1_024, false)
-                    .await?;
-                
+                let range = trx.get_range(&attends_range, 1_024, false).await?;
+
                 for key_value in range.iter() {
-                    let (_, s, class) = unpack::<(String, String, String)>(key_value.key()).unwrap();
+                    let (_, s, class) =
+                        unpack::<(String, String, String)>(key_value.key()).unwrap();
                     assert_eq!(student_id_inner, s);
 
                     println!("{student_id_inner} is taking: {class}");
                 }
-                Ok::<(), foundationdb::FdbBindingError>(())
+                Ok(())
             }
         })
         .await

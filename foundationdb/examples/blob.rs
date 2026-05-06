@@ -1,5 +1,5 @@
 use foundationdb::tuple::Subspace;
-use foundationdb::{Database, FdbBindingError, RangeOption};
+use foundationdb::{Database, RangeOption};
 use rand::distr::Uniform;
 use rand::Rng;
 
@@ -8,7 +8,7 @@ use rand::Rng;
 async fn clear_subspace(db: &Database, subspace: &Subspace) {
     db.run(|trx, _maybe_committed| async move {
         trx.clear_subspace_range(subspace);
-        Ok::<(), FdbBindingError>(())
+        Ok(())
     })
     .await
     .expect("Unable to commit transaction");
@@ -26,13 +26,13 @@ async fn write_blob(db: &Database, subspace: &Subspace, data: &[u8]) {
             trx.set(&key, &data[start..end]);
             chunk_number += 1;
         });
-        Ok::<(), FdbBindingError>(())
+        Ok(())
     })
     .await
     .expect("Unable to commit transaction");
 }
 
-async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
+async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
     db.run(|trx, _maybe_committed| async move {
         let range = RangeOption::from(subspace.range());
 
@@ -45,13 +45,11 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
             data.extend(value.iter());
         }
 
-        Ok::<Option<Vec<u8>>, FdbBindingError>(Some(data))
+        Ok(data)
     })
     .await
-    .ok()
-    .flatten()
+    .expect("Unable to read blob")
 }
-
 
 async fn test_blob_storing(db: &Database, subspace: &Subspace, iteration: usize) {
     // Generate random 10k bytes
@@ -68,9 +66,7 @@ async fn test_blob_storing(db: &Database, subspace: &Subspace, iteration: usize)
     write_blob(db, &subspace, &data).await;
 
     // Read data
-    let result = read_blob(db, &subspace)
-        .await
-        .expect("Unable to read data from database");
+    let result = read_blob(db, &subspace).await;
 
     // Check correctness
     assert_eq!(&data, &result);
@@ -86,10 +82,8 @@ async fn main() {
         5000,
     ))
     .expect("failed to set transaction timeout");
-    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(
-        3,
-    ))
-    .expect("failed to set transaction retry limit");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
 
     let subspace = Subspace::all().subspace(&("example-blob"));
     clear_subspace(&db, &subspace).await;

@@ -19,9 +19,7 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
     db.set_option(foundationdb::options::DatabaseOption::TransactionTimeout(
         5000,
     ))?; // 5 seconds
-    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(
-        3,
-    ))?;
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))?;
 
     // write a value in a retryable closure
     match db
