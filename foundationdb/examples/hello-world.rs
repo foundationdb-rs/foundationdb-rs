@@ -13,6 +13,14 @@ async fn main() {
 async fn hello_world() -> foundationdb::FdbResult<()> {
     let db = foundationdb::Database::default()?;
 
+    // By default, the FoundationDB C API will retry indefinitely if it cannot reach the cluster
+    // or if DNS resolution fails. To prevent this, you can set a timeout or a retry limit on the
+    // database object.
+    db.set_option(foundationdb::options::DatabaseOption::TransactionTimeout(
+        5000,
+    ))?; // 5 seconds
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))?;
+
     // write a value in a retryable closure
     match db
         .run(|trx, _maybe_committed| async move {

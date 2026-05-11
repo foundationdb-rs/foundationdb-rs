@@ -1,5 +1,5 @@
 use foundationdb::tuple::{unpack, Subspace, TuplePack};
-use foundationdb::{Database, FdbResult, RangeOption, Transaction};
+use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
 use std::fmt::{Display, Formatter};
 
 #[derive(Default)]
@@ -20,18 +20,16 @@ impl Display for User {
 }
 
 /// Cleanup any data from previous run
-async fn clear_subspaces(db: &Database, subspaces: &Vec<Subspace>) {
-    let transaction = db.create_trx().expect("Failed to create transaction");
-
-    // teardown, clear data from previous run
-    for subspace in subspaces {
-        transaction.clear_subspace_range(subspace);
-    }
-
-    transaction
-        .commit()
-        .await
-        .expect("Unable to commit transaction");
+async fn clear_subspaces(db: &Database, subspaces: &[Subspace]) {
+    db.run(|trx, _maybe_committed| async move {
+        // teardown, clear data from previous run
+        for subspace in subspaces {
+            trx.clear_subspace_range(subspace);
+        }
+        Ok(())
+    })
+    .await
+    .expect("Unable to commit transaction");
 }
 
 async fn create_user(
@@ -75,40 +73,36 @@ async fn search_user_by_zipcode(
     user_subspace: &Subspace,
     zipcode_index: &Subspace,
     zipcode: &str,
-) -> Option<Vec<User>> {
-    let transaction = db.create_trx().expect("Unable to create transaction");
+) -> Result<Vec<User>, FdbBindingError> {
+    db.run(|trx, _maybe_committed| async move {
+        // Create scanning zipcode index range
+        let begin = zipcode_index.pack(&(zipcode));
 
-    // Create scanning zipcode index range
-    let begin = zipcode_index.pack(&(zipcode));
+        let mut end = zipcode_index.pack(&(zipcode));
+        end.pop();
+        end.push(255_u8);
 
-    let mut end = zipcode_index.pack(&(zipcode));
-    end.pop();
-    end.push(255_u8);
+        let range = RangeOption::from((begin, end));
 
-    let range = RangeOption::from((begin, end));
+        let results = trx.get_range(&range, 1, false).await?;
 
-    let result_get_index = &transaction.get_range(&range, 1, false).await;
+        let mut users = vec![];
 
-    let mut users = vec![];
+        for result in results {
+            let (zipcode, id): (String, String) = zipcode_index
+                .unpack(result.key())
+                .expect("Unable to unpack value from index");
 
-    match result_get_index {
-        Ok(results) => {
-            for result in results {
-                let (zipcode, id): (String, String) = zipcode_index
-                    .unpack(result.key())
-                    .expect("Unable to unpack value from index");
+            let result_user = get_user(user_subspace, &trx, &id, &zipcode).await;
 
-                let result_user = get_user(user_subspace, &transaction, &id, &zipcode).await;
-
-                if let Ok(user) = result_user {
-                    users.push(user);
-                }
+            if let Ok(user) = result_user {
+                users.push(user);
             }
-
-            Some(users)
         }
-        Err(_err) => None,
-    }
+
+        Ok(users)
+    })
+    .await
 }
 
 #[tokio::main]
@@ -117,13 +111,19 @@ async fn main() {
     let db = Database::new_compat(None)
         .await
         .expect("failed to get database");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionTimeout(
+        5000,
+    ))
+    .expect("failed to set transaction timeout");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
 
     let user_subspace = Subspace::from_bytes("user");
     let zipcode_index_subspace = Subspace::from_bytes("zipcode_index");
 
     clear_subspaces(
         &db,
-        &vec![user_subspace.clone(), zipcode_index_subspace.clone()],
+        &[user_subspace.clone(), zipcode_index_subspace.clone()],
     )
     .await;
 
@@ -133,8 +133,9 @@ async fn main() {
 
     let users = search_user_by_zipcode(&db, &user_subspace, &zipcode_index_subspace, "205").await;
 
-    if let Some(users) = users {
-        users.iter().for_each(|user| println!("{user}"));
+    match users {
+        Ok(users) => users.iter().for_each(|user| println!("{user}")),
+        Err(e) => eprintln!("Error searching users: {e}"),
     }
 }
 
@@ -142,73 +143,72 @@ async fn populate_users(
     db: &Database,
     user_subspace: &Subspace,
     zipcode_index_subspace: &Subspace,
-) -> FdbResult<()> {
-    let transaction = db.create_trx().expect("Failed to create transaction");
-
-    create_user(
-        &transaction,
-        "001",
-        "20500",
-        "Barack",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-    create_user(
-        &transaction,
-        "002",
-        "20500",
-        "Michelle",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-    create_user(
-        &transaction,
-        "003",
-        "20500",
-        "Sasha",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-    create_user(
-        &transaction,
-        "004",
-        "20500",
-        "Malia",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-    create_user(
-        &transaction,
-        "005",
-        "20500",
-        "Bo",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-    create_user(
-        &transaction,
-        "101",
-        "SW1A 1AA",
-        "Elizabeth",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-    create_user(
-        &transaction,
-        "102",
-        "SW1A 1AA",
-        "Philip",
-        user_subspace,
-        zipcode_index_subspace,
-    )
-    .await;
-
-    transaction.commit().await?;
-    Ok(())
+) -> Result<(), FdbBindingError> {
+    db.run(|trx, _maybe_committed| async move {
+        create_user(
+            &trx,
+            "001",
+            "20500",
+            "Barack",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        create_user(
+            &trx,
+            "002",
+            "20500",
+            "Michelle",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        create_user(
+            &trx,
+            "003",
+            "20500",
+            "Sasha",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        create_user(
+            &trx,
+            "004",
+            "20500",
+            "Malia",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        create_user(
+            &trx,
+            "005",
+            "20500",
+            "Bo",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        create_user(
+            &trx,
+            "101",
+            "SW1A 1AA",
+            "Elizabeth",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        create_user(
+            &trx,
+            "102",
+            "SW1A 1AA",
+            "Philip",
+            user_subspace,
+            zipcode_index_subspace,
+        )
+        .await;
+        Ok(())
+    })
+    .await
 }

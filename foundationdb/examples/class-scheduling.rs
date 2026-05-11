@@ -13,34 +13,36 @@ use std::borrow::Cow;
 use std::ops::Deref;
 use std::thread;
 
-use futures::prelude::*;
 use rand::rngs::ThreadRng;
 
 use rand::prelude::IndexedRandom;
 
 use foundationdb as fdb;
 use foundationdb::tuple::{pack, unpack, Subspace};
-use foundationdb::{Database, FdbError, RangeOption, TransactError, TransactOption, Transaction};
+use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = std::result::Result<T, FdbBindingError>;
+
+#[derive(Debug, Clone, Copy)]
 enum Error {
-    Internal(FdbError),
     NoRemainingSeats,
     TooManyClasses,
 }
 
-impl From<FdbError> for Error {
-    fn from(err: FdbError) -> Self {
-        Error::Internal(err)
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::NoRemainingSeats => write!(f, "No remaining seats"),
+            Error::TooManyClasses => write!(f, "Too many classes"),
+        }
     }
 }
 
-impl TransactError for Error {
-    fn try_into_fdb_error(self) -> std::result::Result<FdbError, Self> {
-        match self {
-            Error::Internal(err) => Ok(err),
-            _ => Err(self),
-        }
+impl std::error::Error for Error {}
+
+impl From<Error> for FdbBindingError {
+    fn from(err: Error) -> Self {
+        FdbBindingError::CustomError(Box::new(err))
     }
 }
 
@@ -96,55 +98,50 @@ fn init_classes(trx: &Transaction, all_classes: &[String]) {
 }
 
 async fn init(db: &Database, all_classes: &[String]) {
-    let trx = db.create_trx().expect("could not create transaction");
-    trx.clear_subspace_range(&"attends".into());
-    trx.clear_subspace_range(&"class".into());
-    init_classes(&trx, all_classes);
-
-    trx.commit().await.expect("failed to initialize data");
+    db.run(|trx, _maybe_committed| async move {
+        trx.clear_subspace_range(&"attends".into());
+        trx.clear_subspace_range(&"class".into());
+        init_classes(&trx, all_classes);
+        Ok(())
+    })
+    .await
+    .expect("failed to initialize data");
 }
 
 async fn get_available_classes(db: &Database) -> Vec<String> {
-    let trx = db.create_trx().expect("could not create transaction");
+    db.run(|trx, _maybe_committed| async move {
+        let range = RangeOption::from(&Subspace::from("class"));
 
-    let range = RangeOption::from(&Subspace::from("class"));
+        let got_range = trx.get_range(&range, 1_024, false).await?;
+        let mut available_classes = Vec::<String>::new();
 
-    let got_range = trx
-        .get_range(&range, 1_024, false)
-        .await
-        .expect("failed to get classes");
-    let mut available_classes = Vec::<String>::new();
+        for key_value in got_range.iter() {
+            let count: i64 = unpack(key_value.value()).expect("failed to decode count");
 
-    for key_value in got_range.iter() {
-        let count: i64 = unpack(key_value.value()).expect("failed to decode count");
-
-        if count > 0 {
-            let class: String = unpack(key_value.key()).expect("failed to decode class");
-            available_classes.push(class);
+            if count > 0 {
+                let class: String = unpack(key_value.key()).expect("failed to decode class");
+                available_classes.push(class);
+            }
         }
-    }
 
-    available_classes
+        Ok(available_classes)
+    })
+    .await
+    .expect("failed to get classes")
 }
 
-async fn ditch_trx(trx: &Transaction, student: &str, class: &str) {
+async fn ditch_trx(trx: &Transaction, student: &str, class: &str) -> FdbResult<()> {
     let attends_key = pack(&("attends", student, class));
 
     // TODO: should get take an &Encode? current impl does encourage &[u8] reuse...
-    if trx
-        .get(&attends_key, true)
-        .await
-        .expect("get failed")
-        .is_none()
-    {
-        return;
+    if trx.get(&attends_key, true).await?.is_none() {
+        return Ok(());
     }
 
     let class_key = pack(&("class", class));
     let available_seats = trx
         .get(&class_key, true)
-        .await
-        .expect("get failed")
+        .await?
         .expect("class seats were not initialized");
     let available_seats: i64 =
         unpack::<i64>(available_seats.deref()).expect("failed to decode i64") + 1;
@@ -152,25 +149,24 @@ async fn ditch_trx(trx: &Transaction, student: &str, class: &str) {
     //println!("{} ditching class: {}", student, class);
     trx.set(&class_key, &pack(&available_seats));
     trx.clear(&attends_key);
+    Ok(())
 }
 
 async fn ditch(db: &Database, student: String, class: String) -> Result<()> {
-    db.transact_boxed_local(
-        (student, class),
-        move |trx, (student, class)| ditch_trx(trx, student, class).map(|_| Ok(())).boxed_local(),
-        fdb::TransactOption::default(),
-    )
+    db.run(move |trx, _maybe_committed| {
+        let student = student.clone();
+        let class = class.clone();
+        async move {
+            ditch_trx(&trx, &student, &class).await?;
+            Ok(())
+        }
+    })
     .await
 }
 
 async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()> {
     let attends_key = pack(&("attends", student, class));
-    if trx
-        .get(&attends_key, true)
-        .await
-        .expect("get failed")
-        .is_some()
-    {
+    if trx.get(&attends_key, true).await?.is_some() {
         //println!("{} already taking class: {}", student, class);
         return Ok(());
     }
@@ -178,25 +174,18 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
     let class_key = pack(&("class", class));
     let available_seats: i64 = unpack(
         &trx.get(&class_key, true)
-            .await
-            .expect("get failed")
+            .await?
             .expect("class seats were not initialized"),
     )
     .expect("failed to decode i64");
 
     if available_seats <= 0 {
-        return Err(Error::NoRemainingSeats);
+        return Err(Error::NoRemainingSeats.into());
     }
 
     let attends_range = RangeOption::from(&("attends", &student).into());
-    if trx
-        .get_range(&attends_range, 1_024, false)
-        .await
-        .expect("get_range failed")
-        .len()
-        >= 5
-    {
-        return Err(Error::TooManyClasses);
+    if trx.get_range(&attends_range, 1_024, false).await?.len() >= 5 {
+        return Err(Error::TooManyClasses.into());
     }
 
     //println!("{} taking class: {}", student, class);
@@ -207,11 +196,11 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
 }
 
 async fn signup(db: &Database, student: String, class: String) -> Result<()> {
-    db.transact_boxed_local(
-        (student, class),
-        |trx, (student, class)| signup_trx(trx, student, class).boxed_local(),
-        TransactOption::default(),
-    )
+    db.run(move |trx, _maybe_committed| {
+        let student = student.clone();
+        let class = class.clone();
+        async move { signup_trx(&trx, &student, &class).await }
+    })
     .await
 }
 
@@ -221,24 +210,16 @@ async fn switch_classes(
     old_class: String,
     new_class: String,
 ) -> Result<()> {
-    async fn switch_classes_body(
-        trx: &Transaction,
-        student_id: &str,
-        old_class: &str,
-        new_class: &str,
-    ) -> Result<()> {
-        ditch_trx(trx, student_id, old_class).await;
-        signup_trx(trx, student_id, new_class).await?;
-        Ok(())
-    }
-
-    db.transact_boxed_local(
-        (student_id, old_class, new_class),
-        move |trx, (student_id, old_class, new_class)| {
-            switch_classes_body(trx, student_id, old_class, new_class).boxed_local()
-        },
-        TransactOption::default(),
-    )
+    db.run(move |trx, _maybe_committed| {
+        let student_id = student_id.clone();
+        let old_class = old_class.clone();
+        let new_class = new_class.clone();
+        async move {
+            ditch_trx(&trx, &student_id, &old_class).await?;
+            signup_trx(&trx, &student_id, &new_class).await?;
+            Ok(())
+        }
+    })
     .await
 }
 
@@ -289,6 +270,10 @@ async fn simulate_students(student_id: usize, num_ops: usize) {
     let db = Database::new_compat(None)
         .await
         .expect("failed to get database");
+    db.set_option(fdb::options::DatabaseOption::TransactionTimeout(5000))
+        .expect("failed to set transaction timeout");
+    db.set_option(fdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
 
     let student_id = format!("s{student_id}");
     let mut rng = rand::rng();
@@ -345,21 +330,27 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
         thread.join().expect("failed to join thread");
 
         let student_id = format!("s{id}");
-        let attends_range = RangeOption::from(&("attends", &student_id).into());
 
-        for key_value in db
-            .create_trx()
-            .unwrap()
-            .get_range(&attends_range, 1_024, false)
-            .await
-            .expect("get_range failed")
-            .iter()
-        {
-            let (_, s, class) = unpack::<(String, String, String)>(key_value.key()).unwrap();
-            assert_eq!(student_id, s);
+        let student_id_clone = student_id.clone();
 
-            println!("{student_id} is taking: {class}");
-        }
+        db.run(move |trx, _maybe_committed| {
+            let student_id_inner = student_id_clone.clone();
+            async move {
+                let attends_range = RangeOption::from(&("attends", &student_id_inner).into());
+                let range = trx.get_range(&attends_range, 1_024, false).await?;
+
+                for key_value in range.iter() {
+                    let (_, s, class) =
+                        unpack::<(String, String, String)>(key_value.key()).unwrap();
+                    assert_eq!(student_id_inner, s);
+
+                    println!("{student_id_inner} is taking: {class}");
+                }
+                Ok(())
+            }
+        })
+        .await
+        .expect("get_range failed");
     }
 
     println!("Ran {} transactions", students * ops_per_student);
@@ -371,6 +362,10 @@ async fn main() {
     let db = fdb::Database::new_compat(None)
         .await
         .expect("failed to get database");
+    db.set_option(fdb::options::DatabaseOption::TransactionTimeout(5000))
+        .expect("failed to set transaction timeout");
+    db.set_option(fdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
     init(&db, &ALL_CLASSES).await;
     println!("Initialized");
     run_sim(&db, 10, 10).await;

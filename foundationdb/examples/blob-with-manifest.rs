@@ -104,16 +104,17 @@ use uuid::Uuid;
 /// 4 - Read bytes from database
 /// 5 - Compute checksum of output data and verify correctness
 async fn clear_subspace(db: &Database, subspaces: Vec<&Subspace>) {
-    let transaction = db.create_trx().expect("Unable to create transaction");
-
-    for subspace in subspaces {
-        transaction.clear_subspace_range(subspace)
-    }
-
-    transaction
-        .commit()
-        .await
-        .expect("Unable to commit transaction");
+    db.run(|transaction, _| {
+        let subspaces = subspaces.clone();
+        async move {
+            for subspace in subspaces {
+                transaction.clear_subspace_range(subspace)
+            }
+            Ok(())
+        }
+    })
+    .await
+    .expect("Unable to commit transaction");
 }
 
 fn sha256_hex_digest<R: Read>(mut reader: R) -> String {
@@ -161,13 +162,12 @@ async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
         return;
     }
 
-    let transaction = db.create_trx().expect("Unable to create transaction");
-
-    transaction.set(subspace.bytes(), data.as_slice());
-    transaction
-        .commit()
-        .await
-        .expect("Unable to commit transaction");
+    db.run(|transaction, _| async move {
+        transaction.set(subspace.bytes(), data.as_slice());
+        Ok(())
+    })
+    .await
+    .expect("Unable to commit transaction");
 }
 
 /// Writes to database a slice of data chunked with to the given subspace
@@ -182,50 +182,42 @@ async fn write_blob(
         return 0;
     }
 
-    let transaction = db.create_trx().expect("Unable to create transaction");
+    db.run(|transaction, _| async move {
+        let chunk_size = chunk_size.unwrap_or(CHUNK_SIZE);
 
-    let chunk_size = chunk_size.unwrap_or(CHUNK_SIZE);
+        let mut chunk_number = 0;
+        data.chunks(chunk_size).for_each(|chunk| {
+            let start = chunk_number * chunk_size;
+            let end = start + chunk.len();
 
-    let mut chunk_number = 0;
-    data.chunks(chunk_size).for_each(|chunk| {
-        let start = chunk_number * chunk_size;
-        let end = start + chunk.len();
+            let key = subspace.pack(&(chunk_number));
+            transaction.set(&key, &data[start..end]);
+            chunk_number += 1;
+        });
 
-        let key = subspace.pack(&(chunk_number));
-        transaction.set(&key, &data[start..end]);
-        chunk_number += 1;
-    });
-
-    transaction
-        .commit()
-        .await
-        .expect("Unable to commit transaction");
-
-    chunk_number
+        Ok(chunk_number)
+    })
+    .await
+    .expect("Unable to commit transaction")
 }
 
 /// Read data from database
 async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
-    let transaction = db.create_trx().expect("Unable to create transaction");
-
-    let get_result = transaction.get(subspace.bytes(), false).await;
-
-    if let Ok(Some(data)) = get_result {
-        return Some(data.to_vec());
-    }
-
-    None
+    db.run(|transaction, _| async move {
+        let get_result = transaction.get(subspace.bytes(), false).await?;
+        Ok(get_result.map(|data| data.to_vec()))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 /// Gets data from database from the given subspace with specified key name.
-async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
-    let transaction = db.create_trx().expect("Unable to create transaction");
+async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
+    db.run(|transaction, _| async move {
+        let range = RangeOption::from(subspace.range());
+        let results = transaction.get_range(&range, 1_024, false).await?;
 
-    let range = RangeOption::from(subspace.range());
-
-    let get_result = transaction.get_range(&range, 1_024, false).await;
-
-    if let Ok(results) = get_result {
         let mut data: Vec<u8> = vec![];
 
         for result in results {
@@ -233,10 +225,10 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
             data.extend(value.iter());
         }
 
-        return Some(data);
-    }
-
-    None
+        Ok(data)
+    })
+    .await
+    .expect("Unable to read blob")
 }
 
 struct FileManifest {
@@ -371,7 +363,7 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
 
         let data_from_database = read_blob(db, &data_subspace).await;
 
-        let data_from_database = Cursor::new(data_from_database.unwrap());
+        let data_from_database = Cursor::new(data_from_database);
         let digest_data_from_database = sha256_hex_digest(data_from_database);
 
         println!("{manifest}");
@@ -386,6 +378,12 @@ async fn main() {
     let db = Database::new_compat(None)
         .await
         .expect("Unable to create database");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionTimeout(
+        5000,
+    ))
+    .expect("failed to set transaction timeout");
+    db.set_option(foundationdb::options::DatabaseOption::TransactionRetryLimit(3))
+        .expect("failed to set transaction retry limit");
 
     // Create the subspace handling image data
     let images_subspace = Subspace::all().subspace(&("images"));

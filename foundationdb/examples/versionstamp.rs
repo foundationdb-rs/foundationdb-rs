@@ -24,6 +24,8 @@ async fn run_versionstamp_key_example() -> FdbResult<()> {
     println!("running example for setting versionstamped keys");
     // Using versionstamps in order to create a sequential path.
     let db = Database::default()?;
+    db.set_option(options::DatabaseOption::TransactionTimeout(5000))?;
+    db.set_option(options::DatabaseOption::TransactionRetryLimit(3))?;
 
     let subspace = Subspace::all().subspace(&"versionstamp_example");
     let (from, to) = subspace.range();
@@ -112,6 +114,8 @@ async fn run_versionstamp_value_example() -> FdbResult<()> {
     println!("running example for setting versionstamped values");
     // You can use versionstamps in values too, for example to point to a versionstamped key.
     let db = Database::default()?;
+    db.set_option(options::DatabaseOption::TransactionTimeout(5000))?;
+    db.set_option(options::DatabaseOption::TransactionRetryLimit(3))?;
 
     let subspace = Subspace::all().subspace(&"versionstamp_example");
     let (from, to) = subspace.range();

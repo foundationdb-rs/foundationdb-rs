@@ -445,11 +445,18 @@ impl Database {
     /// transaction. After caller-provided future resolves, the transaction will be committed
     /// automatically.
     ///
-    /// # Warning
+    /// # Warning: Hanging on Network/DNS failures
     ///
-    /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
-    /// set `TransactionOption::RetryLimit` or `TransactionOption::SetTimeout` on the transaction
-    /// if the task need to be guaranteed to finish.
+    /// By default, the FoundationDB C API will retry indefinitely if it cannot reach the cluster
+    /// or if DNS resolution fails. This can cause `transact` to hang forever.
+    /// To prevent this, you should set [`options::DatabaseOption::TransactionTimeout`] or
+    /// [`options::DatabaseOption::TransactionRetryLimit`] on the [`Database`] object, or
+    /// [`options::TransactionOption::Timeout`] or [`options::TransactionOption::RetryLimit`] on the transaction
+    /// itself.
+    ///
+    /// Note that `TransactOption` also provides `retry_limit` and `time_out`, but these are
+    /// Rust-side budgets that are only checked *between* retries. If the C API hangs during a call
+    /// like `commit()` or `on_error()`, these budgets will not be reached.
     ///
     /// Once [Generic Associated Types](https://github.com/rust-lang/rfcs/blob/master/text/1598-generic_associated_types.md)
     /// lands in stable rust, the returned future of f won't need to be boxed anymore, also the
@@ -497,6 +504,21 @@ impl Database {
         }
     }
 
+    /// `transact_boxed` is a version of [`Database::transact`] that accepts a closure returning a
+    /// pinned, boxed future.
+    ///
+    /// # Warning: Hanging on Network/DNS failures
+    ///
+    /// By default, the FoundationDB C API will retry indefinitely if it cannot reach the cluster
+    /// or if DNS resolution fails. This can cause `transact_boxed` to hang forever.
+    /// To prevent this, you should set [`options::DatabaseOption::TransactionTimeout`] or
+    /// [`options::DatabaseOption::TransactionRetryLimit`] on the [`Database`] object, or
+    /// [`options::TransactionOption::Timeout`] or [`options::TransactionOption::RetryLimit`] on the transaction
+    /// itself.
+    ///
+    /// Note that `TransactOption` also provides `retry_limit` and `time_out`, but these are
+    /// Rust-side budgets that are only checked *between* retries. If the C API hangs during a call
+    /// like `commit()` or `on_error()`, these budgets will not be reached.
     pub fn transact_boxed<'trx, F, D, T, E>(
         &'trx self,
         data: D,
@@ -524,6 +546,21 @@ impl Database {
         )
     }
 
+    /// `transact_boxed_local` is a version of [`Database::transact`] that accepts a closure returning a
+    /// pinned, boxed future that is not `Send`.
+    ///
+    /// # Warning: Hanging on Network/DNS failures
+    ///
+    /// By default, the FoundationDB C API will retry indefinitely if it cannot reach the cluster
+    /// or if DNS resolution fails. This can cause `transact_boxed_local` to hang forever.
+    /// To prevent this, you should set [`options::DatabaseOption::TransactionTimeout`] or
+    /// [`options::DatabaseOption::TransactionRetryLimit`] on the [`Database`] object, or
+    /// [`options::TransactionOption::Timeout`] or [`options::TransactionOption::RetryLimit`] on the transaction
+    /// itself.
+    ///
+    /// Note that `TransactOption` also provides `retry_limit` and `time_out`, but these are
+    /// Rust-side budgets that are only checked *between* retries. If the C API hangs during a call
+    /// like `commit()` or `on_error()`, these budgets will not be reached.
     pub fn transact_boxed_local<'trx, F, D, T, E>(
         &'trx self,
         data: D,
@@ -561,6 +598,15 @@ impl Database {
     /// It might retry indefinitely if the transaction is highly contentious. It is recommended to
     /// set [`options::TransactionOption::RetryLimit`] or [`options::TransactionOption::Timeout`] on the transaction
     /// if the task needs to be guaranteed to finish. These options can be safely set on every iteration of the closure.
+    ///
+    /// # Warning: Hanging on Network/DNS failures
+    ///
+    /// By default, the FoundationDB C API will retry indefinitely if it cannot reach the cluster
+    /// or if DNS resolution fails. This can cause `run` to hang forever.
+    /// To prevent this, you should set [`options::DatabaseOption::TransactionTimeout`] or
+    /// [`options::DatabaseOption::TransactionRetryLimit`] on the [`Database`] object, or
+    /// [`options::TransactionOption::Timeout`] or [`options::TransactionOption::RetryLimit`] on the transaction
+    /// itself.
     ///
     /// # Warning: Maybe committed transactions
     ///

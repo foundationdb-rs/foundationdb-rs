@@ -76,6 +76,16 @@ pub use error::DirectoryError;
 use std::cmp::Ordering;
 
 /// `Directory` represents a subspace of keys in a FoundationDB database, identified by a hierarchical path.
+///
+/// # Warning: Hanging on Network/DNS failures
+///
+/// Directory operations are transactional and rely on the [`Transaction`] passed to them.
+/// By default, the FoundationDB C API will retry indefinitely if it cannot reach the cluster
+/// or if DNS resolution fails. This can cause directory operations to hang forever.
+/// To prevent this, you should set [`crate::options::DatabaseOption::TransactionTimeout`] or
+/// [`crate::options::DatabaseOption::TransactionRetryLimit`] on the [`crate::Database`] object, or
+/// [`crate::options::TransactionOption::Timeout`] or [`crate::options::TransactionOption::RetryLimit`] on the transaction
+/// itself.
 #[async_trait]
 pub trait Directory {
     /// Creates or opens the subdirectory of this Directory located at path (creating parent directories, if necessary).
