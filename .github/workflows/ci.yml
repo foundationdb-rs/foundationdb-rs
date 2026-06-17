@@ -86,6 +86,8 @@ jobs:
         run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace
       - name: Run all tests of foundationdb-tuple
         run: cargo test -p foundationdb-tuple --all-features
+      - name: Run all tests of foundationdb-macros
+        run: cargo test -p foundationdb-macros
 
   lint:
     name: Rustfmt / Clippy
