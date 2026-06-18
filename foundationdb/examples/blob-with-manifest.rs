@@ -1,6 +1,7 @@
 use bytesize::ByteSize;
 use foundationdb::tuple::{pack, unpack, PackError, Subspace};
 use foundationdb::{Database, RangeOption};
+use futures::TryStreamExt;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -223,20 +224,13 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 
     let range = RangeOption::from(subspace.range());
 
-    let get_result = transaction.get_range(&range, 1_024, false).await;
-
-    if let Ok(results) = get_result {
-        let mut data: Vec<u8> = vec![];
-
-        for result in results {
-            let value = result.value();
-            data.extend(value.iter());
-        }
-
-        return Some(data);
+    let mut data: Vec<u8> = vec![];
+    let mut stream = transaction.get_ranges_keyvalues(range, false);
+    while let Some(result) = stream.try_next().await.expect("Unable to read blob") {
+        data.extend(result.value().iter());
     }
 
-    None
+    Some(data)
 }
 
 struct FileManifest {

@@ -1,5 +1,6 @@
 use foundationdb::tuple::{unpack, Subspace, TuplePack};
 use foundationdb::{Database, FdbResult, RangeOption, Transaction};
+use futures::TryStreamExt;
 use std::fmt::{Display, Formatter};
 
 #[derive(Default)]
@@ -87,28 +88,21 @@ async fn search_user_by_zipcode(
 
     let range = RangeOption::from((begin, end));
 
-    let result_get_index = &transaction.get_range(&range, 1, false).await;
-
     let mut users = vec![];
+    let mut stream = transaction.get_ranges_keyvalues(range, false);
+    while let Some(result) = stream.try_next().await.expect("Unable to read index range") {
+        let (zipcode, id): (String, String) = zipcode_index
+            .unpack(result.key())
+            .expect("Unable to unpack value from index");
 
-    match result_get_index {
-        Ok(results) => {
-            for result in results {
-                let (zipcode, id): (String, String) = zipcode_index
-                    .unpack(result.key())
-                    .expect("Unable to unpack value from index");
+        let result_user = get_user(user_subspace, &transaction, &id, &zipcode).await;
 
-                let result_user = get_user(user_subspace, &transaction, &id, &zipcode).await;
-
-                if let Ok(user) = result_user {
-                    users.push(user);
-                }
-            }
-
-            Some(users)
+        if let Ok(user) = result_user {
+            users.push(user);
         }
-        Err(_err) => None,
     }
+
+    Some(users)
 }
 
 #[tokio::main]

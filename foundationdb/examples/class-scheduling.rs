@@ -109,13 +109,9 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
 
     let range = RangeOption::from(&Subspace::from("class"));
 
-    let got_range = trx
-        .get_range(&range, 1_024, false)
-        .await
-        .expect("failed to get classes");
     let mut available_classes = Vec::<String>::new();
-
-    for key_value in got_range.iter() {
+    let mut stream = trx.get_ranges_keyvalues(range, false);
+    while let Some(key_value) = stream.try_next().await.expect("failed to get classes") {
         let count: i64 = unpack(key_value.value()).expect("failed to decode count");
 
         if count > 0 {
@@ -189,13 +185,12 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
     }
 
     let attends_range = RangeOption::from(&("attends", &student).into());
-    if trx
-        .get_range(&attends_range, 1_024, false)
+    let attends: Vec<_> = trx
+        .get_ranges_keyvalues(attends_range, false)
+        .try_collect()
         .await
-        .expect("get_range failed")
-        .len()
-        >= 5
-    {
+        .expect("get_ranges_keyvalues failed");
+    if attends.len() >= 5 {
         return Err(Error::TooManyClasses);
     }
 
@@ -346,14 +341,12 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
 
         let student_id = format!("s{id}");
         let attends_range = RangeOption::from(&("attends", &student_id).into());
-
-        for key_value in db
-            .create_trx()
-            .unwrap()
-            .get_range(&attends_range, 1_024, false)
+        let trx = db.create_trx().unwrap();
+        let mut stream = trx.get_ranges_keyvalues(attends_range, false);
+        while let Some(key_value) = stream
+            .try_next()
             .await
-            .expect("get_range failed")
-            .iter()
+            .expect("get_ranges_keyvalues failed")
         {
             let (_, s, class) = unpack::<(String, String, String)>(key_value.key()).unwrap();
             assert_eq!(student_id, s);
