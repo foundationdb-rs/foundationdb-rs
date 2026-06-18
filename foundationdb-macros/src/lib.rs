@@ -173,7 +173,7 @@ mod tests {
         let data = quote!(
             feature = "fdb-7_0",
             feature = "fdb-7_1",
-            feature = "fdb-7_3"
+            feature = "fdb-7_3",
             feature = "fdb-7_4"
         );
 
@@ -224,7 +224,7 @@ mod tests {
             feature = "fdb-6_3",
             feature = "fdb-7_0",
             feature = "fdb-7_1",
-            feature = "fdb-7_3"
+            feature = "fdb-7_3",
             feature = "fdb-7_4"
         );
 
