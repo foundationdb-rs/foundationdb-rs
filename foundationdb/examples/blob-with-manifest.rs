@@ -1,6 +1,7 @@
 use bytesize::ByteSize;
 use foundationdb::tuple::{pack, unpack, PackError, Subspace};
 use foundationdb::{Database, RangeOption};
+use futures::TryStreamExt;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -216,13 +217,10 @@ async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
 async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
     db.run(|transaction, _| async move {
         let range = RangeOption::from(subspace.range());
-        let results = transaction.get_range(&range, 1_024, false).await?;
-
         let mut data: Vec<u8> = vec![];
-
-        for result in results {
-            let value = result.value();
-            data.extend(value.iter());
+        let mut stream = transaction.get_ranges_keyvalues(range, false);
+        while let Some(result) = stream.try_next().await? {
+            data.extend(result.value().iter());
         }
 
         Ok(data)

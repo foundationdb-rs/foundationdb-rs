@@ -20,6 +20,7 @@ use rand::prelude::IndexedRandom;
 use foundationdb as fdb;
 use foundationdb::tuple::{pack, unpack, Subspace};
 use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
+use futures::TryStreamExt;
 
 type Result<T> = std::result::Result<T, FdbBindingError>;
 
@@ -112,10 +113,9 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
     db.run(|trx, _maybe_committed| async move {
         let range = RangeOption::from(&Subspace::from("class"));
 
-        let got_range = trx.get_range(&range, 1_024, false).await?;
         let mut available_classes = Vec::<String>::new();
-
-        for key_value in got_range.iter() {
+        let mut stream = trx.get_ranges_keyvalues(range, false);
+        while let Some(key_value) = stream.try_next().await? {
             let count: i64 = unpack(key_value.value()).expect("failed to decode count");
 
             if count > 0 {
@@ -184,7 +184,11 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
     }
 
     let attends_range = RangeOption::from(&("attends", &student).into());
-    if trx.get_range(&attends_range, 1_024, false).await?.len() >= 5 {
+    let attends: Vec<_> = trx
+        .get_ranges_keyvalues(attends_range, false)
+        .try_collect()
+        .await?;
+    if attends.len() >= 5 {
         return Err(Error::TooManyClasses.into());
     }
 
@@ -330,16 +334,14 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
         thread.join().expect("failed to join thread");
 
         let student_id = format!("s{id}");
-
         let student_id_clone = student_id.clone();
 
         db.run(move |trx, _maybe_committed| {
             let student_id_inner = student_id_clone.clone();
             async move {
                 let attends_range = RangeOption::from(&("attends", &student_id_inner).into());
-                let range = trx.get_range(&attends_range, 1_024, false).await?;
-
-                for key_value in range.iter() {
+                let mut stream = trx.get_ranges_keyvalues(attends_range, false);
+                while let Some(key_value) = stream.try_next().await? {
                     let (_, s, class) =
                         unpack::<(String, String, String)>(key_value.key()).unwrap();
                     assert_eq!(student_id_inner, s);
@@ -350,7 +352,7 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
             }
         })
         .await
-        .expect("get_range failed");
+        .expect("get_ranges_keyvalues failed");
     }
 
     println!("Ran {} transactions", students * ops_per_student);
