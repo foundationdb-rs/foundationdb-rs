@@ -3,7 +3,7 @@
 //! This module defines all C and Rust structures.
 //! It also provides bindings and wrappers to map behavior from Rust to C.
 
-use std::{ffi, str::FromStr};
+use std::{ffi, str::FromStr, time::Duration};
 
 use foundationdb as fdb;
 
@@ -212,12 +212,12 @@ impl WorkloadContext {
     pub fn shared_random_number(&self) -> i64 {
         with! { self.0 => sharedRandomNumber() }
     }
-    /// Return a future that will be ready after a given (simulated) time
+    /// Return a future that will be ready after a given (simulated) duration
     pub fn delay(
         &self,
-        seconds: f64,
+        duration: Duration,
     ) -> impl std::future::Future<Output = fdb::FdbResult<()>> + Send + Sync + 'static {
-        let f = with! { self.0 => delay(seconds) };
+        let f = with! { self.0 => delay(duration.as_secs_f64()) };
         fdb::future::FdbFuture::new(f as *mut _)
     }
 }

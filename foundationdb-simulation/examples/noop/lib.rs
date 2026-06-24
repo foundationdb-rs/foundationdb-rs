@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use foundationdb_simulation::{
     register_factory, Metric, Metrics, RustWorkload, RustWorkloadFactory, Severity, SimDatabase,
     WorkloadContext, WrappedWorkload,
@@ -25,6 +27,11 @@ impl RustWorkload for NoopWorkload {
             "Test",
             &[("Layer", "Rust"), ("Stage", "Start")],
         );
+        // Exercise WorkloadContext::delay (requires fdbserver 7.4.6+, the C API path).
+        self.context
+            .delay(Duration::from_secs(1))
+            .await
+            .expect("delay future should resolve");
     }
     async fn check(&mut self, _db: SimDatabase) {
         println!("rust_check({}_{})", self.name, self.client_id);
