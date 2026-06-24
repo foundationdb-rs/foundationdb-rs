@@ -30,10 +30,10 @@
 <a href=#30 id=30 data-nosnippet>30</a>        <span class="kw">let </span>waker = <span class="kw">unsafe </span>{ Waker::from_raw(<span class="self">self</span>.clone().into_waker()) };
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="kw">let </span>cx = <span class="kw-2">&amp;mut </span>Context::from_waker(<span class="kw-2">&amp;</span>waker);
 <a href=#32 id=32 data-nosnippet>32</a>        <span class="kw">let </span>slot = <span class="kw">unsafe </span>{ <span class="kw-2">&amp;mut *</span><span class="self">self</span>.f.get() };
-<a href=#33 id=33 data-nosnippet>33</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>f) = slot.take() {
-<a href=#34 id=34 data-nosnippet>34</a>            <span class="kw">if </span>f.as_mut().poll(cx).is_pending() {
-<a href=#35 id=35 data-nosnippet>35</a>                <span class="kw-2">*</span>slot = <span class="prelude-val">Some</span>(f);
-<a href=#36 id=36 data-nosnippet>36</a>            }
+<a href=#33 id=33 data-nosnippet>33</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>f) = slot.take()
+<a href=#34 id=34 data-nosnippet>34</a>            &amp;&amp; f.as_mut().poll(cx).is_pending()
+<a href=#35 id=35 data-nosnippet>35</a>        {
+<a href=#36 id=36 data-nosnippet>36</a>            <span class="kw-2">*</span>slot = <span class="prelude-val">Some</span>(f);
 <a href=#37 id=37 data-nosnippet>37</a>        }
 <a href=#38 id=38 data-nosnippet>38</a>    }
 <a href=#39 id=39 data-nosnippet>39</a>
@@ -74,9 +74,13 @@
 <a href=#74 id=74 data-nosnippet>74</a><span class="kw">where
 <a href=#75 id=75 data-nosnippet>75</a>    </span>F: Future&lt;Output = ()&gt; + <span class="lifetime">'static</span>,
 <a href=#76 id=76 data-nosnippet>76</a>{
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>task = Arc::new(Task {
-<a href=#78 id=78 data-nosnippet>78</a>        f: UnsafeCell::new(<span class="prelude-val">Some</span>(Box::pin(future))),
-<a href=#79 id=79 data-nosnippet>79</a>    });
-<a href=#80 id=80 data-nosnippet>80</a>    task.poll();
-<a href=#81 id=81 data-nosnippet>81</a>}
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="comment">// The simulation executor is single-threaded, but `Waker` requires the task
+<a href=#78 id=78 data-nosnippet>78</a>    // pointer to be usable as `Send + Sync`, so we use `Arc` (not `Rc`) to uphold the
+<a href=#79 id=79 data-nosnippet>79</a>    // `RawWaker` safety contract even though `Task` is neither `Send` nor `Sync`.
+<a href=#80 id=80 data-nosnippet>80</a>    </span><span class="attr">#[allow(clippy::arc_with_non_send_sync)]
+<a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">let </span>task = Arc::new(Task {
+<a href=#82 id=82 data-nosnippet>82</a>        f: UnsafeCell::new(<span class="prelude-val">Some</span>(Box::pin(future))),
+<a href=#83 id=83 data-nosnippet>83</a>    });
+<a href=#84 id=84 data-nosnippet>84</a>    task.poll();
+<a href=#85 id=85 data-nosnippet>85</a>}
 </code></pre></div></section></main></body></html>

@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>/// If the `Scanner` does not have enough remaining bytes to extract `$size` bytes,
 <a href=#43 id=43 data-nosnippet>43</a>/// the implementation will panic or exhibit undefined behavior due to bounds violations.
 <a href=#44 id=44 data-nosnippet>44</a></span><span class="macro">macro_rules!</span> impl_parse {
-<a href=#45 id=45 data-nosnippet>45</a>    (<span class="macro-nonterminal">$x</span>: ty, <span class="macro-nonterminal">$type</span>: ident, <span class="macro-nonterminal">$size</span>: expr) =&gt; {
+<a href=#45 id=45 data-nosnippet>45</a>    (<span class="macro-nonterminal">$x</span>: ty, <span class="macro-nonterminal">$type</span>: ident, <span class="macro-nonterminal">$size</span>: expr_2021) =&gt; {
 <a href=#46 id=46 data-nosnippet>46</a>        <span class="attr">#[async_trait::async_trait]
 <a href=#47 id=47 data-nosnippet>47</a>        </span><span class="kw">impl </span>Parse <span class="kw">for </span><span class="macro-nonterminal">$x </span>{
 <a href=#48 id=48 data-nosnippet>48</a>            <span class="kw">async fn </span>parse(

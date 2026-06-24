@@ -65,8 +65,8 @@
 <a href=#65 id=65 data-nosnippet>65</a><span class="kw">mod </span>error;
 <a href=#66 id=66 data-nosnippet>66</a><span class="kw">mod </span>node;
 <a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a><span class="kw">use </span><span class="kw">crate</span>::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
-<a href=#69 id=69 data-nosnippet>69</a><span class="kw">use </span><span class="kw">crate</span>::Transaction;
+<a href=#68 id=68 data-nosnippet>68</a><span class="kw">use </span><span class="kw">crate</span>::Transaction;
+<a href=#69 id=69 data-nosnippet>69</a><span class="kw">use </span><span class="kw">crate</span>::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
 <a href=#70 id=70 data-nosnippet>70</a><span class="kw">use </span>async_trait::async_trait;
 <a href=#71 id=71 data-nosnippet>71</a><span class="kw">use </span>core::cmp;
 <a href=#72 id=72 data-nosnippet>72</a><span class="kw">pub use </span>directory_layer::DirectoryLayer;
@@ -152,7 +152,7 @@
 <a href=#152 id=152 data-nosnippet>152</a>
 <a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// List the subdirectories of this directory at a given subpath.
 <a href=#154 id=154 data-nosnippet>154</a>    </span><span class="kw">async fn </span>list(<span class="kw-2">&amp;</span><span class="self">self</span>, trx: <span class="kw-2">&amp;</span>Transaction, path: <span class="kw-2">&amp;</span>[String])
-<a href=#155 id=155 data-nosnippet>155</a>        -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, DirectoryError&gt;;
+<a href=#155 id=155 data-nosnippet>155</a>    -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, DirectoryError&gt;;
 <a href=#156 id=156 data-nosnippet>156</a>}
 <a href=#157 id=157 data-nosnippet>157</a>
 <a href=#158 id=158 data-nosnippet>158</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>compare_slice&lt;T: Ord&gt;(a: <span class="kw-2">&amp;</span>[T], b: <span class="kw-2">&amp;</span>[T]) -&gt; cmp::Ordering {

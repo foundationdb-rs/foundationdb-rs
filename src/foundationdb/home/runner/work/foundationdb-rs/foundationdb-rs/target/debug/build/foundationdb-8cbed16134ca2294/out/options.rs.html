@@ -211,7 +211,7 @@
 <a href=#211 id=211 data-nosnippet>211</a>    }
 <a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">pub unsafe fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FdbResult&lt;()&gt; {
 <a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">let </span>code = <span class="self">self</span>.code();
-<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">let </span>err = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">let </span>err = <span class="kw">unsafe </span>{ <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
 <a href=#215 id=215 data-nosnippet>215</a>            NetworkOption::LocalAddress(<span class="kw-2">ref </span>v) =&gt; {
 <a href=#216 id=216 data-nosnippet>216</a>                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 <a href=#217 id=217 data-nosnippet>217</a>
@@ -349,7 +349,7 @@
 <a href=#349 id=349 data-nosnippet>349</a>                fdb_sys::fdb_network_set_option(code, v.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, i32::try_from(v.len()).expect(<span class="string">"len to fit in i32"</span>))
 <a href=#350 id=350 data-nosnippet>350</a>
 <a href=#351 id=351 data-nosnippet>351</a>            }
-<a href=#352 id=352 data-nosnippet>352</a>        };
+<a href=#352 id=352 data-nosnippet>352</a>        } };
 <a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">if </span>err != <span class="number">0 </span>{ <span class="prelude-val">Err</span>(FdbError::from_code(err)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
 <a href=#354 id=354 data-nosnippet>354</a>    }
 <a href=#355 id=355 data-nosnippet>355</a>}
@@ -441,7 +441,7 @@
 <a href=#441 id=441 data-nosnippet>441</a>    }
 <a href=#442 id=442 data-nosnippet>442</a>    <span class="kw">pub unsafe fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">*mut </span>fdb_sys::FDBDatabase) -&gt; FdbResult&lt;()&gt; {
 <a href=#443 id=443 data-nosnippet>443</a>        <span class="kw">let </span>code = <span class="self">self</span>.code();
-<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>err = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>err = <span class="kw">unsafe </span>{ <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
 <a href=#445 id=445 data-nosnippet>445</a>            DatabaseOption::LocationCacheSize(v) =&gt; {
 <a href=#446 id=446 data-nosnippet>446</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#447 id=447 data-nosnippet>447</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
@@ -491,7 +491,7 @@
 <a href=#491 id=491 data-nosnippet>491</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#492 id=492 data-nosnippet>492</a>                fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#493 id=493 data-nosnippet>493</a>            }
-<a href=#494 id=494 data-nosnippet>494</a>        };
+<a href=#494 id=494 data-nosnippet>494</a>        } };
 <a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">if </span>err != <span class="number">0 </span>{ <span class="prelude-val">Err</span>(FdbError::from_code(err)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
 <a href=#496 id=496 data-nosnippet>496</a>    }
 <a href=#497 id=497 data-nosnippet>497</a>}
@@ -681,7 +681,7 @@
 <a href=#681 id=681 data-nosnippet>681</a>    }
 <a href=#682 id=682 data-nosnippet>682</a>    <span class="kw">pub unsafe fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">*mut </span>fdb_sys::FDBTransaction) -&gt; FdbResult&lt;()&gt; {
 <a href=#683 id=683 data-nosnippet>683</a>        <span class="kw">let </span>code = <span class="self">self</span>.code();
-<a href=#684 id=684 data-nosnippet>684</a>        <span class="kw">let </span>err = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#684 id=684 data-nosnippet>684</a>        <span class="kw">let </span>err = <span class="kw">unsafe </span>{ <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
 <a href=#685 id=685 data-nosnippet>685</a>            TransactionOption::CausalWriteRisky =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#686 id=686 data-nosnippet>686</a>            TransactionOption::CausalReadRisky =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
 <a href=#687 id=687 data-nosnippet>687</a>            TransactionOption::CausalReadDisable =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -772,7 +772,7 @@
 <a href=#772 id=772 data-nosnippet>772</a>                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
 <a href=#773 id=773 data-nosnippet>773</a>                fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
 <a href=#774 id=774 data-nosnippet>774</a>            }
-<a href=#775 id=775 data-nosnippet>775</a>        };
+<a href=#775 id=775 data-nosnippet>775</a>        } };
 <a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">if </span>err != <span class="number">0 </span>{ <span class="prelude-val">Err</span>(FdbError::from_code(err)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
 <a href=#777 id=777 data-nosnippet>777</a>    }
 <a href=#778 id=778 data-nosnippet>778</a>}
