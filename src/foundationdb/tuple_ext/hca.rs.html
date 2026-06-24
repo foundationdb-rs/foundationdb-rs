@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>std::sync::{Mutex, PoisonError};
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>futures::future;
-<a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span>rand::{<span class="self">self</span>, rngs::SmallRng, Rng, SeedableRng};
+<a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span>rand::{rngs::SmallRng, RngExt};
 <a href=#32 id=32 data-nosnippet>32</a>
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span><span class="kw">crate</span>::options::{ConflictRangeType, MutationType, TransactionOption};
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span><span class="kw">crate</span>::tuple::{PackError, Subspace};
@@ -114,7 +114,7 @@
 <a href=#114 id=114 data-nosnippet>114</a>            reverse: <span class="bool-val">true</span>,
 <a href=#115 id=115 data-nosnippet>115</a>            ..RangeOption::default()
 <a href=#116 id=116 data-nosnippet>116</a>        };
-<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span><span class="kw-2">mut </span>rng = SmallRng::from_rng(<span class="kw-2">&amp;mut </span>rand::rng());
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span><span class="kw-2">mut </span>rng: SmallRng = rand::make_rng();
 <a href=#118 id=118 data-nosnippet>118</a>
 <a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">loop </span>{
 <a href=#120 id=120 data-nosnippet>120</a>            <span class="kw">let </span>kvs = trx.get_range(<span class="kw-2">&amp;</span>counters_range, <span class="number">1</span>, <span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
