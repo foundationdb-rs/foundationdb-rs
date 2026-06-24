@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb-gen"
-version = "0.10.0"
+version = "0.11.0"
 authors = [
     "Jihyun Yu <yjh0502@gmail.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
