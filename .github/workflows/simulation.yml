@@ -8,8 +8,11 @@ on:
   pull_request:
 
 jobs:
+  # C++ shim path (FDB 7.1 / 7.3): no C ABI yet, so the workload is loaded via
+  # the C++ shim (useCAPI=false), which must be built in the foundationdb/build
+  # image. See foundationdb-simulation/README.md.
   simulation73:
-    name: "Simulation 7.3"
+    name: "Simulation 7.3 (C++ shim)"
     runs-on: ubuntu-latest
     steps:
       - name: disk space
@@ -38,9 +41,19 @@ jobs:
       - name: docker run
         run: docker run --rm simulation
 
+  # C API path: requires fdbserver >= 7.4.6 (earlier 7.4.x ship an incompatible
+  # C ABI and SIGSEGV at workload start, see #459). useCAPI=true is set in each
+  # test file; a crash makes fdbserver exit non-zero and fails the job.
   simulation74:
-    name: "Simulation 7.4"
+    name: "Simulation 7.4 (C API) / ${{ matrix.example }}"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { example: atomic, test_file: test_file_74.toml }
+          - { example: noop, test_file: test_file.toml }
+          - { example: shared, test_file: test_file.toml }
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.0
@@ -48,24 +61,15 @@ jobs:
       - name: Setup FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
-          version: "7.4.3"
-
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
+          version: "7.4.6"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "stable"
 
-      - name: Build atomic workload
-        run: cargo build -p foundationdb-simulation --release --example atomic --features fdb-7_4
+      - name: Build ${{ matrix.example }} workload
+        run: cargo build -p foundationdb-simulation --release --example ${{ matrix.example }} --features fdb-7_4
 
-      - name: Build shared workload
-        run: cargo build -p foundationdb-simulation --release --example shared --features fdb-7_4
-
-      - name: Test atomic workload
-        run: fdbserver -r simulation -f foundationdb-simulation/examples/atomic/test_file_74.toml -b on --trace-format json
-
-      - name: Test shared workload
-        run: fdbserver -r simulation -f foundationdb-simulation/examples/shared/test_file.toml -b on --trace-format json
+      - name: Test ${{ matrix.example }} workload
+        run: fdbserver -r simulation -f foundationdb-simulation/examples/${{ matrix.example }}/${{ matrix.test_file }} -b on --trace-format json

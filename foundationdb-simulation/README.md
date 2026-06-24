@@ -3,6 +3,14 @@
 This crate provides the tools to write Rust workloads that can be loaded and executed in the
 official FoundationDB simulator, allowing for rigorous and deterministic testing of Rust layers.
 
+> ⚠️ **The C API path requires fdbserver 7.4.6 or newer.** When built with `fdb-7_4` and
+> `useCAPI=true`, this crate targets the external-workload C ABI shipped in fdbserver **7.4.6**
+> (virtual tables, `api_version`, `WorkloadContext::delay`). That ABI change was not accompanied
+> by an `FDB_API_VERSION` bump, so running against 7.4.3 / 7.4.4 / 7.4.5 (older, incompatible C
+> ABI) SIGSEGVs at workload start. See
+> [issue #459](https://github.com/foundationdb-rs/foundationdb-rs/issues/459) and the version
+> compatibility note below.
+
 ## How It Works
 
 FoundationDB's simulation framework includes an `ExternalWorkload` that can dynamically load a
@@ -15,12 +23,21 @@ stable and most languages do not interoperate with it easily. As of FoundationDB
 compatibility with FoundationDB 7.1 and 7.3, a C++ shim can be compiled to translate the C
 interface back to the C++ one.
 
-### For FoundationDB 7.4 and Newer (Recommended)
+### For FoundationDB 7.4.6 and Newer (Recommended)
 
 - Uses a pure C API (FFI-safe).
 - **No need** to build inside the official FoundationDB Docker image.
 - Requires setting `useCAPI=true` in the test configuration file.
 - Results in faster build times and a simpler setup.
+
+> **fdbserver 7.4.6 or newer is required for the C API path** (`fdb-7_4` + `useCAPI=true`).
+> The external-workload C ABI gained virtual tables, an `api_version` field and
+> `WorkloadContext::delay` in fdbserver **7.4.6**, and this change was *not* accompanied by an
+> `FDB_API_VERSION` bump. Patch releases 7.4.3 / 7.4.4 / 7.4.5 ship the previous, incompatible C
+> ABI: loading a `fdb-7_4` workload there with `useCAPI=true` SIGSEGVs at workload start (see
+> [issue #459](https://github.com/foundationdb-rs/foundationdb-rs/issues/459)). To target 7.4.5 or
+> earlier, use a matching older crate release, or the C++ shim path below (which stays compatible
+> with the whole 7.4 series, except `WorkloadContext::delay`, which also requires 7.4.6).
 
 ### For FoundationDB 7.1 and 7.3
 
