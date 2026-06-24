@@ -632,7 +632,7 @@ where
     }
 
     // Sort by versionstamp for consistent ordering
-    alive_candidates.sort_by(|a, b| a.versionstamp.cmp(&b.versionstamp));
+    alive_candidates.sort_by_key(|a| a.versionstamp);
 
     Ok(alive_candidates)
 }

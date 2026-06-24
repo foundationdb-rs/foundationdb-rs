@@ -288,11 +288,10 @@ impl LeaderElectionWorkload {
                         client_stats.error_count += 1;
                     }
                 }
-                Some(OpType::Resign) => {
-                    if entry.success {
-                        client_stats.resign_count += 1;
-                    }
+                Some(OpType::Resign) if entry.success => {
+                    client_stats.resign_count += 1;
                 }
+                Some(OpType::Resign) => {}
                 None => {}
             }
         }

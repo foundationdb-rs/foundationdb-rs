@@ -278,16 +278,13 @@ impl DirectoryLayer {
 
         match layer {
             None => {}
-            Some(layer) => {
-                if !layer.is_empty() {
-                    match compare_slice(layer, &node.layer) {
-                        Ordering::Equal => {}
-                        _ => {
-                            return Err(DirectoryError::IncompatibleLayer);
-                        }
-                    }
+            Some(layer) if !layer.is_empty() => match compare_slice(layer, &node.layer) {
+                Ordering::Equal => {}
+                _ => {
+                    return Err(DirectoryError::IncompatibleLayer);
                 }
-            }
+            },
+            Some(_) => {}
         }
 
         node.get_contents()

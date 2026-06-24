@@ -322,10 +322,8 @@ where
                     options.push(option);
                 }
             }
-            XmlEvent::EndElement { name, .. } => {
-                if name.local_name == "Scope" {
-                    return options;
-                }
+            XmlEvent::EndElement { name, .. } if name.local_name == "Scope" => {
+                return options;
             }
             _ => {}
         }
