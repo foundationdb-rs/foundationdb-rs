@@ -60,9 +60,9 @@ foundationdb-sys = { version = "0.10.0", path = "../foundationdb-sys", default-f
 foundationdb-macros = { version = "0.3.3", path = "../foundationdb-macros" }
 foundationdb-tuple = { version = "0.10.0", path = "../foundationdb-tuple" }
 futures = "0.3.32"
-rand = { version = "0.9.4", features = ["default", "small_rng"] }
+rand = { version = "0.10.1", features = ["default"] }
 static_assertions = "1.1.0"
-uuid = { version = "1.23.1", optional = true }
+uuid = { version = "1.23.3", optional = true }
 num-bigint = { version = "0.4.6", optional = true }
 async-trait = "0.1.89"
 async-recursion = "1.1.1"
@@ -78,7 +78,7 @@ lazy_static = "1.5.0"
 tokio = { version = "1.52.3", features = ["full"] }
 sha2 = "0.11.0"
 data-encoding = "2.11.0"
-bytesize = "2.3"
-uuid = { version = "1.23.1", features = ["v4"] }
-futures-util = "0.3.31"
+bytesize = "2.4"
+uuid = { version = "1.23.3", features = ["v4"] }
+futures-util = "0.3.32"
 tracing-subscriber = "0.3.23"

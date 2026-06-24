@@ -2,7 +2,7 @@ use foundationdb::tuple::Subspace;
 use foundationdb::{Database, RangeOption};
 use futures::TryStreamExt;
 use rand::distr::Uniform;
-use rand::Rng;
+use rand::RngExt;
 
 /// The goal of this example is to store blob data as chunk of 1kB
 /// Retrieve these data then verify correctness
