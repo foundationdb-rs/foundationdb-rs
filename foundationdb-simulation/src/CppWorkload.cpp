@@ -56,7 +56,7 @@ void free(capi::OpaquePromise* c_promise) {
 	delete promise;
 }
 capi::FDBPromise wrap(GenericPromise<bool> promise) {
-	capi::FDBPromise::FDBPromise_VT vt = {
+	static capi::FDBPromise::FDBPromise_VT vt = {
 		.free = free,
 		.send = send,
 	};
@@ -122,7 +122,7 @@ uint32_t rnd(capi::OpaqueWorkloadContext* c_context) {
 	return context->rnd();
 }
 capi::FDBString getOption(capi::OpaqueWorkloadContext* c_context, const char* name, const char* defaultValue) {
-	capi::FDBString::FDBString_VT vt = {
+	static capi::FDBString::FDBString_VT vt = {
 		.free = (void (*)(const char*))free,
 	};
 	auto context = (FDBWorkloadContext*)c_context;
@@ -152,7 +152,7 @@ FDBFuture* delay(capi::OpaqueWorkloadContext* c_context, double seconds) {
 	return context->delay(seconds);
 }
 capi::FDBWorkloadContext wrap(FDBWorkloadContext* context) {
-	capi::FDBWorkloadContext::FDBWorkloadContext_VT vt = {
+	static capi::FDBWorkloadContext::FDBWorkloadContext_VT vt = {
 		.trace = trace,
 		.getProcessID = getProcessID,
 		.setProcessID = setProcessID,
