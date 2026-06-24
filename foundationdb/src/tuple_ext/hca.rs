@@ -28,7 +28,7 @@ use std::fmt;
 use std::sync::{Mutex, PoisonError};
 
 use futures::future;
-use rand::{self, rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, RngExt};
 
 use crate::options::{ConflictRangeType, MutationType, TransactionOption};
 use crate::tuple::{PackError, Subspace};
@@ -114,7 +114,7 @@ impl HighContentionAllocator {
             reverse: true,
             ..RangeOption::default()
         };
-        let mut rng = SmallRng::from_rng(&mut rand::rng());
+        let mut rng: SmallRng = rand::make_rng();
 
         loop {
             let kvs = trx.get_range(&counters_range, 1, true).await?;

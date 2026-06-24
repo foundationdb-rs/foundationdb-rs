@@ -3,7 +3,7 @@ use std::error;
 
 use foundationdb::{future::FdbValue, tuple::Subspace, Database, FdbBindingError, RangeOption};
 use futures::StreamExt;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use rand::{rngs::SmallRng, Rng};
 
 /// Clears subspaces of a database.
 ///
@@ -54,7 +54,7 @@ impl MicroQueue {
         Ok(Self {
             db,
             queue,
-            rng: SmallRng::from_os_rng(),
+            rng: rand::make_rng(),
         })
     }
 

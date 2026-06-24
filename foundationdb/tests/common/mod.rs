@@ -1,6 +1,6 @@
 use foundationdb as fdb;
 use rand::distr::Alphanumeric;
-use rand::Rng;
+use rand::RngExt;
 
 /// generate random string. Foundationdb watch only fires when value changed, so updating with same
 /// value twice will not fire watches. To make examples work over multiple run, we use random
