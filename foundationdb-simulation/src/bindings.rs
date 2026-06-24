@@ -57,7 +57,7 @@ fn capitalize_first(s: &str) -> Option<String> {
 /// Macro that can be used to create log "details" more easily.
 #[macro_export]
 macro_rules! details {
-    ($($k:expr => $v:expr),* $(,)?) => {
+    ($($k:expr_2021 => $v:expr_2021),* $(,)?) => {
         &[
             $((
                 &$k.to_string(), &$v.to_string()
@@ -109,7 +109,7 @@ pub enum Severity {
 // Implementations
 
 macro_rules! with {
-    ($this:expr=>$method:ident($($args:expr),* $(,)?)) => {
+    ($this:expr_2021=>$method:ident($($args:expr_2021),* $(,)?)) => {
         unsafe { (*$this.vt).$method.unwrap_unchecked()($this.inner $(, $args)*) }
     };
 }
@@ -194,11 +194,7 @@ impl WorkloadContext {
         };
         let value = str_from_c(raw_value.inner);
         with! { raw_value => free() };
-        if value == null {
-            None
-        } else {
-            Some(value)
-        }
+        if value == null { None } else { Some(value) }
     }
     /// Get the client id of the workload
     pub fn client_id(&self) -> i32 {
@@ -216,7 +212,7 @@ impl WorkloadContext {
     pub fn delay(
         &self,
         duration: Duration,
-    ) -> impl std::future::Future<Output = fdb::FdbResult<()>> + Send + Sync + 'static {
+    ) -> impl std::future::Future<Output = fdb::FdbResult<()>> + Send + Sync + 'static + use<> {
         let f = with! { self.0 => delay(duration.as_secs_f64()) };
         fdb::future::FdbFuture::new(f as *mut _)
     }

@@ -18,7 +18,7 @@ use rand::rngs::ThreadRng;
 use rand::prelude::IndexedRandom;
 
 use foundationdb as fdb;
-use foundationdb::tuple::{pack, unpack, Subspace};
+use foundationdb::tuple::{Subspace, pack, unpack};
 use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
 use futures::TryStreamExt;
 

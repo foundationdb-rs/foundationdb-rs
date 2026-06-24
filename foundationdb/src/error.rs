@@ -10,8 +10,8 @@
 
 use crate::directory::DirectoryError;
 use crate::options;
-use crate::tuple::hca::HcaError;
 use crate::tuple::PackError;
+use crate::tuple::hca::HcaError;
 use foundationdb_sys as fdb_sys;
 use std::ffi::CStr;
 use std::fmt;

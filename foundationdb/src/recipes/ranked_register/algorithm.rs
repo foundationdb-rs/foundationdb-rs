@@ -13,8 +13,8 @@
 //! All functions operate within a FoundationDB transaction for atomicity.
 
 use crate::{
-    tuple::{pack, unpack, Subspace},
     Transaction,
+    tuple::{Subspace, pack, unpack},
 };
 use std::ops::Deref;
 

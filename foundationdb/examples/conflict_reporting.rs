@@ -6,8 +6,8 @@
 
 use foundationdb::options::TransactionOption;
 use foundationdb::*;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A simple hook implementation that prints each lifecycle event.
 struct PrintHooks;

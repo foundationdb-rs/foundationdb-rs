@@ -201,9 +201,11 @@ mod tests {
         let tup_unpack: (Versionstamp, i64) = subspace.unpack(&packed).unwrap();
         assert_eq!(tup, tup_unpack);
 
-        assert!(subspace
-            .unpack::<(i64, Versionstamp, i64)>(&packed)
-            .is_err());
+        assert!(
+            subspace
+                .unpack::<(i64, Versionstamp, i64)>(&packed)
+                .is_err()
+        );
     }
 
     #[test]
@@ -213,9 +215,11 @@ mod tests {
         let packed = subspace.pack_with_versionstamp(&tup);
         let tup_unpack: (Versionstamp, i64) = subspace.unpack(&packed).unwrap();
         assert_eq!(tup, tup_unpack);
-        assert!(subspace
-            .unpack::<(Versionstamp, Versionstamp, i64)>(&packed)
-            .is_err());
+        assert!(
+            subspace
+                .unpack::<(Versionstamp, Versionstamp, i64)>(&packed)
+                .is_err()
+        );
     }
 
     #[test]

@@ -10,9 +10,9 @@ mod common;
 #[cfg(feature = "recipes-leader-election")]
 mod leader_election_tests {
     use foundationdb::{
+        Database, FdbBindingError,
         recipes::leader_election::{ElectionConfig, LeaderElection},
         tuple::Subspace,
-        Database, FdbBindingError,
     };
     use std::time::Duration;
 
@@ -402,8 +402,10 @@ mod leader_election_tests {
         .await?;
 
         // Change config to disable elections
-        let mut new_config = ElectionConfig::default();
-        new_config.election_enabled = false;
+        let new_config = ElectionConfig {
+            election_enabled: false,
+            ..Default::default()
+        };
 
         let election_ref = &election;
         db.run(|txn, _| {
@@ -435,8 +437,10 @@ mod leader_election_tests {
         );
 
         // Re-enable elections
-        let mut enabled_config = ElectionConfig::default();
-        enabled_config.election_enabled = true;
+        let enabled_config = ElectionConfig {
+            election_enabled: true,
+            ..Default::default()
+        };
 
         let election_ref = &election;
         db.run(|txn, _| {
@@ -539,8 +543,10 @@ mod leader_election_tests {
         let high_priority = "high-priority";
 
         // Initialize with preemption enabled
-        let mut config = ElectionConfig::default();
-        config.allow_preemption = true;
+        let config = ElectionConfig {
+            allow_preemption: true,
+            ..Default::default()
+        };
 
         let election_ref = &election;
         db.run(|txn, _| {

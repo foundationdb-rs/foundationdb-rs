@@ -28,7 +28,7 @@ use std::fmt;
 use std::sync::{Mutex, PoisonError};
 
 use futures::future;
-use rand::{rngs::SmallRng, RngExt};
+use rand::{RngExt, rngs::SmallRng};
 
 use crate::options::{ConflictRangeType, MutationType, TransactionOption};
 use crate::tuple::{PackError, Subspace};

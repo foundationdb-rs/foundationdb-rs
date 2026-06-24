@@ -5,7 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use foundationdb::tuple::{hca::HighContentionAllocator, Subspace};
+use foundationdb::tuple::{Subspace, hca::HighContentionAllocator};
 use foundationdb::{FdbResult, TransactOption};
 use futures::prelude::*;
 use std::collections::HashSet;

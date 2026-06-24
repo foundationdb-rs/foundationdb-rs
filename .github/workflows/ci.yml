@@ -114,7 +114,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace --no-default-features
+        run: cargo clippy-all
 
   audit:
     name: Cargo audit

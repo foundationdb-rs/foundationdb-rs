@@ -1,11 +1,11 @@
 use foundationdb::{
+    FdbBindingError,
     options::{MutationType, TransactionOption},
     tuple::Subspace,
-    FdbBindingError,
 };
 use foundationdb_simulation::{
-    details, register_workload, Metric, Metrics, RustWorkload, Severity, SimDatabase,
-    SingleRustWorkload, WorkloadContext,
+    Metric, Metrics, RustWorkload, Severity, SimDatabase, SingleRustWorkload, WorkloadContext,
+    details, register_workload,
 };
 
 pub struct AtomicWorkload {

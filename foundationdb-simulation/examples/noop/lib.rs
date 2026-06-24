@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use foundationdb_simulation::{
-    register_factory, Metric, Metrics, RustWorkload, RustWorkloadFactory, Severity, SimDatabase,
-    WorkloadContext, WrappedWorkload,
+    Metric, Metrics, RustWorkload, RustWorkloadFactory, Severity, SimDatabase, WorkloadContext,
+    WrappedWorkload, register_factory,
 };
 
 struct NoopWorkload {

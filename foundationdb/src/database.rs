@@ -23,7 +23,7 @@ use foundationdb_sys as fdb_sys;
 use crate::metrics::{MetricsReport, TransactionMetrics};
 use crate::options;
 use crate::transaction::*;
-use crate::{error, FdbError, FdbResult};
+use crate::{FdbError, FdbResult, error};
 
 use crate::error::FdbBindingError;
 #[cfg_api_versions(min = 710)]
@@ -351,7 +351,8 @@ impl Database {
     /// Retrieve a client-side status information in a JSON format.
     pub fn get_client_status(
         &self,
-    ) -> impl Future<Output = FdbResult<crate::future::FdbSlice>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<crate::future::FdbSlice>> + Send + Sync + Unpin + use<>
+    {
         crate::future::FdbFuture::new(unsafe {
             fdb_sys::fdb_database_get_client_status(self.inner.as_ptr())
         })

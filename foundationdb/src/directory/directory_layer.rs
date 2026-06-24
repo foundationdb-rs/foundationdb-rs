@@ -8,15 +8,15 @@
 
 //! The default Directory implementation.
 
+use crate::RangeOption;
 use crate::directory::directory_partition::DirectoryPartition;
 use crate::directory::directory_subspace::DirectorySubspace;
 use crate::directory::error::DirectoryError;
 use crate::directory::node::Node;
-use crate::directory::{compare_slice, strinc, Directory, DirectoryOutput};
+use crate::directory::{Directory, DirectoryOutput, compare_slice, strinc};
 use crate::future::FdbSlice;
 use crate::tuple::hca::HighContentionAllocator;
 use crate::tuple::{Element, Subspace, TuplePack};
-use crate::RangeOption;
 use crate::{FdbResult, Transaction};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -278,16 +278,13 @@ impl DirectoryLayer {
 
         match layer {
             None => {}
-            Some(layer) => {
-                if !layer.is_empty() {
-                    match compare_slice(layer, &node.layer) {
-                        Ordering::Equal => {}
-                        _ => {
-                            return Err(DirectoryError::IncompatibleLayer);
-                        }
-                    }
+            Some(layer) if !layer.is_empty() => match compare_slice(layer, &node.layer) {
+                Ordering::Equal => {}
+                _ => {
+                    return Err(DirectoryError::IncompatibleLayer);
                 }
-            }
+            },
+            Some(_) => {}
         }
 
         node.get_contents()
@@ -482,12 +479,16 @@ impl DirectoryLayer {
                 let patch: u32 = u32::from_le_bytes(arr);
 
                 if major > MAJOR_VERSION {
-                    let msg = format!("cannot load directory with version {major}.{minor}.{patch} using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}");
+                    let msg = format!(
+                        "cannot load directory with version {major}.{minor}.{patch} using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"
+                    );
                     return Err(DirectoryError::Version(msg));
                 }
 
                 if minor > MINOR_VERSION {
-                    let msg = format!("directory with version {major}.{minor}.{patch} is read-only when opened using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}");
+                    let msg = format!(
+                        "directory with version {major}.{minor}.{patch} is read-only when opened using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"
+                    );
                     return Err(DirectoryError::Version(msg));
                 }
 
@@ -553,7 +554,7 @@ impl DirectoryLayer {
                         .directory_subspace
                         .directory_layer
                         .list(trx, &node.get_partition_subpath())
-                        .await
+                        .await;
                 }
             };
         }
@@ -682,7 +683,7 @@ impl DirectoryLayer {
                         .directory_subspace
                         .directory_layer
                         .remove_internal(trx, &node.get_partition_subpath(), fail_on_nonexistent)
-                        .await
+                        .await;
                 }
             }
         }

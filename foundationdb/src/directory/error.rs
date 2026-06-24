@@ -9,8 +9,8 @@
 //! Errors that can be thrown by Directory.
 
 use crate::error;
-use crate::tuple::hca::HcaError;
 use crate::tuple::PackError;
+use crate::tuple::hca::HcaError;
 use std::io;
 
 /// The enumeration holding all possible errors from a Directory.

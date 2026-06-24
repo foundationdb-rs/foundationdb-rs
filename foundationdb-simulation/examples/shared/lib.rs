@@ -1,5 +1,5 @@
 use foundationdb_simulation::{
-    register_workload, Metrics, RustWorkload, SimDatabase, SingleRustWorkload, WorkloadContext,
+    Metrics, RustWorkload, SimDatabase, SingleRustWorkload, WorkloadContext, register_workload,
 };
 use futures_util::FutureExt;
 

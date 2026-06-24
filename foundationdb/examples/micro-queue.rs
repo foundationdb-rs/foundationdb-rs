@@ -1,9 +1,9 @@
 use core::fmt;
 use std::error;
 
-use foundationdb::{future::FdbValue, tuple::Subspace, Database, FdbBindingError, RangeOption};
+use foundationdb::{Database, FdbBindingError, RangeOption, future::FdbValue, tuple::Subspace};
 use futures::StreamExt;
-use rand::{rngs::SmallRng, Rng};
+use rand::{Rng, rngs::SmallRng};
 
 /// Clears subspaces of a database.
 ///

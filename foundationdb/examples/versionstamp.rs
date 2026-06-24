@@ -1,7 +1,6 @@
 use foundationdb::{
-    options,
-    tuple::{pack, pack_with_versionstamp, unpack, Subspace, Versionstamp},
-    Database, FdbResult, RangeOption,
+    Database, FdbResult, RangeOption, options,
+    tuple::{Subspace, Versionstamp, pack, pack_with_versionstamp, unpack},
 };
 use futures::StreamExt;
 

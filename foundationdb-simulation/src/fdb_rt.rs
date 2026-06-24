@@ -30,10 +30,10 @@ impl Task {
         let waker = unsafe { Waker::from_raw(self.clone().into_waker()) };
         let cx = &mut Context::from_waker(&waker);
         let slot = unsafe { &mut *self.f.get() };
-        if let Some(mut f) = slot.take() {
-            if f.as_mut().poll(cx).is_pending() {
-                *slot = Some(f);
-            }
+        if let Some(mut f) = slot.take()
+            && f.as_mut().poll(cx).is_pending()
+        {
+            *slot = Some(f);
         }
     }
 
@@ -74,6 +74,10 @@ pub(crate) fn fdb_spawn<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
+    // The simulation executor is single-threaded, but `Waker` requires the task
+    // pointer to be usable as `Send + Sync`, so we use `Arc` (not `Rc`) to uphold the
+    // `RawWaker` safety contract even though `Task` is neither `Send` nor `Sync`.
+    #[allow(clippy::arc_with_non_send_sync)]
     let task = Arc::new(Task {
         f: UnsafeCell::new(Some(Box::pin(future))),
     });

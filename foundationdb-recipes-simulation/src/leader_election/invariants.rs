@@ -24,10 +24,10 @@ use std::collections::BTreeMap;
 
 use foundationdb::tuple::Versionstamp;
 
+use super::LeaderElectionWorkload;
 use super::types::{
     CheckResult, DatabaseSnapshot, LogEntries, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
 };
-use super::LeaderElectionWorkload;
 
 impl LeaderElectionWorkload {
     /// Invariant 1: Dual-Path Validation (AtomicOps pattern)
@@ -207,13 +207,13 @@ impl LeaderElectionWorkload {
 
         for entry in entries {
             // Track last op_num per client
-            if let Some(last_op) = client_last_op.get(&entry.client_id) {
-                if entry.op_num <= *last_op {
-                    violations.push(format!(
-                        "Client {} op_num {} not greater than previous {}",
-                        entry.client_id, entry.op_num, last_op
-                    ));
-                }
+            if let Some(last_op) = client_last_op.get(&entry.client_id)
+                && entry.op_num <= *last_op
+            {
+                violations.push(format!(
+                    "Client {} op_num {} not greater than previous {}",
+                    entry.client_id, entry.op_num, last_op
+                ));
             }
             client_last_op.insert(entry.client_id, entry.op_num);
 
@@ -228,7 +228,9 @@ impl LeaderElectionWorkload {
         if violations.is_empty() {
             (
                 true,
-                format!("Leadership sequence valid ({clients_with_leadership} clients claimed leadership)"),
+                format!(
+                    "Leadership sequence valid ({clients_with_leadership} clients claimed leadership)"
+                ),
             )
         } else {
             (false, violations.join("; "))
@@ -269,14 +271,18 @@ impl LeaderElectionWorkload {
             let registered_count = registered_clients.len();
             (
                 true,
-                format!("All {leadership_count} clients with leadership have registration entries ({registered_count} total registered)"),
+                format!(
+                    "All {leadership_count} clients with leadership have registration entries ({registered_count} total registered)"
+                ),
             )
         } else {
             let unregistered_count = unregistered_leaders.len();
             let unregistered_list = unregistered_leaders.join(", ");
             (
                 false,
-                format!("VIOLATION: {unregistered_count} clients claimed leadership without registration: {unregistered_list}"),
+                format!(
+                    "VIOLATION: {unregistered_count} clients claimed leadership without registration: {unregistered_list}"
+                ),
             )
         }
     }
@@ -468,23 +474,23 @@ impl LeaderElectionWorkload {
         for entry in entries {
             if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
                 acquire_count += 1;
-                if let Some(prev_holder) = current_holder {
-                    if prev_holder != entry.client_id {
-                        // Different client claiming - previous holder's lease expired
-                        // or was preempted. This is an implicit release.
-                        implicit_releases += 1;
-                    }
+                if let Some(prev_holder) = current_holder
+                    && prev_holder != entry.client_id
+                {
+                    // Different client claiming - previous holder's lease expired
+                    // or was preempted. This is an implicit release.
+                    implicit_releases += 1;
                 }
                 // New leader takes over
                 current_holder = Some(entry.client_id);
             }
-            if entry.op_type == OP_RESIGN && entry.success {
-                if let Some(holder) = current_holder {
-                    if holder == entry.client_id {
-                        release_count += 1;
-                        current_holder = None;
-                    }
-                }
+            if entry.op_type == OP_RESIGN
+                && entry.success
+                && let Some(holder) = current_holder
+                && holder == entry.client_id
+            {
+                release_count += 1;
+                current_holder = None;
             }
         }
 
@@ -567,13 +573,13 @@ impl LeaderElectionWorkload {
                     continue; // Skip ballot 0 (initial state)
                 }
 
-                if let Some(&prev_client) = ballot_to_client.get(&entry.ballot) {
-                    if prev_client != entry.client_id {
-                        violations.push(format!(
-                            "Tenure {}: Ballot {} claimed by client {} and client {}",
-                            tenure_count, entry.ballot, prev_client, entry.client_id
-                        ));
-                    }
+                if let Some(&prev_client) = ballot_to_client.get(&entry.ballot)
+                    && prev_client != entry.client_id
+                {
+                    violations.push(format!(
+                        "Tenure {}: Ballot {} claimed by client {} and client {}",
+                        tenure_count, entry.ballot, prev_client, entry.client_id
+                    ));
                 }
                 ballot_to_client.insert(entry.ballot, entry.client_id);
             }

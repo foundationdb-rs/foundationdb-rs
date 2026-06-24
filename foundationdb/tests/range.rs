@@ -284,7 +284,7 @@ async fn test_get_range_split_points() -> FdbResult<()> {
 
 #[cfg_api_versions(min = 710)]
 async fn test_mapped_value() -> FdbResult<()> {
-    use foundationdb::tuple::{pack, Subspace};
+    use foundationdb::tuple::{Subspace, pack};
 
     let db = common::database().await?;
 
@@ -328,7 +328,7 @@ fn verify_mapped_values(
     blue_counter: i32,
     vec_mapped_key_values: Vec<mapped_key_values::MappedKeyValues>,
 ) {
-    use foundationdb::tuple::{unpack, Element};
+    use foundationdb::tuple::{Element, unpack};
 
     let mut value_counter = 0;
 
@@ -365,7 +365,7 @@ fn verify_mapped_values(
 
 #[cfg_api_versions(min = 710)]
 async fn test_mapped_values() -> FdbResult<()> {
-    use foundationdb::tuple::{pack, Subspace};
+    use foundationdb::tuple::{Subspace, pack};
 
     let db = common::database().await?;
 

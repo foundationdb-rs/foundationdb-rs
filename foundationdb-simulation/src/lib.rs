@@ -10,8 +10,8 @@ mod bindings;
 mod fdb_rt;
 
 use bindings::{
-    FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, FDBWorkload_VT, OpaqueWorkload, Promise,
-    FDB_WORKLOAD_API_VERSION,
+    FDB_WORKLOAD_API_VERSION, FDBDatabase, FDBMetrics, FDBPromise, FDBWorkload, FDBWorkload_VT,
+    OpaqueWorkload, Promise,
 };
 pub use bindings::{Metric, Metrics, Severity, WorkloadContext};
 use fdb_rt::fdb_spawn;
@@ -105,72 +105,86 @@ pub trait SingleRustWorkload: RustWorkload {
 
 fn check_database_ref(database: SimDatabase) {
     if Arc::strong_count(&database) != 1 || Arc::weak_count(&database) != 0 {
-        eprintln!("Reference to Database kept between phases (setup/start/check). All references should be dropped.");
+        eprintln!(
+            "Reference to Database kept between phases (setup/start/check). All references should be dropped."
+        );
         std::process::exit(1);
     }
     std::mem::forget(database);
 }
 
 unsafe fn database_new(raw_database: *mut FDBDatabase) -> SimDatabase {
-    Arc::new(Database::new_from_pointer(NonNull::new_unchecked(
-        raw_database as *mut FDBDatabaseAlias,
-    )))
+    unsafe {
+        Arc::new(Database::new_from_pointer(NonNull::new_unchecked(
+            raw_database as *mut FDBDatabaseAlias,
+        )))
+    }
 }
 unsafe extern "C" fn workload_setup<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
     raw_database: *mut FDBDatabase,
     raw_promise: FDBPromise,
 ) {
-    let workload = &mut *(raw_workload as *mut W);
-    let database = database_new(raw_database);
-    let done = Promise::new(raw_promise);
-    fdb_spawn(async move {
-        workload.setup(database.clone()).await;
-        check_database_ref(database);
-        done.send(true);
-    });
+    unsafe {
+        let workload = &mut *(raw_workload as *mut W);
+        let database = database_new(raw_database);
+        let done = Promise::new(raw_promise);
+        fdb_spawn(async move {
+            workload.setup(database.clone()).await;
+            check_database_ref(database);
+            done.send(true);
+        });
+    }
 }
 unsafe extern "C" fn workload_start<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
     raw_database: *mut FDBDatabase,
     raw_promise: FDBPromise,
 ) {
-    let workload = &mut *(raw_workload as *mut W);
-    let database = database_new(raw_database);
-    let done = Promise::new(raw_promise);
-    fdb_spawn(async move {
-        workload.start(database.clone()).await;
-        check_database_ref(database);
-        done.send(true);
-    });
+    unsafe {
+        let workload = &mut *(raw_workload as *mut W);
+        let database = database_new(raw_database);
+        let done = Promise::new(raw_promise);
+        fdb_spawn(async move {
+            workload.start(database.clone()).await;
+            check_database_ref(database);
+            done.send(true);
+        });
+    }
 }
 unsafe extern "C" fn workload_check<W: RustWorkload + 'static>(
     raw_workload: *mut OpaqueWorkload,
     raw_database: *mut FDBDatabase,
     raw_promise: FDBPromise,
 ) {
-    let workload = &mut *(raw_workload as *mut W);
-    let database = database_new(raw_database);
-    let done = Promise::new(raw_promise);
-    fdb_spawn(async move {
-        workload.check(database.clone()).await;
-        check_database_ref(database);
-        done.send(true);
-    });
+    unsafe {
+        let workload = &mut *(raw_workload as *mut W);
+        let database = database_new(raw_database);
+        let done = Promise::new(raw_promise);
+        fdb_spawn(async move {
+            workload.check(database.clone()).await;
+            check_database_ref(database);
+            done.send(true);
+        });
+    }
 }
 unsafe extern "C" fn workload_get_metrics<W: RustWorkload>(
     raw_workload: *mut OpaqueWorkload,
     raw_metrics: FDBMetrics,
 ) {
-    let workload = &*(raw_workload as *mut W);
-    let out = Metrics::new(raw_metrics);
-    workload.get_metrics(out)
+    unsafe {
+        let workload = &*(raw_workload as *mut W);
+        let out = Metrics::new(raw_metrics);
+        workload.get_metrics(out)
+    }
 }
 unsafe extern "C" fn workload_get_check_timeout<W: RustWorkload>(
     raw_workload: *mut OpaqueWorkload,
 ) -> f64 {
-    let workload = &*(raw_workload as *mut W);
-    workload.get_check_timeout()
+    unsafe {
+        let workload = &*(raw_workload as *mut W);
+        workload.get_check_timeout()
+    }
 }
 unsafe extern "C" fn workload_drop<W: RustWorkload>(raw_workload: *mut OpaqueWorkload) {
     unsafe { drop(Box::from_raw(raw_workload as *mut W)) };
@@ -182,11 +196,11 @@ unsafe extern "C" fn workload_drop<W: RustWorkload>(raw_workload: *mut OpaqueWor
 #[doc(hidden)]
 /// Primitives exposed for the registrations hooks, should not be used otherwise
 pub mod internals {
-    pub use crate::bindings::{str_from_c, FDBWorkloadContext};
+    pub use crate::bindings::{FDBWorkloadContext, str_from_c};
     pub use crate::fdb_rt::poll_pending_tasks;
 
     #[cfg(feature = "cpp-abi")]
-    extern "C" {
+    unsafe extern "C" {
         pub fn workloadCppFactory(logger: *const u8) -> *const u8;
     }
 
@@ -208,7 +222,7 @@ pub mod internals {
 #[macro_export]
 macro_rules! register_factory {
     ($name:ident) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn workloadCFactory(
             raw_name: *const i8,
             raw_context: $crate::internals::FDBWorkloadContext,
@@ -232,7 +246,7 @@ macro_rules! register_factory {
             let context = $crate::WorkloadContext::new(raw_context);
             <$name as $crate::RustWorkloadFactory>::create(name, context)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn workloadFactory(logger: *const u8) -> *const u8 {
             unsafe { $crate::internals::workloadCppFactory(logger) }
         }
@@ -244,7 +258,7 @@ macro_rules! register_factory {
 #[macro_export]
 macro_rules! register_workload {
     ($name:ident) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn workloadCFactory(
             raw_name: *const i8,
             raw_context: $crate::internals::FDBWorkloadContext,
@@ -268,7 +282,7 @@ macro_rules! register_workload {
             let context = $crate::WorkloadContext::new(raw_context);
             $crate::RustWorkload::wrap(<$name as $crate::SingleRustWorkload>::new(name, context))
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn workloadFactory(logger: *const u8) -> *const u8 {
             unsafe { $crate::internals::workloadCppFactory(logger) }
         }

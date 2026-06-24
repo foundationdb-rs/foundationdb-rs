@@ -21,13 +21,13 @@ use crate::keyselector::*;
 use crate::metrics::{FdbCommand, TransactionMetrics};
 use crate::options;
 
-use crate::{error, FdbError, FdbResult};
+use crate::{FdbError, FdbResult, error};
 use foundationdb_macros::cfg_api_versions;
 
 use crate::error::{FdbBindingError, TransactionMetricsNotFound};
 
 use futures::{
-    future, future::Either, stream, Future, FutureExt, Stream, TryFutureExt, TryStreamExt,
+    Future, FutureExt, Stream, TryFutureExt, TryStreamExt, future, future::Either, stream,
 };
 
 #[cfg_api_versions(min = 610)]
@@ -241,11 +241,7 @@ unsafe impl Sync for Transaction {}
 /// Converts Rust `bool` into `fdb_sys::fdb_bool_t`
 #[inline]
 fn fdb_bool(v: bool) -> fdb_sys::fdb_bool_t {
-    if v {
-        1
-    } else {
-        0
-    }
+    if v { 1 } else { 0 }
 }
 #[inline]
 fn fdb_len(len: usize, context: &'static str) -> std::os::raw::c_int {
@@ -558,7 +554,7 @@ impl Transaction {
         &self,
         key: &[u8],
         snapshot: bool,
-    ) -> impl Future<Output = FdbResult<Option<FdbSlice>>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<Option<FdbSlice>>> + Send + Sync + Unpin + use<> {
         let metrics = self.metrics.clone();
         let lenght_key = key.len();
 
@@ -648,7 +644,7 @@ impl Transaction {
         &self,
         selector: &KeySelector,
         snapshot: bool,
-    ) -> impl Future<Output = FdbResult<FdbSlice>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<FdbSlice>> + Send + Sync + Unpin + use<> {
         let key = selector.key();
         FdbFuture::new(unsafe {
             fdb_sys::fdb_transaction_get_key(
@@ -755,7 +751,7 @@ impl Transaction {
         opt: &RangeOption,
         iteration: usize,
         snapshot: bool,
-    ) -> impl Future<Output = FdbResult<FdbValues>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<FdbValues>> + Send + Sync + Unpin + use<> {
         let begin = &opt.begin;
         let end = &opt.end;
         let key_begin = begin.key();
@@ -833,7 +829,7 @@ impl Transaction {
         mapper: &[u8],
         iteration: usize,
         snapshot: bool,
-    ) -> impl Future<Output = FdbResult<MappedKeyValues>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<MappedKeyValues>> + Send + Sync + Unpin + use<> {
         let begin = &opt.begin;
         let end = &opt.end;
         let key_begin = begin.key();
@@ -942,7 +938,7 @@ impl Transaction {
         &self,
         begin: &[u8],
         end: &[u8],
-    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
         FdbFuture::<i64>::new(unsafe {
             fdb_sys::fdb_transaction_get_estimated_range_size_bytes(
                 self.inner.as_ptr(),
@@ -1124,7 +1120,7 @@ impl Transaction {
     pub fn get_addresses_for_key(
         &self,
         key: &[u8],
-    ) -> impl Future<Output = FdbResult<FdbAddresses>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<FdbAddresses>> + Send + Sync + Unpin + use<> {
         FdbFuture::new(unsafe {
             fdb_sys::fdb_transaction_get_addresses_for_key(
                 self.inner.as_ptr(),
@@ -1159,7 +1155,10 @@ impl Transaction {
     /// too_many_watches error. This limit can be changed using the MAX_WATCHES database option.
     /// Because a watch outlives the transaction that creates it, any watch that is no longer
     /// needed should be cancelled by dropping its future.
-    pub fn watch(&self, key: &[u8]) -> impl Future<Output = FdbResult<()>> + Send + Sync + Unpin {
+    pub fn watch(
+        &self,
+        key: &[u8],
+    ) -> impl Future<Output = FdbResult<()>> + Send + Sync + Unpin + use<> {
         FdbFuture::new(unsafe {
             fdb_sys::fdb_transaction_watch(
                 self.inner.as_ptr(),
@@ -1177,7 +1176,7 @@ impl Transaction {
     #[cfg_api_versions(min = 620)]
     pub fn get_approximate_size(
         &self,
-    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
         FdbFuture::new(unsafe {
             fdb_sys::fdb_transaction_get_approximate_size(self.inner.as_ptr())
         })
@@ -1191,7 +1190,7 @@ impl Transaction {
         begin: &[u8],
         end: &[u8],
         chunk_size: i64,
-    ) -> impl Future<Output = FdbResult<FdbKeys>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<FdbKeys>> + Send + Sync + Unpin + use<> {
         FdbFuture::<FdbKeys>::new(unsafe {
             fdb_sys::fdb_transaction_get_range_split_points(
                 self.inner.as_ptr(),
@@ -1215,7 +1214,7 @@ impl Transaction {
     /// Most applications will not call this function.
     pub fn get_versionstamp(
         &self,
-    ) -> impl Future<Output = FdbResult<FdbSlice>> + Send + Sync + Unpin {
+    ) -> impl Future<Output = FdbResult<FdbSlice>> + Send + Sync + Unpin + use<> {
         FdbFuture::new(unsafe { fdb_sys::fdb_transaction_get_versionstamp(self.inner.as_ptr()) })
     }
 
@@ -1223,7 +1222,9 @@ impl Transaction {
     /// to `get_*()` (including this one) and (unless causal consistency has been deliberately
     /// compromised by transaction options) is guaranteed to represent all transactions which were
     /// reported committed before that call.
-    pub fn get_read_version(&self) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin {
+    pub fn get_read_version(
+        &self,
+    ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
         FdbFuture::new(unsafe { fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr()) })
     }
 

@@ -5,7 +5,7 @@ authors = [
     "Pierre Zemb <contact@pierrezemb.fr>",
     "Yannick Guern <dev@guern.eu>"
 ]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 async-stream = "0.3.6"

@@ -50,7 +50,9 @@ fn display_build_warnings() {
     println!("cargo:warning=---------------------");
     println!("cargo:warning=------ Warning ------");
     println!("cargo:warning=---------------------");
-    println!("cargo:warning=Building the C++ bindings without the `fdb-docker` feature will be valid from Rust's perspective but not from C++ and FoundationDB");
+    println!(
+        "cargo:warning=Building the C++ bindings without the `fdb-docker` feature will be valid from Rust's perspective but not from C++ and FoundationDB"
+    );
     println!("cargo:warning=Please follow the instructions in the associated README");
 }
 

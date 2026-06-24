@@ -8,18 +8,18 @@
 use std::time::Duration;
 
 use foundationdb::{
+    FdbBindingError, RangeOption,
     options::{MutationType, TransactionOption},
     recipes::leader_election::{ElectionConfig, LeaderElection},
-    tuple::{pack, unpack, Versionstamp},
-    FdbBindingError, RangeOption,
+    tuple::{Versionstamp, pack, unpack},
 };
-use foundationdb_simulation::{details, Metric, Metrics, RustWorkload, Severity, SimDatabase};
+use foundationdb_simulation::{Metric, Metrics, RustWorkload, Severity, SimDatabase, details};
 use futures::TryStreamExt;
 
+use super::LeaderElectionWorkload;
 use super::types::{
     LogEntries, LogEntry, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
 };
-use super::LeaderElectionWorkload;
 
 impl RustWorkload for LeaderElectionWorkload {
     async fn setup(&mut self, db: SimDatabase) {

@@ -1,4 +1,4 @@
-use foundationdb::tuple::{unpack, Subspace, TuplePack};
+use foundationdb::tuple::{Subspace, TuplePack, unpack};
 use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
 use futures::TryStreamExt;
 use std::fmt::{Display, Formatter};
