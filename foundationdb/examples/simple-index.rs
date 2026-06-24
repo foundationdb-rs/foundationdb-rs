@@ -1,5 +1,6 @@
 use foundationdb::tuple::{unpack, Subspace, TuplePack};
 use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
+use futures::TryStreamExt;
 use std::fmt::{Display, Formatter};
 
 #[derive(Default)]
@@ -84,11 +85,9 @@ async fn search_user_by_zipcode(
 
         let range = RangeOption::from((begin, end));
 
-        let results = trx.get_range(&range, 1, false).await?;
-
         let mut users = vec![];
-
-        for result in results {
+        let mut stream = trx.get_ranges_keyvalues(range, false);
+        while let Some(result) = stream.try_next().await? {
             let (zipcode, id): (String, String) = zipcode_index
                 .unpack(result.key())
                 .expect("Unable to unpack value from index");

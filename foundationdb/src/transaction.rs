@@ -732,6 +732,14 @@ impl Transaction {
     /// equal to the key resolved by the begin key selector and lexicographically less than the key
     /// resolved by the end key selector.
     ///
+    /// <div class="warning">
+    /// This method returns <strong>only a single batch</strong> of results, not necessarily all
+    /// key-value pairs in the range. It is a low-level primitive for manual pagination. Most
+    /// callers should use
+    /// <a href="struct.Transaction.html#method.get_ranges_keyvalues"><code>get_ranges_keyvalues</code></a>,
+    /// which automatically pages through the full range and yields every key-value pair as a stream.
+    /// </div>
+    ///
     /// # Arguments
     ///
     /// * `opt`: the range, limit, target_bytes and mode

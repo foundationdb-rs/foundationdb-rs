@@ -1,5 +1,6 @@
 use foundationdb::tuple::Subspace;
 use foundationdb::{Database, RangeOption};
+use futures::TryStreamExt;
 use rand::distr::Uniform;
 use rand::Rng;
 
@@ -36,13 +37,10 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
     db.run(|trx, _maybe_committed| async move {
         let range = RangeOption::from(subspace.range());
 
-        let results = trx.get_range(&range, 1_024, false).await?;
-
         let mut data: Vec<u8> = vec![];
-
-        for result in results {
-            let value = result.value();
-            data.extend(value.iter());
+        let mut stream = trx.get_ranges_keyvalues(range, false);
+        while let Some(result) = stream.try_next().await? {
+            data.extend(result.value().iter());
         }
 
         Ok(data)
