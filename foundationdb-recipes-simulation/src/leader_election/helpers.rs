@@ -3,13 +3,13 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use foundationdb_simulation::{details, Severity};
+use foundationdb_simulation::{Severity, details};
 
-use super::types::{
-    ClientStats, DatabaseSnapshot, LogEntries, OpType, DEFAULT_CLOCK_JITTER_OFFSET,
-    DEFAULT_CLOCK_JITTER_RANGE,
-};
 use super::LeaderElectionWorkload;
+use super::types::{
+    ClientStats, DEFAULT_CLOCK_JITTER_OFFSET, DEFAULT_CLOCK_JITTER_RANGE, DatabaseSnapshot,
+    LogEntries, OpType,
+};
 
 impl LeaderElectionWorkload {
     // ========================================================================

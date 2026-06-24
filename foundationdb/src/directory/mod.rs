@@ -65,8 +65,8 @@ mod directory_subspace;
 mod error;
 mod node;
 
-use crate::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
 use crate::Transaction;
+use crate::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
 use async_trait::async_trait;
 use core::cmp;
 pub use directory_layer::DirectoryLayer;
@@ -152,7 +152,7 @@ pub trait Directory {
 
     /// List the subdirectories of this directory at a given subpath.
     async fn list(&self, trx: &Transaction, path: &[String])
-        -> Result<Vec<String>, DirectoryError>;
+    -> Result<Vec<String>, DirectoryError>;
 }
 
 pub(crate) fn compare_slice<T: Ord>(a: &[T], b: &[T]) -> cmp::Ordering {

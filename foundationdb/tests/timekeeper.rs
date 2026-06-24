@@ -1,4 +1,4 @@
-use foundationdb::timekeeper::{hint_version_from_timestamp, HintMode};
+use foundationdb::timekeeper::{HintMode, hint_version_from_timestamp};
 use std::time::SystemTime;
 
 #[tokio::test]

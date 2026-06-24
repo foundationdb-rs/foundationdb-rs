@@ -1,5 +1,5 @@
 use bytesize::ByteSize;
-use foundationdb::tuple::{pack, unpack, PackError, Subspace};
+use foundationdb::tuple::{PackError, Subspace, pack, unpack};
 use foundationdb::{Database, RangeOption};
 use futures::TryStreamExt;
 use sha2::{Digest, Sha256};
@@ -280,7 +280,9 @@ impl Display for FileManifest {
             self.name,
             self.digest,
             ByteSize(self.size as u64).display().si(),
-            ByteSize(self.chunk_size.unwrap_or(CHUNK_SIZE) as u64).display().si(),
+            ByteSize(self.chunk_size.unwrap_or(CHUNK_SIZE) as u64)
+                .display()
+                .si(),
             self.nb_chunks
         )
     }
@@ -366,7 +368,10 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
 
         println!("{manifest}");
         assert_eq!(digest_data_from_database, manifest.digest);
-        println!("\t Verify data integrity:\n\t\tfrom database hex digest : {}\n\t\treference hex digest     : {}\n", manifest.digest, digest_data_from_database);
+        println!(
+            "\t Verify data integrity:\n\t\tfrom database hex digest : {}\n\t\treference hex digest     : {}\n",
+            manifest.digest, digest_data_from_database
+        );
     }
 }
 

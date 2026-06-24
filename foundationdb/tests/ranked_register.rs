@@ -10,9 +10,9 @@ mod common;
 #[cfg(feature = "recipes-ranked-register")]
 mod ranked_register_tests {
     use foundationdb::{
+        Database, FdbBindingError,
         recipes::ranked_register::{Rank, RankedRegister, WriteResult},
         tuple::Subspace,
-        Database, FdbBindingError,
     };
 
     #[test]

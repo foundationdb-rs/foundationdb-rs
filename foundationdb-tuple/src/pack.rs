@@ -179,7 +179,7 @@ fn write_bytes<W: io::Write>(w: &mut W, v: &[u8]) -> io::Result<VersionstampOffs
     Ok(VersionstampOffset::None { size })
 }
 
-fn parse_slice(input: &[u8]) -> PackResult<(&[u8], Cow<[u8]>)> {
+fn parse_slice(input: &[u8]) -> PackResult<(&[u8], Cow<'_, [u8]>)> {
     let mut bytes = Vec::new();
     let mut pos = 0;
     for idx in memchr_iter(NIL, input) {
@@ -203,7 +203,7 @@ fn parse_slice(input: &[u8]) -> PackResult<(&[u8], Cow<[u8]>)> {
     Err(PackError::MissingBytes)
 }
 
-fn parse_string(input: &[u8]) -> PackResult<(&[u8], Cow<str>)> {
+fn parse_string(input: &[u8]) -> PackResult<(&[u8], Cow<'_, str>)> {
     let (input, slice) = parse_slice(input)?;
     Ok((
         input,
@@ -314,7 +314,7 @@ macro_rules! sign_bit {
 }
 
 macro_rules! unpack_ux {
-    ($ux: ident, $input: expr, $n: expr) => {{
+    ($ux: ident, $input: expr_2021, $n: expr_2021) => {{
         let (input, bytes) = parse_bytes($input, $n)?;
         let mut arr = [0u8; ::std::mem::size_of::<$ux>()];
         (&mut arr[(::std::mem::size_of::<$ux>() - $n)..]).copy_from_slice(bytes);
@@ -323,7 +323,7 @@ macro_rules! unpack_ux {
 }
 
 macro_rules! unpack_px {
-    ($ix: ident, $ux: ident, $input: expr, $n: expr) => {{
+    ($ix: ident, $ux: ident, $input: expr_2021, $n: expr_2021) => {{
         let (input, bytes) = parse_bytes($input, $n)?;
         let mut arr = [0u8; ::std::mem::size_of::<$ux>()];
         (&mut arr[(::std::mem::size_of::<$ux>() - $n)..]).copy_from_slice(bytes);
@@ -336,7 +336,7 @@ macro_rules! unpack_px {
     }};
 }
 macro_rules! unpack_nx {
-    ($ix: ident, $ux: ident, $input: expr, $n: expr) => {{
+    ($ix: ident, $ux: ident, $input: expr_2021, $n: expr_2021) => {{
         let (input, bytes) = parse_bytes($input, $n)?;
         let mut arr = [0xffu8; ::std::mem::size_of::<$ix>()];
         (&mut arr[(::std::mem::size_of::<$ix>() - $n)..]).copy_from_slice(bytes);
@@ -353,7 +353,7 @@ macro_rules! impl_ux {
     ($ux: ident) => {
         impl_ux!($ux, mem::size_of::<$ux>());
     };
-    ($ux: ident, $max_sz:expr) => {
+    ($ux: ident, $max_sz:expr_2021) => {
         impl TuplePack for $ux {
             fn pack<W: io::Write>(
                 &self,
@@ -405,7 +405,7 @@ macro_rules! impl_ix {
     ($ix: ident, $ux: ident) => {
         impl_ix!($ix, $ux, mem::size_of::<$ix>());
     };
-    ($ix: ident, $ux: ident, $max_sz:expr) => {
+    ($ix: ident, $ux: ident, $max_sz:expr_2021) => {
         impl TuplePack for $ix {
             fn pack<W: io::Write>(
                 &self,
@@ -940,10 +940,10 @@ impl TuplePack for Element<'_> {
             Element::Int(i) => i.pack(w, tuple_depth),
             Element::Float(f) => f.pack(w, tuple_depth),
             Element::Double(f) => f.pack(w, tuple_depth),
-            Element::String(ref c) => c.pack(w, tuple_depth),
-            Element::Bytes(ref b) => b.pack(w, tuple_depth),
-            Element::Versionstamp(ref b) => b.pack(w, tuple_depth),
-            Element::Tuple(ref v) => v.pack(w, tuple_depth),
+            Element::String(c) => c.pack(w, tuple_depth),
+            Element::Bytes(b) => b.pack(w, tuple_depth),
+            Element::Versionstamp(b) => b.pack(w, tuple_depth),
+            Element::Tuple(v) => v.pack(w, tuple_depth),
             #[cfg(feature = "uuid")]
             Element::Uuid(v) => v.pack(w, tuple_depth),
             #[cfg(feature = "num-bigint")]

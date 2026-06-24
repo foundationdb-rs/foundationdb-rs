@@ -1,6 +1,6 @@
 use byteorder::ByteOrder;
 use foundationdb::tuple::Subspace;
-use foundationdb::{options, Database, FdbResult, Transaction};
+use foundationdb::{Database, FdbResult, Transaction, options};
 
 #[tokio::main]
 async fn main() {

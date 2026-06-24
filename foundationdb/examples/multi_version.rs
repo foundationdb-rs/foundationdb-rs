@@ -2,7 +2,7 @@ use byteorder::ByteOrder;
 use foundationdb::api::FdbApiBuilder;
 use foundationdb::options::NetworkOption;
 use foundationdb::tuple::Subspace;
-use foundationdb::{options, Database, FdbBindingError};
+use foundationdb::{Database, FdbBindingError, options};
 
 /// This example demonstrate usage of multi_version compatibility client.
 ///

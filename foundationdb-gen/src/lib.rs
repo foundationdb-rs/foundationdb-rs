@@ -89,7 +89,7 @@ impl FdbScope {
             "{TAB1}pub unsafe fn apply(&self{first_arg}) -> FdbResult<()> {{"
         )?;
         writeln!(w, "{TAB2}let code = self.code();")?;
-        writeln!(w, "{TAB2}let err = match *self {{")?;
+        writeln!(w, "{TAB2}let err = unsafe {{ match *self {{")?;
 
         let args = if first_arg.is_empty() {
             "code"
@@ -133,7 +133,7 @@ impl FdbScope {
             }
         }
 
-        writeln!(w, "{TAB2}}};")?;
+        writeln!(w, "{TAB2}}} }};")?;
         writeln!(
             w,
             "{TAB2}if err != 0 {{ Err(FdbError::from_code(err)) }} else {{ Ok(()) }}",

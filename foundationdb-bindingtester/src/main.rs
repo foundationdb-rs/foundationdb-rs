@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::thread;
 
 use fdb::options::{ConflictRangeType, DatabaseOption, TransactionOption};
-use fdb::tuple::{pack, pack_into, unpack, Bytes, Element, Subspace, TuplePack};
+use fdb::tuple::{Bytes, Element, Subspace, TuplePack, pack, pack_into, unpack};
 use fdb::*;
 use futures::future;
 use futures::prelude::*;
@@ -1771,32 +1771,36 @@ impl StackMachine {
                 let node_subspace = self.directory_stack.get(index_node_subspace);
                 let content_subspace = self.directory_stack.get(index_content_subspace);
 
-                if node_subspace.is_none() || content_subspace.is_none() {
-                    error!(
-                        "pushing null on the directory list: {}, {}",
-                        node_subspace.is_some(),
-                        content_subspace.is_some()
-                    );
-                    self.directory_stack.push(DirectoryStackItem::Null);
-                } else {
-                    let node_subspace = match node_subspace.unwrap() {
-                        DirectoryStackItem::Subspace(s) => s.to_owned(),
-                        _ => panic!("expecting subspace"),
-                    };
+                match (node_subspace, content_subspace) {
+                    (Some(node_subspace), Some(content_subspace)) => {
+                        let node_subspace = match node_subspace {
+                            DirectoryStackItem::Subspace(s) => s.to_owned(),
+                            _ => panic!("expecting subspace"),
+                        };
 
-                    let content_subspace = match content_subspace.unwrap() {
-                        DirectoryStackItem::Subspace(s) => s.to_owned(),
-                        _ => panic!("expecting subspace"),
-                    };
+                        let content_subspace = match content_subspace {
+                            DirectoryStackItem::Subspace(s) => s.to_owned(),
+                            _ => panic!("expecting subspace"),
+                        };
 
-                    debug!("pushed a directory at index {}", self.directory_stack.len());
+                        debug!("pushed a directory at index {}", self.directory_stack.len());
 
-                    self.directory_stack
-                        .push(DirectoryStackItem::Directory(DirectoryLayer::new(
-                            node_subspace,
-                            content_subspace,
-                            allow_manual_prefixes,
-                        )));
+                        self.directory_stack.push(DirectoryStackItem::Directory(
+                            DirectoryLayer::new(
+                                node_subspace,
+                                content_subspace,
+                                allow_manual_prefixes,
+                            ),
+                        ));
+                    }
+                    (node_subspace, content_subspace) => {
+                        error!(
+                            "pushing null on the directory list: {}, {}",
+                            node_subspace.is_some(),
+                            content_subspace.is_some()
+                        );
+                        self.directory_stack.push(DirectoryStackItem::Null);
+                    }
                 }
             }
 

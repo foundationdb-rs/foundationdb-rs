@@ -1,6 +1,6 @@
+use crate::PROFILE_PREFIX;
 use crate::parse::Parse;
 use crate::scanner::Scanner;
-use crate::PROFILE_PREFIX;
 use foundationdb::tuple::{Bytes, Versionstamp};
 use futures_util::AsyncReadExt;
 use std::error::Error;

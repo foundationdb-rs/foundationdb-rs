@@ -116,12 +116,12 @@ impl FdbMappedKeyValue {
     }
 
     /// Retrieves the beginning of the range as a [`KeySelector`]
-    pub fn begin_selector(&self) -> KeySelector {
+    pub fn begin_selector(&self) -> KeySelector<'_> {
         KeySelector::new(Cow::from(self.begin_range()), false, 0)
     }
 
     /// Retrieves the end of the range as a [`KeySelector`]
-    pub fn end_selector(&self) -> KeySelector {
+    pub fn end_selector(&self) -> KeySelector<'_> {
         KeySelector::new(Cow::from(self.end_range()), false, 0)
     }
 

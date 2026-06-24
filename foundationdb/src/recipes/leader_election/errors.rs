@@ -10,8 +10,8 @@
 //! Defines the error hierarchy for leader election operations,
 //! including election-specific errors and conversions from underlying errors.
 
-use crate::tuple::PackError;
 use crate::FdbError;
+use crate::tuple::PackError;
 use std::fmt;
 
 /// Leader election specific errors

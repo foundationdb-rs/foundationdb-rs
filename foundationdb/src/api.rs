@@ -19,7 +19,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
 use crate::options::NetworkOption;
-use crate::{error, FdbResult};
+use crate::{FdbResult, error};
 use foundationdb_sys as fdb_sys;
 
 /// Returns the max api version of the underlying Fdb C API Client
@@ -205,16 +205,18 @@ impl NetworkBuilder {
     /// }
     /// ```
     pub unsafe fn boot(self) -> FdbResult<NetworkAutoStop> {
-        let (runner, cond) = self.build()?;
+        unsafe {
+            let (runner, cond) = self.build()?;
 
-        let net_thread = runner.spawn();
+            let net_thread = runner.spawn();
 
-        let network = cond.wait();
+            let network = cond.wait();
 
-        Ok(NetworkAutoStop {
-            handle: Some(net_thread),
-            network: Some(network),
-        })
+            Ok(NetworkAutoStop {
+                handle: Some(net_thread),
+                network: Some(network),
+            })
+        }
     }
 }
 
@@ -252,9 +254,11 @@ impl NetworkRunner {
     }
 
     unsafe fn spawn(self) -> thread::JoinHandle<()> {
-        thread::spawn(move || {
-            self.run().expect("failed to run network thread");
-        })
+        unsafe {
+            thread::spawn(move || {
+                self.run().expect("failed to run network thread");
+            })
+        }
     }
 }
 

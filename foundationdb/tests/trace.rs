@@ -54,7 +54,7 @@ async fn test_traces_on_run() {
 
     let result = db
         .run(|_trx, _b| async move {
-            return Err::<(), FdbBindingError>(FdbBindingError::CustomError(Box::new(CustomError)));
+            Err::<(), FdbBindingError>(FdbBindingError::CustomError(Box::new(CustomError)))
         })
         .await;
 

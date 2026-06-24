@@ -1,11 +1,11 @@
-use crate::directory::directory_layer::{
-    DirectoryLayer, DEFAULT_SUB_DIRS, LAYER_SUFFIX, PARTITION_LAYER,
-};
-use crate::directory::error::DirectoryError;
-use crate::directory::DirectoryOutput;
-use crate::tuple::Subspace;
 use crate::RangeOption;
 use crate::Transaction;
+use crate::directory::DirectoryOutput;
+use crate::directory::directory_layer::{
+    DEFAULT_SUB_DIRS, DirectoryLayer, LAYER_SUFFIX, PARTITION_LAYER,
+};
+use crate::directory::error::DirectoryError;
+use crate::tuple::Subspace;
 use futures::TryStreamExt;
 
 #[derive(Debug, Clone)]

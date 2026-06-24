@@ -116,7 +116,7 @@ mod types;
 pub use errors::{LeaderElectionError, Result};
 pub use types::{CandidateInfo, ElectionConfig, ElectionResult, LeaderState};
 
-use crate::{tuple::Subspace, Transaction};
+use crate::{Transaction, tuple::Subspace};
 use std::ops::Deref;
 use std::time::Duration;
 

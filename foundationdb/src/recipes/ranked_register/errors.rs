@@ -7,8 +7,8 @@
 
 //! Error types for the ranked register
 
-use crate::tuple::PackError;
 use crate::FdbError;
+use crate::tuple::PackError;
 use std::fmt;
 
 /// Ranked register specific errors

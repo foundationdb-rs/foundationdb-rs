@@ -46,9 +46,9 @@
 //! - Candidates exist independently of leadership
 
 use crate::{
-    options::MutationType,
-    tuple::{pack, pack_with_versionstamp, unpack, Subspace, Versionstamp},
     RangeOption, Transaction,
+    options::MutationType,
+    tuple::{Subspace, Versionstamp, pack, pack_with_versionstamp, unpack},
 };
 use futures::StreamExt;
 use std::ops::Deref;

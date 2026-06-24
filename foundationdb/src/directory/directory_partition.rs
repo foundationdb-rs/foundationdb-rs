@@ -8,12 +8,12 @@
 
 //! A resulting Subspace whose prefix is preprended to all of its descendant directories's prefixes.
 
-use crate::directory::directory_layer::{DirectoryLayer, DEFAULT_NODE_PREFIX, PARTITION_LAYER};
+use crate::Transaction;
+use crate::directory::directory_layer::{DEFAULT_NODE_PREFIX, DirectoryLayer, PARTITION_LAYER};
 use crate::directory::directory_subspace::DirectorySubspace;
 use crate::directory::error::DirectoryError;
 use crate::directory::{Directory, DirectoryOutput};
 use crate::tuple::Subspace;
-use crate::Transaction;
 use async_trait::async_trait;
 use std::ops::Deref;
 use std::sync::Arc;

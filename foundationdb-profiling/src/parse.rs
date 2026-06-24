@@ -42,7 +42,7 @@ pub trait Parse: Sized {
 /// If the `Scanner` does not have enough remaining bytes to extract `$size` bytes,
 /// the implementation will panic or exhibit undefined behavior due to bounds violations.
 macro_rules! impl_parse {
-    ($x: ty, $type: ident, $size: expr) => {
+    ($x: ty, $type: ident, $size: expr_2021) => {
         #[async_trait::async_trait]
         impl Parse for $x {
             async fn parse(

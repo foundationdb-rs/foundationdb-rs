@@ -8,11 +8,11 @@
 
 //! The resulting Subspace generated with a Directory
 
+use crate::Transaction;
 use crate::directory::directory_layer::DirectoryLayer;
 use crate::directory::error::DirectoryError;
 use crate::directory::{Directory, DirectoryOutput};
 use crate::tuple::{PackResult, Subspace, TuplePack, TupleUnpack};
-use crate::Transaction;
 use async_trait::async_trait;
 
 /// A `DirectorySubspace` represents the contents of a directory, but it also remembers

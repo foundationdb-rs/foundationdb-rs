@@ -10,7 +10,7 @@ use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys::if_cfg_api_versions;
 use futures::future::*;
 use std::ops::Deref;
-use std::sync::{atomic::*, Arc};
+use std::sync::{Arc, atomic::*};
 
 mod common;
 

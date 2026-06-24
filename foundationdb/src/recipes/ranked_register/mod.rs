@@ -72,7 +72,7 @@ mod types;
 pub use errors::{RankedRegisterError, Result};
 pub use types::{Rank, ReadResult, RegisterState, WriteResult};
 
-use crate::{tuple::Subspace, Transaction};
+use crate::{Transaction, tuple::Subspace};
 use std::ops::Deref;
 
 /// A ranked register backed by FoundationDB

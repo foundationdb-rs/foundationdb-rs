@@ -2,12 +2,12 @@ extern crate core;
 
 use foundationdb::future::FdbValues;
 use foundationdb::options::ConflictRangeType;
-use foundationdb::tuple::{pack, Subspace};
+use foundationdb::tuple::{Subspace, pack};
 use foundationdb::*;
 use futures::prelude::*;
 use std::fmt::{Display, Formatter};
-use std::sync::atomic::{AtomicI16, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI16, Ordering};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::time::timeout;

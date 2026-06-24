@@ -6,9 +6,9 @@
 // copied, modified, or distributed except according to those terms.
 
 use foundationdb::{
+    Database,
     options::MutationType,
     tuple::{Subspace, Versionstamp},
-    Database,
 };
 use futures::StreamExt;
 

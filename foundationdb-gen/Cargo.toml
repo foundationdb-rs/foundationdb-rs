@@ -6,7 +6,7 @@ authors = [
     "Vincent Rouillé <vincent@clikengo.com>",
     "Pierre Zemb <contact@pierrezemb.fr>"
 ]
-edition = "2021"
+edition = "2024"
 rust-version = "1.85.1"
 
 description = """

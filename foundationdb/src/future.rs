@@ -42,7 +42,7 @@ use foundationdb_sys as fdb_sys;
 use futures::prelude::*;
 use futures::task::{AtomicWaker, Context, Poll};
 
-use crate::{error, FdbError, FdbResult};
+use crate::{FdbError, FdbResult, error};
 
 /// An opaque type that represents a Future in the FoundationDB C API.
 pub struct FdbFutureHandle(NonNull<fdb_sys::FDBFuture>);

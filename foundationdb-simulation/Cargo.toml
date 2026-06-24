@@ -5,7 +5,7 @@ authors = [
     "Eloi DEMOLIS <eloi.demolis@clever-cloud.com>",
     "Pierre Zemb <contact@pierrezemb.fr>"
 ]
-edition = "2021"
+edition = "2024"
 description = """
 Embed Rust code within FoundationDB's simulation
 """

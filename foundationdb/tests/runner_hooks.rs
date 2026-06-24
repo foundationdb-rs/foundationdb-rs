@@ -3,9 +3,9 @@ use foundationdb::*;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys::if_cfg_api_versions;
 #[allow(unused_imports)]
-use std::sync::atomic::{AtomicU64, Ordering};
-#[allow(unused_imports)]
 use std::sync::Arc;
+#[allow(unused_imports)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 mod common;
 
