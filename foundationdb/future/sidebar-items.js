@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"static":["CUSTOM_EXECUTOR_HOOK"],"struct":["FdbAddress","FdbAddresses","FdbKeyValue","FdbSlice","FdbValue","FdbValues","FdbValuesIter"]};
+window.SIDEBAR_ITEMS = {"static":["CUSTOM_EXECUTOR_HOOK"],"struct":["FdbAddress","FdbAddresses","FdbFuture","FdbFutureHandle","FdbKeyValue","FdbSlice","FdbValue","FdbValues","FdbValuesIter"]};
