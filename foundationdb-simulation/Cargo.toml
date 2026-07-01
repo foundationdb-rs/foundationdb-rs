@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb-simulation"
-version = "0.3.0"
+version = "0.3.1"
 authors = [
     "Eloi DEMOLIS <eloi.demolis@clever-cloud.com>",
     "Pierre Zemb <contact@pierrezemb.fr>"
@@ -19,7 +19,7 @@ keywords = ["foundationdb", "simulation"]
 features = ["embedded-fdb-include", "fdb-7_4"]
 
 [dependencies]
-foundationdb = { version = "0.11.0", path = "../foundationdb", default-features = false }
+foundationdb = { version = "0.11.1", path = "../foundationdb", default-features = false }
 foundationdb-sys = { version = "0.11.0", path = "../foundationdb-sys", default-features = false }
 
 [build-dependencies]
