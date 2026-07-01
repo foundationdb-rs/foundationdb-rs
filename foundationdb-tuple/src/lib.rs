@@ -381,6 +381,53 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_typecode_band_ordering() {
+        // Order-preserving keys rely on packed tuples comparing byte-lexicographically
+        // (Rust's `Vec<u8>` ordering). This mirrors a subspace-prefix scheme where the
+        // prefix is a u32 discriminant, with a negative "header" band strictly before it
+        // and an f32 band strictly after it. The typecode band, not the value, decides:
+        //   negatives (0x0c..=0x13)  <  u32 (0x14..=0x18)  <  f32 (0x20 ...)
+        let hex = |b: &[u8]| {
+            b.iter()
+                .map(|x| format!("{x:02x}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+
+        // "before" band: signed ints, min and max of the range we might use.
+        let neg_min = pack(&i64::MIN); // 0c 7f ff ff ff ff ff ff ff (most negative)
+        let neg_max = pack(&-1i64); //    13 fe                      (closest to u32 band)
+
+        // middle band: the u32 subspace prefix, min and max discriminant.
+        let u32_min = pack(&0u32); //     14                         (INTZERO)
+        let u32_max = pack(&u32::MAX); //  18 ff ff ff ff            (4-byte positive int)
+
+        // "after" band: f32 markers >= 1.0, min and max of the range we might use.
+        let f_min = pack(&1.0f32); //     20 bf 80 00 00             (closest to u32 band)
+        let f_max = pack(&f32::MAX); //    20 ff 7f ff ff
+
+        println!("i64::MIN = {}", hex(&neg_min));
+        println!("-1i64    = {}", hex(&neg_max));
+        println!("0u32     = {}", hex(&u32_min));
+        println!("u32::MAX = {}", hex(&u32_max));
+        println!("1.0f32   = {}", hex(&f_min));
+        println!("f32::MAX = {}", hex(&f_max));
+
+        // Within each band numeric order is preserved (nothing weird inside a band).
+        assert!(neg_min < neg_max); // 0c ..    < 13 fe
+        assert!(u32_min < u32_max); // 14       < 18 ..
+        assert!(f_min < f_max); //     20 bf .. < 20 ff ..
+
+        // Whole "before" band sorts under the u32 band; tightest pair is -1 vs 0.
+        assert!(neg_max < u32_min); // 13 fe < 14
+        assert!(neg_min < u32_min); // 0c .. < 14 (even the most negative stays below)
+
+        // Whole "after" band sorts over the u32 band; tightest pair is u32::MAX vs 1.0.
+        assert!(u32_max < f_min); //   18 ff ff ff ff < 20 bf 80 00 00
+        assert!(u32_max < f_max); //   18 ..          < 20 ff .. (magnitude irrelevant)
+    }
+
     #[cfg(feature = "num-bigint")]
     #[test]
     fn test_bigint() {
