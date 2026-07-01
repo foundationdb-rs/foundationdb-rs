@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-tuple/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_tuple" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.0 (ac68faa20 2026-05-25)" data-channel="1.96.0" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">foundationdb_tuple/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Implementation of the official tuple layer typecodes
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb-tuple/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb_tuple" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.1 (31fca3adb 2026-06-26)" data-channel="1.96.1" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">foundationdb_tuple/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Implementation of the official tuple layer typecodes
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! The official specification can be found [here](https://github.com/apple/foundationdb/blob/master/design/tuple.md).
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -381,271 +381,318 @@
 <a href=#381 id=381 data-nosnippet>381</a>        ));
 <a href=#382 id=382 data-nosnippet>382</a>    }
 <a href=#383 id=383 data-nosnippet>383</a>
-<a href=#384 id=384 data-nosnippet>384</a>    <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
-<a href=#385 id=385 data-nosnippet>385</a>    #[test]
-<a href=#386 id=386 data-nosnippet>386</a>    </span><span class="kw">fn </span>test_bigint() {
-<a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">use </span>num_bigint::{BigInt, BigUint};
-<a href=#388 id=388 data-nosnippet>388</a>        <span class="comment">// int
-<a href=#389 id=389 data-nosnippet>389</a>        </span>test_serde(BigInt::from(<span class="number">0i64</span>), <span class="kw-2">&amp;</span>[INTZERO]);
-<a href=#390 id=390 data-nosnippet>390</a>        test_serde(BigUint::from(<span class="number">0u64</span>), <span class="kw-2">&amp;</span>[INTZERO]);
-<a href=#391 id=391 data-nosnippet>391</a>        test_serde(BigInt::from(<span class="number">1i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">1</span>]);
-<a href=#392 id=392 data-nosnippet>392</a>        test_serde(BigUint::from(<span class="number">1u64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">1</span>]);
-<a href=#393 id=393 data-nosnippet>393</a>        test_serde(BigInt::from(-<span class="number">1i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">254</span>]);
-<a href=#394 id=394 data-nosnippet>394</a>        test_serde(BigInt::from(<span class="number">100i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">100</span>]);
-<a href=#395 id=395 data-nosnippet>395</a>        test_serde(BigUint::from(<span class="number">100u64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">100</span>]);
-<a href=#396 id=396 data-nosnippet>396</a>
-<a href=#397 id=397 data-nosnippet>397</a>        test_serde(BigInt::from(<span class="number">10000i32</span>), <span class="kw-2">&amp;</span>[<span class="number">0x16</span>, <span class="number">39</span>, <span class="number">16</span>]);
-<a href=#398 id=398 data-nosnippet>398</a>        test_serde(BigUint::from(<span class="number">10000u32</span>), <span class="kw-2">&amp;</span>[<span class="number">0x16</span>, <span class="number">39</span>, <span class="number">16</span>]);
-<a href=#399 id=399 data-nosnippet>399</a>        test_serde(BigInt::from(-<span class="number">100i16</span>), <span class="kw-2">&amp;</span>[<span class="number">19</span>, <span class="number">155</span>]);
-<a href=#400 id=400 data-nosnippet>400</a>        test_serde(BigInt::from(-<span class="number">10000i64</span>), <span class="kw-2">&amp;</span>[<span class="number">18</span>, <span class="number">216</span>, <span class="number">239</span>]);
-<a href=#401 id=401 data-nosnippet>401</a>        test_serde(BigInt::from(-<span class="number">1000000i64</span>), <span class="kw-2">&amp;</span>[<span class="number">17</span>, <span class="number">240</span>, <span class="number">189</span>, <span class="number">191</span>]);
-<a href=#402 id=402 data-nosnippet>402</a>
-<a href=#403 id=403 data-nosnippet>403</a>        <span class="comment">// boundary condition
-<a href=#404 id=404 data-nosnippet>404</a>        </span>test_serde(BigInt::from(<span class="number">255u16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">255</span>]);
-<a href=#405 id=405 data-nosnippet>405</a>        test_serde(BigUint::from(<span class="number">255u16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">255</span>]);
-<a href=#406 id=406 data-nosnippet>406</a>        test_serde(BigInt::from(<span class="number">256i32</span>), <span class="kw-2">&amp;</span>[<span class="number">0x16</span>, <span class="number">1</span>, <span class="number">0</span>]);
-<a href=#407 id=407 data-nosnippet>407</a>        test_serde(BigInt::from(-<span class="number">255i16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">0</span>]);
-<a href=#408 id=408 data-nosnippet>408</a>        test_serde(BigInt::from(-<span class="number">256i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x12</span>, <span class="number">254</span>, <span class="number">255</span>]);
+<a href=#384 id=384 data-nosnippet>384</a>    <span class="attr">#[test]
+<a href=#385 id=385 data-nosnippet>385</a>    </span><span class="kw">fn </span>test_typecode_band_ordering() {
+<a href=#386 id=386 data-nosnippet>386</a>        <span class="comment">// Order-preserving keys rely on packed tuples comparing byte-lexicographically
+<a href=#387 id=387 data-nosnippet>387</a>        // (Rust's `Vec&lt;u8&gt;` ordering). This mirrors a subspace-prefix scheme where the
+<a href=#388 id=388 data-nosnippet>388</a>        // prefix is a u32 discriminant, with a negative "header" band strictly before it
+<a href=#389 id=389 data-nosnippet>389</a>        // and an f32 band strictly after it. The typecode band, not the value, decides:
+<a href=#390 id=390 data-nosnippet>390</a>        //   negatives (0x0c..=0x13)  &lt;  u32 (0x14..=0x18)  &lt;  f32 (0x20 ...)
+<a href=#391 id=391 data-nosnippet>391</a>        </span><span class="kw">let </span>hex = |b: <span class="kw-2">&amp;</span>[u8]| {
+<a href=#392 id=392 data-nosnippet>392</a>            b.iter()
+<a href=#393 id=393 data-nosnippet>393</a>                .map(|x| <span class="macro">format!</span>(<span class="string">"{x:02x}"</span>))
+<a href=#394 id=394 data-nosnippet>394</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#395 id=395 data-nosnippet>395</a>                .join(<span class="string">" "</span>)
+<a href=#396 id=396 data-nosnippet>396</a>        };
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="comment">// "before" band: signed ints, min and max of the range we might use.
+<a href=#399 id=399 data-nosnippet>399</a>        </span><span class="kw">let </span>neg_min = pack(<span class="kw-2">&amp;</span>i64::MIN); <span class="comment">// 0c 7f ff ff ff ff ff ff ff (most negative)
+<a href=#400 id=400 data-nosnippet>400</a>        </span><span class="kw">let </span>neg_max = pack(<span class="kw-2">&amp;</span>-<span class="number">1i64</span>); <span class="comment">//    13 fe                      (closest to u32 band)
+<a href=#401 id=401 data-nosnippet>401</a>
+<a href=#402 id=402 data-nosnippet>402</a>        // middle band: the u32 subspace prefix, min and max discriminant.
+<a href=#403 id=403 data-nosnippet>403</a>        </span><span class="kw">let </span>u32_min = pack(<span class="kw-2">&amp;</span><span class="number">0u32</span>); <span class="comment">//     14                         (INTZERO)
+<a href=#404 id=404 data-nosnippet>404</a>        </span><span class="kw">let </span>u32_max = pack(<span class="kw-2">&amp;</span>u32::MAX); <span class="comment">//  18 ff ff ff ff            (4-byte positive int)
+<a href=#405 id=405 data-nosnippet>405</a>
+<a href=#406 id=406 data-nosnippet>406</a>        // "after" band: f32 markers &gt;= 1.0, min and max of the range we might use.
+<a href=#407 id=407 data-nosnippet>407</a>        </span><span class="kw">let </span>f_min = pack(<span class="kw-2">&amp;</span><span class="number">1.0f32</span>); <span class="comment">//     20 bf 80 00 00             (closest to u32 band)
+<a href=#408 id=408 data-nosnippet>408</a>        </span><span class="kw">let </span>f_max = pack(<span class="kw-2">&amp;</span>f32::MAX); <span class="comment">//    20 ff 7f ff ff
 <a href=#409 id=409 data-nosnippet>409</a>
-<a href=#410 id=410 data-nosnippet>410</a>        test_serde(BigInt::from(<span class="number">0</span>), <span class="string">b"\x14"</span>);
-<a href=#411 id=411 data-nosnippet>411</a>        test_serde(BigUint::from(<span class="number">0u64</span>), <span class="string">b"\x14"</span>);
-<a href=#412 id=412 data-nosnippet>412</a>        test_serde(BigInt::from(<span class="number">1</span>), <span class="string">b"\x15\x01"</span>);
-<a href=#413 id=413 data-nosnippet>413</a>        test_serde(BigUint::from(<span class="number">1u64</span>), <span class="string">b"\x15\x01"</span>);
-<a href=#414 id=414 data-nosnippet>414</a>        test_serde(BigInt::from(-<span class="number">1</span>), <span class="string">b"\x13\xfe"</span>);
-<a href=#415 id=415 data-nosnippet>415</a>        test_serde(BigInt::from(<span class="number">255</span>), <span class="string">b"\x15\xff"</span>);
-<a href=#416 id=416 data-nosnippet>416</a>        test_serde(BigUint::from(<span class="number">255u64</span>), <span class="string">b"\x15\xff"</span>);
-<a href=#417 id=417 data-nosnippet>417</a>        test_serde(BigInt::from(-<span class="number">255</span>), <span class="string">b"\x13\x00"</span>);
-<a href=#418 id=418 data-nosnippet>418</a>        test_serde(BigInt::from(<span class="number">256</span>), <span class="string">b"\x16\x01\x00"</span>);
-<a href=#419 id=419 data-nosnippet>419</a>        test_serde(BigUint::from(<span class="number">256u64</span>), <span class="string">b"\x16\x01\x00"</span>);
-<a href=#420 id=420 data-nosnippet>420</a>        test_serde(BigInt::from(-<span class="number">256</span>), <span class="string">b"\x12\xfe\xff"</span>);
-<a href=#421 id=421 data-nosnippet>421</a>        test_serde(BigInt::from(<span class="number">65536</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
-<a href=#422 id=422 data-nosnippet>422</a>        test_serde(BigUint::from(<span class="number">65536u64</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
-<a href=#423 id=423 data-nosnippet>423</a>        test_serde(BigInt::from(-<span class="number">65536</span>), <span class="string">b"\x11\xfe\xff\xff"</span>);
-<a href=#424 id=424 data-nosnippet>424</a>        test_serde(
-<a href=#425 id=425 data-nosnippet>425</a>            BigInt::from(i64::MAX),
-<a href=#426 id=426 data-nosnippet>426</a>            <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#427 id=427 data-nosnippet>427</a>        );
-<a href=#428 id=428 data-nosnippet>428</a>        test_serde(
-<a href=#429 id=429 data-nosnippet>429</a>            BigUint::from(i64::MAX <span class="kw">as </span>u64),
-<a href=#430 id=430 data-nosnippet>430</a>            <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#431 id=431 data-nosnippet>431</a>        );
-<a href=#432 id=432 data-nosnippet>432</a>        test_serde(
-<a href=#433 id=433 data-nosnippet>433</a>            BigInt::from(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>),
-<a href=#434 id=434 data-nosnippet>434</a>            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#435 id=435 data-nosnippet>435</a>        );
-<a href=#436 id=436 data-nosnippet>436</a>        test_serde(
-<a href=#437 id=437 data-nosnippet>437</a>            BigUint::from(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>),
-<a href=#438 id=438 data-nosnippet>438</a>            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#439 id=439 data-nosnippet>439</a>        );
-<a href=#440 id=440 data-nosnippet>440</a>        test_serde(
-<a href=#441 id=441 data-nosnippet>441</a>            BigInt::from(u64::MAX),
-<a href=#442 id=442 data-nosnippet>442</a>            <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#443 id=443 data-nosnippet>443</a>        );
-<a href=#444 id=444 data-nosnippet>444</a>        test_serde(
-<a href=#445 id=445 data-nosnippet>445</a>            BigUint::from(u64::MAX),
-<a href=#446 id=446 data-nosnippet>446</a>            <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#447 id=447 data-nosnippet>447</a>        );
-<a href=#448 id=448 data-nosnippet>448</a>        test_serde(
-<a href=#449 id=449 data-nosnippet>449</a>            BigInt::from(u128::MAX),
-<a href=#450 id=450 data-nosnippet>450</a>            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#451 id=451 data-nosnippet>451</a>        );
-<a href=#452 id=452 data-nosnippet>452</a>        test_serde(
-<a href=#453 id=453 data-nosnippet>453</a>            BigUint::from(u128::MAX),
-<a href=#454 id=454 data-nosnippet>454</a>            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#455 id=455 data-nosnippet>455</a>        );
-<a href=#456 id=456 data-nosnippet>456</a>        test_serde(
-<a href=#457 id=457 data-nosnippet>457</a>            BigInt::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
-<a href=#458 id=458 data-nosnippet>458</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#459 id=459 data-nosnippet>459</a>        );
-<a href=#460 id=460 data-nosnippet>460</a>        test_serde(
-<a href=#461 id=461 data-nosnippet>461</a>            BigUint::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
-<a href=#462 id=462 data-nosnippet>462</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#463 id=463 data-nosnippet>463</a>        );
-<a href=#464 id=464 data-nosnippet>464</a>        test_serde(
-<a href=#465 id=465 data-nosnippet>465</a>            BigInt::from(u64::MAX <span class="kw">as </span>i128 + <span class="number">1</span>),
-<a href=#466 id=466 data-nosnippet>466</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#467 id=467 data-nosnippet>467</a>        );
-<a href=#468 id=468 data-nosnippet>468</a>        test_serde(
-<a href=#469 id=469 data-nosnippet>469</a>            BigUint::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
-<a href=#470 id=470 data-nosnippet>470</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#471 id=471 data-nosnippet>471</a>        );
-<a href=#472 id=472 data-nosnippet>472</a>        test_serde(
-<a href=#473 id=473 data-nosnippet>473</a>            BigInt::from(i64::MIN <span class="kw">as </span>i128 + <span class="number">1</span>),
-<a href=#474 id=474 data-nosnippet>474</a>            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#475 id=475 data-nosnippet>475</a>        );
-<a href=#476 id=476 data-nosnippet>476</a>        test_serde(
-<a href=#477 id=477 data-nosnippet>477</a>            BigInt::from(i64::MIN <span class="kw">as </span>i128 - <span class="number">1</span>),
-<a href=#478 id=478 data-nosnippet>478</a>            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
-<a href=#479 id=479 data-nosnippet>479</a>        );
-<a href=#480 id=480 data-nosnippet>480</a>        test_serde(
-<a href=#481 id=481 data-nosnippet>481</a>            BigInt::from(-(u64::MAX <span class="kw">as </span>i128)),
-<a href=#482 id=482 data-nosnippet>482</a>            <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#483 id=483 data-nosnippet>483</a>        );
-<a href=#484 id=484 data-nosnippet>484</a>        test_serde(
-<a href=#485 id=485 data-nosnippet>485</a>            BigInt::from(-(u64::MAX <span class="kw">as </span>i128) - <span class="number">1</span>),
-<a href=#486 id=486 data-nosnippet>486</a>            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#487 id=487 data-nosnippet>487</a>        );
-<a href=#488 id=488 data-nosnippet>488</a>        test_serde(
-<a href=#489 id=489 data-nosnippet>489</a>            BigInt::from(-(u64::MAX <span class="kw">as </span>i128) - <span class="number">2</span>),
-<a href=#490 id=490 data-nosnippet>490</a>            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
-<a href=#491 id=491 data-nosnippet>491</a>        );
-<a href=#492 id=492 data-nosnippet>492</a>        test_serde(
-<a href=#493 id=493 data-nosnippet>493</a>            BigInt::from((u64::MAX <span class="kw">as </span>i128) * -<span class="number">2</span>),
-<a href=#494 id=494 data-nosnippet>494</a>            <span class="string">b"\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01"</span>,
-<a href=#495 id=495 data-nosnippet>495</a>        );
-<a href=#496 id=496 data-nosnippet>496</a>        test_serde(
-<a href=#497 id=497 data-nosnippet>497</a>            BigInt::from((u64::MAX <span class="kw">as </span>i128) * <span class="number">2</span>),
-<a href=#498 id=498 data-nosnippet>498</a>            <span class="string">b"\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
-<a href=#499 id=499 data-nosnippet>499</a>        );
-<a href=#500 id=500 data-nosnippet>500</a>        test_serde(BigInt::from(-<span class="number">4294967295i64</span>), <span class="string">b"\x10\x00\x00\x00\x00"</span>);
-<a href=#501 id=501 data-nosnippet>501</a>        test_serde(
-<a href=#502 id=502 data-nosnippet>502</a>            BigInt::from(i64::MIN + <span class="number">2</span>),
-<a href=#503 id=503 data-nosnippet>503</a>            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>,
-<a href=#504 id=504 data-nosnippet>504</a>        );
-<a href=#505 id=505 data-nosnippet>505</a>        test_serde(
-<a href=#506 id=506 data-nosnippet>506</a>            BigInt::from(i64::MIN + <span class="number">1</span>),
-<a href=#507 id=507 data-nosnippet>507</a>            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
-<a href=#508 id=508 data-nosnippet>508</a>        );
-<a href=#509 id=509 data-nosnippet>509</a>        test_serde(
-<a href=#510 id=510 data-nosnippet>510</a>            BigInt::from(i64::MIN),
-<a href=#511 id=511 data-nosnippet>511</a>            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
-<a href=#512 id=512 data-nosnippet>512</a>        );
-<a href=#513 id=513 data-nosnippet>513</a>
-<a href=#514 id=514 data-nosnippet>514</a>        test_serde(
-<a href=#515 id=515 data-nosnippet>515</a>            Element::BigInt(<span class="number">9252427359321063944i128</span>.into()),
-<a href=#516 id=516 data-nosnippet>516</a>            <span class="string">b"\x1c\x80g9\xa9np\x02\x08"</span>,
-<a href=#517 id=517 data-nosnippet>517</a>        );
-<a href=#518 id=518 data-nosnippet>518</a>        test_serde(
-<a href=#519 id=519 data-nosnippet>519</a>            Element::BigInt((-<span class="number">9252427359321063944i128</span>).into()),
-<a href=#520 id=520 data-nosnippet>520</a>            <span class="string">b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7"</span>,
-<a href=#521 id=521 data-nosnippet>521</a>        );
-<a href=#522 id=522 data-nosnippet>522</a>    }
-<a href=#523 id=523 data-nosnippet>523</a>
-<a href=#524 id=524 data-nosnippet>524</a>    <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
-<a href=#525 id=525 data-nosnippet>525</a>    #[test]
-<a href=#526 id=526 data-nosnippet>526</a>    </span><span class="kw">fn </span>test_uuid() {
-<a href=#527 id=527 data-nosnippet>527</a>        <span class="kw">use </span>uuid::Uuid;
-<a href=#528 id=528 data-nosnippet>528</a>
-<a href=#529 id=529 data-nosnippet>529</a>        test_serde(
-<a href=#530 id=530 data-nosnippet>530</a>            Element::Uuid(
-<a href=#531 id=531 data-nosnippet>531</a>                Uuid::from_slice(
-<a href=#532 id=532 data-nosnippet>532</a>                    <span class="string">b"\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e"</span>,
-<a href=#533 id=533 data-nosnippet>533</a>                )
-<a href=#534 id=534 data-nosnippet>534</a>                .unwrap(),
-<a href=#535 id=535 data-nosnippet>535</a>            ),
-<a href=#536 id=536 data-nosnippet>536</a>            <span class="string">b"\x30\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e"</span>,
-<a href=#537 id=537 data-nosnippet>537</a>        );
-<a href=#538 id=538 data-nosnippet>538</a>    }
-<a href=#539 id=539 data-nosnippet>539</a>
-<a href=#540 id=540 data-nosnippet>540</a>    <span class="attr">#[test]
-<a href=#541 id=541 data-nosnippet>541</a>    </span><span class="kw">fn </span>test_bindingtester() {
-<a href=#542 id=542 data-nosnippet>542</a>        test_serde(<span class="string">"NEW_TRANSACTION"</span>.to_string(), <span class="string">b"\x02NEW_TRANSACTION\x00"</span>);
+<a href=#410 id=410 data-nosnippet>410</a>        </span><span class="macro">println!</span>(<span class="string">"i64::MIN = {}"</span>, hex(<span class="kw-2">&amp;</span>neg_min));
+<a href=#411 id=411 data-nosnippet>411</a>        <span class="macro">println!</span>(<span class="string">"-1i64    = {}"</span>, hex(<span class="kw-2">&amp;</span>neg_max));
+<a href=#412 id=412 data-nosnippet>412</a>        <span class="macro">println!</span>(<span class="string">"0u32     = {}"</span>, hex(<span class="kw-2">&amp;</span>u32_min));
+<a href=#413 id=413 data-nosnippet>413</a>        <span class="macro">println!</span>(<span class="string">"u32::MAX = {}"</span>, hex(<span class="kw-2">&amp;</span>u32_max));
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="macro">println!</span>(<span class="string">"1.0f32   = {}"</span>, hex(<span class="kw-2">&amp;</span>f_min));
+<a href=#415 id=415 data-nosnippet>415</a>        <span class="macro">println!</span>(<span class="string">"f32::MAX = {}"</span>, hex(<span class="kw-2">&amp;</span>f_max));
+<a href=#416 id=416 data-nosnippet>416</a>
+<a href=#417 id=417 data-nosnippet>417</a>        <span class="comment">// Within each band numeric order is preserved (nothing weird inside a band).
+<a href=#418 id=418 data-nosnippet>418</a>        </span><span class="macro">assert!</span>(neg_min &lt; neg_max); <span class="comment">// 0c ..    &lt; 13 fe
+<a href=#419 id=419 data-nosnippet>419</a>        </span><span class="macro">assert!</span>(u32_min &lt; u32_max); <span class="comment">// 14       &lt; 18 ..
+<a href=#420 id=420 data-nosnippet>420</a>        </span><span class="macro">assert!</span>(f_min &lt; f_max); <span class="comment">//     20 bf .. &lt; 20 ff ..
+<a href=#421 id=421 data-nosnippet>421</a>
+<a href=#422 id=422 data-nosnippet>422</a>        // Whole "before" band sorts under the u32 band; tightest pair is -1 vs 0.
+<a href=#423 id=423 data-nosnippet>423</a>        </span><span class="macro">assert!</span>(neg_max &lt; u32_min); <span class="comment">// 13 fe &lt; 14
+<a href=#424 id=424 data-nosnippet>424</a>        </span><span class="macro">assert!</span>(neg_min &lt; u32_min); <span class="comment">// 0c .. &lt; 14 (even the most negative stays below)
+<a href=#425 id=425 data-nosnippet>425</a>
+<a href=#426 id=426 data-nosnippet>426</a>        // Whole "after" band sorts over the u32 band; tightest pair is u32::MAX vs 1.0.
+<a href=#427 id=427 data-nosnippet>427</a>        </span><span class="macro">assert!</span>(u32_max &lt; f_min); <span class="comment">//   18 ff ff ff ff &lt; 20 bf 80 00 00
+<a href=#428 id=428 data-nosnippet>428</a>        </span><span class="macro">assert!</span>(u32_max &lt; f_max); <span class="comment">//   18 ..          &lt; 20 ff .. (magnitude irrelevant)
+<a href=#429 id=429 data-nosnippet>429</a>    </span>}
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a>    <span class="attr">#[cfg(feature = <span class="string">"num-bigint"</span>)]
+<a href=#432 id=432 data-nosnippet>432</a>    #[test]
+<a href=#433 id=433 data-nosnippet>433</a>    </span><span class="kw">fn </span>test_bigint() {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">use </span>num_bigint::{BigInt, BigUint};
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="comment">// int
+<a href=#436 id=436 data-nosnippet>436</a>        </span>test_serde(BigInt::from(<span class="number">0i64</span>), <span class="kw-2">&amp;</span>[INTZERO]);
+<a href=#437 id=437 data-nosnippet>437</a>        test_serde(BigUint::from(<span class="number">0u64</span>), <span class="kw-2">&amp;</span>[INTZERO]);
+<a href=#438 id=438 data-nosnippet>438</a>        test_serde(BigInt::from(<span class="number">1i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">1</span>]);
+<a href=#439 id=439 data-nosnippet>439</a>        test_serde(BigUint::from(<span class="number">1u64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">1</span>]);
+<a href=#440 id=440 data-nosnippet>440</a>        test_serde(BigInt::from(-<span class="number">1i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">254</span>]);
+<a href=#441 id=441 data-nosnippet>441</a>        test_serde(BigInt::from(<span class="number">100i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">100</span>]);
+<a href=#442 id=442 data-nosnippet>442</a>        test_serde(BigUint::from(<span class="number">100u64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">100</span>]);
+<a href=#443 id=443 data-nosnippet>443</a>
+<a href=#444 id=444 data-nosnippet>444</a>        test_serde(BigInt::from(<span class="number">10000i32</span>), <span class="kw-2">&amp;</span>[<span class="number">0x16</span>, <span class="number">39</span>, <span class="number">16</span>]);
+<a href=#445 id=445 data-nosnippet>445</a>        test_serde(BigUint::from(<span class="number">10000u32</span>), <span class="kw-2">&amp;</span>[<span class="number">0x16</span>, <span class="number">39</span>, <span class="number">16</span>]);
+<a href=#446 id=446 data-nosnippet>446</a>        test_serde(BigInt::from(-<span class="number">100i16</span>), <span class="kw-2">&amp;</span>[<span class="number">19</span>, <span class="number">155</span>]);
+<a href=#447 id=447 data-nosnippet>447</a>        test_serde(BigInt::from(-<span class="number">10000i64</span>), <span class="kw-2">&amp;</span>[<span class="number">18</span>, <span class="number">216</span>, <span class="number">239</span>]);
+<a href=#448 id=448 data-nosnippet>448</a>        test_serde(BigInt::from(-<span class="number">1000000i64</span>), <span class="kw-2">&amp;</span>[<span class="number">17</span>, <span class="number">240</span>, <span class="number">189</span>, <span class="number">191</span>]);
+<a href=#449 id=449 data-nosnippet>449</a>
+<a href=#450 id=450 data-nosnippet>450</a>        <span class="comment">// boundary condition
+<a href=#451 id=451 data-nosnippet>451</a>        </span>test_serde(BigInt::from(<span class="number">255u16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">255</span>]);
+<a href=#452 id=452 data-nosnippet>452</a>        test_serde(BigUint::from(<span class="number">255u16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x15</span>, <span class="number">255</span>]);
+<a href=#453 id=453 data-nosnippet>453</a>        test_serde(BigInt::from(<span class="number">256i32</span>), <span class="kw-2">&amp;</span>[<span class="number">0x16</span>, <span class="number">1</span>, <span class="number">0</span>]);
+<a href=#454 id=454 data-nosnippet>454</a>        test_serde(BigInt::from(-<span class="number">255i16</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">0</span>]);
+<a href=#455 id=455 data-nosnippet>455</a>        test_serde(BigInt::from(-<span class="number">256i64</span>), <span class="kw-2">&amp;</span>[<span class="number">0x12</span>, <span class="number">254</span>, <span class="number">255</span>]);
+<a href=#456 id=456 data-nosnippet>456</a>
+<a href=#457 id=457 data-nosnippet>457</a>        test_serde(BigInt::from(<span class="number">0</span>), <span class="string">b"\x14"</span>);
+<a href=#458 id=458 data-nosnippet>458</a>        test_serde(BigUint::from(<span class="number">0u64</span>), <span class="string">b"\x14"</span>);
+<a href=#459 id=459 data-nosnippet>459</a>        test_serde(BigInt::from(<span class="number">1</span>), <span class="string">b"\x15\x01"</span>);
+<a href=#460 id=460 data-nosnippet>460</a>        test_serde(BigUint::from(<span class="number">1u64</span>), <span class="string">b"\x15\x01"</span>);
+<a href=#461 id=461 data-nosnippet>461</a>        test_serde(BigInt::from(-<span class="number">1</span>), <span class="string">b"\x13\xfe"</span>);
+<a href=#462 id=462 data-nosnippet>462</a>        test_serde(BigInt::from(<span class="number">255</span>), <span class="string">b"\x15\xff"</span>);
+<a href=#463 id=463 data-nosnippet>463</a>        test_serde(BigUint::from(<span class="number">255u64</span>), <span class="string">b"\x15\xff"</span>);
+<a href=#464 id=464 data-nosnippet>464</a>        test_serde(BigInt::from(-<span class="number">255</span>), <span class="string">b"\x13\x00"</span>);
+<a href=#465 id=465 data-nosnippet>465</a>        test_serde(BigInt::from(<span class="number">256</span>), <span class="string">b"\x16\x01\x00"</span>);
+<a href=#466 id=466 data-nosnippet>466</a>        test_serde(BigUint::from(<span class="number">256u64</span>), <span class="string">b"\x16\x01\x00"</span>);
+<a href=#467 id=467 data-nosnippet>467</a>        test_serde(BigInt::from(-<span class="number">256</span>), <span class="string">b"\x12\xfe\xff"</span>);
+<a href=#468 id=468 data-nosnippet>468</a>        test_serde(BigInt::from(<span class="number">65536</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
+<a href=#469 id=469 data-nosnippet>469</a>        test_serde(BigUint::from(<span class="number">65536u64</span>), <span class="string">b"\x17\x01\x00\x00"</span>);
+<a href=#470 id=470 data-nosnippet>470</a>        test_serde(BigInt::from(-<span class="number">65536</span>), <span class="string">b"\x11\xfe\xff\xff"</span>);
+<a href=#471 id=471 data-nosnippet>471</a>        test_serde(
+<a href=#472 id=472 data-nosnippet>472</a>            BigInt::from(i64::MAX),
+<a href=#473 id=473 data-nosnippet>473</a>            <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#474 id=474 data-nosnippet>474</a>        );
+<a href=#475 id=475 data-nosnippet>475</a>        test_serde(
+<a href=#476 id=476 data-nosnippet>476</a>            BigUint::from(i64::MAX <span class="kw">as </span>u64),
+<a href=#477 id=477 data-nosnippet>477</a>            <span class="string">b"\x1C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#478 id=478 data-nosnippet>478</a>        );
+<a href=#479 id=479 data-nosnippet>479</a>        test_serde(
+<a href=#480 id=480 data-nosnippet>480</a>            BigInt::from(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>),
+<a href=#481 id=481 data-nosnippet>481</a>            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#482 id=482 data-nosnippet>482</a>        );
+<a href=#483 id=483 data-nosnippet>483</a>        test_serde(
+<a href=#484 id=484 data-nosnippet>484</a>            BigUint::from(i64::MAX <span class="kw">as </span>u64 + <span class="number">1</span>),
+<a href=#485 id=485 data-nosnippet>485</a>            <span class="string">b"\x1C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#486 id=486 data-nosnippet>486</a>        );
+<a href=#487 id=487 data-nosnippet>487</a>        test_serde(
+<a href=#488 id=488 data-nosnippet>488</a>            BigInt::from(u64::MAX),
+<a href=#489 id=489 data-nosnippet>489</a>            <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#490 id=490 data-nosnippet>490</a>        );
+<a href=#491 id=491 data-nosnippet>491</a>        test_serde(
+<a href=#492 id=492 data-nosnippet>492</a>            BigUint::from(u64::MAX),
+<a href=#493 id=493 data-nosnippet>493</a>            <span class="string">b"\x1C\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#494 id=494 data-nosnippet>494</a>        );
+<a href=#495 id=495 data-nosnippet>495</a>        test_serde(
+<a href=#496 id=496 data-nosnippet>496</a>            BigInt::from(u128::MAX),
+<a href=#497 id=497 data-nosnippet>497</a>            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#498 id=498 data-nosnippet>498</a>        );
+<a href=#499 id=499 data-nosnippet>499</a>        test_serde(
+<a href=#500 id=500 data-nosnippet>500</a>            BigUint::from(u128::MAX),
+<a href=#501 id=501 data-nosnippet>501</a>            <span class="string">b"\x1D\x10\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#502 id=502 data-nosnippet>502</a>        );
+<a href=#503 id=503 data-nosnippet>503</a>        test_serde(
+<a href=#504 id=504 data-nosnippet>504</a>            BigInt::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
+<a href=#505 id=505 data-nosnippet>505</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#506 id=506 data-nosnippet>506</a>        );
+<a href=#507 id=507 data-nosnippet>507</a>        test_serde(
+<a href=#508 id=508 data-nosnippet>508</a>            BigUint::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
+<a href=#509 id=509 data-nosnippet>509</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#510 id=510 data-nosnippet>510</a>        );
+<a href=#511 id=511 data-nosnippet>511</a>        test_serde(
+<a href=#512 id=512 data-nosnippet>512</a>            BigInt::from(u64::MAX <span class="kw">as </span>i128 + <span class="number">1</span>),
+<a href=#513 id=513 data-nosnippet>513</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#514 id=514 data-nosnippet>514</a>        );
+<a href=#515 id=515 data-nosnippet>515</a>        test_serde(
+<a href=#516 id=516 data-nosnippet>516</a>            BigUint::from(u64::MAX <span class="kw">as </span>u128 + <span class="number">1</span>),
+<a href=#517 id=517 data-nosnippet>517</a>            <span class="string">b"\x1D\x09\x01\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#518 id=518 data-nosnippet>518</a>        );
+<a href=#519 id=519 data-nosnippet>519</a>        test_serde(
+<a href=#520 id=520 data-nosnippet>520</a>            BigInt::from(i64::MIN <span class="kw">as </span>i128 + <span class="number">1</span>),
+<a href=#521 id=521 data-nosnippet>521</a>            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#522 id=522 data-nosnippet>522</a>        );
+<a href=#523 id=523 data-nosnippet>523</a>        test_serde(
+<a href=#524 id=524 data-nosnippet>524</a>            BigInt::from(i64::MIN <span class="kw">as </span>i128 - <span class="number">1</span>),
+<a href=#525 id=525 data-nosnippet>525</a>            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xfe"</span>,
+<a href=#526 id=526 data-nosnippet>526</a>        );
+<a href=#527 id=527 data-nosnippet>527</a>        test_serde(
+<a href=#528 id=528 data-nosnippet>528</a>            BigInt::from(-(u64::MAX <span class="kw">as </span>i128)),
+<a href=#529 id=529 data-nosnippet>529</a>            <span class="string">b"\x0C\x00\x00\x00\x00\x00\x00\x00\x00"</span>,
+<a href=#530 id=530 data-nosnippet>530</a>        );
+<a href=#531 id=531 data-nosnippet>531</a>        test_serde(
+<a href=#532 id=532 data-nosnippet>532</a>            BigInt::from(-(u64::MAX <span class="kw">as </span>i128) - <span class="number">1</span>),
+<a href=#533 id=533 data-nosnippet>533</a>            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xff"</span>,
+<a href=#534 id=534 data-nosnippet>534</a>        );
+<a href=#535 id=535 data-nosnippet>535</a>        test_serde(
+<a href=#536 id=536 data-nosnippet>536</a>            BigInt::from(-(u64::MAX <span class="kw">as </span>i128) - <span class="number">2</span>),
+<a href=#537 id=537 data-nosnippet>537</a>            <span class="string">b"\x0b\xf6\xfe\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
+<a href=#538 id=538 data-nosnippet>538</a>        );
+<a href=#539 id=539 data-nosnippet>539</a>        test_serde(
+<a href=#540 id=540 data-nosnippet>540</a>            BigInt::from((u64::MAX <span class="kw">as </span>i128) * -<span class="number">2</span>),
+<a href=#541 id=541 data-nosnippet>541</a>            <span class="string">b"\x0b\xf6\xfe\x00\x00\x00\x00\x00\x00\x00\x01"</span>,
+<a href=#542 id=542 data-nosnippet>542</a>        );
 <a href=#543 id=543 data-nosnippet>543</a>        test_serde(
-<a href=#544 id=544 data-nosnippet>544</a>            <span class="macro">vec!</span>[<span class="string">"NEW_TRANSACTION"</span>.to_string()],
-<a href=#545 id=545 data-nosnippet>545</a>            <span class="string">b"\x02NEW_TRANSACTION\x00"</span>,
+<a href=#544 id=544 data-nosnippet>544</a>            BigInt::from((u64::MAX <span class="kw">as </span>i128) * <span class="number">2</span>),
+<a href=#545 id=545 data-nosnippet>545</a>            <span class="string">b"\x1d\x09\x01\xff\xff\xff\xff\xff\xff\xff\xfe"</span>,
 <a href=#546 id=546 data-nosnippet>546</a>        );
-<a href=#547 id=547 data-nosnippet>547</a>        test_serde(
-<a href=#548 id=548 data-nosnippet>548</a>            <span class="macro">vec!</span>[
-<a href=#549 id=549 data-nosnippet>549</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
-<a href=#550 id=550 data-nosnippet>550</a>                Element::Bytes(Bytes::from(
-<a href=#551 id=551 data-nosnippet>551</a>                    <span class="string">b"\x01tester_output\x00\x01results\x00\x14"</span>.as_ref(),
-<a href=#552 id=552 data-nosnippet>552</a>                )),
-<a href=#553 id=553 data-nosnippet>553</a>            ],
-<a href=#554 id=554 data-nosnippet>554</a>            <span class="string">b"\x02PUSH\x00\x01\x01tester_output\x00\xff\x01results\x00\xff\x14\x00"</span>,
+<a href=#547 id=547 data-nosnippet>547</a>        test_serde(BigInt::from(-<span class="number">4294967295i64</span>), <span class="string">b"\x10\x00\x00\x00\x00"</span>);
+<a href=#548 id=548 data-nosnippet>548</a>        test_serde(
+<a href=#549 id=549 data-nosnippet>549</a>            BigInt::from(i64::MIN + <span class="number">2</span>),
+<a href=#550 id=550 data-nosnippet>550</a>            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x01"</span>,
+<a href=#551 id=551 data-nosnippet>551</a>        );
+<a href=#552 id=552 data-nosnippet>552</a>        test_serde(
+<a href=#553 id=553 data-nosnippet>553</a>            BigInt::from(i64::MIN + <span class="number">1</span>),
+<a href=#554 id=554 data-nosnippet>554</a>            <span class="string">b"\x0C\x80\x00\x00\x00\x00\x00\x00\x00"</span>,
 <a href=#555 id=555 data-nosnippet>555</a>        );
 <a href=#556 id=556 data-nosnippet>556</a>        test_serde(
-<a href=#557 id=557 data-nosnippet>557</a>            <span class="macro">vec!</span>[Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)), Element::Nil],
-<a href=#558 id=558 data-nosnippet>558</a>            <span class="string">b"\x02PUSH\x00\x00"</span>,
+<a href=#557 id=557 data-nosnippet>557</a>            BigInt::from(i64::MIN),
+<a href=#558 id=558 data-nosnippet>558</a>            <span class="string">b"\x0C\x7f\xff\xff\xff\xff\xff\xff\xff"</span>,
 <a href=#559 id=559 data-nosnippet>559</a>        );
-<a href=#560 id=560 data-nosnippet>560</a>        test_serde(
-<a href=#561 id=561 data-nosnippet>561</a>            <span class="macro">vec!</span>[
-<a href=#562 id=562 data-nosnippet>562</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
-<a href=#563 id=563 data-nosnippet>563</a>                Element::Tuple(<span class="macro">vec!</span>[
-<a href=#564 id=564 data-nosnippet>564</a>                    Element::Nil,
-<a href=#565 id=565 data-nosnippet>565</a>                    Element::Float(<span class="number">3299069000000.0</span>),
-<a href=#566 id=566 data-nosnippet>566</a>                    Element::Float(-<span class="number">0.000000000000000000000000000000000000011883096</span>),
-<a href=#567 id=567 data-nosnippet>567</a>                ]),
-<a href=#568 id=568 data-nosnippet>568</a>            ],
-<a href=#569 id=569 data-nosnippet>569</a>            <span class="string">b"\x02PUSH\x00\x05\x00\xff \xd4@\x07\xf5 \x7f~\x9a\xc2\x00"</span>,
-<a href=#570 id=570 data-nosnippet>570</a>        );
-<a href=#571 id=571 data-nosnippet>571</a>        test_serde(
-<a href=#572 id=572 data-nosnippet>572</a>            <span class="macro">vec!</span>[
-<a href=#573 id=573 data-nosnippet>573</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
-<a href=#574 id=574 data-nosnippet>574</a>                Element::Int(-<span class="number">133525682914243904</span>),
-<a href=#575 id=575 data-nosnippet>575</a>            ],
-<a href=#576 id=576 data-nosnippet>576</a>            <span class="string">b"\x02PUSH\x00\x0c\xfe%\x9f\x19M\x81J\xbf"</span>,
-<a href=#577 id=577 data-nosnippet>577</a>        );
-<a href=#578 id=578 data-nosnippet>578</a>
-<a href=#579 id=579 data-nosnippet>579</a>        test_serde(
-<a href=#580 id=580 data-nosnippet>580</a>            Element::Tuple(<span class="macro">vec!</span>[Element::Nil, Element::Nil]),
-<a href=#581 id=581 data-nosnippet>581</a>            <span class="string">b"\x00\x00"</span>,
-<a href=#582 id=582 data-nosnippet>582</a>        );
-<a href=#583 id=583 data-nosnippet>583</a>        test_serde(
-<a href=#584 id=584 data-nosnippet>584</a>            Element::Tuple(<span class="macro">vec!</span>[
-<a href=#585 id=585 data-nosnippet>585</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
-<a href=#586 id=586 data-nosnippet>586</a>                Element::Tuple(<span class="macro">vec!</span>[Element::Double(-<span class="number">8.251343508909708e-15</span>)]),
-<a href=#587 id=587 data-nosnippet>587</a>            ]),
-<a href=#588 id=588 data-nosnippet>588</a>            <span class="string">b"\x02PUSH\x00\x05!B\xfdkl\x9f\xcc\x8eK\x00"</span>,
-<a href=#589 id=589 data-nosnippet>589</a>        );
-<a href=#590 id=590 data-nosnippet>590</a>    }
-<a href=#591 id=591 data-nosnippet>591</a>
-<a href=#592 id=592 data-nosnippet>592</a>    <span class="attr">#[test]
-<a href=#593 id=593 data-nosnippet>593</a>    </span><span class="kw">fn </span>test_element() {
-<a href=#594 id=594 data-nosnippet>594</a>        test_serde(Element::Bool(<span class="bool-val">true</span>), <span class="kw-2">&amp;</span>[TRUE]);
-<a href=#595 id=595 data-nosnippet>595</a>        test_serde(Element::Bool(<span class="bool-val">false</span>), <span class="kw-2">&amp;</span>[FALSE]);
-<a href=#596 id=596 data-nosnippet>596</a>        test_serde(Element::Int(-<span class="number">1</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">254</span>]);
-<a href=#597 id=597 data-nosnippet>597</a>        test_serde(
-<a href=#598 id=598 data-nosnippet>598</a>            Element::Versionstamp(Versionstamp::complete(
-<a href=#599 id=599 data-nosnippet>599</a>                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
-<a href=#600 id=600 data-nosnippet>600</a>                <span class="number">657</span>,
-<a href=#601 id=601 data-nosnippet>601</a>            )),
-<a href=#602 id=602 data-nosnippet>602</a>            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
-<a href=#603 id=603 data-nosnippet>603</a>        );
-<a href=#604 id=604 data-nosnippet>604</a>        test_serde(
-<a href=#605 id=605 data-nosnippet>605</a>            (Element::Versionstamp(Versionstamp::complete(
-<a href=#606 id=606 data-nosnippet>606</a>                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
-<a href=#607 id=607 data-nosnippet>607</a>                <span class="number">657</span>,
-<a href=#608 id=608 data-nosnippet>608</a>            )),),
-<a href=#609 id=609 data-nosnippet>609</a>            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
-<a href=#610 id=610 data-nosnippet>610</a>        );
-<a href=#611 id=611 data-nosnippet>611</a>        test_serde(
-<a href=#612 id=612 data-nosnippet>612</a>            (Element::Versionstamp(Versionstamp::complete(
-<a href=#613 id=613 data-nosnippet>613</a>                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
-<a href=#614 id=614 data-nosnippet>614</a>                <span class="number">657</span>,
-<a href=#615 id=615 data-nosnippet>615</a>            )),),
-<a href=#616 id=616 data-nosnippet>616</a>            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
+<a href=#560 id=560 data-nosnippet>560</a>
+<a href=#561 id=561 data-nosnippet>561</a>        test_serde(
+<a href=#562 id=562 data-nosnippet>562</a>            Element::BigInt(<span class="number">9252427359321063944i128</span>.into()),
+<a href=#563 id=563 data-nosnippet>563</a>            <span class="string">b"\x1c\x80g9\xa9np\x02\x08"</span>,
+<a href=#564 id=564 data-nosnippet>564</a>        );
+<a href=#565 id=565 data-nosnippet>565</a>        test_serde(
+<a href=#566 id=566 data-nosnippet>566</a>            Element::BigInt((-<span class="number">9252427359321063944i128</span>).into()),
+<a href=#567 id=567 data-nosnippet>567</a>            <span class="string">b"\x0c\x7f\x98\xc6V\x91\x8f\xfd\xf7"</span>,
+<a href=#568 id=568 data-nosnippet>568</a>        );
+<a href=#569 id=569 data-nosnippet>569</a>    }
+<a href=#570 id=570 data-nosnippet>570</a>
+<a href=#571 id=571 data-nosnippet>571</a>    <span class="attr">#[cfg(feature = <span class="string">"uuid"</span>)]
+<a href=#572 id=572 data-nosnippet>572</a>    #[test]
+<a href=#573 id=573 data-nosnippet>573</a>    </span><span class="kw">fn </span>test_uuid() {
+<a href=#574 id=574 data-nosnippet>574</a>        <span class="kw">use </span>uuid::Uuid;
+<a href=#575 id=575 data-nosnippet>575</a>
+<a href=#576 id=576 data-nosnippet>576</a>        test_serde(
+<a href=#577 id=577 data-nosnippet>577</a>            Element::Uuid(
+<a href=#578 id=578 data-nosnippet>578</a>                Uuid::from_slice(
+<a href=#579 id=579 data-nosnippet>579</a>                    <span class="string">b"\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e"</span>,
+<a href=#580 id=580 data-nosnippet>580</a>                )
+<a href=#581 id=581 data-nosnippet>581</a>                .unwrap(),
+<a href=#582 id=582 data-nosnippet>582</a>            ),
+<a href=#583 id=583 data-nosnippet>583</a>            <span class="string">b"\x30\xba\xff\xff\xff\xff\x5e\xba\x11\x00\x00\x00\x00\x5c\xa1\xab\x1e"</span>,
+<a href=#584 id=584 data-nosnippet>584</a>        );
+<a href=#585 id=585 data-nosnippet>585</a>    }
+<a href=#586 id=586 data-nosnippet>586</a>
+<a href=#587 id=587 data-nosnippet>587</a>    <span class="attr">#[test]
+<a href=#588 id=588 data-nosnippet>588</a>    </span><span class="kw">fn </span>test_bindingtester() {
+<a href=#589 id=589 data-nosnippet>589</a>        test_serde(<span class="string">"NEW_TRANSACTION"</span>.to_string(), <span class="string">b"\x02NEW_TRANSACTION\x00"</span>);
+<a href=#590 id=590 data-nosnippet>590</a>        test_serde(
+<a href=#591 id=591 data-nosnippet>591</a>            <span class="macro">vec!</span>[<span class="string">"NEW_TRANSACTION"</span>.to_string()],
+<a href=#592 id=592 data-nosnippet>592</a>            <span class="string">b"\x02NEW_TRANSACTION\x00"</span>,
+<a href=#593 id=593 data-nosnippet>593</a>        );
+<a href=#594 id=594 data-nosnippet>594</a>        test_serde(
+<a href=#595 id=595 data-nosnippet>595</a>            <span class="macro">vec!</span>[
+<a href=#596 id=596 data-nosnippet>596</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
+<a href=#597 id=597 data-nosnippet>597</a>                Element::Bytes(Bytes::from(
+<a href=#598 id=598 data-nosnippet>598</a>                    <span class="string">b"\x01tester_output\x00\x01results\x00\x14"</span>.as_ref(),
+<a href=#599 id=599 data-nosnippet>599</a>                )),
+<a href=#600 id=600 data-nosnippet>600</a>            ],
+<a href=#601 id=601 data-nosnippet>601</a>            <span class="string">b"\x02PUSH\x00\x01\x01tester_output\x00\xff\x01results\x00\xff\x14\x00"</span>,
+<a href=#602 id=602 data-nosnippet>602</a>        );
+<a href=#603 id=603 data-nosnippet>603</a>        test_serde(
+<a href=#604 id=604 data-nosnippet>604</a>            <span class="macro">vec!</span>[Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)), Element::Nil],
+<a href=#605 id=605 data-nosnippet>605</a>            <span class="string">b"\x02PUSH\x00\x00"</span>,
+<a href=#606 id=606 data-nosnippet>606</a>        );
+<a href=#607 id=607 data-nosnippet>607</a>        test_serde(
+<a href=#608 id=608 data-nosnippet>608</a>            <span class="macro">vec!</span>[
+<a href=#609 id=609 data-nosnippet>609</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
+<a href=#610 id=610 data-nosnippet>610</a>                Element::Tuple(<span class="macro">vec!</span>[
+<a href=#611 id=611 data-nosnippet>611</a>                    Element::Nil,
+<a href=#612 id=612 data-nosnippet>612</a>                    Element::Float(<span class="number">3299069000000.0</span>),
+<a href=#613 id=613 data-nosnippet>613</a>                    Element::Float(-<span class="number">0.000000000000000000000000000000000000011883096</span>),
+<a href=#614 id=614 data-nosnippet>614</a>                ]),
+<a href=#615 id=615 data-nosnippet>615</a>            ],
+<a href=#616 id=616 data-nosnippet>616</a>            <span class="string">b"\x02PUSH\x00\x05\x00\xff \xd4@\x07\xf5 \x7f~\x9a\xc2\x00"</span>,
 <a href=#617 id=617 data-nosnippet>617</a>        );
 <a href=#618 id=618 data-nosnippet>618</a>        test_serde(
-<a href=#619 id=619 data-nosnippet>619</a>            <span class="macro">vec!</span>[Element::Bool(<span class="bool-val">true</span>), Element::Bool(<span class="bool-val">false</span>)],
-<a href=#620 id=620 data-nosnippet>620</a>            <span class="kw-2">&amp;</span>[TRUE, FALSE],
-<a href=#621 id=621 data-nosnippet>621</a>        );
-<a href=#622 id=622 data-nosnippet>622</a>        test_serde(
-<a href=#623 id=623 data-nosnippet>623</a>            <span class="macro">vec!</span>[Element::Tuple(<span class="macro">vec!</span>[
-<a href=#624 id=624 data-nosnippet>624</a>                Element::Bool(<span class="bool-val">true</span>),
-<a href=#625 id=625 data-nosnippet>625</a>                Element::Bool(<span class="bool-val">false</span>),
-<a href=#626 id=626 data-nosnippet>626</a>            ])],
-<a href=#627 id=627 data-nosnippet>627</a>            <span class="kw-2">&amp;</span>[NESTED, TRUE, FALSE, NIL],
-<a href=#628 id=628 data-nosnippet>628</a>        );
-<a href=#629 id=629 data-nosnippet>629</a>        test_serde(Vec::&lt;Element&gt;::new(), <span class="kw-2">&amp;</span>[]);
-<a href=#630 id=630 data-nosnippet>630</a>        test_serde(Element::Tuple(<span class="macro">vec!</span>[]), <span class="kw-2">&amp;</span>[]);
-<a href=#631 id=631 data-nosnippet>631</a>    }
-<a href=#632 id=632 data-nosnippet>632</a>
-<a href=#633 id=633 data-nosnippet>633</a>    <span class="attr">#[test]
-<a href=#634 id=634 data-nosnippet>634</a>    </span><span class="kw">fn </span>test_verstionstamp() {
-<a href=#635 id=635 data-nosnippet>635</a>        <span class="macro">assert_eq!</span>(
-<a href=#636 id=636 data-nosnippet>636</a>            Bytes::from(pack(<span class="kw-2">&amp;</span>(<span class="string">"foo"</span>, Versionstamp::incomplete(<span class="number">0</span>)))),
-<a href=#637 id=637 data-nosnippet>637</a>            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00"</span>[..])
-<a href=#638 id=638 data-nosnippet>638</a>        );
-<a href=#639 id=639 data-nosnippet>639</a>        <span class="macro">assert_eq!</span>(
-<a href=#640 id=640 data-nosnippet>640</a>            Bytes::from(pack_with_versionstamp(<span class="kw-2">&amp;</span>(
-<a href=#641 id=641 data-nosnippet>641</a>                <span class="string">"foo"</span>,
-<a href=#642 id=642 data-nosnippet>642</a>                Versionstamp::incomplete(<span class="number">0</span>)
-<a href=#643 id=643 data-nosnippet>643</a>            ))),
-<a href=#644 id=644 data-nosnippet>644</a>            Bytes::from(
-<a href=#645 id=645 data-nosnippet>645</a>                <span class="kw-2">&amp;</span><span class="string">b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x06\x00\x00\x00"
-<a href=#646 id=646 data-nosnippet>646</a>                    </span>[..]
-<a href=#647 id=647 data-nosnippet>647</a>            )
-<a href=#648 id=648 data-nosnippet>648</a>        );
-<a href=#649 id=649 data-nosnippet>649</a>    }
-<a href=#650 id=650 data-nosnippet>650</a>}
+<a href=#619 id=619 data-nosnippet>619</a>            <span class="macro">vec!</span>[
+<a href=#620 id=620 data-nosnippet>620</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
+<a href=#621 id=621 data-nosnippet>621</a>                Element::Int(-<span class="number">133525682914243904</span>),
+<a href=#622 id=622 data-nosnippet>622</a>            ],
+<a href=#623 id=623 data-nosnippet>623</a>            <span class="string">b"\x02PUSH\x00\x0c\xfe%\x9f\x19M\x81J\xbf"</span>,
+<a href=#624 id=624 data-nosnippet>624</a>        );
+<a href=#625 id=625 data-nosnippet>625</a>
+<a href=#626 id=626 data-nosnippet>626</a>        test_serde(
+<a href=#627 id=627 data-nosnippet>627</a>            Element::Tuple(<span class="macro">vec!</span>[Element::Nil, Element::Nil]),
+<a href=#628 id=628 data-nosnippet>628</a>            <span class="string">b"\x00\x00"</span>,
+<a href=#629 id=629 data-nosnippet>629</a>        );
+<a href=#630 id=630 data-nosnippet>630</a>        test_serde(
+<a href=#631 id=631 data-nosnippet>631</a>            Element::Tuple(<span class="macro">vec!</span>[
+<a href=#632 id=632 data-nosnippet>632</a>                Element::String(Cow::Borrowed(<span class="string">"PUSH"</span>)),
+<a href=#633 id=633 data-nosnippet>633</a>                Element::Tuple(<span class="macro">vec!</span>[Element::Double(-<span class="number">8.251343508909708e-15</span>)]),
+<a href=#634 id=634 data-nosnippet>634</a>            ]),
+<a href=#635 id=635 data-nosnippet>635</a>            <span class="string">b"\x02PUSH\x00\x05!B\xfdkl\x9f\xcc\x8eK\x00"</span>,
+<a href=#636 id=636 data-nosnippet>636</a>        );
+<a href=#637 id=637 data-nosnippet>637</a>    }
+<a href=#638 id=638 data-nosnippet>638</a>
+<a href=#639 id=639 data-nosnippet>639</a>    <span class="attr">#[test]
+<a href=#640 id=640 data-nosnippet>640</a>    </span><span class="kw">fn </span>test_element() {
+<a href=#641 id=641 data-nosnippet>641</a>        test_serde(Element::Bool(<span class="bool-val">true</span>), <span class="kw-2">&amp;</span>[TRUE]);
+<a href=#642 id=642 data-nosnippet>642</a>        test_serde(Element::Bool(<span class="bool-val">false</span>), <span class="kw-2">&amp;</span>[FALSE]);
+<a href=#643 id=643 data-nosnippet>643</a>        test_serde(Element::Int(-<span class="number">1</span>), <span class="kw-2">&amp;</span>[<span class="number">0x13</span>, <span class="number">254</span>]);
+<a href=#644 id=644 data-nosnippet>644</a>        test_serde(
+<a href=#645 id=645 data-nosnippet>645</a>            Element::Versionstamp(Versionstamp::complete(
+<a href=#646 id=646 data-nosnippet>646</a>                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
+<a href=#647 id=647 data-nosnippet>647</a>                <span class="number">657</span>,
+<a href=#648 id=648 data-nosnippet>648</a>            )),
+<a href=#649 id=649 data-nosnippet>649</a>            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
+<a href=#650 id=650 data-nosnippet>650</a>        );
+<a href=#651 id=651 data-nosnippet>651</a>        test_serde(
+<a href=#652 id=652 data-nosnippet>652</a>            (Element::Versionstamp(Versionstamp::complete(
+<a href=#653 id=653 data-nosnippet>653</a>                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
+<a href=#654 id=654 data-nosnippet>654</a>                <span class="number">657</span>,
+<a href=#655 id=655 data-nosnippet>655</a>            )),),
+<a href=#656 id=656 data-nosnippet>656</a>            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
+<a href=#657 id=657 data-nosnippet>657</a>        );
+<a href=#658 id=658 data-nosnippet>658</a>        test_serde(
+<a href=#659 id=659 data-nosnippet>659</a>            (Element::Versionstamp(Versionstamp::complete(
+<a href=#660 id=660 data-nosnippet>660</a>                <span class="kw-2">*</span><span class="string">b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"</span>,
+<a href=#661 id=661 data-nosnippet>661</a>                <span class="number">657</span>,
+<a href=#662 id=662 data-nosnippet>662</a>            )),),
+<a href=#663 id=663 data-nosnippet>663</a>            <span class="string">b"\x33\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x02\x91"</span>,
+<a href=#664 id=664 data-nosnippet>664</a>        );
+<a href=#665 id=665 data-nosnippet>665</a>        test_serde(
+<a href=#666 id=666 data-nosnippet>666</a>            <span class="macro">vec!</span>[Element::Bool(<span class="bool-val">true</span>), Element::Bool(<span class="bool-val">false</span>)],
+<a href=#667 id=667 data-nosnippet>667</a>            <span class="kw-2">&amp;</span>[TRUE, FALSE],
+<a href=#668 id=668 data-nosnippet>668</a>        );
+<a href=#669 id=669 data-nosnippet>669</a>        test_serde(
+<a href=#670 id=670 data-nosnippet>670</a>            <span class="macro">vec!</span>[Element::Tuple(<span class="macro">vec!</span>[
+<a href=#671 id=671 data-nosnippet>671</a>                Element::Bool(<span class="bool-val">true</span>),
+<a href=#672 id=672 data-nosnippet>672</a>                Element::Bool(<span class="bool-val">false</span>),
+<a href=#673 id=673 data-nosnippet>673</a>            ])],
+<a href=#674 id=674 data-nosnippet>674</a>            <span class="kw-2">&amp;</span>[NESTED, TRUE, FALSE, NIL],
+<a href=#675 id=675 data-nosnippet>675</a>        );
+<a href=#676 id=676 data-nosnippet>676</a>        test_serde(Vec::&lt;Element&gt;::new(), <span class="kw-2">&amp;</span>[]);
+<a href=#677 id=677 data-nosnippet>677</a>        test_serde(Element::Tuple(<span class="macro">vec!</span>[]), <span class="kw-2">&amp;</span>[]);
+<a href=#678 id=678 data-nosnippet>678</a>    }
+<a href=#679 id=679 data-nosnippet>679</a>
+<a href=#680 id=680 data-nosnippet>680</a>    <span class="attr">#[test]
+<a href=#681 id=681 data-nosnippet>681</a>    </span><span class="kw">fn </span>test_verstionstamp() {
+<a href=#682 id=682 data-nosnippet>682</a>        <span class="macro">assert_eq!</span>(
+<a href=#683 id=683 data-nosnippet>683</a>            Bytes::from(pack(<span class="kw-2">&amp;</span>(<span class="string">"foo"</span>, Versionstamp::incomplete(<span class="number">0</span>)))),
+<a href=#684 id=684 data-nosnippet>684</a>            Bytes::from(<span class="kw-2">&amp;</span><span class="string">b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00"</span>[..])
+<a href=#685 id=685 data-nosnippet>685</a>        );
+<a href=#686 id=686 data-nosnippet>686</a>        <span class="macro">assert_eq!</span>(
+<a href=#687 id=687 data-nosnippet>687</a>            Bytes::from(pack_with_versionstamp(<span class="kw-2">&amp;</span>(
+<a href=#688 id=688 data-nosnippet>688</a>                <span class="string">"foo"</span>,
+<a href=#689 id=689 data-nosnippet>689</a>                Versionstamp::incomplete(<span class="number">0</span>)
+<a href=#690 id=690 data-nosnippet>690</a>            ))),
+<a href=#691 id=691 data-nosnippet>691</a>            Bytes::from(
+<a href=#692 id=692 data-nosnippet>692</a>                <span class="kw-2">&amp;</span><span class="string">b"\x02foo\x00\x33\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x06\x00\x00\x00"
+<a href=#693 id=693 data-nosnippet>693</a>                    </span>[..]
+<a href=#694 id=694 data-nosnippet>694</a>            )
+<a href=#695 id=695 data-nosnippet>695</a>        );
+<a href=#696 id=696 data-nosnippet>696</a>    }
+<a href=#697 id=697 data-nosnippet>697</a>}
 </code></pre></div></section></main></body></html>
