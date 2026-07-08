@@ -12,14 +12,21 @@
 //!
 //! - [API versioning](https://apple.github.io/foundationdb/api-c.html#api-versioning)
 //! - [Network](https://apple.github.io/foundationdb/api-c.html#network)
+//!
+//! The network lifecycle is tracked by a process-global state machine
+//! (`Uninitialized -> ApiVersionSelected -> Running -> Stopped`). Booting is safe
+//! and idempotent, the network is started lazily by [`crate::Database`]
+//! constructors if needed, and it runs until process exit: an atexit hook stops it
+//! and joins the network thread, as required by the C API. Applications that
+//! manage their own shutdown can call [`disable_stop_on_exit`] and/or
+//! [`stop_network`].
 
-use std::panic;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::thread::JoinHandle;
 
 use crate::options::NetworkOption;
-use crate::{FdbResult, error};
+use crate::{FdbError, FdbResult, error};
 use foundationdb_sys as fdb_sys;
 
 /// Returns the max api version of the underlying Fdb C API Client
@@ -27,11 +34,238 @@ pub fn get_max_api_version() -> i32 {
     unsafe { fdb_sys::fdb_get_max_api_version() }
 }
 
-static VERSION_SELECTED: AtomicBool = AtomicBool::new(false);
+// FDB C error codes used by the lifecycle state machine
+const ERR_API_VERSION_UNSET: i32 = 2200;
+const ERR_API_VERSION_ALREADY_SET: i32 = 2201;
+const ERR_API_VERSION_NOT_SUPPORTED: i32 = 2203;
+const ERR_NETWORK_ALREADY_SETUP: i32 = 2009;
+const ERR_NETWORK_CANNOT_BE_RESTARTED: i32 = 2025;
+
+/// Process-global lifecycle of the FoundationDB client.
+///
+/// The C API allows selecting the API version and setting up the network once per
+/// process, and the network can never be restarted once stopped. Every FFI call
+/// involved lives in exactly one transition below, serialized by the `NETWORK`
+/// mutex.
+enum NetworkLifecycle {
+    Uninitialized,
+    ApiVersionSelected {
+        api_version: i32,
+    },
+    Running {
+        api_version: i32,
+        handle: JoinHandle<()>,
+    },
+    Stopped {
+        api_version: i32,
+    },
+}
+
+static NETWORK: Mutex<NetworkLifecycle> = Mutex::new(NetworkLifecycle::Uninitialized);
+static STOP_ON_EXIT: AtomicBool = AtomicBool::new(true);
+// Last error returned by fdb_run_network (0 = none). An atomic, not a mutex: the
+// network thread must never take a lock shared with the thread joining it.
+static NETWORK_RUN_ERROR: AtomicI32 = AtomicI32::new(0);
+
+fn lock_network() -> MutexGuard<'static, NetworkLifecycle> {
+    // State is only mutated after the corresponding FFI call succeeded, so a
+    // poisoned lock still guards a consistent state.
+    NETWORK.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+impl NetworkLifecycle {
+    fn select_api_version(&mut self, version: i32) -> FdbResult<()> {
+        match self {
+            NetworkLifecycle::Uninitialized => {
+                error::eval(unsafe {
+                    fdb_sys::fdb_select_api_version_impl(version, fdb_sys::FDB_API_VERSION as i32)
+                })
+                .inspect_err(|e| {
+                    // generally means the local libfdb doesn't support the requested version
+                    if e.code() == ERR_API_VERSION_NOT_SUPPORTED {
+                        let max_api_version = get_max_api_version();
+                        if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
+                            eprintln!(
+                                "The version of FoundationDB binding requested '{}' is not supported",
+                                fdb_sys::FDB_API_VERSION
+                            );
+                            eprintln!(
+                                "by the installed FoundationDB C library. Maximum supported version by the local library is {max_api_version}"
+                            );
+                        }
+                    }
+                })?;
+                *self = NetworkLifecycle::ApiVersionSelected {
+                    api_version: version,
+                };
+                Ok(())
+            }
+            NetworkLifecycle::ApiVersionSelected { api_version }
+            | NetworkLifecycle::Running { api_version, .. }
+            | NetworkLifecycle::Stopped { api_version } => {
+                if *api_version == version {
+                    Ok(())
+                } else {
+                    Err(FdbError::from_code(ERR_API_VERSION_ALREADY_SET))
+                }
+            }
+        }
+    }
+
+    fn set_network_option(&mut self, option: NetworkOption) -> FdbResult<()> {
+        match self {
+            // unreachable through the public API: a NetworkBuilder only exists once
+            // an api version is selected
+            NetworkLifecycle::Uninitialized => Err(FdbError::from_code(ERR_API_VERSION_UNSET)),
+            NetworkLifecycle::ApiVersionSelected { .. } => {
+                // SAFETY: the api version is selected and the network is not set up
+                // yet; calls are serialized by the NETWORK mutex.
+                unsafe { option.apply() }
+            }
+            NetworkLifecycle::Running { .. } => Err(FdbError::from_code(ERR_NETWORK_ALREADY_SETUP)),
+            NetworkLifecycle::Stopped { .. } => {
+                Err(FdbError::from_code(ERR_NETWORK_CANNOT_BE_RESTARTED))
+            }
+        }
+    }
+
+    fn start_network(&mut self) -> FdbResult<()> {
+        if matches!(self, NetworkLifecycle::Uninitialized) {
+            self.select_api_version(fdb_sys::FDB_API_VERSION as i32)?;
+        }
+        match self {
+            NetworkLifecycle::Uninitialized => unreachable!("the api version was just selected"),
+            NetworkLifecycle::ApiVersionSelected { api_version } => {
+                let api_version = *api_version;
+                error::eval(unsafe { fdb_sys::fdb_setup_network() })?;
+                // Registered once the network is set up, i.e. after libfdb_c was
+                // loaded: atexit handlers run in LIFO order, so ours stops and joins
+                // the network before any exit-time cleanup of the library itself.
+                if unsafe { libc::atexit(network_atexit_hook) } != 0 {
+                    eprintln!(
+                        "failed to register the FoundationDB atexit hook; the network will not be stopped automatically at process exit"
+                    );
+                }
+                let handle = std::thread::Builder::new()
+                    .name("fdb-network".to_string())
+                    .spawn(run_network_thread)
+                    .expect("failed to spawn the fdb-network thread");
+                *self = NetworkLifecycle::Running {
+                    api_version,
+                    handle,
+                };
+                Ok(())
+            }
+            NetworkLifecycle::Running { .. } => Ok(()),
+            NetworkLifecycle::Stopped { .. } => {
+                Err(FdbError::from_code(ERR_NETWORK_CANNOT_BE_RESTARTED))
+            }
+        }
+    }
+
+    fn stop_network(&mut self) -> FdbResult<()> {
+        match self {
+            NetworkLifecycle::Uninitialized => Ok(()),
+            NetworkLifecycle::ApiVersionSelected { api_version } => {
+                // Nothing is running, but an explicit stop must be terminal so that
+                // a later lazy boot cannot restart the network behind the caller's
+                // back.
+                *self = NetworkLifecycle::Stopped {
+                    api_version: *api_version,
+                };
+                Ok(())
+            }
+            NetworkLifecycle::Running { .. } => {
+                // Stop before taking the variant apart: on error the state stays
+                // Running, handle included.
+                error::eval(unsafe { fdb_sys::fdb_stop_network() })?;
+                let NetworkLifecycle::Running {
+                    api_version,
+                    handle,
+                } = std::mem::replace(self, NetworkLifecycle::Uninitialized)
+                else {
+                    unreachable!("state was just matched as Running");
+                };
+                if handle.join().is_err() {
+                    // run_network_thread cannot panic; keep the exit path panic-free
+                    // anyway.
+                    eprintln!("the fdb-network thread panicked");
+                }
+                *self = NetworkLifecycle::Stopped { api_version };
+                Ok(())
+            }
+            NetworkLifecycle::Stopped { .. } => Ok(()),
+        }
+    }
+}
+
+/// Body of the "fdb-network" thread.
+///
+/// Invariant: this function must never lock `NETWORK`, as `stop_network` joins the
+/// thread while holding the lock.
+fn run_network_thread() {
+    if let Err(err) = error::eval(unsafe { fdb_sys::fdb_run_network() }) {
+        NETWORK_RUN_ERROR.store(err.code(), Ordering::Release);
+        eprintln!("fdb_run_network returned an error: {err}");
+    }
+}
+
+/// Stops the network at process exit, as required by the C API contract.
+///
+/// Panic-free: unwinding out of an `extern "C"` function would abort with a less
+/// useful message.
+extern "C" fn network_atexit_hook() {
+    if !STOP_ON_EXIT.load(Ordering::Acquire) {
+        return;
+    }
+    if let Err(err) = lock_network().stop_network() {
+        // Exiting with the network still running is undefined behavior, aborting
+        // is not.
+        eprintln!("failed to stop the FoundationDB network at exit: {err}");
+        std::process::abort();
+    }
+}
+
+/// Stops the FoundationDB network and joins the network thread.
+///
+/// This is terminal for the process: once it returns `Ok`, every FoundationDB
+/// operation fails with error 2025 (`network_cannot_be_restarted`), including in
+/// other threads. Most programs never need it: the network is stopped
+/// automatically at process exit. It is idempotent and safe to call even if the
+/// network was never started.
+///
+/// Must not be called from the network thread itself (e.g. from a future
+/// callback), as it joins that thread.
+pub fn stop_network() -> FdbResult<()> {
+    lock_network().stop_network()
+}
+
+/// Disables the automatic network stop at process exit.
+///
+/// The atexit hook registered when the network starts becomes a no-op. For
+/// applications that want to own their shutdown sequence with [`stop_network`];
+/// note that the C API requires the network to be stopped and joined before a
+/// normal process exit.
+pub fn disable_stop_on_exit() {
+    STOP_ON_EXIT.store(false, Ordering::Release);
+}
+
+/// Returns the error reported by the network event loop, if it stopped with one.
+pub fn network_run_error() -> Option<FdbError> {
+    match NETWORK_RUN_ERROR.load(Ordering::Acquire) {
+        0 => None,
+        code => Some(FdbError::from_code(code)),
+    }
+}
+
+/// Starts the network with the default API version if nothing was booted yet.
+///
+/// Lazy-boot entry point used by `Database` constructors.
+pub(crate) fn ensure_network_started() -> FdbResult<()> {
+    lock_network().start_network()
+}
 
 /// A Builder with which different versions of the Fdb C API can be initialized
-///
-/// The foundationDB C API can only be initialized once.
 ///
 /// ```
 /// foundationdb::api::FdbApiBuilder::default().build().expect("fdb api initialized");
@@ -55,35 +289,18 @@ impl FdbApiBuilder {
         self
     }
 
-    /// Initialize the foundationDB API and returns a `NetworkBuilder`
+    /// Selects the foundationDB API version and returns a `NetworkBuilder`.
     ///
-    /// # Panics
+    /// Idempotent: re-selecting the version already in use is a no-op.
     ///
-    /// This function will panic if called more than once
+    /// # Errors
+    ///
+    /// - error 2201 (`api_version_already_set`) if a different version was selected
+    ///   before
+    /// - error 2203 (`api_version_not_supported`) if the installed libfdb_c does
+    ///   not support the requested version
     pub fn build(self) -> FdbResult<NetworkBuilder> {
-        if VERSION_SELECTED
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_err()
-        {
-            panic!("the fdb select api version can only be run once per process");
-        }
-        error::eval(unsafe {
-            fdb_sys::fdb_select_api_version_impl(
-                self.runtime_version,
-                fdb_sys::FDB_API_VERSION as i32,
-            )
-        }).inspect_err(|e| {
-                // 2203: api_version_not_supported
-                // generally mean the local libfdb doesn't support requested target version
-                if e.code() == 2203 {
-                    let max_api_version = unsafe { fdb_sys::fdb_get_max_api_version() };
-                    if max_api_version < fdb_sys::FDB_API_VERSION as i32 {
-                        println!("The version of FoundationDB binding requested '{}' is not supported", fdb_sys::FDB_API_VERSION);
-                        println!("by the installed FoundationDB C library. Maximum supported version by the local library is {max_api_version}");
-                    }
-                }
-            })?;
-
+        lock_network().select_api_version(self.runtime_version)?;
         Ok(NetworkBuilder { _private: () })
     }
 }
@@ -96,17 +313,13 @@ impl Default for FdbApiBuilder {
     }
 }
 
-/// A Builder with which the foundationDB network event loop can be created
-///
-/// The foundationDB Network event loop can only be run once.
+/// A Builder to configure network options and start the network event loop.
 ///
 /// ```
 /// use foundationdb::api::FdbApiBuilder;
 ///
 /// let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-/// let guard = unsafe { network_builder.boot() };
-/// // do some work with foundationDB
-/// drop(guard);
+/// network_builder.boot().expect("fdb network running");
 /// ```
 pub struct NetworkBuilder {
     _private: (),
@@ -114,73 +327,25 @@ pub struct NetworkBuilder {
 
 impl NetworkBuilder {
     /// Set network options.
+    ///
+    /// # Errors
+    ///
+    /// - error 2009 (`network_already_setup`) once the network is running
+    /// - error 2025 (`network_cannot_be_restarted`) once the network is stopped
     pub fn set_option(self, option: NetworkOption) -> FdbResult<Self> {
-        unsafe { option.apply()? };
+        lock_network().set_network_option(option)?;
         Ok(self)
     }
 
-    /// Finalizes the initialization of the Network and returns a way to run/wait/stop the
-    /// FoundationDB run loop.
+    /// Starts the FoundationDB network event loop in a dedicated thread.
     ///
-    /// It's not recommended to use this method directly, you probably want the `boot()` method.
+    /// Safe and idempotent: booting an already running network is a no-op. The
+    /// network runs until process exit, where an atexit hook stops it and joins the
+    /// network thread, or until an explicit [`stop_network`] call.
     ///
-    /// In order to start the network you have to:
-    ///  - call the unsafe `NetworkRunner::run()` method, most likely in a dedicated thread
-    ///  - wait for the thread to start `NetworkWait::wait`
+    /// # Errors
     ///
-    /// In order for the sequence to be safe, you **MUST** as stated in the `NetworkRunner::run()` method
-    /// ensure that `NetworkStop::stop()` is called before the process exit.
-    /// Aborting the process is still safe.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use foundationdb::api::FdbApiBuilder;
-    ///
-    /// let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-    /// let (runner, cond) = network_builder.build().expect("fdb network runners");
-    ///
-    /// let net_thread = std::thread::spawn(move || {
-    ///     unsafe { runner.run() }.expect("failed to run");
-    /// });
-    ///
-    /// // Wait for the foundationDB network thread to start
-    /// let fdb_network = cond.wait();
-    ///
-    /// // do some work with foundationDB, if a panic occur you still **MUST** catch it and call
-    /// // fdb_network.stop();
-    ///
-    /// // You **MUST** call fdb_network.stop() before the process exit
-    /// fdb_network.stop().expect("failed to stop network");
-    /// net_thread.join().expect("failed to join fdb thread");
-    /// ```
-    #[allow(clippy::mutex_atomic)]
-    pub fn build(self) -> FdbResult<(NetworkRunner, NetworkWait)> {
-        unsafe { error::eval(fdb_sys::fdb_setup_network())? }
-
-        let cond = Arc::new((Mutex::new(false), Condvar::new()));
-        Ok((NetworkRunner { cond: cond.clone() }, NetworkWait { cond }))
-    }
-
-    /// Starts the FoundationDB run loop in a dedicated thread.
-    /// This finish initializing the FoundationDB Client API and can only be called once per process.
-    ///
-    /// # Returns
-    ///
-    /// A `NetworkAutoStop` handle which must be dropped before the program exits.
-    ///
-    /// # Safety
-    ///
-    /// You *MUST* ensure `drop` is called on the returned object before the program exits.
-    /// This is not required if the program is aborted.
-    ///
-    /// This method used to be safe in version `0.4`. But because `drop` on the returned object
-    /// might not be called before the program exits, it was found unsafe.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the dedicated thread cannot be spawned or the internal condition primitive is
-    /// poisonned.
+    /// - error 2025 (`network_cannot_be_restarted`) if the network was stopped
     ///
     /// # Examples
     ///
@@ -188,9 +353,8 @@ impl NetworkBuilder {
     /// use foundationdb::api::FdbApiBuilder;
     ///
     /// let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-    /// let network = unsafe { network_builder.boot() };
+    /// network_builder.boot().expect("fdb network running");
     /// // do some interesting things with the API...
-    /// drop(network);
     /// ```
     ///
     /// ```rust
@@ -199,134 +363,29 @@ impl NetworkBuilder {
     /// #[tokio::main]
     /// async fn main() {
     ///     let network_builder = FdbApiBuilder::default().build().expect("fdb api initialized");
-    ///     let network = unsafe { network_builder.boot() };
+    ///     network_builder.boot().expect("fdb network running");
     ///     // do some interesting things with the API...
-    ///     drop(network);
     /// }
     /// ```
-    pub unsafe fn boot(self) -> FdbResult<NetworkAutoStop> {
-        unsafe {
-            let (runner, cond) = self.build()?;
-
-            let net_thread = runner.spawn();
-
-            let network = cond.wait();
-
-            Ok(NetworkAutoStop {
-                handle: Some(net_thread),
-                network: Some(network),
-            })
-        }
+    pub fn boot(self) -> FdbResult<NetworkAutoStop> {
+        lock_network().start_network()?;
+        Ok(NetworkAutoStop { _private: () })
     }
 }
 
-/// A foundationDB network event loop runner
+/// Kept for backward compatibility: dropping it does nothing.
 ///
-/// Most of the time you should never need to use this directly and use `boot()`.
-pub struct NetworkRunner {
-    cond: Arc<(Mutex<bool>, Condvar)>,
-}
-
-impl NetworkRunner {
-    /// Start the foundationDB network event loop in the current thread.
-    ///
-    /// # Safety
-    ///
-    /// This method is unsafe because you **MUST** call the `stop` method on the
-    /// associated `NetworkStop` before the program exit.
-    ///
-    /// This will only returns once the `stop` method on the associated `NetworkStop`
-    /// object is called or if the foundationDB event loop return an error.
-    pub unsafe fn run(self) -> FdbResult<()> {
-        self._run()
-    }
-
-    fn _run(self) -> FdbResult<()> {
-        {
-            let (lock, cvar) = &*self.cond;
-            let mut started = lock.lock().unwrap();
-            *started = true;
-            // We notify the condvar that the value has changed.
-            cvar.notify_one();
-        }
-
-        error::eval(unsafe { fdb_sys::fdb_run_network() })
-    }
-
-    unsafe fn spawn(self) -> thread::JoinHandle<()> {
-        unsafe {
-            thread::spawn(move || {
-                self.run().expect("failed to run network thread");
-            })
-        }
-    }
-}
-
-/// A condition object that can wait for the associated `NetworkRunner` to actually run.
-///
-/// Most of the time you should never need to use this directly and use `boot()`.
-pub struct NetworkWait {
-    cond: Arc<(Mutex<bool>, Condvar)>,
-}
-
-impl NetworkWait {
-    /// Wait for the associated `NetworkRunner` to actually run.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal lock cannot is poisoned
-    pub fn wait(self) -> NetworkStop {
-        // Wait for the thread to start up.
-        {
-            let (lock, cvar) = &*self.cond;
-            let mut started = lock.lock().unwrap();
-            while !*started {
-                started = cvar.wait(started).unwrap();
-            }
-        }
-
-        NetworkStop { _private: () }
-    }
-}
-
-/// Allow to stop the associated and running `NetworkRunner`.
-///
-/// Most of the time you should never need to use this directly and use `boot()`.
-pub struct NetworkStop {
+/// The network runs until process exit (an atexit hook stops it and joins the
+/// network thread), or until an explicit [`stop_network`] call.
+pub struct NetworkAutoStop {
     _private: (),
 }
 
-impl NetworkStop {
-    /// Signals the event loop invoked by `Network::run` to terminate.
-    pub fn stop(self) -> FdbResult<()> {
-        error::eval(unsafe { fdb_sys::fdb_stop_network() })
-    }
-}
-
-/// Stop the associated `NetworkRunner` and thread if dropped
-///
-/// If trying to stop the FoundationDB run loop results in an error.
-/// The error is printed in `stderr` and the process aborts.
-///
-/// # Panics
-///
-/// Panics if the network thread cannot be joined.
-pub struct NetworkAutoStop {
-    network: Option<NetworkStop>,
-    handle: Option<std::thread::JoinHandle<()>>,
-}
 impl Drop for NetworkAutoStop {
     fn drop(&mut self) {
-        if let Err(err) = self.network.take().unwrap().stop() {
-            eprintln!("failed to stop network: {err}");
-            // Not aborting can probably cause undefined behavior
-            std::process::abort();
-        }
-        self.handle
-            .take()
-            .unwrap()
-            .join()
-            .expect("failed to join fdb thread");
+        // Intentionally inert: the network is stopped at process exit (or by an
+        // explicit stop_network()), never on guard drop. Stopping on drop would
+        // make any later use of FoundationDB in the process fail with error 2025.
     }
 }
 
@@ -337,5 +396,76 @@ mod tests {
     #[test]
     fn test_max_api() {
         assert!(get_max_api_version() > 0);
+    }
+
+    // Only exercises the FFI-free arms of the transition table, on locally
+    // constructed states: lib unit tests share one process, so they must neither
+    // touch the NETWORK static nor select a real api version.
+    #[test]
+    fn test_transition_table_ffi_free_arms() {
+        // ApiVersionSelected
+        let mut state = NetworkLifecycle::ApiVersionSelected { api_version: 710 };
+        state
+            .select_api_version(710)
+            .expect("same version must be idempotent");
+        assert_eq!(
+            state.select_api_version(620).unwrap_err().code(),
+            ERR_API_VERSION_ALREADY_SET
+        );
+        state.stop_network().expect("stop before start must be Ok");
+        assert!(matches!(
+            state,
+            NetworkLifecycle::Stopped { api_version: 710 }
+        ));
+
+        // Running (dummy finished thread; stop_network is never called on it)
+        let mut state = NetworkLifecycle::Running {
+            api_version: 710,
+            handle: std::thread::spawn(|| {}),
+        };
+        state
+            .start_network()
+            .expect("start while running must be idempotent");
+        assert_eq!(
+            state.select_api_version(620).unwrap_err().code(),
+            ERR_API_VERSION_ALREADY_SET
+        );
+        assert_eq!(
+            state
+                .set_network_option(NetworkOption::TraceEnable(String::new()))
+                .unwrap_err()
+                .code(),
+            ERR_NETWORK_ALREADY_SETUP
+        );
+
+        // Stopped is terminal
+        let mut state = NetworkLifecycle::Stopped { api_version: 710 };
+        assert_eq!(
+            state.start_network().unwrap_err().code(),
+            ERR_NETWORK_CANNOT_BE_RESTARTED
+        );
+        assert_eq!(
+            state
+                .set_network_option(NetworkOption::TraceEnable(String::new()))
+                .unwrap_err()
+                .code(),
+            ERR_NETWORK_CANNOT_BE_RESTARTED
+        );
+        state.stop_network().expect("stop must be idempotent");
+        state
+            .select_api_version(710)
+            .expect("re-selecting the same version stays Ok once stopped");
+
+        // Uninitialized
+        let mut state = NetworkLifecycle::Uninitialized;
+        state.stop_network().expect("stopping nothing must be Ok");
+        assert!(matches!(state, NetworkLifecycle::Uninitialized));
+        assert_eq!(
+            state
+                .set_network_option(NetworkOption::TraceEnable(String::new()))
+                .unwrap_err()
+                .code(),
+            ERR_API_VERSION_UNSET
+        );
     }
 }

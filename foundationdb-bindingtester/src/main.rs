@@ -2873,11 +2873,12 @@ fn main() {
     let api_version = args[2].parse::<i32>().expect("failed to parse api version");
 
     info!("Starting rust bindingtester with api_version {api_version}");
-    let builder = api::FdbApiBuilder::default()
+    api::FdbApiBuilder::default()
         .set_runtime_version(api_version)
         .build()
-        .expect("failed to initialize FoundationDB API");
-    let _network = unsafe { builder.boot() };
+        .expect("failed to initialize FoundationDB API")
+        .boot()
+        .expect("failed to start the FoundationDB network");
 
     let db = Arc::new(
         futures::executor::block_on(fdb::Database::new_compat(cluster_path))

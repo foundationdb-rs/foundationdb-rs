@@ -360,7 +360,7 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
 
 #[tokio::main]
 async fn main() {
-    let _guard = unsafe { fdb::boot() };
+    fdb::boot().expect("failed to initialize FoundationDB");
     let db = fdb::Database::new_compat(None)
         .await
         .expect("failed to get database");

@@ -377,7 +377,7 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
 
 #[tokio::main]
 async fn main() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
     let db = Database::new_compat(None)
         .await
         .expect("Unable to create database");

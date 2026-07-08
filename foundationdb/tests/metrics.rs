@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 #[test]
 fn test_metrics() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     futures::executor::block_on(instrumented_run_success()).expect("failed to run");
     futures::executor::block_on(instrumented_run_with_n_retries()).expect("failed to run");
     futures::executor::block_on(test_counter_metrics()).expect("failed to run");

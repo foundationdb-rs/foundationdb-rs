@@ -49,13 +49,11 @@ impl RunnerHooks for PrintHooks {
 
 #[tokio::main]
 async fn main() {
-    let network = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
 
     if let Err(e) = run_example().await {
         eprintln!("Error: {e:?}");
     }
-
-    drop(network);
 }
 
 async fn run_example() -> Result<(), FdbBindingError> {

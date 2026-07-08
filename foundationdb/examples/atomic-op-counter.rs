@@ -4,7 +4,7 @@ use foundationdb::{Database, FdbResult, Transaction, options};
 
 #[tokio::main]
 async fn main() {
-    let _guard = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
     let db = Database::new_compat(None)
         .await
         .expect("failed to get database");

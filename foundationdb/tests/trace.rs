@@ -12,7 +12,7 @@ use std::sync::atomic::AtomicU8;
 fn test_trace() {
     use tracing_subscriber::fmt::format::FmtSpan;
 
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     let rt = tokio::runtime::Runtime::new().unwrap();
     let test_writer = tracing_subscriber::fmt::TestWriter::new();
 

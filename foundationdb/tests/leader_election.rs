@@ -18,7 +18,7 @@ mod leader_election_tests {
 
     #[test]
     fn test_leader_election() {
-        let _guard = unsafe { foundationdb::boot() };
+        let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
         futures::executor::block_on(test_leader_election_basic_async()).expect("failed to run");
         futures::executor::block_on(test_multi_process_leadership_async()).expect("failed to run");
         futures::executor::block_on(test_heartbeat_and_lease_async()).expect("failed to run");

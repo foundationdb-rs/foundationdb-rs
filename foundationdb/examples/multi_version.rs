@@ -29,7 +29,7 @@ async fn main() {
             ))
             .expect("Failed to add external library directory");
     }
-    let _guard = unsafe { network_builder.boot() };
+    network_builder.boot().expect("failed to start the network");
 
     // You can replace `None` with an `Option` with the path to your `fdb.cluster` file
     let db = Database::new_compat(None)

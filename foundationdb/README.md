@@ -91,14 +91,13 @@ use futures::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
+    // Optional: creating a Database initializes the client automatically.
+    foundationdb::boot().expect("failed to initialize FoundationDB");
 
     // Have fun with the FDB API
     hello_world().await.expect("could not run the hello world");
 
-    // shutdown the client
-    drop(network);
+    // The network is stopped automatically at process exit.
 }
 
 async fn hello_world() -> foundationdb::FdbResult<()> {
@@ -151,23 +150,27 @@ explores how to use subspaces to attach metadata to our blob.
 
 ### Initialization
 
-Due to limitations in the C API, the Client and it's associated Network can only be initialized and run once per the life of a process. Generally the `foundationdb::boot` function will be enough to initialize the Client. See `foundationdb::api` for more configuration options of the Fdb Client.
+The Client is initialized on first use: creating a `Database` starts the network automatically, like `fdb.open()` does in the official bindings. You can also initialize it explicitly with the safe and idempotent `foundationdb::boot` function. The network then runs until process exit, where it is stopped and joined automatically. Applications that want to own their shutdown sequence can use `foundationdb::api::stop_network` and `foundationdb::api::disable_stop_on_exit`. See `foundationdb::api` for more configuration options of the Fdb Client.
 
-###  Migration from 0.4 to 0.5
+###  Migration from 0.11 to 0.12
 
-The initialization of foundationdb API has changed due to undefined behavior being possible with only safe code (issues #170, #181, pulls #179, #182).
+The initialization of the foundationdb API is now safe and idempotent, and the network can no longer be stopped by dropping the boot guard (issues #132, #195). Previously you had to write:
 
-Previously you had to wrote `foundationdb::boot().expect("failed to initialize Fdb");`, now this can be converted to:
-
-```rust
-// Safe because drop is called before the program exits
+```rust,ignore
+// old, up to 0.11
 let network = unsafe { foundationdb::boot() };
-
 // do stuff
-
-// cleanly shutdown the client
 drop(network);
 ```
+
+Now this can be converted to:
+
+```rust
+foundationdb::boot().expect("failed to initialize FoundationDB");
+// do stuff; the network is stopped automatically at process exit
+```
+
+Calling `boot` is even optional if you create a `Database`. Tests no longer need to be serialized with `--test-threads=1`: every test can boot in any order, in parallel.
 
 ### API stability
 

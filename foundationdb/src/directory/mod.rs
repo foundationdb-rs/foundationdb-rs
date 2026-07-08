@@ -53,10 +53,8 @@
 //!     Ok(())
 //! }
 //!
-//! // Safe because drop is called before the program exits
-//! let network = unsafe { foundationdb::boot() };
+//! foundationdb::boot().expect("failed to initialize FoundationDB");
 //! futures::executor::block_on(async_main()).expect("failed to run");
-//! drop(network);
 //! ```
 
 mod directory_layer;

@@ -17,7 +17,7 @@ mod ranked_register_tests {
 
     #[test]
     fn test_ranked_register() {
-        let _guard = unsafe { foundationdb::boot() };
+        let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
         futures::executor::block_on(test_basic_write_and_read()).expect("failed to run");
         futures::executor::block_on(test_rank_fencing()).expect("failed to run");
         futures::executor::block_on(test_write_ordering()).expect("failed to run");

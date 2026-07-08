@@ -32,7 +32,7 @@ where
 
 #[test]
 fn test_future_discard() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     futures::executor::block_on(test_future_discard_async()).expect("failed to run");
 }
 

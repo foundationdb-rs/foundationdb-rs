@@ -20,7 +20,7 @@ mod common;
 
 #[test]
 fn test_range() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     futures::executor::block_on(test_get_range_async()).expect("failed to run");
     futures::executor::block_on(test_range_option_async()).expect("failed to run");
     futures::executor::block_on(test_get_ranges_async()).expect("failed to run");

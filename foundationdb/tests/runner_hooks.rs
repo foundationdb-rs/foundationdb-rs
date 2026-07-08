@@ -11,7 +11,7 @@ mod common;
 
 #[test]
 fn test_runner_hooks() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     futures::executor::block_on(test_happy_path_instrumented()).expect("failed to run");
     // ReportConflictingKeys (option 712) requires FDB >= 6.3
     if_cfg_api_versions!(min = 630 => {

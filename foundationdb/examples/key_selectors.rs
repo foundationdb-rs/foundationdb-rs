@@ -408,7 +408,7 @@ async fn key_selector_example(db: &Database) -> Result<(), FdbError> {
 
 #[tokio::main]
 async fn main() {
-    let _network_holder = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
 
     match Database::default() {
         Ok(db) => {

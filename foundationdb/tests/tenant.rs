@@ -7,7 +7,7 @@ use foundationdb_sys::if_cfg_api_versions;
 
 #[test]
 fn test_tenant() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     #[cfg(feature = "tenant-experimental")]
     if_cfg_api_versions!(min = 710 =>
         futures::executor::block_on(test_tenant_management()).expect("failed to run");

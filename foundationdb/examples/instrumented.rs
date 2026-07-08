@@ -10,15 +10,12 @@ use foundationdb::{Database, FdbBindingError};
 #[tokio::main]
 async fn main() {
     // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
 
     // Run the instrumented example
     if let Err(e) = instrumented_example().await {
         eprintln!("Error running instrumented example: {e:?}");
     }
-
-    // Shutdown the client
-    drop(network);
 }
 
 async fn instrumented_example() -> Result<(), FdbBindingError> {

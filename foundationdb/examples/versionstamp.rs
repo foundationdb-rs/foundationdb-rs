@@ -6,7 +6,7 @@ use futures::StreamExt;
 
 #[tokio::main]
 async fn main() {
-    let network = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
 
     run_versionstamp_key_example()
         .await
@@ -15,8 +15,6 @@ async fn main() {
     run_versionstamp_value_example()
         .await
         .expect("failed to run versionstamp example");
-
-    drop(network);
 }
 
 async fn run_versionstamp_key_example() -> FdbResult<()> {

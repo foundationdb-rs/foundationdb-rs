@@ -5,7 +5,7 @@ mod common;
 
 #[test]
 fn test_databse() {
-    let _guard = unsafe { foundationdb::boot() };
+    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
 
     if_cfg_api_versions!(min = 730 =>
         futures::executor::block_on(test_status_async()).expect("failed to run")
