@@ -9,6 +9,7 @@ use foundationdb::directory::DirectoryLayer;
 
 use foundationdb::directory::Directory;
 
+use foundationdb::tuple::Subspace;
 use foundationdb::*;
 
 mod common;
@@ -18,13 +19,22 @@ mod common;
 async fn test_directory() {
     let db = common::database().await.expect("cannot open fdb");
 
-    eprintln!("clearing all keys");
+    // Scope the directory layer to a test-specific subspace: create() fails on
+    // an already existing path, so reruns need a fresh state, and clearing only
+    // our own subspace keeps the rest of the cluster untouched.
+    let test_root = Subspace::from("test-directory");
+    let directory = DirectoryLayer::new(
+        test_root.subspace(&"node"),
+        test_root.subspace(&"content"),
+        false,
+    );
+
+    eprintln!("clearing the test subspace");
     let trx = db.create_trx().expect("cannot create txn");
-    trx.clear_range(b"", b"\xff");
+    trx.clear_subspace_range(&test_root);
     trx.commit().await.expect("could not clear keys");
 
     eprintln!("creating directories");
-    let directory = DirectoryLayer::default();
 
     test_create_then_open_then_delete(&db, &directory, vec![String::from("application")])
         .await
