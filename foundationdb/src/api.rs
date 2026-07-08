@@ -79,7 +79,11 @@ static NETWORK_RUN_ERROR: AtomicI32 = AtomicI32::new(0);
 
 fn lock_network() -> MutexGuard<'static, NetworkLifecycle> {
     // State is only mutated after the corresponding FFI call succeeded, so a
-    // poisoned lock still guards a consistent state.
+    // poisoned lock still guards a consistent state. The one exception is a
+    // thread-spawn panic in start_network after fdb_setup_network succeeded
+    // (OS resource exhaustion): the state then stays ApiVersionSelected while
+    // the network is set up, and any retry fails with 2009. Deliberately not
+    // handled: nothing sensible can be done at that point.
     NETWORK.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -240,8 +244,9 @@ extern "C" fn network_atexit_hook() {
 ///
 /// This is terminal for the process: once it returns `Ok`, every FoundationDB
 /// operation fails with error 2025 (`network_cannot_be_restarted`), including in
-/// other threads. It is idempotent and safe to call even if the network was
-/// never started.
+/// other threads. It is idempotent. One exception to terminality: if the client
+/// was never initialized at all (no boot, no API version selected, no `Database`
+/// created), the call is a plain no-op and a later boot still succeeds.
 ///
 /// Tests and short-lived tools can simply rely on the automatic stop at process
 /// exit. In a production application, prefer calling this yourself as part of a
