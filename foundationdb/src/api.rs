@@ -20,6 +20,16 @@
 //! and joins the network thread, as required by the C API. Applications that
 //! manage their own shutdown can call [`disable_stop_on_exit`] and/or
 //! [`stop_network`].
+//!
+//! <div class="warning">
+//!
+//! The automatic stop at process exit is meant for tests and short-lived tools.
+//! In a production application, prefer a clean teardown: the network thread is
+//! the event loop driving every transaction and you may still have on-going
+//! operations at exit time. Finish or cancel your work, drop the
+//! [`crate::Database`] handles, then call [`stop_network`] yourself.
+//!
+//! </div>
 
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -230,21 +240,35 @@ extern "C" fn network_atexit_hook() {
 ///
 /// This is terminal for the process: once it returns `Ok`, every FoundationDB
 /// operation fails with error 2025 (`network_cannot_be_restarted`), including in
-/// other threads. Most programs never need it: the network is stopped
-/// automatically at process exit. It is idempotent and safe to call even if the
-/// network was never started.
+/// other threads. It is idempotent and safe to call even if the network was
+/// never started.
+///
+/// Tests and short-lived tools can simply rely on the automatic stop at process
+/// exit. In a production application, prefer calling this yourself as part of a
+/// clean shutdown sequence, once on-going operations are finished and the
+/// [`crate::Database`] handles are dropped.
 ///
 /// Must not be called from the network thread itself (e.g. from a future
 /// callback), as it joins that thread.
+///
+/// # Examples
+///
+/// ```rust
+/// foundationdb::boot().expect("failed to initialize FoundationDB");
+/// // ... use FoundationDB ...
+/// foundationdb::api::stop_network().expect("failed to stop the network");
+/// // The stop is terminal: any use of FoundationDB now fails with error 2025.
+/// assert_eq!(foundationdb::boot().err().map(|e| e.code()), Some(2025));
+/// ```
 pub fn stop_network() -> FdbResult<()> {
     lock_network().stop_network()
 }
 
 /// Disables the automatic network stop at process exit.
 ///
-/// The atexit hook registered when the network starts becomes a no-op. For
-/// applications that want to own their shutdown sequence with [`stop_network`];
-/// note that the C API requires the network to be stopped and joined before a
+/// The atexit hook registered when the network starts becomes a no-op. Use it
+/// when your application owns its shutdown sequence and calls [`stop_network`]
+/// itself: the C API requires the network to be stopped and joined before a
 /// normal process exit.
 pub fn disable_stop_on_exit() {
     STOP_ON_EXIT.store(false, Ordering::Release);

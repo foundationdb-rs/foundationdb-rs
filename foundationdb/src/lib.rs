@@ -74,6 +74,17 @@ pub use crate::transaction::*;
 /// The returned guard is kept for backward compatibility, dropping it does
 /// nothing.
 ///
+/// <div class="warning">
+///
+/// The automatic stop at process exit is a convenience suited to tests and
+/// short-lived tools. In a production application, prefer handling the network
+/// stop yourself: the network thread is the event loop driving every
+/// transaction, you may still have on-going operations at exit time, and you
+/// usually want a clean teardown. Finish or cancel your work, drop your
+/// [`Database`] handles, then call [`api::stop_network`].
+///
+/// </div>
+///
 /// # Errors
 ///
 /// - error 2201 (`api_version_already_set`) if a different API version was

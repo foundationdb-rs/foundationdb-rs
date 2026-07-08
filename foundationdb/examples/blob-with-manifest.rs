@@ -378,6 +378,13 @@ async fn check_data_stored(db: &Database, files_subspaces: Vec<Subspace>) {
 #[tokio::main]
 async fn main() {
     foundationdb::boot().expect("failed to initialize FoundationDB");
+    // The network is stopped and joined automatically at process exit, which is
+    // fine for tests and short-lived tools like this example. In a production
+    // application, prefer a clean teardown: the network thread is the event loop
+    // driving every transaction and you may still have on-going operations at
+    // exit time. Finish or cancel your work, drop the Database handles, then
+    // call `foundationdb::api::stop_network()` yourself (terminal: any
+    // FoundationDB use afterwards fails with error 2025).
     let db = Database::new_compat(None)
         .await
         .expect("Unable to create database");

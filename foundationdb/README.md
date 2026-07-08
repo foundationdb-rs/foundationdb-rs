@@ -150,7 +150,9 @@ explores how to use subspaces to attach metadata to our blob.
 
 ### Initialization
 
-The Client is initialized on first use: creating a `Database` starts the network automatically, like `fdb.open()` does in the official bindings. You can also initialize it explicitly with the safe and idempotent `foundationdb::boot` function. The network then runs until process exit, where it is stopped and joined automatically. Applications that want to own their shutdown sequence can use `foundationdb::api::stop_network` and `foundationdb::api::disable_stop_on_exit`. See `foundationdb::api` for more configuration options of the Fdb Client.
+The Client is initialized on first use: creating a `Database` starts the network automatically, like `fdb.open()` does in the official bindings. You can also initialize it explicitly with the safe and idempotent `foundationdb::boot` function. The network then runs until process exit, where it is stopped and joined automatically. See `foundationdb::api` for more configuration options of the Fdb Client.
+
+**Warning**: the automatic stop at process exit is meant for tests and short-lived tools. In a production application, prefer handling the network stop yourself: the network thread is the event loop driving every transaction, you may still have on-going operations at exit time, and you usually want a clean teardown. Finish or cancel your work, drop the `Database` handles, then call `foundationdb::api::stop_network()` (`foundationdb::api::disable_stop_on_exit()` additionally turns the exit hook into a no-op).
 
 ###  Migration from 0.11 to 0.12
 
