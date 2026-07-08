@@ -16,79 +16,8 @@ mod common;
 // These tests run in parallel without any explicit boot: the first
 // `common::database()` call starts the network lazily (see issue #132).
 
-#[test]
-fn test_set_get() {
-    futures::executor::block_on(test_set_get_async()).expect("failed to run");
-}
-
-#[test]
-fn test_get_multi() {
-    futures::executor::block_on(test_get_multi_async()).expect("failed to run");
-}
-
-#[test]
-fn test_set_conflict() {
-    futures::executor::block_on(test_set_conflict_async()).expect("failed to run");
-}
-
-#[test]
-fn test_set_conflict_snapshot() {
-    futures::executor::block_on(test_set_conflict_snapshot_async()).expect("failed to run");
-}
-
-#[test]
-fn test_transact() {
-    futures::executor::block_on(test_transact_async()).expect("failed to run");
-}
-
-#[test]
-fn test_transact_limit() {
-    futures::executor::block_on(test_transact_limit_async()).expect("failed to run");
-}
-
-#[test]
-fn test_transact_timeout() {
-    futures::executor::block_on(test_transact_timeout_async()).expect("failed to run");
-}
-
-#[test]
-fn test_versionstamp() {
-    futures::executor::block_on(test_versionstamp_async()).expect("failed to run");
-}
-
-#[test]
-fn test_read_version() {
-    futures::executor::block_on(test_read_version_async()).expect("failed to run");
-}
-
-#[test]
-fn test_set_read_version() {
-    futures::executor::block_on(test_set_read_version_async()).expect("failed to run");
-}
-
-#[test]
-fn test_get_addresses_for_key() {
-    futures::executor::block_on(test_get_addresses_for_key_async()).expect("failed to run");
-}
-
-#[test]
-fn test_set_raw_option() {
-    futures::executor::block_on(test_set_raw_option_async()).expect("failed to run");
-}
-
-#[test]
-fn test_fails_to_set_unknown_raw_option() {
-    futures::executor::block_on(test_fails_to_set_unknown_raw_option_async())
-        .expect("failed to run");
-}
-
-#[cfg_api_versions(min = 610)]
-#[test]
-fn test_metadata_version() {
-    futures::executor::block_on(test_metadata_version_async()).expect("failed to run");
-}
-
-async fn test_set_get_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_set_get() -> FdbResult<()> {
     let db = common::database().await?;
 
     let trx = db.create_trx()?;
@@ -108,7 +37,8 @@ async fn test_set_get_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_get_multi_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_get_multi() -> FdbResult<()> {
     let db = common::database().await?;
 
     let trx = db.create_trx()?;
@@ -118,7 +48,8 @@ async fn test_get_multi_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_set_conflict_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_set_conflict() -> FdbResult<()> {
     let key = b"test_set_conflict";
     let db = common::database().await?;
 
@@ -153,7 +84,8 @@ async fn test_set_conflict_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_set_conflict_snapshot_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_set_conflict_snapshot() -> FdbResult<()> {
     let key = b"test_set_conflict_snapshot";
     let db = common::database().await?;
 
@@ -185,7 +117,8 @@ async fn make_dirty(db: &Database, key: &[u8]) -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_transact_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_transact() -> FdbResult<()> {
     const KEY: &[u8] = b"test_transact";
     const RETRY_COUNT: usize = 5;
     async fn async_body(
@@ -229,7 +162,8 @@ async fn test_transact_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_transact_limit_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_transact_limit() -> FdbResult<()> {
     const KEY: &[u8] = b"test_transact_limit";
     async fn async_body(
         db: &Database,
@@ -270,7 +204,8 @@ async fn test_transact_limit_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_transact_timeout_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_transact_timeout() -> FdbResult<()> {
     const KEY: &[u8] = b"test_transact_timeout";
     async fn async_body(
         db: &Database,
@@ -309,7 +244,8 @@ async fn test_transact_timeout_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_versionstamp_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_versionstamp() -> FdbResult<()> {
     const KEY: &[u8] = b"test_versionstamp";
     let db = common::database().await?;
 
@@ -322,7 +258,8 @@ async fn test_versionstamp_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_read_version_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_read_version() -> FdbResult<()> {
     let db = common::database().await?;
 
     let trx = db.create_trx()?;
@@ -331,7 +268,8 @@ async fn test_read_version_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_set_read_version_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_set_read_version() -> FdbResult<()> {
     const KEY: &[u8] = b"test_set_read_version";
     let db = common::database().await?;
 
@@ -342,7 +280,8 @@ async fn test_set_read_version_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_get_addresses_for_key_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_get_addresses_for_key() -> FdbResult<()> {
     const KEY: &[u8] = b"test_get_addresses_for_key";
 
     let db = common::database().await?;
@@ -362,7 +301,8 @@ async fn test_get_addresses_for_key_async() -> FdbResult<()> {
 }
 
 #[cfg_api_versions(min = 610)]
-async fn test_metadata_version_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_metadata_version() -> FdbResult<()> {
     let db = common::database().await?;
 
     let trx = db.create_trx()?;
@@ -385,7 +325,8 @@ async fn test_metadata_version_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_set_raw_option_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_set_raw_option() -> FdbResult<()> {
     const KEY: &[u8] = b"test_set_raw_option_async";
     const RETRY_COUNT: usize = 5;
     async fn async_body(
@@ -429,7 +370,8 @@ async fn test_set_raw_option_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_fails_to_set_unknown_raw_option_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_fails_to_set_unknown_raw_option() -> FdbResult<()> {
     let db = common::database().await?;
     let trx = db.create_trx()?;
     let res = trx.set_raw_option(0, None);

@@ -3,7 +3,6 @@ use std::time::SystemTime;
 
 #[tokio::test]
 async fn timekeeper() {
-    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
     let database = foundationdb::Database::new_compat(None)
         .await
         .expect("Unable to create database");

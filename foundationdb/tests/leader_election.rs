@@ -16,19 +16,6 @@ mod leader_election_tests {
     };
     use std::time::Duration;
 
-    #[test]
-    fn test_leader_election() {
-        let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
-        futures::executor::block_on(test_leader_election_basic_async()).expect("failed to run");
-        futures::executor::block_on(test_multi_process_leadership_async()).expect("failed to run");
-        futures::executor::block_on(test_heartbeat_and_lease_async()).expect("failed to run");
-        futures::executor::block_on(test_leadership_transfer_on_expired_lease_async())
-            .expect("failed to run");
-        futures::executor::block_on(test_config_change_async()).expect("failed to run");
-        futures::executor::block_on(test_resign_leadership_async()).expect("failed to run");
-        futures::executor::block_on(test_preemption_async()).expect("failed to run");
-    }
-
     fn current_time() -> Duration {
         std::time::SystemTime::now()
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
@@ -52,7 +39,8 @@ mod leader_election_tests {
         Ok(election)
     }
 
-    async fn test_leader_election_basic_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_leader_election_basic() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let election = setup_test(&db, "test_leader_election_basic_async").await?;
         let process_id = "test-process-1";
@@ -105,7 +93,8 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_multi_process_leadership_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_multi_process_leadership() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let election = setup_test(&db, "test_multi_process_leadership_async").await?;
         let process_ids = ["process-1", "process-2", "process-3"];
@@ -185,7 +174,8 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_heartbeat_and_lease_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_heartbeat_and_lease() -> Result<(), FdbBindingError> {
         use std::thread::sleep;
 
         let db = crate::common::database().await?;
@@ -267,7 +257,8 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_leadership_transfer_on_expired_lease_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_leadership_transfer_on_expired_lease() -> Result<(), FdbBindingError> {
         use std::thread::sleep;
 
         let db = crate::common::database().await?;
@@ -389,7 +380,8 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_config_change_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_config_change() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let election = setup_test(&db, "test_config_change_async").await?;
 
@@ -465,7 +457,8 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_resign_leadership_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_resign_leadership() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let election = setup_test(&db, "test_resign_leadership_async").await?;
         let leader_id = "leader-process";
@@ -536,7 +529,8 @@ mod leader_election_tests {
         Ok(())
     }
 
-    async fn test_preemption_async() -> Result<(), FdbBindingError> {
+    #[tokio::test]
+    async fn test_preemption() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let election = setup_test(&db, "test_preemption_async").await?;
         let low_priority = "low-priority";

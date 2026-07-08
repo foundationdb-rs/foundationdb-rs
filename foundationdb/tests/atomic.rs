@@ -10,12 +10,6 @@ use futures::future::*;
 
 mod common;
 
-#[test]
-fn test_atomic() {
-    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
-    futures::executor::block_on(test_atomic_async()).expect("failed to run");
-}
-
 async fn atomic_add(db: &Database, key: &[u8], value: i64) -> FdbResult<()> {
     let trx = db.create_trx()?;
 
@@ -30,7 +24,8 @@ async fn atomic_add(db: &Database, key: &[u8], value: i64) -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_atomic_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_atomic() -> FdbResult<()> {
     const KEY: &[u8] = b"test-atomic";
 
     let db = common::database().await?;

@@ -13,15 +13,8 @@ use std::iter::FromIterator;
 
 mod common;
 
-#[test]
-fn test_hca_many_sequential_allocations() {
-    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
-    futures::executor::block_on(test_hca_many_sequential_allocations_async())
-        .expect("failed to run");
-    futures::executor::block_on(test_hca_concurrent_allocations_async()).expect("failed to run");
-}
-
-async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_hca_many_sequential_allocations() -> FdbResult<()> {
     const N: usize = 1000;
     const KEY: &[u8] = b"test-hca-allocate";
 
@@ -56,7 +49,8 @@ async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_hca_concurrent_allocations_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_hca_concurrent_allocations() -> FdbResult<()> {
     const N: usize = 1000;
     const KEY: &[u8] = b"test-hca-allocate-concurrent";
 

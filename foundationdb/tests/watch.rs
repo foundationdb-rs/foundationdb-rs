@@ -9,14 +9,8 @@ use foundationdb::*;
 
 mod common;
 
-#[test]
-fn test_watch() {
-    let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
-    futures::executor::block_on(test_watch_async()).expect("failed to run");
-    futures::executor::block_on(test_watch_without_commit_async()).expect("failed to run");
-}
-
-async fn test_watch_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_watch() -> FdbResult<()> {
     const KEY: &[u8] = b"test-watch";
 
     let db = common::database().await?;
@@ -39,7 +33,8 @@ async fn test_watch_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_watch_without_commit_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_watch_without_commit() -> FdbResult<()> {
     const KEY: &[u8] = b"test-watch-2";
 
     let db = common::database().await?;
