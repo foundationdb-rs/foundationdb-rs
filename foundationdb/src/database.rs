@@ -48,7 +48,7 @@ impl From<MaybeCommitted> for bool {
 /// Lifecycle hooks for the transaction retry runner.
 ///
 /// All methods have default no-op implementations, so callers only override what they need.
-/// This trait enables a single internal retry loop ([`run_with_hooks`]) to serve both
+/// This trait enables a single internal retry loop (`run_with_hooks`) to serve both
 /// `Database::run()` (no-op hooks) and `Database::instrumented_run()` (metrics hooks).
 pub trait RunnerHooks {
     /// Called when commit fails, **before** `on_error()` resets the transaction.

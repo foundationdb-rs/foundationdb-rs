@@ -16,9 +16,9 @@
 //!
 //! | Operation | Who | Effect |
 //! |-----------|-----|--------|
-//! | [`read(rank)`](RankedRegister::read) | Leader | Updates max_read_rank (installs fence), returns current value |
-//! | [`write(rank, value)`](RankedRegister::write) | Leader | Commits only if rank is high enough |
-//! | [`value()`](RankedRegister::value) | Followers | Plain read, no fence installed |
+//! | [`read(rank)`](crate::recipes::ranked_register::RankedRegister::read) | Leader | Updates max_read_rank (installs fence), returns current value |
+//! | [`write(rank, value)`](crate::recipes::ranked_register::RankedRegister::write) | Leader | Commits only if rank is high enough |
+//! | [`value()`](crate::recipes::ranked_register::RankedRegister::value) | Followers | Plain read, no fence installed |
 //!
 //! ## Composing with Leader Election
 //!
