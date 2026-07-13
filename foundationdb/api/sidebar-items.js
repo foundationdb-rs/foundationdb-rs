@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["get_max_api_version"],"struct":["FdbApiBuilder","NetworkAutoStop","NetworkBuilder","NetworkRunner","NetworkStop","NetworkWait"]};
+window.SIDEBAR_ITEMS = {"fn":["disable_stop_on_exit","get_max_api_version","network_run_error","stop_network"],"struct":["FdbApiBuilder","NetworkAutoStop","NetworkBuilder"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Severity"],"macro":["details","register_factory","register_workload"],"struct":["Metric","Metrics","WorkloadContext"],"trait":["RustWorkload","RustWorkloadFactory","SingleRustWorkload"],"type":["SimDatabase","WrappedWorkload"]};
+window.SIDEBAR_ITEMS = {"enum":["Severity"],"macro":[["details",1],["register_factory",1],["register_workload",1]],"struct":["Metric","Metrics","WorkloadContext"],"trait":["RustWorkload","RustWorkloadFactory","SingleRustWorkload"],"type":["SimDatabase","WrappedWorkload"]};
