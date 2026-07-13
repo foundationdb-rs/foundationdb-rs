@@ -18,6 +18,9 @@ use std::borrow::Cow;
 
 mod common;
 
+// Kept as a single sequential #[test] on purpose: test_range_option_async and
+// test_get_estimate_range share the "test-rangeoption-" prefix, and the two
+// mapped-range tests clear the same data/index subspaces.
 #[test]
 fn test_range() {
     let _guard = foundationdb::boot().expect("failed to initialize FoundationDB");
@@ -288,8 +291,8 @@ async fn test_mapped_value() -> FdbResult<()> {
 
     let db = common::database().await?;
 
-    let data_subspace = Subspace::all().subspace(&("data"));
-    let index_subspace = Subspace::all().subspace(&("index"));
+    let data_subspace = Subspace::all().subspace(&("test-range-data"));
+    let index_subspace = Subspace::all().subspace(&("test-range-index"));
     let number_of_records: i32 = 20;
 
     clear_mapped_data(&db, &data_subspace, &index_subspace).await;
@@ -301,10 +304,10 @@ async fn test_mapped_value() -> FdbResult<()> {
     let range_option = RangeOption::from(&index_subspace.subspace(&("blue")));
 
     // The mapper is a Tuple that allow to transform keys.
-    // This one is allowing fdb to convert a key like `("index", "blue", PRIMARY_KEY)`
-    // to generate a scan in the range `("data", PRIMARY_KEY, ...)`
+    // This one is allowing fdb to convert a key like `("test-range-index", "blue", PRIMARY_KEY)`
+    // to generate a scan in the range `("test-range-data", PRIMARY_KEY, ...)`
     // More info can be found here: https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange
-    let mapper = pack(&("data", "{K[2]}", "{...}"));
+    let mapper = pack(&("test-range-data", "{K[2]}", "{...}"));
 
     let mapped_key_values = t
         .get_mapped_range(&range_option, &mapper, 1024, false)
@@ -338,7 +341,7 @@ fn verify_mapped_values(
             let parent_key: Vec<Element> =
                 unpack(mapped_key_value.parent_key()).expect("could not unpack index key");
             assert!(parent_key.starts_with(&[
-                Element::String(Cow::from("index")),
+                Element::String(Cow::from("test-range-index")),
                 Element::String(Cow::from("blue"))
             ]));
 
@@ -352,7 +355,7 @@ fn verify_mapped_values(
 
             for kv in mapped_values {
                 let key: Vec<Element> = unpack(kv.key()).expect("could not unpack key");
-                assert!(key.starts_with(&[Element::String(Cow::from("data"))]));
+                assert!(key.starts_with(&[Element::String(Cow::from("test-range-data"))]));
             }
             value_counter += 1;
         }
@@ -369,8 +372,8 @@ async fn test_mapped_values() -> FdbResult<()> {
 
     let db = common::database().await?;
 
-    let data_subspace = Subspace::all().subspace(&("data"));
-    let index_subspace = Subspace::all().subspace(&("index"));
+    let data_subspace = Subspace::all().subspace(&("test-range-data"));
+    let index_subspace = Subspace::all().subspace(&("test-range-index"));
     let number_of_records: i32 = 10_000;
 
     clear_mapped_data(&db, &data_subspace, &index_subspace).await;
@@ -382,10 +385,10 @@ async fn test_mapped_values() -> FdbResult<()> {
     let range_option = RangeOption::from(&index_subspace.subspace(&("blue")));
 
     // The mapper is a Tuple that allow to transform keys.
-    // This one is allowing fdb to convert a key like `("index", "blue", PRIMARY_KEY)`
-    // to generate a scan in the range `("data", PRIMARY_KEY, ...)`
+    // This one is allowing fdb to convert a key like `("test-range-index", "blue", PRIMARY_KEY)`
+    // to generate a scan in the range `("test-range-data", PRIMARY_KEY, ...)`
     // More info can be found here: https://github.com/apple/foundationdb/wiki/Everything-about-GetMappedRange
-    let mapper = pack(&("data", "{K[2]}", "{...}"));
+    let mapper = pack(&("test-range-data", "{K[2]}", "{...}"));
 
     let key_values = t
         .get_mapped_ranges(range_option.clone(), &mapper, false)

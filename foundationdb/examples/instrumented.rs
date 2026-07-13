@@ -9,7 +9,6 @@ use foundationdb::{Database, FdbBindingError};
 
 #[tokio::main]
 async fn main() {
-    // Safe because drop is called before the program exits
     foundationdb::boot().expect("failed to initialize FoundationDB");
     // The network is stopped and joined automatically at process exit, which is
     // fine for tests and short-lived tools like this example. In a production

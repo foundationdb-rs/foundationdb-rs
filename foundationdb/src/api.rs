@@ -31,6 +31,7 @@
 //!
 //! </div>
 
+use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
@@ -202,8 +203,8 @@ impl NetworkLifecycle {
                 };
                 if handle.join().is_err() {
                     // run_network_thread cannot panic; keep the exit path panic-free
-                    // anyway.
-                    eprintln!("the fdb-network thread panicked");
+                    // anyway (eprintln! panics if the stderr write fails).
+                    let _ = writeln!(std::io::stderr(), "the fdb-network thread panicked");
                 }
                 *self = NetworkLifecycle::Stopped { api_version };
                 Ok(())
@@ -220,7 +221,10 @@ impl NetworkLifecycle {
 fn run_network_thread() {
     if let Err(err) = error::eval(unsafe { fdb_sys::fdb_run_network() }) {
         NETWORK_RUN_ERROR.store(err.code(), Ordering::Release);
-        eprintln!("fdb_run_network returned an error: {err}");
+        let _ = writeln!(
+            std::io::stderr(),
+            "fdb_run_network returned an error: {err}"
+        );
     }
 }
 
@@ -235,7 +239,10 @@ extern "C" fn network_atexit_hook() {
     if let Err(err) = lock_network().stop_network() {
         // Exiting with the network still running is undefined behavior, aborting
         // is not.
-        eprintln!("failed to stop the FoundationDB network at exit: {err}");
+        let _ = writeln!(
+            std::io::stderr(),
+            "failed to stop the FoundationDB network at exit: {err}"
+        );
         std::process::abort();
     }
 }
