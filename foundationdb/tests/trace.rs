@@ -8,12 +8,10 @@ use std::fmt::Formatter;
 use std::sync::atomic::AtomicU8;
 
 #[cfg(feature = "trace")]
-#[test]
-fn test_trace() {
+#[tokio::test]
+async fn test_trace() {
     use tracing_subscriber::fmt::format::FmtSpan;
 
-    let _guard = unsafe { foundationdb::boot() };
-    let rt = tokio::runtime::Runtime::new().unwrap();
     let test_writer = tracing_subscriber::fmt::TestWriter::new();
 
     let _e = tracing_subscriber::fmt()
@@ -22,9 +20,7 @@ fn test_trace() {
         .with_writer(test_writer)
         .try_init();
 
-    rt.block_on(async {
-        test_traces_on_run().await;
-    });
+    test_traces_on_run().await;
 }
 
 #[cfg(feature = "trace")]

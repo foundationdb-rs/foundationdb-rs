@@ -408,7 +408,14 @@ async fn key_selector_example(db: &Database) -> Result<(), FdbError> {
 
 #[tokio::main]
 async fn main() {
-    let _network_holder = unsafe { foundationdb::boot() };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
+    // The network is stopped and joined automatically at process exit, which is
+    // fine for tests and short-lived tools like this example. In a production
+    // application, prefer a clean teardown: the network thread is the event loop
+    // driving every transaction and you may still have on-going operations at
+    // exit time. Finish or cancel your work, drop the Database handles, then
+    // call `foundationdb::api::stop_network()` yourself (terminal: any
+    // FoundationDB use afterwards fails with error 2025).
 
     match Database::default() {
         Ok(db) => {

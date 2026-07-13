@@ -9,37 +9,40 @@ use foundationdb::directory::DirectoryLayer;
 
 use foundationdb::directory::Directory;
 
+use foundationdb::tuple::Subspace;
 use foundationdb::*;
 
 mod common;
 
-#[test]
+#[tokio::test]
 // testing basic features of the Directory, everything is tracked using with the BindingTester.
-fn test_directory() {
-    let _guard = unsafe { foundationdb::boot() };
-    let db = futures::executor::block_on(common::database()).expect("cannot open fdb");
+async fn test_directory() {
+    let db = common::database().await.expect("cannot open fdb");
 
-    eprintln!("clearing all keys");
+    // Scope the directory layer to a test-specific subspace: create() fails on
+    // an already existing path, so reruns need a fresh state, and clearing only
+    // our own subspace keeps the rest of the cluster untouched.
+    let test_root = Subspace::from("test-directory");
+    let directory = DirectoryLayer::new(
+        test_root.subspace(&"node"),
+        test_root.subspace(&"content"),
+        false,
+    );
+
+    eprintln!("clearing the test subspace");
     let trx = db.create_trx().expect("cannot create txn");
-    trx.clear_range(b"", b"\xff");
-    futures::executor::block_on(trx.commit()).expect("could not clear keys");
+    trx.clear_subspace_range(&test_root);
+    trx.commit().await.expect("could not clear keys");
 
     eprintln!("creating directories");
-    let directory = DirectoryLayer::default();
 
-    futures::executor::block_on(test_create_then_open_then_delete(
-        &db,
-        &directory,
-        vec![String::from("application")],
-    ))
-    .expect("failed to run");
+    test_create_then_open_then_delete(&db, &directory, vec![String::from("application")])
+        .await
+        .expect("failed to run");
 
-    futures::executor::block_on(test_create_then_open_then_delete(
-        &db,
-        &directory,
-        vec![String::from("1"), String::from("2")],
-    ))
-    .expect("failed to run");
+    test_create_then_open_then_delete(&db, &directory, vec![String::from("1"), String::from("2")])
+        .await
+        .expect("failed to run");
 }
 
 async fn test_create_then_open_then_delete(
@@ -49,7 +52,7 @@ async fn test_create_then_open_then_delete(
 ) -> FdbResult<()> {
     let trx = db.create_trx()?;
 
-    eprintln!("creating {:?}", &path);
+    eprintln!("creating {:?}", path);
     let create_output = directory.create(&trx, &path, None, None).await;
     assert!(
         create_output.is_ok(),
@@ -59,7 +62,7 @@ async fn test_create_then_open_then_delete(
     trx.commit().await.expect("cannot commit");
     let trx = db.create_trx()?;
 
-    eprintln!("opening {:?}", &path);
+    eprintln!("opening {:?}", path);
     let open_output = directory.open(&trx, &path, None).await;
     assert!(
         open_output.is_ok(),

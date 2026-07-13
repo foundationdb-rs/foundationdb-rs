@@ -9,23 +9,9 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI16, Ordering};
 use std::time::Duration;
-use tokio::runtime::Runtime;
 use tokio::time::timeout;
 
 mod common;
-
-#[test]
-fn test_tokio_send() {
-    let _guard = unsafe { foundationdb::boot() };
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
-        do_transact().await;
-        do_run().await;
-        do_run_with_transaction_limits().await;
-        do_trx().await;
-        do_run_with_custom_error().await;
-    });
-}
 
 #[derive(Debug)]
 enum CustomError {
@@ -40,6 +26,7 @@ impl Display for CustomError {
 
 impl std::error::Error for CustomError {}
 
+#[tokio::test(flavor = "multi_thread")]
 async fn do_run_with_custom_error() {
     let db = Arc::new(
         foundationdb::Database::new_compat(None)
@@ -69,6 +56,7 @@ async fn do_run_with_custom_error() {
     }
 }
 
+#[tokio::test(flavor = "multi_thread")]
 async fn do_transact() {
     let db = Arc::new(
         foundationdb::Database::new_compat(None)
@@ -96,6 +84,7 @@ async fn do_transact() {
     });
 }
 
+#[tokio::test(flavor = "multi_thread")]
 async fn do_trx() {
     let db = Arc::new(
         foundationdb::Database::new_compat(None)
@@ -113,6 +102,7 @@ async fn do_trx() {
     });
 }
 
+#[tokio::test(flavor = "multi_thread")]
 async fn do_run() {
     let limit_retry = 16;
     let db = Arc::new(
@@ -164,6 +154,7 @@ async fn do_run() {
     assert_eq!(limit_retry + 1, counter.load(Ordering::SeqCst));
 }
 
+#[tokio::test(flavor = "multi_thread")]
 async fn do_run_with_transaction_limits() {
     let limit_retry = 16;
     let db = Arc::new(
@@ -178,22 +169,29 @@ async fn do_run_with_transaction_limits() {
 
     let result = db
         .run(|trx, _maybe_committed| async move {
-            let read_subspace = Subspace::all().subspace(&("do_run"));
+            // dedicated subspace: do_run() uses "do_run" and both tests run in parallel
+            let read_subspace = Subspace::all().subspace(&("do_run_limits"));
             trx.set_option(foundationdb::options::TransactionOption::RetryLimit(16))?;
 
             let conflict_transaction = db_arc.create_trx().expect("could not create a transaction");
             counter_ref.fetch_add(1, Ordering::SeqCst);
 
-            // virtually reading some random data in the subspace "do_run"
+            // virtually reading some random data in the subspace "do_run_limits"
             let _keys: Vec<FdbValues> = trx
                 .get_ranges(read_subspace.range().into(), false)
                 .try_collect()
                 .await?;
 
-            trx.set(&Subspace::all().pack(&("do_run", "1")), &pack(&("42")));
+            trx.set(
+                &Subspace::all().pack(&("do_run_limits", "1")),
+                &pack(&("42")),
+            );
 
-            // writing with another transaction in the subspace "do_run"
-            conflict_transaction.set(&Subspace::all().pack(&("do_run", "2")), &pack(&("42")));
+            // writing with another transaction in the subspace "do_run_limits"
+            conflict_transaction.set(
+                &Subspace::all().pack(&("do_run_limits", "2")),
+                &pack(&("42")),
+            );
             conflict_transaction
                 .commit()
                 .await

@@ -1,13 +1,14 @@
 #[tokio::main]
 async fn main() {
-    // Safe because drop is called before the program exits
-    let network = unsafe { foundationdb::boot() };
-
-    // Have fun with the FDB API
+    // The FoundationDB client is initialized on first use, and the network is
+    // stopped and joined automatically at process exit, which is fine for tests
+    // and short-lived tools like this example. In a production application,
+    // prefer a clean teardown: the network thread is the event loop driving
+    // every transaction and you may still have on-going operations at exit time.
+    // Finish or cancel your work, drop the Database handles, then call
+    // `foundationdb::api::stop_network()` yourself (terminal: any FoundationDB
+    // use afterwards fails with error 2025).
     hello_world().await.expect("could not run the hello world");
-
-    // shutdown the client
-    drop(network);
 }
 
 async fn hello_world() -> foundationdb::FdbResult<()> {

@@ -15,17 +15,6 @@ mod ranked_register_tests {
         tuple::Subspace,
     };
 
-    #[test]
-    fn test_ranked_register() {
-        let _guard = unsafe { foundationdb::boot() };
-        futures::executor::block_on(test_basic_write_and_read()).expect("failed to run");
-        futures::executor::block_on(test_rank_fencing()).expect("failed to run");
-        futures::executor::block_on(test_write_ordering()).expect("failed to run");
-        futures::executor::block_on(test_stale_write_rejected()).expect("failed to run");
-        futures::executor::block_on(test_follower_value_read()).expect("failed to run");
-        futures::executor::block_on(test_empty_register()).expect("failed to run");
-    }
-
     async fn setup_test(db: &Database, test_name: &str) -> Result<RankedRegister, FdbBindingError> {
         let subspace = Subspace::all().subspace(&test_name);
         let (from, to) = subspace.range();
@@ -41,6 +30,7 @@ mod ranked_register_tests {
         Ok(RankedRegister::new(subspace))
     }
 
+    #[tokio::test]
     async fn test_basic_write_and_read() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_basic_write_and_read").await?;
@@ -76,6 +66,7 @@ mod ranked_register_tests {
         Ok(())
     }
 
+    #[tokio::test]
     async fn test_rank_fencing() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_rank_fencing").await?;
@@ -124,6 +115,7 @@ mod ranked_register_tests {
         Ok(())
     }
 
+    #[tokio::test]
     async fn test_write_ordering() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_write_ordering").await?;
@@ -188,6 +180,7 @@ mod ranked_register_tests {
         Ok(())
     }
 
+    #[tokio::test]
     async fn test_stale_write_rejected() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_stale_write_rejected").await?;
@@ -237,6 +230,7 @@ mod ranked_register_tests {
         Ok(())
     }
 
+    #[tokio::test]
     async fn test_follower_value_read() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_follower_value_read").await?;
@@ -282,6 +276,7 @@ mod ranked_register_tests {
         Ok(())
     }
 
+    #[tokio::test]
     async fn test_empty_register() -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_empty_register").await?;

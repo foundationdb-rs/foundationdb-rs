@@ -360,7 +360,14 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
 
 #[tokio::main]
 async fn main() {
-    let _guard = unsafe { fdb::boot() };
+    fdb::boot().expect("failed to initialize FoundationDB");
+    // The network is stopped and joined automatically at process exit, which is
+    // fine for tests and short-lived tools like this example. In a production
+    // application, prefer a clean teardown: the network thread is the event loop
+    // driving every transaction and you may still have on-going operations at
+    // exit time. Finish or cancel your work, drop the Database handles, then
+    // call `foundationdb::api::stop_network()` yourself (terminal: any
+    // FoundationDB use afterwards fails with error 2025).
     let db = fdb::Database::new_compat(None)
         .await
         .expect("failed to get database");

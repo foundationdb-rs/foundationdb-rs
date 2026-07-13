@@ -337,6 +337,7 @@ dependencies = [
  "futures",
  "futures-util",
  "lazy_static",
+ "libc",
  "num-bigint",
  "rand",
  "serde",

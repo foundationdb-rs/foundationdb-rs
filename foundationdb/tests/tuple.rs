@@ -14,26 +14,27 @@ use futures::StreamExt;
 
 mod common;
 
-#[test]
+#[tokio::test]
 // testing subspace with versionstamps.
-fn test_tuples() {
-    let _guard = unsafe { foundationdb::boot() };
-    let db = futures::executor::block_on(common::database()).expect("cannot open fdb");
+async fn test_tuples() {
+    let db = common::database().await.expect("cannot open fdb");
 
-    eprintln!("clearing all keys");
+    // Clear only this test's subspace: versionstamped keys accumulate across
+    // runs, and the rest of the cluster is none of our business.
+    eprintln!("clearing the test subspace");
     let trx = db.create_trx().expect("cannot create txn");
-    trx.clear_range(b"", b"\xff");
-    futures::executor::block_on(trx.commit()).expect("could not clear keys");
+    trx.clear_subspace_range(&Subspace::from("test-tuple"));
+    trx.commit().await.expect("could not clear keys");
 
     eprintln!("creating directories");
-    futures::executor::block_on(test_subspace_with_versionstamp(&db));
+    test_subspace_with_versionstamp(&db).await;
 }
 
 async fn test_subspace_with_versionstamp(db: &Database) {
     let trx = db.create_trx().expect("cannot create txn");
 
     // In this example we will create a subspace starting with a versionstamp.
-    let subspace = Subspace::from("root");
+    let subspace = Subspace::from("test-tuple");
     let subspace = subspace.subspace(&Versionstamp::incomplete(0));
     let key = subspace.pack_with_versionstamp(&"key");
 
@@ -58,7 +59,7 @@ async fn test_subspace_with_versionstamp(db: &Database) {
     let trx = db.create_trx().expect("cannot create txn");
 
     // In this example we will create a subspace starting with a versionstamp.
-    let subspace = Subspace::from("root");
+    let subspace = Subspace::from("test-tuple");
     let subspace = subspace.subspace(&versionstamp);
 
     {

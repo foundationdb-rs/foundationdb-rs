@@ -1,7 +1,6 @@
 use foundationdb::*;
 #[allow(unused_imports)]
 use foundationdb_macros::cfg_api_versions;
-use foundationdb_sys::if_cfg_api_versions;
 #[allow(unused_imports)]
 use std::sync::Arc;
 #[allow(unused_imports)]
@@ -9,18 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 mod common;
 
-#[test]
-fn test_runner_hooks() {
-    let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_happy_path_instrumented()).expect("failed to run");
-    // ReportConflictingKeys (option 712) requires FDB >= 6.3
-    if_cfg_api_versions!(min = 630 => {
-        futures::executor::block_on(test_conflict_reports_in_metrics()).expect("failed to run");
-        futures::executor::block_on(test_conflict_keys_direct_api()).expect("failed to run");
-    });
-}
-
 /// Happy path: instrumented_run completes with metrics, no conflicts.
+#[tokio::test]
 async fn test_happy_path_instrumented() -> FdbResult<()> {
     let db = common::database().await?;
 
@@ -44,6 +33,7 @@ async fn test_happy_path_instrumented() -> FdbResult<()> {
 ///
 /// ReportConflictingKeys (option 712) was added in FDB 6.3.
 #[cfg_api_versions(min = 630)]
+#[tokio::test]
 async fn test_conflict_reports_in_metrics() -> FdbResult<()> {
     let db = common::database().await?;
     let attempt = Arc::new(AtomicU64::new(0));
@@ -95,6 +85,7 @@ async fn test_conflict_reports_in_metrics() -> FdbResult<()> {
 ///
 /// ReportConflictingKeys (option 712) was added in FDB 6.3.
 #[cfg_api_versions(min = 630)]
+#[tokio::test]
 async fn test_conflict_keys_direct_api() -> FdbResult<()> {
     let db = common::database().await?;
 

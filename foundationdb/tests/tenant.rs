@@ -2,21 +2,10 @@ mod common;
 
 #[cfg(feature = "tenant-experimental")]
 use foundationdb_macros::cfg_api_versions;
-#[cfg(feature = "tenant-experimental")]
-use foundationdb_sys::if_cfg_api_versions;
-
-#[test]
-fn test_tenant() {
-    let _guard = unsafe { foundationdb::boot() };
-    #[cfg(feature = "tenant-experimental")]
-    if_cfg_api_versions!(min = 710 =>
-        futures::executor::block_on(test_tenant_management()).expect("failed to run");
-        futures::executor::block_on(test_tenant_run()).expect("failed to run")
-    );
-}
 
 #[cfg_api_versions(min = 710)]
 #[cfg(feature = "tenant-experimental")]
+#[tokio::test]
 async fn test_tenant_management() -> foundationdb::FdbResult<()> {
     use foundationdb::tenant::TenantManagement;
 
@@ -47,24 +36,24 @@ async fn test_tenant_management() -> foundationdb::FdbResult<()> {
     );
 
     let tenants = TenantManagement::list_tenant(&db, "a".as_bytes(), "z".as_bytes(), None).await?;
-    let tenants_size = tenants.len();
     assert!(!tenants.is_empty(), "received an empty list of tenants");
 
     TenantManagement::delete_tenant(&db, tenant.as_bytes())
         .await
         .expect("could not delete tenant");
 
-    let tenants = TenantManagement::list_tenant(&db, "a".as_bytes(), "z".as_bytes(), None).await?;
-    assert_eq!(
-        tenants.len(),
-        tenants_size - 1,
-        "received a bad list of tenants"
-    );
+    // Other tests create and delete tenants concurrently, so check our tenant
+    // is gone instead of comparing list sizes.
+    let deleted = TenantManagement::get_tenant(&db, tenant.as_bytes())
+        .await
+        .expect("could not retrieve tenant");
+    assert!(deleted.is_none(), "tenant should have been deleted");
     Ok(())
 }
 
 #[cfg_api_versions(min = 710)]
 #[cfg(feature = "tenant-experimental")]
+#[tokio::test]
 async fn test_tenant_run() -> foundationdb::FdbResult<()> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)

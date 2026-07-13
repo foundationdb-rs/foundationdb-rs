@@ -13,17 +13,12 @@ use std::iter::FromIterator;
 
 mod common;
 
-#[test]
-fn test_hca_many_sequential_allocations() {
-    let _guard = unsafe { foundationdb::boot() };
-    futures::executor::block_on(test_hca_many_sequential_allocations_async())
-        .expect("failed to run");
-    futures::executor::block_on(test_hca_concurrent_allocations_async()).expect("failed to run");
-}
-
-async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_hca_many_sequential_allocations() -> FdbResult<()> {
     const N: usize = 1000;
-    const KEY: &[u8] = b"test-hca-allocate";
+    // Not a byte-prefix of the concurrent test's subspace: both tests run in
+    // parallel and clear their own subspace range at startup.
+    const KEY: &[u8] = b"test-hca-seq";
 
     let db = common::database().await?;
 
@@ -56,9 +51,10 @@ async fn test_hca_many_sequential_allocations_async() -> FdbResult<()> {
     Ok(())
 }
 
-async fn test_hca_concurrent_allocations_async() -> FdbResult<()> {
+#[tokio::test]
+async fn test_hca_concurrent_allocations() -> FdbResult<()> {
     const N: usize = 1000;
-    const KEY: &[u8] = b"test-hca-allocate-concurrent";
+    const KEY: &[u8] = b"test-hca-conc";
 
     let db = common::database().await?;
 

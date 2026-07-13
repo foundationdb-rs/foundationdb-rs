@@ -161,10 +161,14 @@ const LINE: [&str; 13] = [
 #[tokio::main]
 async fn main() -> Result<(), FdbBindingError> {
     // initialize FoundationDB Client API
-    let fdb = unsafe {
-        // SAFETY: only called once and will be dropped before the program exits
-        foundationdb::boot()
-    };
+    foundationdb::boot().expect("failed to initialize FoundationDB");
+    // The network is stopped and joined automatically at process exit, which is
+    // fine for tests and short-lived tools like this example. In a production
+    // application, prefer a clean teardown: the network thread is the event loop
+    // driving every transaction and you may still have on-going operations at
+    // exit time. Finish or cancel your work, drop the Database handles, then
+    // call `foundationdb::api::stop_network()` yourself (terminal: any
+    // FoundationDB use afterwards fails with error 2025).
 
     // attempt connection to FoundationDB
     let db = Database::default()?;
@@ -181,9 +185,6 @@ async fn main() -> Result<(), FdbBindingError> {
     while let Some(value) = q.dequeue().await? {
         println!("{value}");
     }
-
-    // shutdown the client
-    drop(fdb);
 
     Ok(())
 }

@@ -48,7 +48,7 @@ impl From<MaybeCommitted> for bool {
 /// Lifecycle hooks for the transaction retry runner.
 ///
 /// All methods have default no-op implementations, so callers only override what they need.
-/// This trait enables a single internal retry loop ([`run_with_hooks`]) to serve both
+/// This trait enables a single internal retry loop (`run_with_hooks`) to serve both
 /// `Database::run()` (no-op hooks) and `Database::instrumented_run()` (metrics hooks).
 pub trait RunnerHooks {
     /// Called when commit fails, **before** `on_error()` resets the transaction.
@@ -283,7 +283,11 @@ impl Drop for Database {
 #[cfg_api_versions(min = 610)]
 impl Database {
     /// Create a database for the given configuration path if any, or the default one.
+    ///
+    /// If the client was not initialized yet, the network is started with the
+    /// default API version, like [`crate::boot`] would.
     pub fn new(path: Option<&str>) -> FdbResult<Database> {
+        crate::api::ensure_network_started()?;
         let path_str =
             path.map(|path| std::ffi::CString::new(path).expect("path to be convertible to CStr"));
         let path_ptr = path_str
@@ -365,6 +369,7 @@ impl Database {
     /// This is a compatibility api. If you only use API version ≥ 610 you should
     /// use `Database::new`, `Database::from_path` or  `Database::default`.
     pub async fn new_compat(path: Option<&str>) -> FdbResult<Database> {
+        crate::api::ensure_network_started()?;
         if_cfg_api_versions!(min = 510, max = 600 => {
             let cluster = crate::cluster::Cluster::new(path).await?;
             let database = cluster.create_database().await?;
