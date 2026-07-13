@@ -1747,7 +1747,7 @@ impl StackMachine {
                     .subspace(tuple_prefix.first().unwrap());
                 debug!(
                     "pushing a new subspace {:?} at index {}",
-                    &subspace,
+                    subspace,
                     self.directory_stack.len()
                 );
                 self.directory_stack
@@ -1831,8 +1831,8 @@ impl StackMachine {
                 debug!(
                     "creating path {:?} with layer {:?} and prefix {:?} using directory at index {}",
                     path.first().unwrap(),
-                    &layer,
-                    &prefix,
+                    layer,
+                    prefix,
                     self.directory_index,
                 );
 
@@ -1894,7 +1894,7 @@ impl StackMachine {
                 debug!(
                     "opening path {:?} with layer {:?} with index {}",
                     path.first().unwrap(),
-                    &layer,
+                    layer,
                     self.directory_index
                 );
 
@@ -1954,7 +1954,7 @@ impl StackMachine {
                 debug!(
                     "create_or_open path {:?} with layer {:?} with index {}",
                     path.first().unwrap(),
-                    &layer,
+                    layer,
                     self.directory_index
                 );
                 match directory
@@ -1964,7 +1964,7 @@ impl StackMachine {
                     Ok(directory_subspace) => {
                         debug!(
                             "pushing created_or_opened {:?} at index {}",
-                            &directory_subspace,
+                            directory_subspace,
                             self.directory_stack.len()
                         );
                         self.directory_stack
@@ -2047,7 +2047,7 @@ impl StackMachine {
                     Ok(s) => {
                         debug!(
                             "pushing moved directory {:?} at index {}",
-                            &s,
+                            s,
                             self.directory_stack.len()
                         );
                         self.directory_stack
@@ -2085,10 +2085,7 @@ impl StackMachine {
                     },
                 };
 
-                debug!(
-                    "moving directory {:?} to {:?}",
-                    self.directory_index, &paths
-                );
+                debug!("moving directory {:?} to {:?}", self.directory_index, paths);
 
                 match directory
                     .move_directory(txn, paths.first().expect("popped tuple has no item"))
@@ -2097,7 +2094,7 @@ impl StackMachine {
                     Ok(s) => {
                         debug!(
                             "pushing moved directory {:?} at index {}",
-                            &s,
+                            s,
                             self.directory_stack.len()
                         );
                         self.directory_stack
@@ -2239,7 +2236,7 @@ impl StackMachine {
                             self.directory_index
                         );
                         for child in children {
-                            debug!("\t - {}", &child);
+                            debug!("\t - {}", child);
                             let element = Element::String(Cow::from(child));
                             elements.push(element);
                         }

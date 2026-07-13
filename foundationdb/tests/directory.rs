@@ -52,7 +52,7 @@ async fn test_create_then_open_then_delete(
 ) -> FdbResult<()> {
     let trx = db.create_trx()?;
 
-    eprintln!("creating {:?}", &path);
+    eprintln!("creating {:?}", path);
     let create_output = directory.create(&trx, &path, None, None).await;
     assert!(
         create_output.is_ok(),
@@ -62,7 +62,7 @@ async fn test_create_then_open_then_delete(
     trx.commit().await.expect("cannot commit");
     let trx = db.create_trx()?;
 
-    eprintln!("opening {:?}", &path);
+    eprintln!("opening {:?}", path);
     let open_output = directory.open(&trx, &path, None).await;
     assert!(
         open_output.is_ok(),
