@@ -10,12 +10,19 @@ mod common;
 #[cfg(feature = "recipes-ranked-register")]
 mod ranked_register_tests {
     use foundationdb::{
-        Database, FdbBindingError,
-        recipes::ranked_register::{Rank, RankedRegister, WriteResult},
+        Database,
+        recipes::ranked_register::{Rank, RankedRegister, RankedRegisterError, WriteResult},
         tuple::Subspace,
     };
 
-    async fn setup_test(db: &Database, test_name: &str) -> Result<RankedRegister, FdbBindingError> {
+    // RankedRegisterError implements RetryableError, so closures return it
+    // directly with plain `?` and the retry loop still recognizes wrapped
+    // FdbErrors through the source chain.
+
+    async fn setup_test(
+        db: &Database,
+        test_name: &str,
+    ) -> Result<RankedRegister, RankedRegisterError> {
         let subspace = Subspace::all().subspace(&test_name);
         let (from, to) = subspace.range();
 
@@ -23,7 +30,7 @@ mod ranked_register_tests {
         let to_ref = &to;
         db.run(|txn, _| async move {
             txn.clear_range(from_ref, to_ref);
-            Ok(())
+            Ok::<_, RankedRegisterError>(())
         })
         .await?;
 
@@ -31,7 +38,7 @@ mod ranked_register_tests {
     }
 
     #[tokio::test]
-    async fn test_basic_write_and_read() -> Result<(), FdbBindingError> {
+    async fn test_basic_write_and_read() -> Result<(), RankedRegisterError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_basic_write_and_read").await?;
 
@@ -39,13 +46,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(1u64), b"hello")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(1u64), b"hello").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
@@ -54,10 +56,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let read_result = db
             .run(|txn, _| async move {
-                let r = rr_ref.read(&txn, Rank::from(2u64)).await.map_err(|e| {
-                    foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                })?;
-                Ok((r.write_rank(), r.into_value()))
+                let r = rr_ref.read(&txn, Rank::from(2u64)).await?;
+                Ok::<_, RankedRegisterError>((r.write_rank(), r.into_value()))
             })
             .await?;
         assert_eq!(read_result.0, Rank::from(1u64));
@@ -67,18 +67,15 @@ mod ranked_register_tests {
     }
 
     #[tokio::test]
-    async fn test_rank_fencing() -> Result<(), FdbBindingError> {
+    async fn test_rank_fencing() -> Result<(), RankedRegisterError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_rank_fencing").await?;
 
         // Read with rank 10 installs a fence
         let rr_ref = &rr;
         db.run(|txn, _| async move {
-            rr_ref
-                .read(&txn, Rank::from(10u64))
-                .await
-                .map_err(|e| foundationdb::FdbBindingError::CustomError(e.to_string().into()))?;
-            Ok(())
+            rr_ref.read(&txn, Rank::from(10u64)).await?;
+            Ok::<_, RankedRegisterError>(())
         })
         .await?;
 
@@ -86,13 +83,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(5u64), b"blocked")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(5u64), b"blocked").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Aborted);
@@ -101,13 +93,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(10u64), b"accepted")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(10u64), b"accepted").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
@@ -116,7 +103,7 @@ mod ranked_register_tests {
     }
 
     #[tokio::test]
-    async fn test_write_ordering() -> Result<(), FdbBindingError> {
+    async fn test_write_ordering() -> Result<(), RankedRegisterError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_write_ordering").await?;
 
@@ -124,13 +111,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(1u64), b"A")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(1u64), b"A").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
@@ -139,13 +121,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(2u64), b"B")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(2u64), b"B").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
@@ -154,10 +131,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let read_result = db
             .run(|txn, _| async move {
-                let r = rr_ref.read(&txn, Rank::from(3u64)).await.map_err(|e| {
-                    foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                })?;
-                Ok(r.into_value())
+                let r = rr_ref.read(&txn, Rank::from(3u64)).await?;
+                Ok::<_, RankedRegisterError>(r.into_value())
             })
             .await?;
         assert_eq!(read_result.as_deref(), Some(b"B".as_slice()));
@@ -166,13 +141,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(1u64), b"C")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(1u64), b"C").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Aborted);
@@ -181,7 +151,7 @@ mod ranked_register_tests {
     }
 
     #[tokio::test]
-    async fn test_stale_write_rejected() -> Result<(), FdbBindingError> {
+    async fn test_stale_write_rejected() -> Result<(), RankedRegisterError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_stale_write_rejected").await?;
 
@@ -189,13 +159,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(5u64), b"initial")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(5u64), b"initial").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
@@ -203,11 +168,8 @@ mod ranked_register_tests {
         // Read with rank 10 installs fence
         let rr_ref = &rr;
         db.run(|txn, _| async move {
-            rr_ref
-                .read(&txn, Rank::from(10u64))
-                .await
-                .map_err(|e| foundationdb::FdbBindingError::CustomError(e.to_string().into()))?;
-            Ok(())
+            rr_ref.read(&txn, Rank::from(10u64)).await?;
+            Ok::<_, RankedRegisterError>(())
         })
         .await?;
 
@@ -216,13 +178,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(7u64), b"stale")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(7u64), b"stale").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Aborted);
@@ -231,18 +188,15 @@ mod ranked_register_tests {
     }
 
     #[tokio::test]
-    async fn test_follower_value_read() -> Result<(), FdbBindingError> {
+    async fn test_follower_value_read() -> Result<(), RankedRegisterError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_follower_value_read").await?;
 
         // Write with rank 5
         let rr_ref = &rr;
         db.run(|txn, _| async move {
-            rr_ref
-                .write(&txn, Rank::from(5u64), b"X")
-                .await
-                .map_err(|e| foundationdb::FdbBindingError::CustomError(e.to_string().into()))?;
-            Ok(())
+            rr_ref.write(&txn, Rank::from(5u64), b"X").await?;
+            Ok::<_, RankedRegisterError>(())
         })
         .await?;
 
@@ -250,10 +204,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let val = db
             .run(|txn, _| async move {
-                let v = rr_ref.value(&txn).await.map_err(|e| {
-                    foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                })?;
-                Ok(v)
+                let v = rr_ref.value(&txn).await?;
+                Ok::<_, RankedRegisterError>(v)
             })
             .await?;
         assert_eq!(val.as_deref(), Some(b"X".as_slice()));
@@ -262,13 +214,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(10u64), b"Y")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(10u64), b"Y").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
@@ -277,7 +224,7 @@ mod ranked_register_tests {
     }
 
     #[tokio::test]
-    async fn test_empty_register() -> Result<(), FdbBindingError> {
+    async fn test_empty_register() -> Result<(), RankedRegisterError> {
         let db = crate::common::database().await?;
         let rr = setup_test(&db, "test_empty_register").await?;
 
@@ -285,10 +232,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let read_result = db
             .run(|txn, _| async move {
-                let r = rr_ref.read(&txn, Rank::from(1u64)).await.map_err(|e| {
-                    foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                })?;
-                Ok((r.write_rank(), r.into_value()))
+                let r = rr_ref.read(&txn, Rank::from(1u64)).await?;
+                Ok::<_, RankedRegisterError>((r.write_rank(), r.into_value()))
             })
             .await?;
         assert_eq!(read_result.0, Rank::ZERO);
@@ -298,10 +243,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let val = db
             .run(|txn, _| async move {
-                let v = rr_ref.value(&txn).await.map_err(|e| {
-                    foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                })?;
-                Ok(v)
+                let v = rr_ref.value(&txn).await?;
+                Ok::<_, RankedRegisterError>(v)
             })
             .await?;
         assert_eq!(val, None);
@@ -310,13 +253,8 @@ mod ranked_register_tests {
         let rr_ref = &rr;
         let result = db
             .run(|txn, _| async move {
-                let r = rr_ref
-                    .write(&txn, Rank::from(1u64), b"first")
-                    .await
-                    .map_err(|e| {
-                        foundationdb::FdbBindingError::CustomError(e.to_string().into())
-                    })?;
-                Ok(r)
+                let r = rr_ref.write(&txn, Rank::from(1u64), b"first").await?;
+                Ok::<_, RankedRegisterError>(r)
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);

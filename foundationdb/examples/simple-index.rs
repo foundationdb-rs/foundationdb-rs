@@ -27,7 +27,7 @@ async fn clear_subspaces(db: &Database, subspaces: &[Subspace]) {
         for subspace in subspaces {
             trx.clear_subspace_range(subspace);
         }
-        Ok(())
+        Ok::<_, FdbBindingError>(())
     })
     .await
     .expect("Unable to commit transaction");

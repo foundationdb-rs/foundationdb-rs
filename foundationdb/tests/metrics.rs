@@ -19,7 +19,7 @@ async fn instrumented_run_success() -> FdbResult<()> {
     let (result, metrics) = match db
         .instrumented_run(|txn, _| async move {
             txn.set(KEY, VALUE);
-            Ok(SUCCESS)
+            Ok::<_, FdbBindingError>(SUCCESS)
         })
         .await
     {
@@ -319,7 +319,7 @@ async fn test_transaction_info() -> FdbResult<()> {
             .instrumented_run(|txn, _| async move {
                 // Perform a write operation
                 txn.set(b"test_commit_version", b"value");
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             })
             .await
             .expect("Transaction failed");
@@ -394,7 +394,7 @@ async fn test_time_metrics() -> FdbResult<()> {
                 }
                 // Read some data to add more execution time
                 let _ = txn.get(b"test_time_metrics_0", false).await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             })
             .await
             .expect("Transaction failed");

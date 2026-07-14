@@ -7,8 +7,8 @@
 
 //! Error types for the ranked register
 
-use crate::FdbError;
 use crate::tuple::PackError;
+use crate::{FdbBindingError, FdbError, RetryableError};
 use std::fmt;
 
 /// Ranked register specific errors
@@ -16,6 +16,8 @@ use std::fmt;
 pub enum RankedRegisterError {
     /// Database error
     Fdb(FdbError),
+    /// Retry loop error
+    Binding(FdbBindingError),
     /// Serialization error
     PackError(PackError),
     /// Invalid state encountered in the register
@@ -26,6 +28,7 @@ impl fmt::Display for RankedRegisterError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Fdb(e) => write!(f, "Database error: {e}"),
+            Self::Binding(e) => write!(f, "Retry loop error: {e}"),
             Self::PackError(e) => write!(f, "Pack error: {e:?}"),
             Self::InvalidState(msg) => write!(f, "Invalid state: {msg}"),
         }
@@ -36,6 +39,7 @@ impl std::error::Error for RankedRegisterError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Fdb(e) => Some(e),
+            Self::Binding(e) => Some(e),
             Self::PackError(e) => Some(e),
             Self::InvalidState(_) => None,
         }
@@ -48,11 +52,21 @@ impl From<FdbError> for RankedRegisterError {
     }
 }
 
+impl From<FdbBindingError> for RankedRegisterError {
+    fn from(error: FdbBindingError) -> Self {
+        Self::Binding(error)
+    }
+}
+
 impl From<PackError> for RankedRegisterError {
     fn from(error: PackError) -> Self {
         Self::PackError(error)
     }
 }
+
+/// The `source()` chain exposes the wrapped `FdbError`, so the default
+/// `retry_decision` makes this error retry-transparent in `db.run`.
+impl RetryableError for RankedRegisterError {}
 
 /// Result type for ranked register operations
 pub type Result<T> = std::result::Result<T, RankedRegisterError>;

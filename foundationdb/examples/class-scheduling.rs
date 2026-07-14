@@ -19,15 +19,23 @@ use rand::prelude::IndexedRandom;
 
 use foundationdb as fdb;
 use foundationdb::tuple::{Subspace, pack, unpack};
-use foundationdb::{Database, FdbBindingError, FdbResult, RangeOption, Transaction};
+use foundationdb::{
+    Database, FdbBindingError, FdbError, FdbResult, RangeOption, RetryableError, Transaction,
+};
 use futures::TryStreamExt;
 
-type Result<T> = std::result::Result<T, FdbBindingError>;
+type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Clone, Copy)]
+// The blessed layer-error pattern: one enum for the whole layer, carrying the
+// FdbError (and the retry loop's own FdbBindingError) as a source. The
+// `RetryableError` impl below makes `db.run` retry-transparent for wrapped
+// FdbErrors, and the caller gets this typed error back from `db.run`.
+#[derive(Debug)]
 enum Error {
     NoRemainingSeats,
     TooManyClasses,
+    Fdb(FdbError),
+    Binding(FdbBindingError),
 }
 
 impl std::fmt::Display for Error {
@@ -35,17 +43,36 @@ impl std::fmt::Display for Error {
         match self {
             Error::NoRemainingSeats => write!(f, "No remaining seats"),
             Error::TooManyClasses => write!(f, "Too many classes"),
+            Error::Fdb(e) => write!(f, "FoundationDB error: {e}"),
+            Error::Binding(e) => write!(f, "Retry loop error: {e}"),
         }
     }
 }
 
-impl std::error::Error for Error {}
-
-impl From<Error> for FdbBindingError {
-    fn from(err: Error) -> Self {
-        FdbBindingError::CustomError(Box::new(err))
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Fdb(e) => Some(e),
+            Error::Binding(e) => Some(e),
+            Error::NoRemainingSeats | Error::TooManyClasses => None,
+        }
     }
 }
+
+impl From<FdbError> for Error {
+    fn from(err: FdbError) -> Self {
+        Error::Fdb(err)
+    }
+}
+
+impl From<FdbBindingError> for Error {
+    fn from(err: FdbBindingError) -> Self {
+        Error::Binding(err)
+    }
+}
+
+// The default retry_decision walks source() and finds the wrapped FdbError.
+impl RetryableError for Error {}
 
 // Data model:
 // ("attends", student, class) = ""
@@ -103,7 +130,7 @@ async fn init(db: &Database, all_classes: &[String]) {
         trx.clear_subspace_range(&"attends".into());
         trx.clear_subspace_range(&"class".into());
         init_classes(&trx, all_classes);
-        Ok(())
+        Ok::<_, Error>(())
     })
     .await
     .expect("failed to initialize data");
@@ -124,7 +151,7 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
             }
         }
 
-        Ok(available_classes)
+        Ok::<_, Error>(available_classes)
     })
     .await
     .expect("failed to get classes")
@@ -158,7 +185,7 @@ async fn ditch(db: &Database, student: String, class: String) -> Result<()> {
         let class = class.clone();
         async move {
             ditch_trx(&trx, &student, &class).await?;
-            Ok(())
+            Ok::<_, Error>(())
         }
     })
     .await
@@ -180,7 +207,7 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
     .expect("failed to decode i64");
 
     if available_seats <= 0 {
-        return Err(Error::NoRemainingSeats.into());
+        return Err(Error::NoRemainingSeats);
     }
 
     let attends_range = RangeOption::from(&("attends", &student).into());
@@ -189,7 +216,7 @@ async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()>
         .try_collect()
         .await?;
     if attends.len() >= 5 {
-        return Err(Error::TooManyClasses.into());
+        return Err(Error::TooManyClasses);
     }
 
     //println!("{} taking class: {}", student, class);
@@ -221,7 +248,7 @@ async fn switch_classes(
         async move {
             ditch_trx(&trx, &student_id, &old_class).await?;
             signup_trx(&trx, &student_id, &new_class).await?;
-            Ok(())
+            Ok::<_, Error>(())
         }
     })
     .await
@@ -348,7 +375,7 @@ async fn run_sim(db: &Database, students: usize, ops_per_student: usize) {
 
                     println!("{student_id_inner} is taking: {class}");
                 }
-                Ok(())
+                Ok::<_, Error>(())
             }
         })
         .await
