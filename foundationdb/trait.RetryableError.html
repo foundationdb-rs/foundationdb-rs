@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="What the retry loop of `crate::Database::run` asks of a closure error."><title>RetryableError in foundationdb - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0 (2d8144b78 2026-07-07)" data-channel="1.97.0" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">RetryableError</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../foundationdb/index.html">foundationdb</a><span class="version">0.11.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Retryable<wbr>Error</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.retry_decision" title="retry_decision">retry_decision</a></li></ul><h3><a href="#dyn-compatibility">Dyn Compatibility</a></h3><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate foundationdb</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">foundationdb</a></div><h1>Trait <span class="trait">Retryable<wbr>Error</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/foundationdb/error.rs.html#343-353">Source</a> </span></div><pre class="rust item-decl"><code>pub trait RetryableError:
+    <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/error/trait.Error.html" title="trait core::error::Error">Error</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>
+    + 'static
+    + <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="struct" href="struct.FdbError.html" title="struct foundationdb::FdbError">FdbError</a>&gt;
+    + <a class="trait" href="https://doc.rust-lang.org/1.97.0/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="enum" href="enum.FdbBindingError.html" title="enum foundationdb::FdbBindingError">FdbBindingError</a>&gt; {
+    // Provided method
+    fn <a href="#method.retry_decision" class="fn">retry_decision</a>(&amp;self) -&gt; <a class="enum" href="enum.RetryDecision.html" title="enum foundationdb::RetryDecision">RetryDecision</a> { ... }
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>What the retry loop of <a href="struct.Database.html#method.run" title="method foundationdb::Database::run"><code>crate::Database::run</code></a> asks of a closure error.</p>
+<p>The default <code>retry_decision</code> walks the <code>source()</code> chain looking for an
+<a href="struct.FdbError.html" title="struct foundationdb::FdbError"><code>FdbError</code></a>, so any error type that keeps its <code>FdbError</code> as a source (the
+idiomatic thiserror <code>#[from]</code>/<code>#[source]</code> pattern) is retry-transparent
+without overriding anything. Override only to add <a href="enum.RetryDecision.html#variant.Retry" title="variant foundationdb::RetryDecision::Retry"><code>RetryDecision::Retry</code></a>
+arms for app-level retry conditions.</p>
+<p>The <code>From</code> bounds let the loop surface its own failures through your type:
+<code>From&lt;FdbError&gt;</code> supports <code>?</code> on <code>FdbResult</code> inside the closure, and
+<code>From&lt;FdbBindingError&gt;</code> carries loop-level failures such as
+<a href="enum.FdbBindingError.html#variant.ReferenceToTransactionKept" title="variant foundationdb::FdbBindingError::ReferenceToTransactionKept"><code>FdbBindingError::ReferenceToTransactionKept</code></a>.</p>
+<p><code>FdbError</code> itself cannot implement this trait (there is no lossless
+<code>From&lt;FdbBindingError&gt; for FdbError</code>); use a wrapper type such as
+<a href="enum.FdbBindingError.html" title="enum foundationdb::FdbBindingError"><code>FdbBindingError</code></a> or your own enum.</p>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>foundationdb::{FdbBindingError, FdbError, RetryableError};
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">enum </span>MyLayerError {
+    Fdb(FdbError),
+    Binding(FdbBindingError),
+    InvalidDocument,
+}
+
+<span class="kw">impl </span>std::fmt::Display <span class="kw">for </span>MyLayerError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{self:?}"</span>)
+    }
+}
+
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>MyLayerError {
+    <span class="kw">fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>(<span class="kw">dyn </span>std::error::Error + <span class="lifetime">'static</span>)&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Fdb(e) =&gt; <span class="prelude-val">Some</span>(e),
+            <span class="self">Self</span>::Binding(e) =&gt; <span class="prelude-val">Some</span>(e),
+            <span class="self">Self</span>::InvalidDocument =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="kw">impl </span>From&lt;FdbError&gt; <span class="kw">for </span>MyLayerError {
+    <span class="kw">fn </span>from(e: FdbError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Fdb(e)
+    }
+}
+
+<span class="kw">impl </span>From&lt;FdbBindingError&gt; <span class="kw">for </span>MyLayerError {
+    <span class="kw">fn </span>from(e: FdbBindingError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Binding(e)
+    }
+}
+
+<span class="comment">// The default source() walk makes wrapped FdbErrors retryable.
+</span><span class="kw">impl </span>RetryableError <span class="kw">for </span>MyLayerError {}</code></pre></div></div></details><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.retry_decision" class="method"><a class="src rightside" href="../src/foundationdb/error.rs.html#347-352">Source</a><h4 class="code-header">fn <a href="#method.retry_decision" class="fn">retry_decision</a>(&amp;self) -&gt; <a class="enum" href="enum.RetryDecision.html" title="enum foundationdb::RetryDecision">RetryDecision</a></h4></section></summary><div class="docblock"><p>Classifies this error for the retry loop.</p>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait is <b>not</b> <a href="https://doc.rust-lang.org/1.97.0/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety", so this trait is not object safe.</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><div class="negative-marker"></div><section id="impl-RetryableError-for-FdbBindingError" class="impl"><a class="src rightside" href="../src/foundationdb/error.rs.html#355-362">Source</a><a href="#impl-RetryableError-for-FdbBindingError" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.RetryableError.html" title="trait foundationdb::RetryableError">RetryableError</a> for <a class="enum" href="enum.FdbBindingError.html" title="enum foundationdb::FdbBindingError">FdbBindingError</a></h3></section><section id="impl-RetryableError-for-RankedRegisterError" class="impl"><a class="src rightside" href="../src/foundationdb/recipes/ranked_register/errors.rs.html#69">Source</a><a href="#impl-RetryableError-for-RankedRegisterError" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.RetryableError.html" title="trait foundationdb::RetryableError">RetryableError</a> for <a class="enum" href="recipes/ranked_register/enum.RankedRegisterError.html" title="enum foundationdb::recipes::ranked_register::RankedRegisterError">RankedRegisterError</a></h3><div class="docblock"><p>The <code>source()</code> chain exposes the wrapped <code>FdbError</code>, so the default
+<code>retry_decision</code> makes this error retry-transparent in <code>db.run</code>.</p>
+</div></section></div><script src="../trait.impl/foundationdb/error/trait.RetryableError.js" async></script></section></div></main></body></html>
