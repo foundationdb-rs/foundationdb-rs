@@ -34,10 +34,6 @@ pub mod metrics;
 /// Generated configuration types for use with the various `set_option` functions
 #[allow(clippy::all)]
 pub mod options;
-if_cfg_api_versions! {min = 710 =>
-    #[cfg(feature = "tenant-experimental")]
-    pub mod tenant;
-}
 
 #[cfg(any(feature = "recipes", feature = "recipes-leader-election"))]
 pub mod recipes;

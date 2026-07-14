@@ -27,8 +27,7 @@ python3 --version
   echo "LATEST_API_VERSION = 740" >> ./bindings/python/fdb/apiversion.py
   echo "FDB_VERSION = '7.4.3'" >> ./bindings/python/fdb/apiversion.py
 
-  # Tenants are disabled for now.
-  # TODO: enable them when feature is stabilized in FDB itself
+  # Tenants are not supported by this binding.
   echo "testers['rust'] = Tester('rust', '${bindingtester}', 2040, 23, 740, types=ALL_TYPES)
 " >> ./bindings/bindingtester/known_testers.py
 )

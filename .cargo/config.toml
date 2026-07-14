@@ -11,4 +11,4 @@ doc-fdb-latest = "doc -p foundationdb --features embedded-fdb-include,fdb-7_4"
 
 # Lint the whole workspace (all targets and features) and deny warnings.
 # Used by CI; run it before pushing.
-clippy-all = "clippy --all-targets --no-default-features --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace -- -D warnings"
+clippy-all = "clippy --all-targets --no-default-features --features num-bigint,embedded-fdb-include,fdb-7_4,trace -- -D warnings"

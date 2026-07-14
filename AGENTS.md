@@ -42,7 +42,6 @@ Unit tests in `foundationdb` talk to a live cluster. Start one with Docker:
 ```bash
 docker run -p 4500:4500 --name fdb --rm -d foundationdb/foundationdb:7.4.3
 docker exec fdb fdbcli --exec "configure new single memory"
-# tenant tests also need: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 ```
 The cluster file must point at it (e.g. `/etc/foundationdb/fdb.cluster`).
 
@@ -57,8 +56,7 @@ etc.) are set by `flake.nix`.
 `foundationdb`, `foundationdb-sys`, and `foundationdb-gen` are gated by exactly one FDB
 version feature: `fdb-5_1`, `fdb-5_2`, `fdb-6_0`..`fdb-6_3`, `fdb-7_0`, `fdb-7_1`, `fdb-7_3`,
 `fdb-7_4`. Other useful features: `embedded-fdb-include` (compile without FDB installed),
-`uuid` + `recipes` (defaults of `foundationdb`), `num-bigint`, `tenant-experimental` (>=7.1),
-`trace`.
+`uuid` + `recipes` (defaults of `foundationdb`), `num-bigint`, `trace`.
 
 ## Architecture
 
@@ -85,7 +83,7 @@ Layered, bottom to top:
     bridge to async/await across the network thread.
   - `directory/` - `Directory` trait + `DirectoryLayer` (hierarchical tuple-prefixed paths).
   - `keyselector.rs`, `tuple.rs`, `error.rs` (`FdbError`/`FdbBindingError`), `metrics.rs`,
-    `tenant.rs`, `recipes/`.
+    `recipes/`.
 
 What is generated vs hand-written: options and their apply methods are **generated**; retry
 loop, transaction lifecycle, directory/tuple layers are **hand-written**.

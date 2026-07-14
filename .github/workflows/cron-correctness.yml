@@ -38,7 +38,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Enable tenant
+      # The rust binding no longer supports tenants, but the upstream harness
+      # (bindingtester.py, _insert_instructions) unconditionally clears the
+      # \xff\xff/management/tenant/map/ special-key range before every test,
+      # which fails with error 2136 (tenants_disabled) when tenant_mode is
+      # disabled (the 7.4 default). The cluster must therefore keep tenant
+      # mode enabled for the harness itself.
+      - name: Enable tenant mode for the bindingtester harness
         run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - name: Install Rust toolchain
