@@ -67,7 +67,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                 .initialize_with_config(&trx, config)
                                 .await
                                 .map_err(FdbBindingError::from)?;
-                            Ok(())
+                            Ok::<_, FdbBindingError>(())
                         }
                     })
                     .await;
@@ -267,7 +267,7 @@ impl RustWorkload for LeaderElectionWorkload {
                             ));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
-                            Ok(claim_result)
+                            Ok::<_, FdbBindingError>(claim_result)
                         }
                     })
                     .await;
@@ -361,7 +361,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                     MutationType::SetVersionstampedKey,
                                 );
 
-                                Ok(did_resign)
+                                Ok::<_, FdbBindingError>(did_resign)
                             }
                         })
                         .await;
@@ -473,7 +473,13 @@ impl RustWorkload for LeaderElectionWorkload {
 
                     let config = election.read_config(&trx).await.ok();
 
-                    Ok((read_version, entries, leader_state, candidates, config))
+                    Ok::<_, FdbBindingError>((
+                        read_version,
+                        entries,
+                        leader_state,
+                        candidates,
+                        config,
+                    ))
                 }
             })
             .await;

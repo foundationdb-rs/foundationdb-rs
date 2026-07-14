@@ -32,7 +32,7 @@ async fn test_traces_on_run() {
 
     db.run(|trx, _b| async move {
         trx.set("tracing".as_ref(), "ok".as_ref());
-        Ok(())
+        Ok::<_, FdbBindingError>(())
     })
     .await
     .expect("could not run transaction");
@@ -76,7 +76,7 @@ async fn test_traces_on_run() {
             if *new_val < 2 {
                 return Err(FdbError::from_code(1020).into());
             }
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await;
     assert!(result.is_ok());
@@ -84,7 +84,7 @@ async fn test_traces_on_run() {
     // cleaning up
     db.run(|trx, _b| async move {
         trx.clear("tracing".as_ref());
-        Ok(())
+        Ok::<_, FdbBindingError>(())
     })
     .await
     .expect("could not run transaction");

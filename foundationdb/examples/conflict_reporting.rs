@@ -94,7 +94,7 @@ async fn run_example() -> Result<(), FdbBindingError> {
             }
 
             trx.set(b"example_conflict_key", b"my_value");
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         }
     })
     .await?;

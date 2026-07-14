@@ -54,7 +54,7 @@ if_cfg_api_versions! {min = 510, max = 600 =>
 }
 
 pub use crate::database::*;
-pub use crate::error::FdbBindingError;
+pub use crate::error::{FdbBindingError, RetryDecision, RetryableError};
 pub use crate::error::{FdbError, FdbResult};
 pub use crate::keyselector::*;
 pub use crate::transaction::*;

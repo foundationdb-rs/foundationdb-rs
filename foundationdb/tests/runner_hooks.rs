@@ -16,7 +16,7 @@ async fn test_happy_path_instrumented() -> FdbResult<()> {
     let (result, metrics) = db
         .instrumented_run(|trx, _| async move {
             trx.set(b"test_runner_hooks_happy", b"value");
-            Ok(42u64)
+            Ok::<_, FdbBindingError>(42u64)
         })
         .await
         .expect("transaction should succeed");
@@ -62,7 +62,7 @@ async fn test_conflict_reports_in_metrics() -> FdbResult<()> {
                 }
 
                 trx.set(b"test_conflict_metrics_key", b"my_value");
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             }
         })
         .await

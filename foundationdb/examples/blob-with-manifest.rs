@@ -1,6 +1,6 @@
 use bytesize::ByteSize;
 use foundationdb::tuple::{PackError, Subspace, pack, unpack};
-use foundationdb::{Database, RangeOption};
+use foundationdb::{Database, FdbBindingError, RangeOption};
 use futures::TryStreamExt;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
@@ -111,7 +111,7 @@ async fn clear_subspace(db: &Database, subspaces: Vec<&Subspace>) {
             for subspace in subspaces {
                 transaction.clear_subspace_range(subspace)
             }
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         }
     })
     .await
@@ -165,7 +165,7 @@ async fn write_data(db: &Database, subspace: &Subspace, data: &Vec<u8>) {
 
     db.run(|transaction, _| async move {
         transaction.set(subspace.bytes(), data.as_slice());
-        Ok(())
+        Ok::<_, FdbBindingError>(())
     })
     .await
     .expect("Unable to commit transaction");
@@ -196,7 +196,7 @@ async fn write_blob(
             chunk_number += 1;
         });
 
-        Ok(chunk_number)
+        Ok::<_, FdbBindingError>(chunk_number)
     })
     .await
     .expect("Unable to commit transaction")
@@ -206,7 +206,7 @@ async fn write_blob(
 async fn read_data(db: &Database, subspace: &Subspace) -> Option<Vec<u8>> {
     db.run(|transaction, _| async move {
         let get_result = transaction.get(subspace.bytes(), false).await?;
-        Ok(get_result.map(|data| data.to_vec()))
+        Ok::<_, FdbBindingError>(get_result.map(|data| data.to_vec()))
     })
     .await
     .ok()
@@ -223,7 +223,7 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
             data.extend(result.value().iter());
         }
 
-        Ok(data)
+        Ok::<_, FdbBindingError>(data)
     })
     .await
     .expect("Unable to read blob")

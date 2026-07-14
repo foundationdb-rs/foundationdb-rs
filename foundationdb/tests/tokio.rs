@@ -146,7 +146,7 @@ async fn do_run() {
             }
 
             // trying to commit
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await;
 
@@ -197,7 +197,7 @@ async fn do_run_with_transaction_limits() {
                 .await
                 .expect("cannot commit the conflict transaction");
 
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await;
 

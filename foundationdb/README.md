@@ -106,7 +106,7 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
     match db
         .run(|trx, _maybe_committed| async move {
             trx.set(b"hello", b"world");
-            Ok(())
+            Ok::<_, foundationdb::FdbBindingError>(())
         })
         .await
     {
@@ -116,7 +116,7 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
 
     // read a value
     match db
-        .run(|trx, _maybe_committed| async move { Ok(trx.get(b"hello", false).await.unwrap()) })
+        .run(|trx, _maybe_committed| async move { Ok::<_, foundationdb::FdbBindingError>(trx.get(b"hello", false).await.unwrap()) })
         .await
     {
         Ok(slice) => assert_eq!(b"world", slice.unwrap().as_ref()),

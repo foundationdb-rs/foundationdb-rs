@@ -31,7 +31,7 @@ mod leader_election_tests {
         let to_ref = &to;
         db.run(|txn, _| async move {
             txn.clear_range(from_ref, to_ref);
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -49,7 +49,7 @@ mod leader_election_tests {
         let election_ref = &election;
         db.run(|txn, _| async move {
             election_ref.initialize(&txn).await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -59,7 +59,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, process_id, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -70,7 +70,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, process_id, 0, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(
@@ -85,7 +85,7 @@ mod leader_election_tests {
                 let is_leader = election_ref
                     .is_leader(&txn, process_id, current_time())
                     .await?;
-                Ok(is_leader)
+                Ok::<_, FdbBindingError>(is_leader)
             })
             .await?;
         assert!(is_leader, "Process should be the leader");
@@ -103,7 +103,7 @@ mod leader_election_tests {
         let election_ref = &election;
         db.run(|txn, _| async move {
             election_ref.initialize(&txn).await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -114,7 +114,7 @@ mod leader_election_tests {
                 election_ref
                     .register_candidate(&txn, process_id, 0, current_time())
                     .await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             })
             .await?;
         }
@@ -128,7 +128,7 @@ mod leader_election_tests {
                     let result = election_ref
                         .try_claim_leadership(&txn, process_id, 0, current_time())
                         .await?;
-                    Ok(result.is_some())
+                    Ok::<_, FdbBindingError>(result.is_some())
                 })
                 .await?;
             if became_leader {
@@ -147,7 +147,7 @@ mod leader_election_tests {
                 let is_leader = election_ref
                     .is_leader(&txn, leader_id, current_time())
                     .await?;
-                Ok(is_leader)
+                Ok::<_, FdbBindingError>(is_leader)
             })
             .await?;
         assert!(
@@ -164,7 +164,7 @@ mod leader_election_tests {
                         let is_leader = election_ref
                             .is_leader(&txn, process_id, current_time())
                             .await?;
-                        Ok(is_leader)
+                        Ok::<_, FdbBindingError>(is_leader)
                     })
                     .await?;
                 assert!(!is_leader, "Non-leader process should not be leader");
@@ -191,7 +191,7 @@ mod leader_election_tests {
             let config = config.clone();
             async move {
                 election_ref.initialize_with_config(&txn, config).await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             }
         })
         .await?;
@@ -202,7 +202,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, leader_id, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -211,7 +211,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, follower_id, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -222,7 +222,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, leader_id, 0, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(became_leader, "First process should become leader");
@@ -234,7 +234,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .refresh_lease(&txn, leader_id, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(refreshed, "Leader should be able to refresh lease");
@@ -249,7 +249,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .refresh_lease(&txn, leader_id, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(still_leader, "Leader should still be able to refresh");
@@ -274,7 +274,7 @@ mod leader_election_tests {
             let config = config.clone();
             async move {
                 election_ref.initialize_with_config(&txn, config).await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             }
         })
         .await?;
@@ -285,7 +285,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, initial_leader, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -294,7 +294,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, new_leader, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -305,7 +305,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, initial_leader, 0, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(became_leader, "Initial process should become leader");
@@ -317,7 +317,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, new_leader, 0, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(
@@ -334,7 +334,7 @@ mod leader_election_tests {
             election_ref
                 .heartbeat_candidate(&txn, new_leader, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -345,7 +345,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, new_leader, 0, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(
@@ -360,7 +360,7 @@ mod leader_election_tests {
                 let is_leader = election_ref
                     .is_leader(&txn, new_leader, current_time())
                     .await?;
-                Ok(is_leader)
+                Ok::<_, FdbBindingError>(is_leader)
             })
             .await?;
         assert!(is_leader, "New process should be confirmed as leader");
@@ -372,7 +372,7 @@ mod leader_election_tests {
                 let is_leader = election_ref
                     .is_leader(&txn, initial_leader, current_time())
                     .await?;
-                Ok(is_leader)
+                Ok::<_, FdbBindingError>(is_leader)
             })
             .await?;
         assert!(!is_leader, "Initial process should no longer be leader");
@@ -389,7 +389,7 @@ mod leader_election_tests {
         let election_ref = &election;
         db.run(|txn, _| async move {
             election_ref.initialize(&txn).await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -404,7 +404,7 @@ mod leader_election_tests {
             let config = new_config.clone();
             async move {
                 election_ref.write_config(&txn, &config).await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             }
         })
         .await?;
@@ -417,8 +417,8 @@ mod leader_election_tests {
                     .register_candidate(&txn, "test-process", 0, current_time())
                     .await
                 {
-                    Err(_) => Ok(true), // Registration failed as expected
-                    Ok(_) => Ok(false), // Registration succeeded unexpectedly
+                    Err(_) => Ok::<_, FdbBindingError>(true), // Registration failed as expected
+                    Ok(_) => Ok(false),                       // Registration succeeded unexpectedly
                 }
             })
             .await?;
@@ -439,7 +439,7 @@ mod leader_election_tests {
             let config = enabled_config.clone();
             async move {
                 election_ref.write_config(&txn, &config).await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             }
         })
         .await?;
@@ -450,7 +450,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, "test-process", 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -468,7 +468,7 @@ mod leader_election_tests {
         let election_ref = &election;
         db.run(|txn, _| async move {
             election_ref.initialize(&txn).await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -478,7 +478,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, leader_id, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -487,7 +487,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, follower_id, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -497,7 +497,7 @@ mod leader_election_tests {
             election_ref
                 .try_claim_leadership(&txn, leader_id, 0, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -506,7 +506,7 @@ mod leader_election_tests {
         let resigned = db
             .run(|txn, _| async move {
                 let resigned = election_ref.resign_leadership(&txn, leader_id).await?;
-                Ok(resigned)
+                Ok::<_, FdbBindingError>(resigned)
             })
             .await?;
         assert!(resigned, "Leader should be able to resign");
@@ -518,7 +518,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, follower_id, 0, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(
@@ -547,7 +547,7 @@ mod leader_election_tests {
             let config = config.clone();
             async move {
                 election_ref.initialize_with_config(&txn, config).await?;
-                Ok(())
+                Ok::<_, FdbBindingError>(())
             }
         })
         .await?;
@@ -558,7 +558,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, low_priority, 1, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -567,7 +567,7 @@ mod leader_election_tests {
             election_ref
                 .register_candidate(&txn, high_priority, 10, current_time())
                 .await?;
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         })
         .await?;
 
@@ -578,7 +578,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, low_priority, 1, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(became_leader, "Low priority should become leader initially");
@@ -590,7 +590,7 @@ mod leader_election_tests {
                 let result = election_ref
                     .try_claim_leadership(&txn, high_priority, 10, current_time())
                     .await?;
-                Ok(result.is_some())
+                Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(
@@ -605,7 +605,7 @@ mod leader_election_tests {
                 let is_leader = election_ref
                     .is_leader(&txn, high_priority, current_time())
                     .await?;
-                Ok(is_leader)
+                Ok::<_, FdbBindingError>(is_leader)
             })
             .await?;
         assert!(is_leader, "High priority should be the leader");
@@ -617,7 +617,7 @@ mod leader_election_tests {
                 let is_leader = election_ref
                     .is_leader(&txn, low_priority, current_time())
                     .await?;
-                Ok(is_leader)
+                Ok::<_, FdbBindingError>(is_leader)
             })
             .await?;
         assert!(!is_leader, "Low priority should not be the leader anymore");

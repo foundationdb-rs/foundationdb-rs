@@ -76,7 +76,7 @@ async fn main() {
             let mut buf = [0u8; 8];
             byteorder::LE::write_i64(&mut buf, 1);
             trx.atomic_op(&key, &buf, options::MutationType::Add);
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         }
     })
     .await
@@ -88,7 +88,7 @@ async fn main() {
             let key = key.clone();
             async move {
                 let result = trx.get(&key, true).await?;
-                Ok(result)
+                Ok::<_, FdbBindingError>(result)
             }
         })
         .await

@@ -1,5 +1,5 @@
 use foundationdb::tuple::Subspace;
-use foundationdb::{Database, RangeOption};
+use foundationdb::{Database, FdbBindingError, RangeOption};
 use futures::TryStreamExt;
 use rand::RngExt;
 use rand::distr::Uniform;
@@ -9,7 +9,7 @@ use rand::distr::Uniform;
 async fn clear_subspace(db: &Database, subspace: &Subspace) {
     db.run(|trx, _maybe_committed| async move {
         trx.clear_subspace_range(subspace);
-        Ok(())
+        Ok::<_, FdbBindingError>(())
     })
     .await
     .expect("Unable to commit transaction");
@@ -27,7 +27,7 @@ async fn write_blob(db: &Database, subspace: &Subspace, data: &[u8]) {
             trx.set(&key, &data[start..end]);
             chunk_number += 1;
         });
-        Ok(())
+        Ok::<_, FdbBindingError>(())
     })
     .await
     .expect("Unable to commit transaction");
@@ -43,7 +43,7 @@ async fn read_blob(db: &Database, subspace: &Subspace) -> Vec<u8> {
             data.extend(result.value().iter());
         }
 
-        Ok(data)
+        Ok::<_, FdbBindingError>(data)
     })
     .await
     .expect("Unable to read blob")

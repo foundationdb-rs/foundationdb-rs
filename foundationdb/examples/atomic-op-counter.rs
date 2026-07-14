@@ -1,6 +1,6 @@
 use byteorder::ByteOrder;
 use foundationdb::tuple::Subspace;
-use foundationdb::{Database, FdbResult, Transaction, options};
+use foundationdb::{Database, FdbBindingError, FdbResult, Transaction, options};
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +27,7 @@ async fn main() {
         let counter_key = counter_key.clone();
         async move {
             increment(&trx, &counter_key, 1);
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         }
     })
     .await
@@ -39,7 +39,7 @@ async fn main() {
             let counter_key = counter_key.clone();
             async move {
                 let val = read_counter(&trx, &counter_key).await?;
-                Ok(val)
+                Ok::<_, FdbBindingError>(val)
             }
         })
         .await
@@ -52,7 +52,7 @@ async fn main() {
         let counter_key = counter_key.clone();
         async move {
             increment(&trx, &counter_key, -1);
-            Ok(())
+            Ok::<_, FdbBindingError>(())
         }
     })
     .await
@@ -63,7 +63,7 @@ async fn main() {
             let counter_key = counter_key.clone();
             async move {
                 let val = read_counter(&trx, &counter_key).await?;
-                Ok(val)
+                Ok::<_, FdbBindingError>(val)
             }
         })
         .await
