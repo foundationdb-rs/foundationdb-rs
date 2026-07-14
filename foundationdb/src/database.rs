@@ -26,9 +26,6 @@ use crate::transaction::*;
 use crate::{FdbError, FdbResult, error};
 
 use crate::error::FdbBindingError;
-#[cfg_api_versions(min = 710)]
-#[cfg(feature = "tenant-experimental")]
-use crate::tenant::FdbTenant;
 use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
@@ -128,8 +125,8 @@ impl RunnerHooks for InstrumentedHooks {
     }
 }
 
-/// Single internal retry loop that all public entrypoints (`run`, `instrumented_run`,
-/// `FdbTenant::run`) delegate to.
+/// Single internal retry loop that the public entrypoints (`run`, `instrumented_run`)
+/// delegate to.
 ///
 /// # Hook lifecycle per iteration
 ///
@@ -325,28 +322,6 @@ impl Database {
     #[allow(clippy::should_implement_trait)]
     pub fn default() -> FdbResult<Database> {
         Self::new(None)
-    }
-}
-
-#[cfg_api_versions(min = 710)]
-#[cfg(feature = "tenant-experimental")]
-impl Database {
-    pub fn open_tenant(&self, tenant_name: &[u8]) -> FdbResult<FdbTenant> {
-        let mut ptr: *mut fdb_sys::FDB_tenant = std::ptr::null_mut();
-        let err = unsafe {
-            fdb_sys::fdb_database_open_tenant(
-                self.inner.as_ptr(),
-                tenant_name.as_ptr(),
-                tenant_name.len().try_into().unwrap(),
-                &mut ptr,
-            )
-        };
-        error::eval(err)?;
-        Ok(FdbTenant {
-            inner: NonNull::new(ptr)
-                .expect("fdb_database_open_tenant to not return null if there is no error"),
-            name: tenant_name.to_owned(),
-        })
     }
 }
 

@@ -32,9 +32,6 @@ The easiest way to run a local FDB cluster for testing:
 # Start a single-node cluster in Docker
 docker run -p 4500:4500 --name fdb -it --rm -d foundationdb/foundationdb:7.4.3
 docker exec fdb fdbcli --exec "configure new single memory"
-
-# Optional: Enable experimental tenant support
-docker exec fdb fdbcli --exec "configure tenant_mode=optional_experimental"
 ```
 
 ## Development with Nix

@@ -26,7 +26,7 @@ jobs:
           toolchain: stable
 
       - name: Build Documentation
-        run: cargo doc --no-deps --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
+        run: cargo doc --no-deps --features num-bigint,embedded-fdb-include,fdb-7_4
 
       - name: Deploy Docs
         uses: peaceiris/actions-gh-pages@v4

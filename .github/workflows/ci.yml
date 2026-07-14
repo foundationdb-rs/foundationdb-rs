@@ -39,9 +39,6 @@ jobs:
           find /opt -name "libfdb*" 2>/dev/null || true
           ls -la /usr/local/lib/ 2>/dev/null | grep fdb || echo "No fdb in /usr/local/lib"
 
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -72,18 +69,15 @@ jobs:
         with:
           version: "7.4.3"
 
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
-
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "${{ matrix.toolchain }}"
           components: rustfmt, clippy
 
       - name: Run all tests of foundationdb
-        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,fdb-7_4
       - name: Run all tests of foundationdb with trace feature enabled
-        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,tenant-experimental,fdb-7_4,trace
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,fdb-7_4,trace
       - name: Run all tests of foundationdb-tuple
         run: cargo test -p foundationdb-tuple --all-features
       - name: Run all tests of foundationdb-macros
@@ -101,9 +95,6 @@ jobs:
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
           version: "7.4.3"
-
-      - name: Enable tenant
-        run: fdbcli --exec "configure single memory tenant_mode=optional_experimental"
 
       - uses: dtolnay/rust-toolchain@master
         with:
