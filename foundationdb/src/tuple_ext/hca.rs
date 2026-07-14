@@ -56,6 +56,22 @@ impl fmt::Debug for HcaError {
     }
 }
 
+impl fmt::Display for HcaError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl std::error::Error for HcaError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            HcaError::FdbError(e) => Some(e),
+            HcaError::PackError(e) => Some(e),
+            HcaError::InvalidDirectoryLayerMetadata | HcaError::PoisonError => None,
+        }
+    }
+}
+
 impl From<FdbError> for HcaError {
     fn from(err: FdbError) -> Self {
         Self::FdbError(err)

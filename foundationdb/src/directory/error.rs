@@ -66,6 +66,24 @@ pub enum DirectoryError {
     Other(String),
 }
 
+impl std::fmt::Display for DirectoryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+impl std::error::Error for DirectoryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DirectoryError::IoError(e) => Some(e),
+            DirectoryError::FdbError(e) => Some(e),
+            DirectoryError::HcaError(e) => Some(e),
+            DirectoryError::PackError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
 impl From<error::FdbError> for DirectoryError {
     fn from(err: error::FdbError) -> Self {
         DirectoryError::FdbError(err)

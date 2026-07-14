@@ -32,7 +32,15 @@ impl fmt::Display for RankedRegisterError {
     }
 }
 
-impl std::error::Error for RankedRegisterError {}
+impl std::error::Error for RankedRegisterError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Fdb(e) => Some(e),
+            Self::PackError(e) => Some(e),
+            Self::InvalidState(_) => None,
+        }
+    }
+}
 
 impl From<FdbError> for RankedRegisterError {
     fn from(error: FdbError) -> Self {

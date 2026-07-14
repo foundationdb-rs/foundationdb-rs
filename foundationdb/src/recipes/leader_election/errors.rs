@@ -65,7 +65,15 @@ impl fmt::Display for LeaderElectionError {
     }
 }
 
-impl std::error::Error for LeaderElectionError {}
+impl std::error::Error for LeaderElectionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Fdb(e) => Some(e),
+            Self::PackError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl From<FdbError> for LeaderElectionError {
     fn from(error: FdbError) -> Self {

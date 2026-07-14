@@ -138,28 +138,38 @@ pub enum FdbBindingError {
     LeaderElectionError(crate::recipes::leader_election::LeaderElectionError),
 }
 
+/// Walks an error's `source()` chain, returning the first `FdbError` found.
+///
+/// The depth cap guards against pathological or cyclic source chains.
+pub(crate) fn find_fdb_error(err: &(dyn std::error::Error + 'static)) -> Option<FdbError> {
+    const MAX_DEPTH: usize = 128;
+    let mut current = Some(err);
+    for _ in 0..=MAX_DEPTH {
+        let e = current?;
+        if let Some(fdb) = e.downcast_ref::<FdbError>() {
+            return Some(*fdb);
+        }
+        current = e.source();
+    }
+    None
+}
+
 impl FdbBindingError {
     /// Returns the underlying `FdbError`, if any.
+    ///
+    /// A `CustomError` boxing an `FdbError` or an `FdbBindingError` is checked
+    /// first, then the whole `source()` chain is walked, so any error that
+    /// carries an `FdbError` as its `source()` (however deeply nested) is found.
     pub fn get_fdb_error(&self) -> Option<FdbError> {
-        match *self {
-            Self::NonRetryableFdbError(error)
-            | Self::DirectoryError(DirectoryError::FdbError(error))
-            | Self::HcaError(HcaError::FdbError(error)) => Some(error),
-            Self::CustomError(ref error) => {
-                if let Some(e) = error.downcast_ref::<FdbError>() {
-                    Some(*e)
-                } else if let Some(e) = error.downcast_ref::<FdbBindingError>() {
-                    e.get_fdb_error()
-                } else {
-                    None
-                }
+        if let Self::CustomError(e) = self {
+            if let Some(e) = e.downcast_ref::<FdbError>() {
+                return Some(*e);
             }
-            #[cfg(feature = "recipes-leader-election")]
-            Self::LeaderElectionError(
-                crate::recipes::leader_election::LeaderElectionError::Fdb(e),
-            ) => Some(e),
-            _ => None,
+            if let Some(e) = e.downcast_ref::<FdbBindingError>() {
+                return e.get_fdb_error();
+            }
         }
+        find_fdb_error(self)
     }
 }
 
@@ -227,4 +237,17 @@ impl Display for FdbBindingError {
     }
 }
 
-impl std::error::Error for FdbBindingError {}
+impl std::error::Error for FdbBindingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::NonRetryableFdbError(e) => Some(e),
+            Self::HcaError(e) => Some(e),
+            Self::DirectoryError(e) => Some(e),
+            Self::PackError(e) => Some(e),
+            Self::CustomError(e) => Some(e.as_ref()),
+            Self::ReferenceToTransactionKept | Self::TransactionMetricsNotFound => None,
+            #[cfg(feature = "recipes-leader-election")]
+            Self::LeaderElectionError(e) => Some(e),
+        }
+    }
+}
