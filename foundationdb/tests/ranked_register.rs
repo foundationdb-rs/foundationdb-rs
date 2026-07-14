@@ -9,8 +9,10 @@ mod common;
 
 #[cfg(feature = "recipes-ranked-register")]
 mod ranked_register_tests {
+    use std::sync::atomic::{AtomicU8, Ordering};
+
     use foundationdb::{
-        Database,
+        Database, FdbBindingError, FdbError,
         recipes::ranked_register::{Rank, RankedRegister, RankedRegisterError, WriteResult},
         tuple::Subspace,
     };
@@ -260,5 +262,60 @@ mod ranked_register_tests {
         assert_eq!(result, WriteResult::Committed);
 
         Ok(())
+    }
+
+    /// Regression freezing the old anti-pattern this file used to demonstrate:
+    /// stringifying an error into CustomError destroys the source chain, so
+    /// even the chain-walking retry detection cannot rescue it. A retryable
+    /// FdbError flattened to a String is fatal; that is correct, documented
+    /// behavior, and the fix is rewriting the wrapping (as the helpers above
+    /// now do), not the detection.
+    #[tokio::test]
+    async fn stringified_error_is_not_retried() {
+        let db = crate::common::database().await.expect("failed to open db");
+        let attempt = AtomicU8::new(0);
+        let attempt_ref = &attempt;
+
+        let result: Result<(), FdbBindingError> = db
+            .run(|_txn, _| async move {
+                attempt_ref.fetch_add(1, Ordering::SeqCst);
+                let err = RankedRegisterError::Fdb(FdbError::from_code(1020));
+                Err(FdbBindingError::CustomError(err.to_string().into()))
+            })
+            .await;
+
+        assert!(result.is_err(), "stringified errors must stay fatal");
+        assert_eq!(
+            attempt.load(Ordering::SeqCst),
+            1,
+            "a stringified retryable error must not be retried"
+        );
+    }
+
+    /// With the blessed pattern, a retryable FdbError injected through the
+    /// recipe's own error type is retried and the operation completes.
+    #[tokio::test]
+    async fn injected_fdb_error_retries_through_recipe_error() {
+        let db = crate::common::database().await.expect("failed to open db");
+        let rr = setup_test(&db, "test_injected_retry")
+            .await
+            .expect("setup failed");
+        let attempt = AtomicU8::new(0);
+        let attempt_ref = &attempt;
+
+        let rr_ref = &rr;
+        let result = db
+            .run(|txn, _| async move {
+                if attempt_ref.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return Err(RankedRegisterError::Fdb(FdbError::from_code(1020)));
+                }
+                let r = rr_ref.write(&txn, Rank::from(1u64), b"retried").await?;
+                Ok(r)
+            })
+            .await
+            .expect("injected retryable error must be retried");
+
+        assert_eq!(result, WriteResult::Committed);
+        assert!(attempt.load(Ordering::SeqCst) >= 2);
     }
 }
