@@ -47,25 +47,48 @@
 //! ### Ballots
 //! Ballot numbers work like Raft's term - a monotonically increasing counter
 //! that establishes ordering. Higher ballot always wins. Each leadership claim
-//! or lease refresh increments the ballot. This prevents split-brain scenarios
-//! after network partitions heal.
+//! or lease refresh increments the ballot by one. Ballots are *globally
+//! monotonic*: they never regress and never reset, including across a
+//! resignation (a resigned record is kept as a vacant record that preserves
+//! the ballot). This prevents split-brain scenarios after network partitions
+//! heal.
 //!
 //! The ballot is returned in [`LeaderState::ballot`](leader_election::LeaderState::ballot) and can be used as a
-//! fencing token when accessing external resources.
+//! fencing token when accessing external resources: a stale leader always
+//! carries a strictly lower ballot than its successor.
 //!
 //! ### Leases
 //! Leaders hold time-bounded leases configured via [`lease_duration`](leader_election::ElectionConfig::lease_duration).
 //! A leader must call [`run_election_cycle`](leader_election::LeaderElection::run_election_cycle) (or [`refresh_lease`](leader_election::LeaderElection::refresh_lease))
 //! before the lease expires to maintain leadership.
 //!
-//! If a leader fails to refresh (crash, network partition), other candidates
-//! can claim leadership after the lease expires.
+//! If a leader fails to refresh (crash, network partition), another candidate
+//! can claim leadership, but only after it has observed the same unrefreshed
+//! leader record for a full `lease_duration` on *its own* clock. This
+//! elapsed-time rule (see [`LeaseObservation`](leader_election::LeaseObservation)) means the protocol does not
+//! assume clocks are synchronized: it relies only on clock *rates* being
+//! roughly comparable, not on absolute offsets. A leader that keeps refreshing
+//! bumps its ballot each time, which resets every observer's timer, so a live
+//! leader is never stolen from.
+//!
+//! The observation window is measured against the `current_time` you pass in.
+//! For belief-level exclusion to hold, sample `current_time` close to the
+//! transaction's execution (for example just before the read), not far in
+//! advance. If you sample it and then run a slow or heavily-retried
+//! transaction, the window is measured from that earlier instant and can
+//! over-count, letting a lease be stolen before it has truly been idle for
+//! `lease_duration`. Record-level exclusion and the fencing ballot are
+//! unaffected either way; only the belief-level guarantee is timing-sensitive.
 //!
 //! ### Preemption
 //! When [`allow_preemption`](leader_election::ElectionConfig::allow_preemption) is true, higher-priority candidates
-//! can preempt lower-priority leaders. Priority is set via the `priority` parameter
+//! can preempt lower-priority leaders immediately, without the observation
+//! wait. Priority is set via the `priority` parameter
 //! in [`register_candidate`](leader_election::LeaderElection::register_candidate). This enables graceful leadership migration
 //! to new machines during rolling deployments or infrastructure upgrades.
+//! Preemption deliberately trades away belief-level mutual exclusion (the old
+//! leader may still think it holds the lease until it next checks); correctness
+//! then rests on the fencing ballot alone.
 //!
 //! ## Configuration
 //!
@@ -91,20 +114,29 @@
 //!
 //! ## Safety Properties
 //!
-//! - **Mutual Exclusion**: At most one leader at any time (guaranteed by FDB serializable transactions)
-//! - **Liveness**: A correct process eventually becomes leader
-//! - **Consistency**: Ballot numbers provide total ordering of leadership changes
+//! - **Record-level mutual exclusion**: At most one leader record exists at any
+//!   time (guaranteed by FDB serializable transactions on the single leader key).
+//! - **Fencing**: Ballot numbers are strictly increasing and never reset, so a
+//!   stale leader always holds a lower ballot than its successor. Guarding
+//!   external writes with the ballot gives mutual exclusion even when two
+//!   processes transiently *believe* they are leader.
+//! - **Belief-level exclusion** (preemption disabled): with `allow_preemption`
+//!   false, a lease is only stolen after being observed unrefreshed for a full
+//!   `lease_duration`, so two processes cannot both believe they hold a valid
+//!   lease as long as their clock rates stay comparable.
+//! - **Liveness**: A correct process eventually becomes leader.
 //!
 //! ## Simulation Testing
 //!
 //! This implementation is validated through FoundationDB's deterministic simulation
-//! framework under extreme conditions including network partitions, process failures,
-//! and clock skew up to ±2 seconds.
+//! framework under network partitions, process failures/reboots, and per-client
+//! clock skew.
 //!
 //! Key invariants verified:
-//! - No overlapping leadership (mutual exclusion)
-//! - Ballot monotonicity (ballots never regress)
-//! - Fencing token validity (each claim increments ballot)
+//! - Dual-path validation (replayed log matches the committed leader state)
+//! - Ballot succession (each claim is exactly `previous_ballot + 1`, globally)
+//! - No belief-level leadership overlap (with preemption disabled)
+//! - Progress (a run actually elects leaders and heartbeats)
 //!
 //! See `foundationdb-recipes-simulation` crate for test configurations.
 
@@ -114,7 +146,7 @@ mod keys;
 mod types;
 
 pub use errors::{LeaderElectionError, Result};
-pub use types::{CandidateInfo, ElectionConfig, ElectionResult, LeaderState};
+pub use types::{CandidateInfo, ElectionConfig, ElectionResult, LeaderState, LeaseObservation};
 
 use crate::{Transaction, tuple::Subspace};
 use std::ops::Deref;
@@ -370,17 +402,28 @@ impl LeaderElection {
     /// Attempts to become the leader. This is an O(1) operation that:
     /// 1. Looks up candidate registration to get versionstamp
     /// 2. Reads the current leader state
-    /// 3. Checks if we can claim (no leader, expired lease, or preemption)
+    /// 3. Decides if we can claim (no leader, vacant record, preemption, or an
+    ///    unrefreshed lease observed for `lease_duration`)
     /// 4. Writes new leader state with incremented ballot
+    ///
+    /// # Observation state
+    ///
+    /// To steal an apparently-expired lease, the caller must observe the same
+    /// leader record for `lease_duration` on its own clock. Pass a caller-owned
+    /// [`LeaseObservation`] in and keep the returned value for the next call.
+    /// A healthy leader bumps its ballot on every refresh, resetting the timer,
+    /// so a live leader is never stolen from.
     ///
     /// # Arguments
     /// * `process_id` - Unique identifier for this process
     /// * `priority` - Priority level for preemption decisions
     /// * `current_time` - Current time for lease calculation
+    /// * `observation` - Caller-owned lease-observation state
     ///
     /// # Returns
-    /// * `Ok(Some(state))` - Successfully claimed leadership
-    /// * `Ok(None)` - Cannot claim, another valid leader exists
+    /// A tuple of the claim result and the updated observation:
+    /// * `Ok((Some(state), obs))` - Successfully claimed leadership
+    /// * `Ok((None, obs))` - Cannot claim yet (another leader exists)
     /// * `Err(UnregisteredCandidate)` - Process is not registered as a candidate
     pub async fn try_claim_leadership<T>(
         &self,
@@ -388,12 +431,20 @@ impl LeaderElection {
         process_id: &str,
         priority: i32,
         current_time: Duration,
-    ) -> Result<Option<LeaderState>>
+        observation: LeaseObservation,
+    ) -> Result<(Option<LeaderState>, LeaseObservation)>
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::try_claim_leadership(txn, &self.subspace, process_id, priority, current_time)
-            .await
+        algorithm::try_claim_leadership(
+            txn,
+            &self.subspace,
+            process_id,
+            priority,
+            current_time,
+            observation,
+        )
+        .await
     }
 
     /// Refresh leadership lease
@@ -478,23 +529,40 @@ impl LeaderElection {
     /// Combines candidate heartbeat + leadership claim in one operation.
     /// This is what most users should call in their main loop.
     ///
+    /// # Observation state
+    ///
+    /// Like [`try_claim_leadership`](Self::try_claim_leadership), this threads a
+    /// caller-owned [`LeaseObservation`] value in and out so an unrefreshed
+    /// lease can be stolen only after being observed for `lease_duration`.
+    ///
     /// # Arguments
     /// * `process_id` - Unique identifier for this process
     /// * `priority` - Priority level
     /// * `current_time` - Current time
+    /// * `observation` - Caller-owned lease-observation state
     ///
     /// # Returns
-    /// `ElectionResult::Leader` if this process is leader, `ElectionResult::Follower` otherwise
+    /// A tuple of the [`ElectionResult`] (`Leader` if this process is leader,
+    /// `Follower` otherwise) and the updated observation.
     pub async fn run_election_cycle<T>(
         &self,
         txn: &T,
         process_id: &str,
         priority: i32,
         current_time: Duration,
-    ) -> Result<ElectionResult>
+        observation: LeaseObservation,
+    ) -> Result<(ElectionResult, LeaseObservation)>
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::run_election_cycle(txn, &self.subspace, process_id, priority, current_time).await
+        algorithm::run_election_cycle(
+            txn,
+            &self.subspace,
+            process_id,
+            priority,
+            current_time,
+            observation,
+        )
+        .await
     }
 }

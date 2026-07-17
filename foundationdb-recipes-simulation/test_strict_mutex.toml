@@ -1,0 +1,42 @@
+# Strict mutual-exclusion configuration.
+#
+# Preemption disabled + zero clock skew lets the NoBeliefOverlap invariant
+# assert strict mutual exclusion of leadership belief intervals: every steal
+# must land after the victim's lease has expired. RandomClogging (partitions)
+# and Attrition (kill/reboot) make leaders stop refreshing so failover and
+# stealing are exercised, and ProgressMade ensures the run is not vacuous.
+#
+# This relies on the workload sampling the claim clock INSIDE the transaction
+# (read-anchored), so the recipe's lease-observation window is measured from the
+# actual read, not a stale op-start sample - otherwise clogging/retry latency
+# would inflate the observed duration and produce spurious overlaps.
+[[test]]
+testTitle = 'LeaderElectionStrictMutex'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 100
+    heartbeatTimeoutSecs = 5
+    resignProbability = 0.2
+    # 0 = preemption disabled (integer, not a TOML bool)
+    allowPreemption = 0
+    # 0.0 = clocks perfectly synchronized -> tightest overlap assertion
+    maxClockSkewSecs = 0.0
+
+  [[test.workload]]
+    # Introduce network partitions
+    testName = 'RandomClogging'
+    testDuration = 30.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Reboot processes to test failover
+    testName = 'Attrition'
+    machinesToKill = 4
+    machinesToLeave = 4
+    reboot = true
+    testDuration = 30.0

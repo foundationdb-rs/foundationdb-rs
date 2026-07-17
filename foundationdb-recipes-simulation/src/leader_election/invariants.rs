@@ -1,32 +1,31 @@
 //! Invariant verification methods for leader election simulation.
 //!
-//! Contains the core leader election invariants:
-//! 1. Dual-Path Validation - Replay logs vs FDB state must match (safety + conservation)
-//! 2. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
-//! 3. Candidate Timestamps - No future timestamps in candidates
-//! 4. Leadership Sequence - Per-client monotonic op_nums
-//! 5. Registration Coverage - All leadership claims come from registered processes
+//! The check phase replays the versionstamp-ordered operation log and compares
+//! it against the committed FDB state. Log entries are in true FDB commit order
+//! (versionstamp-ordered keys), so replay reflects real causal ordering.
 //!
-//! Additional invariants for split-brain, timing, and ballot bug detection:
-//! 6. No Overlapping Leadership - No two clients have active leadership periods that overlap
-//! 7. Ballot Value Binding - Each ballot maps to exactly one leader identity
-//! 8. Fencing Token Monotonicity - Ballot numbers increase monotonically across claims
-//! 9. Global Ballot Succession - Each new leader has ballot > previous leader's ballot
-//! 10. Mutex Linearizability - Leadership history linearizes to valid mutex model
-//! 11. Lease Overlap Check - Use lease_expiry_nanos to verify no active lease overlaps
-//! 12. One Value Per Ballot - Paxos safety: each ballot maps to one client within a tenure
-//! 13. Lease Expiry After Claim - Lease must expire after claim timestamp
+//! Invariants (all report failures via `Severity::Error` traces, which is what
+//! actually fails an FDB simulation):
 //!
-//! Note: Log entries are now in FDB commit order (versionstamp-ordered keys),
-//! so we have true causal ordering without clock skew issues.
+//! 1. **DualPathValidation** - Replayed log must match committed leader state
+//!    (subsumes safety + ballot conservation).
+//! 2. **LeaderIsCandidate** - An active leader must be a registered candidate.
+//! 3. **CandidateTimestamps** - No candidate heartbeat is implausibly in the future.
+//! 4. **LeadershipSequence** - Per-client op_nums are strictly increasing.
+//! 5. **RegistrationCoverage** - Every leader registered first.
+//! 6. **BallotSuccession** - Every successful claim has `ballot == previous_ballot + 1`.
+//! 7. **OneValuePerBallot** - Each ballot maps to exactly one client (globally).
+//! 8. **LeaseExpiryAfterClaim** - Each claim's lease expires after its claim time.
+//! 9. **NoBeliefOverlap** - With preemption disabled, no two clients' leadership
+//!    belief intervals overlap (in unskewed sim time) beyond the skew tolerance.
+//! 10. **ProgressMade** - The run actually elected leaders and heartbeated.
 
 use std::collections::BTreeMap;
 
-use foundationdb::tuple::Versionstamp;
-
 use super::LeaderElectionWorkload;
 use super::types::{
-    CheckResult, DatabaseSnapshot, LogEntries, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
+    CheckResult, DatabaseSnapshot, LogEntries, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN,
+    OP_TRY_BECOME_LEADER,
 };
 
 impl LeaderElectionWorkload {
@@ -35,11 +34,12 @@ impl LeaderElectionWorkload {
     /// Replay log entries (in true FDB commit order via versionstamp keys)
     /// to compute expected leader state, then compare with actual FDB state.
     ///
-    /// This is the key insight: with versionstamp-ordered keys, we have TRUE
-    /// causal ordering, so replay gives us the exact expected state.
-    ///
     /// This invariant subsumes both safety (at most one leader) and ballot
     /// conservation (ballot matches claims) by verifying exact state equality.
+    ///
+    /// Ballots are globally monotonic: a resignation does NOT reset the ballot,
+    /// it leaves a vacant record that preserves it. So the replay tracks the
+    /// leader identity and the running ballot independently.
     pub(crate) fn verify_dual_path(
         &self,
         entries: &LogEntries,
@@ -51,20 +51,22 @@ impl LeaderElectionWorkload {
 
         for entry in entries {
             if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                expected_ballot += 1;
+                expected_ballot = entry.ballot;
                 expected_leader = Some(format!("process_{}", entry.client_id));
             }
             if entry.op_type == OP_RESIGN && entry.success {
                 let resigning = format!("process_{}", entry.client_id);
                 if expected_leader.as_ref() == Some(&resigning) {
+                    // Vacant record: no holder, but the ballot is preserved.
                     expected_leader = None;
-                    expected_ballot = 0; // Ballot resets after resign
                 }
             }
         }
 
-        // Path 2: Actual FDB state
+        // Path 2: Actual FDB state. A vacant record has no holder but a
+        // preserved ballot; a live record binds both.
         let (actual_leader, actual_ballot) = match &snapshot.leader_state {
+            Some(l) if l.is_vacant() => (None, l.ballot),
             Some(l) => (Some(l.leader_id.clone()), l.ballot),
             None => (None, 0),
         };
@@ -90,19 +92,19 @@ impl LeaderElectionWorkload {
 
     /// Invariant 2: Leader Is Candidate - Structural Integrity
     ///
-    /// The current leader must be in the candidate list.
-    /// This verifies the data structure invariant that leadership
-    /// can only be claimed by registered candidates.
-    ///
-    /// NOTE: If the leader's lease has expired, the candidate may have been
-    /// evicted due to timeout. This is valid - we only enforce this invariant
-    /// for leaders with active leases.
+    /// An active leader must be in the candidate list. A vacant record (left by
+    /// a resignation) has no holder and is skipped. If the leader's lease has
+    /// expired, the candidate may have been evicted, which is valid.
     pub(crate) fn verify_leader_is_candidate(
         &self,
         snapshot: &DatabaseSnapshot,
         current_time: f64,
     ) -> (bool, String) {
         match &snapshot.leader_state {
+            Some(leader) if leader.is_vacant() => (
+                true,
+                "Vacant record (resigned), no active leader".to_string(),
+            ),
             Some(leader) => {
                 // Check if lease has expired - if so, candidate eviction is valid
                 let lease_expiry_secs = leader.lease_expiry_nanos as f64 / 1_000_000_000.0;
@@ -150,16 +152,10 @@ impl LeaderElectionWorkload {
 
     /// Invariant 3: Candidate Timestamps - No Future Timestamps
     ///
-    /// All candidate heartbeat timestamps should be in the past or present,
-    /// not in the future. Future timestamps would indicate clock skew issues
-    /// or bugs in timestamp handling.
-    ///
-    /// With clock skew simulation enabled, we allow tolerance for:
-    ///   - clock_offset: up to ±1.0s (Extreme level)
-    ///   - drift ahead: up to 1.0s (max_ahead)
-    ///   - jitter: up to 1.1x multiplier on offset
-    ///
-    /// Max theoretical offset: (1.0 + 1.0) * 1.1 = 2.2s, use 3s for margin.
+    /// No candidate heartbeat timestamp should be implausibly far in the future.
+    /// The tolerance is the global worst-case one-sided clock deviation plus a
+    /// small margin for scheduling/rounding; it collapses toward zero in the
+    /// strict (zero-skew) configuration.
     pub(crate) fn verify_candidate_timestamps(
         &self,
         snapshot: &DatabaseSnapshot,
@@ -167,16 +163,16 @@ impl LeaderElectionWorkload {
     ) -> (bool, String) {
         let mut issues = Vec::new();
 
-        // Tolerance accounts for clock skew simulation (Extreme level + jitter)
-        const MAX_CLOCK_SKEW_TOLERANCE: f64 = 3.0;
+        // Tolerance tracks the configured clock-skew bound (+ small margin).
+        let tolerance = self.max_clock_skew_secs + 0.5;
 
         for candidate in &snapshot.candidates {
             let heartbeat_secs = candidate.last_heartbeat_nanos as f64 / 1_000_000_000.0;
 
-            if heartbeat_secs > current_time + MAX_CLOCK_SKEW_TOLERANCE {
+            if heartbeat_secs > current_time + tolerance {
                 issues.push(format!(
-                    "{} has future timestamp: {:.3} > {:.3}",
-                    candidate.process_id, heartbeat_secs, current_time
+                    "{} has future timestamp: {:.3} > {:.3} (+{:.3} tol)",
+                    candidate.process_id, heartbeat_secs, current_time, tolerance
                 ));
             }
         }
@@ -196,10 +192,7 @@ impl LeaderElectionWorkload {
 
     /// Invariant 4: Leadership Sequence - Monotonic Per-Client Operations
     ///
-    /// For each client, their op_nums should be monotonically increasing.
-    /// This verifies the log entries are properly ordered per client.
-    /// (Note: With versionstamp ordering, we have true commit order, so this
-    /// is a simpler check now - just verify op_nums are increasing per client)
+    /// For each client, their op_nums must be strictly increasing.
     pub(crate) fn verify_leadership_sequence(&self, entries: &LogEntries) -> (bool, String) {
         let mut client_last_op: BTreeMap<i32, u64> = BTreeMap::new();
         let mut leadership_count: BTreeMap<i32, usize> = BTreeMap::new();
@@ -239,9 +232,8 @@ impl LeaderElectionWorkload {
 
     /// Invariant 5: Registration Coverage - All Leaders Were Registered
     ///
-    /// Every client that successfully claimed leadership must have
-    /// previously registered (logged a Register operation).
-    /// This verifies the registration requirement of the protocol.
+    /// Every client that successfully claimed leadership must have a prior
+    /// registration entry in the log.
     pub(crate) fn verify_registration_coverage(&self, entries: &LogEntries) -> (bool, String) {
         // Track which clients have registered (either success or attempted)
         let mut registered_clients: BTreeMap<i32, bool> = BTreeMap::new();
@@ -287,85 +279,29 @@ impl LeaderElectionWorkload {
         }
     }
 
-    // ==========================================================================
-    // NEW INVARIANTS (6-11): Catch split-brain, timing, and ballot bugs
-    // ==========================================================================
-
-    /// Invariant 6: No Overlapping Leadership
+    /// Invariant 6: Ballot Succession
     ///
-    /// Verifies that leadership transitions are sequential in versionstamp order.
-    /// Since each successful leadership claim commits atomically in FDB,
-    /// versionstamp ordering guarantees no true overlap can occur.
-    ///
-    /// This invariant verifies:
-    /// - Each leadership period ends (explicitly via resign or implicitly via new claim) before the next starts
-    /// - No two clients claim leadership at the exact same versionstamp
-    pub(crate) fn verify_no_overlapping_leadership(&self, entries: &LogEntries) -> (bool, String) {
-        // Track leadership transitions in versionstamp order
-        // Since FDB commits are serialized, a successful leadership claim at versionstamp V
-        // implicitly ends any previous leadership (either lease expired or was preempted)
-        let mut leadership_claims: Vec<(i32, Versionstamp)> = Vec::new();
-        let mut explicit_resigns = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                leadership_claims.push((entry.client_id, entry.versionstamp.clone()));
-            }
-            if entry.op_type == OP_RESIGN && entry.success {
-                explicit_resigns += 1;
-            }
-        }
-
-        // Check for duplicate versionstamps (would indicate a bug in logging)
-        for i in 0..leadership_claims.len() {
-            for j in (i + 1)..leadership_claims.len() {
-                if leadership_claims[i].1 == leadership_claims[j].1 {
-                    return (
-                        false,
-                        format!(
-                            "Duplicate versionstamp: clients {} and {} both claimed at {:?}",
-                            leadership_claims[i].0, leadership_claims[j].0, leadership_claims[i].1
-                        ),
-                    );
-                }
-            }
-        }
-
-        // With FDB's serialized commits and versionstamp ordering,
-        // sequential leadership claims are valid - each new claim implicitly
-        // ends the previous leadership (due to lease expiry or preemption)
-        (
-            true,
-            format!(
-                "Leadership transitions sequential ({} claims, {} explicit resigns)",
-                leadership_claims.len(),
-                explicit_resigns
-            ),
-        )
-    }
-
-    /// Invariant 7: Ballot Progression Check
-    ///
-    /// Verifies that each successful leadership claim has ballot > previous_ballot.
-    /// This ensures the fencing token mechanism is working correctly within each claim.
-    ///
-    /// Note: This uses the logged previous_ballot field, not global tracking,
-    /// because the ballot read in the same transaction is the authoritative previous value.
-    pub(crate) fn verify_ballot_value_binding(&self, entries: &LogEntries) -> (bool, String) {
+    /// Every successful leadership claim must have `ballot == previous_ballot + 1`.
+    /// `previous_ballot` is the ballot read in the same transaction, so this is
+    /// the authoritative predecessor. Because ballots are globally monotonic and
+    /// never reset (resign leaves a vacant record that preserves the ballot),
+    /// this holds unconditionally for every claim: first claim (`0 -> 1`), steal,
+    /// preemption, refresh, and post-resign claim alike.
+    pub(crate) fn verify_ballot_succession(&self, entries: &LogEntries) -> (bool, String) {
         let mut violations = Vec::new();
-        let mut valid_progressions = 0;
+        let mut claims = 0;
 
         for entry in entries {
             if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                // The ballot after claim should be greater than the ballot before claim
-                // (previous_ballot + 1 == ballot for normal claims)
-                if entry.ballot > 0 && entry.ballot <= entry.previous_ballot {
+                claims += 1;
+                if entry.ballot != entry.previous_ballot + 1 {
                     violations.push(format!(
-                        "Invalid ballot progression: client {} got ballot {} but previous was {}",
-                        entry.client_id, entry.ballot, entry.previous_ballot
+                        "Client {} got ballot {} but previous was {} (expected {})",
+                        entry.client_id,
+                        entry.ballot,
+                        entry.previous_ballot,
+                        entry.previous_ballot + 1
                     ));
-                } else {
-                    valid_progressions += 1;
                 }
             }
         }
@@ -373,201 +309,24 @@ impl LeaderElectionWorkload {
         if violations.is_empty() {
             (
                 true,
-                format!("Ballot progression OK ({valid_progressions} valid claims)"),
+                format!("Ballot succession OK ({claims} claims, each previous+1)"),
             )
         } else {
             (false, violations.join("; "))
         }
     }
 
-    /// Invariant 8: Fencing Token Increment
+    /// Invariant 7: One Value Per Ballot (Paxos Safety)
     ///
-    /// Each successful leadership claim should increment the ballot by exactly 1.
-    /// This verifies the fencing token mechanism is working as expected.
-    ///
-    /// ballot = previous_ballot + 1 for each successful claim
-    pub(crate) fn verify_fencing_token_monotonicity(&self, entries: &LogEntries) -> (bool, String) {
-        let mut violations = Vec::new();
-        let mut proper_increments = 0;
-        let mut first_claims = 0; // Claims where previous_ballot was 0 (no prior leader)
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                if entry.previous_ballot == 0 {
-                    // First claim or claim after system reset - ballot can be any positive value
-                    first_claims += 1;
-                } else if entry.ballot == entry.previous_ballot + 1 {
-                    // Normal case: ballot incremented by 1
-                    proper_increments += 1;
-                } else if entry.ballot > entry.previous_ballot {
-                    // Ballot increased but not by exactly 1 - could indicate skipped ballots
-                    // This is OK as long as ballot > previous_ballot
-                    proper_increments += 1;
-                } else {
-                    // Ballot didn't increase - this is a problem
-                    violations.push(format!(
-                        "Ballot not incremented: client {} got ballot {} but previous was {}",
-                        entry.client_id, entry.ballot, entry.previous_ballot
-                    ));
-                }
-            }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!(
-                    "Fencing token increment OK ({proper_increments} increments, {first_claims} first claims)"
-                ),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 9: Global Ballot Succession
-    ///
-    /// Each new leader must have a ballot strictly greater than the previous leader's ballot.
-    /// Uses the previous_ballot field to verify proper succession.
-    pub(crate) fn verify_global_ballot_succession(&self, entries: &LogEntries) -> (bool, String) {
-        let mut violations = Vec::new();
-        let mut leadership_transitions = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                leadership_transitions += 1;
-                // New ballot must be strictly greater than previous
-                if entry.ballot <= entry.previous_ballot && entry.previous_ballot > 0 {
-                    violations.push(format!(
-                        "Ballot regression: client {} got ballot {} but previous was {}",
-                        entry.client_id, entry.ballot, entry.previous_ballot
-                    ));
-                }
-            }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!("Global ballot succession OK ({leadership_transitions} transitions)"),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 10: Mutex Linearizability
-    ///
-    /// Leadership history must linearize to a valid mutex model:
-    /// - At most one process holds leadership at any given time
-    /// - Leadership transfers happen sequentially (in versionstamp order)
-    ///
-    /// Note: In lease-based leadership, a new leader claiming leadership
-    /// implicitly ends the previous leader's tenure (lease expired or was preempted).
-    /// This is NOT a mutex violation - it's how lease-based systems work.
-    pub(crate) fn verify_mutex_linearizability(&self, entries: &LogEntries) -> (bool, String) {
-        let mut acquire_count = 0;
-        let mut release_count = 0;
-        let mut implicit_releases = 0;
-        let mut current_holder: Option<i32> = None;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                acquire_count += 1;
-                if let Some(prev_holder) = current_holder
-                    && prev_holder != entry.client_id
-                {
-                    // Different client claiming - previous holder's lease expired
-                    // or was preempted. This is an implicit release.
-                    implicit_releases += 1;
-                }
-                // New leader takes over
-                current_holder = Some(entry.client_id);
-            }
-            if entry.op_type == OP_RESIGN
-                && entry.success
-                && let Some(holder) = current_holder
-                && holder == entry.client_id
-            {
-                release_count += 1;
-                current_holder = None;
-            }
-        }
-
-        // In a lease-based system, the invariant is simply that leadership
-        // transfers happen sequentially (which is guaranteed by versionstamp ordering)
-        (
-            true,
-            format!(
-                "Mutex linearizability OK ({acquire_count} acquires, {release_count} explicit releases, {implicit_releases} implicit releases)"
-            ),
-        )
-    }
-
-    /// Invariant 11: Lease Validity Check
-    ///
-    /// Verifies that leadership claims have valid lease expiry times:
-    /// - Lease expiry should be positive (in the future at claim time)
-    /// - Lease duration should be reasonable (not extremely long or short)
-    pub(crate) fn verify_lease_overlap_check(&self, entries: &LogEntries) -> (bool, String) {
-        let mut claims_with_lease = 0;
-        let mut claims_without_lease = 0;
-        let mut violations = Vec::new();
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                if entry.lease_expiry_nanos > 0 {
-                    claims_with_lease += 1;
-                } else {
-                    // A successful leadership claim should have a lease expiry
-                    claims_without_lease += 1;
-                    violations.push(format!(
-                        "Client {} claimed leadership but lease_expiry_nanos is {}",
-                        entry.client_id, entry.lease_expiry_nanos
-                    ));
-                }
-            }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!("Lease validity OK ({claims_with_lease} claims with valid leases)"),
-            )
-        } else {
-            // Note: This might be expected if the logging doesn't capture lease properly
-            // For now, just report as info
-            (
-                true,
-                format!(
-                    "Lease check: {claims_with_lease} with lease, {claims_without_lease} without (may need logging fix)"
-                ),
-            )
-        }
-    }
-
-    /// Invariant 12: One Value Per Ballot (Paxos Safety)
-    ///
-    /// Within each leadership tenure (between ballot resets), each ballot number
-    /// must map to exactly one client. The ballot resets to 0 after a resign,
-    /// starting a new tenure.
-    ///
-    /// This catches broken conflict ranges or ballot assignment logic where
-    /// two clients somehow both claim the same ballot within the same tenure.
+    /// Each ballot number must map to exactly one client, globally. Since
+    /// ballots are strictly increasing across the whole run, a ballot claimed
+    /// by two different clients would indicate broken conflict ranges or ballot
+    /// assignment logic.
     pub(crate) fn verify_one_value_per_ballot(&self, entries: &LogEntries) -> (bool, String) {
         let mut ballot_to_client: BTreeMap<u64, i32> = BTreeMap::new();
         let mut violations = Vec::new();
-        let mut tenure_count = 1;
-        let mut total_unique_ballots = 0;
 
         for entry in entries {
-            // Reset tracking on resign (ballot resets to 0, new tenure starts)
-            if entry.op_type == OP_RESIGN && entry.success {
-                total_unique_ballots += ballot_to_client.len();
-                ballot_to_client.clear();
-                tenure_count += 1;
-            }
-
             if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
                 if entry.ballot == 0 {
                     continue; // Skip ballot 0 (initial state)
@@ -577,35 +336,28 @@ impl LeaderElectionWorkload {
                     && prev_client != entry.client_id
                 {
                     violations.push(format!(
-                        "Tenure {}: Ballot {} claimed by client {} and client {}",
-                        tenure_count, entry.ballot, prev_client, entry.client_id
+                        "Ballot {} claimed by client {} and client {}",
+                        entry.ballot, prev_client, entry.client_id
                     ));
                 }
                 ballot_to_client.insert(entry.ballot, entry.client_id);
             }
         }
 
-        total_unique_ballots += ballot_to_client.len();
-
         if violations.is_empty() {
             (
                 true,
-                format!(
-                    "Paxos safety OK: {total_unique_ballots} unique ballots across {tenure_count} tenures"
-                ),
+                format!("Paxos safety OK: {} unique ballots", ballot_to_client.len()),
             )
         } else {
             (false, violations.join("; "))
         }
     }
 
-    /// Invariant 13: Lease Expiry After Claim Time
+    /// Invariant 8: Lease Expiry After Claim Time
     ///
-    /// Every successful leadership claim must have a lease that expires
-    /// AFTER the claim was made. This catches:
-    /// - Incorrect lease duration calculation
-    /// - Clock skew causing past-expiry leases
-    /// - Missing lease assignment
+    /// Every successful leadership claim must have a lease that expires AFTER
+    /// the claim was made.
     pub(crate) fn verify_lease_expiry_after_claim(&self, entries: &LogEntries) -> (bool, String) {
         let mut violations = Vec::new();
         let mut valid_leases = 0;
@@ -643,6 +395,181 @@ impl LeaderElectionWorkload {
         }
     }
 
+    /// Invariant 9: No Belief Overlap (real mutual exclusion)
+    ///
+    /// A belief overlap - two clients simultaneously thinking they hold a valid
+    /// lease - can only be created by a *steal*: one client taking the leader
+    /// record from a different client that neither resigned nor lost it
+    /// legitimately. Resign -> vacant -> claim handoffs create no overlap (the
+    /// resigning client stops believing when it resigns), so only steals are
+    /// checked.
+    ///
+    /// Walking the log in commit (versionstamp) order, track the current record
+    /// holder and its last-refresh time. When a *different* client becomes
+    /// leader over a still-held (non-vacant) record, that is a steal: the victim
+    /// keeps believing until `victim_last_refresh + lease_duration` (it is
+    /// unaware), so the stealer must not claim before then. A legitimate steal
+    /// only happens after observing the record unchanged for a full
+    /// `lease_duration`, so `stealer_claim >= victim_last_refresh + lease` and
+    /// the overlap is <= 0.
+    ///
+    /// Times are each client's own clock samples. The workload samples them
+    /// *inside* the transaction, after the leader read (see `workload.rs`), so
+    /// they are read-anchored: they reflect real record-existence time rather
+    /// than a stale op-start sample that retry/clogging latency would inflate.
+    /// For a steal the victim genuinely refreshed, then time passed, then the
+    /// stealer claimed, so commit order and sampled order agree.
+    ///
+    /// Only meaningful with preemption disabled: preemption deliberately steals
+    /// a live lease, so with it enabled the invariant reports an informational
+    /// skip (fencing ballots provide safety there). Tolerance is
+    /// `2 * max_clock_skew_secs` plus a small sampling-slack floor; in practice
+    /// steals land well after the lease expires (negative overlap), and a
+    /// genuinely broken observation leaks close to a full `lease_duration`.
+    pub(crate) fn verify_no_belief_overlap(
+        &self,
+        entries: &LogEntries,
+        snapshot: &DatabaseSnapshot,
+    ) -> (bool, String) {
+        let config = match &snapshot.config {
+            Some(c) => c,
+            None => {
+                return (
+                    true,
+                    "No config available, skipping belief-overlap check".to_string(),
+                );
+            }
+        };
+
+        if config.allow_preemption {
+            return (
+                true,
+                "Skipped: preemption enabled - belief-level exclusion intentionally not enforced; \
+                 safety relies on fencing ballots"
+                    .to_string(),
+            );
+        }
+
+        let lease_secs = config.lease_duration.as_secs_f64();
+
+        // Belief times come from `context.now()` sampled at each op's *start*,
+        // not its commit. A stealer's observation window is anchored to its own
+        // op-start samples, which can slightly precede the victim's record
+        // commit, so a legitimate steal can appear to land a fraction of a
+        // second before the victim's lease horizon. Absorb that sampling slack.
+        // A genuinely broken observation would leak close to a full
+        // `lease_duration`, far above this floor, so real violations still fail.
+        const SAMPLING_SLACK_SECS: f64 = 0.5;
+        let tolerance = 2.0 * self.max_clock_skew_secs + SAMPLING_SLACK_SECS;
+
+        // Current record holder in commit order: (client_id, last_refresh_secs).
+        // None means the record is vacant (after a resign) or never claimed.
+        let mut holder: Option<(i32, f64)> = None;
+        let mut steals = 0usize;
+        // Largest overlap seen (negative = margin: the steal landed this long
+        // after the victim's lease expired). Reported for reviewer visibility.
+        let mut max_overlap = f64::NEG_INFINITY;
+
+        for entry in entries {
+            let s = entry.sim_time_nanos as f64 / 1_000_000_000.0;
+
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                if let Some((victim, victim_last_refresh)) = holder
+                    && victim != entry.client_id
+                {
+                    // Steal: the victim believes it holds the lease until its
+                    // lease horizon; the stealer must not claim before then.
+                    steals += 1;
+                    let victim_belief_end = victim_last_refresh + lease_secs;
+                    let overlap = victim_belief_end - s;
+                    if overlap > max_overlap {
+                        max_overlap = overlap;
+                    }
+                    if overlap > tolerance {
+                        return (
+                            false,
+                            format!(
+                                "Belief overlap {overlap:.3}s (> {tolerance:.3}s tol): client {} \
+                                 stole leadership at {s:.3} while client {victim}'s lease was valid \
+                                 until {victim_belief_end:.3} (last refresh {victim_last_refresh:.3})",
+                                entry.client_id
+                            ),
+                        );
+                    }
+                }
+                holder = Some((entry.client_id, s));
+            }
+
+            if entry.op_type == OP_RESIGN
+                && entry.success
+                && let Some((h, _)) = holder
+                && h == entry.client_id
+            {
+                // Clean handoff: the record is now vacant, no belief carries over.
+                holder = None;
+            }
+        }
+
+        let margin = if steals == 0 {
+            "no steals".to_string()
+        } else {
+            format!("worst approach {max_overlap:+.3}s vs {tolerance:.3}s tol")
+        };
+        (
+            true,
+            format!("No belief overlap across {steals} steals ({margin})"),
+        )
+    }
+
+    /// Invariant 10: Progress Made
+    ///
+    /// Guards against a vacuous pass: a run where nothing happened (empty log,
+    /// or no leader ever elected) must not be reported as success. Minimums are
+    /// configurable (`minLeadershipClaims`, `minHeartbeats`) but floored at 1.
+    pub(crate) fn verify_progress_made(&self, entries: &LogEntries) -> (bool, String) {
+        if entries.is_empty() {
+            return (
+                false,
+                "No log entries: the run made no observable progress".to_string(),
+            );
+        }
+
+        let mut claims = 0usize;
+        let mut heartbeats = 0usize;
+        for entry in entries {
+            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
+                claims += 1;
+            }
+            if entry.op_type == OP_HEARTBEAT && entry.success {
+                heartbeats += 1;
+            }
+        }
+
+        if claims < self.min_leadership_claims {
+            return (
+                false,
+                format!(
+                    "Only {claims} successful leadership claims (need >= {})",
+                    self.min_leadership_claims
+                ),
+            );
+        }
+        if heartbeats < self.min_heartbeats {
+            return (
+                false,
+                format!(
+                    "Only {heartbeats} successful heartbeats (need >= {})",
+                    self.min_heartbeats
+                ),
+            );
+        }
+
+        (
+            true,
+            format!("Progress OK: {claims} leadership claims, {heartbeats} heartbeats"),
+        )
+    }
+
     /// Run all invariant checks and return results
     pub(crate) fn run_all_invariant_checks(
         &self,
@@ -653,61 +580,45 @@ impl LeaderElectionWorkload {
 
         let mut results: Vec<(&'static str, bool, String)> = Vec::new();
 
-        // Invariant 1: Dual-Path Validation (most important!)
-        // Replay logs in true commit order, compare with FDB state
-        // Subsumes safety (at most one leader) and ballot conservation
+        // 1: Dual-Path Validation (keystone: safety + ballot conservation)
         let (pass, detail) = self.verify_dual_path(entries, snapshot);
         results.push(("DualPathValidation", pass, detail));
 
-        // Invariant 2: Leader Is Candidate (structural integrity)
+        // 2: Leader Is Candidate (structural integrity)
         let (pass, detail) = self.verify_leader_is_candidate(snapshot, current_time);
         results.push(("LeaderIsCandidate", pass, detail));
 
-        // Invariant 3: Candidate Timestamps (no future timestamps)
+        // 3: Candidate Timestamps (no implausible future timestamps)
         let (pass, detail) = self.verify_candidate_timestamps(snapshot, current_time);
         results.push(("CandidateTimestamps", pass, detail));
 
-        // Invariant 4: Leadership Sequence (per-client monotonic op_nums)
+        // 4: Leadership Sequence (per-client monotonic op_nums)
         let (pass, detail) = self.verify_leadership_sequence(entries);
         results.push(("LeadershipSequence", pass, detail));
 
-        // Invariant 5: Registration Coverage (all leaders were registered)
+        // 5: Registration Coverage (all leaders were registered)
         let (pass, detail) = self.verify_registration_coverage(entries);
         results.push(("RegistrationCoverage", pass, detail));
 
-        // === NEW INVARIANTS (6-11): Split-brain, timing, and ballot bug detection ===
+        // 6: Ballot Succession (each claim is exactly previous+1, globally)
+        let (pass, detail) = self.verify_ballot_succession(entries);
+        results.push(("BallotSuccession", pass, detail));
 
-        // Invariant 6: No Overlapping Leadership (critical - catches split-brain)
-        let (pass, detail) = self.verify_no_overlapping_leadership(entries);
-        results.push(("NoOverlappingLeadership", pass, detail));
-
-        // Invariant 7: Ballot Value Binding (critical - catches duplicate elections)
-        let (pass, detail) = self.verify_ballot_value_binding(entries);
-        results.push(("BallotValueBinding", pass, detail));
-
-        // Invariant 8: Fencing Token Monotonicity (high priority - catches stale leader writes)
-        let (pass, detail) = self.verify_fencing_token_monotonicity(entries);
-        results.push(("FencingTokenMonotonicity", pass, detail));
-
-        // Invariant 9: Global Ballot Succession (high priority - catches state regression)
-        let (pass, detail) = self.verify_global_ballot_succession(entries);
-        results.push(("GlobalBallotSuccession", pass, detail));
-
-        // Invariant 10: Mutex Linearizability (medium priority - general correctness)
-        let (pass, detail) = self.verify_mutex_linearizability(entries);
-        results.push(("MutexLinearizability", pass, detail));
-
-        // Invariant 11: Lease Overlap Check (medium priority - lease extension races)
-        let (pass, detail) = self.verify_lease_overlap_check(entries);
-        results.push(("LeaseOverlapCheck", pass, detail));
-
-        // Invariant 12: One Value Per Ballot (critical - Paxos safety within tenure)
+        // 7: One Value Per Ballot (Paxos safety)
         let (pass, detail) = self.verify_one_value_per_ballot(entries);
         results.push(("OneValuePerBallot", pass, detail));
 
-        // Invariant 13: Lease Expiry After Claim Time (critical - lease validity)
+        // 8: Lease Expiry After Claim (lease validity)
         let (pass, detail) = self.verify_lease_expiry_after_claim(entries);
         results.push(("LeaseExpiryAfterClaim", pass, detail));
+
+        // 9: No Belief Overlap (real mutual exclusion, preemption disabled)
+        let (pass, detail) = self.verify_no_belief_overlap(entries, snapshot);
+        results.push(("NoBeliefOverlap", pass, detail));
+
+        // 10: Progress Made (no vacuous passes)
+        let (pass, detail) = self.verify_progress_made(entries);
+        results.push(("ProgressMade", pass, detail));
 
         // Log each result
         for (name, passed, detail) in &results {

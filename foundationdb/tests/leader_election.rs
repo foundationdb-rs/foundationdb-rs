@@ -11,7 +11,7 @@ mod common;
 mod leader_election_tests {
     use foundationdb::{
         Database, FdbBindingError,
-        recipes::leader_election::{ElectionConfig, LeaderElection},
+        recipes::leader_election::{ElectionConfig, LeaderElection, LeaseObservation},
         tuple::Subspace,
     };
     use std::time::Duration;
@@ -67,8 +67,14 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, process_id, 0, current_time())
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        process_id,
+                        0,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
                     .await?;
                 Ok::<_, FdbBindingError>(result.is_some())
             })
@@ -125,8 +131,14 @@ mod leader_election_tests {
             let election_ref = &election;
             let became_leader = db
                 .run(|txn, _| async move {
-                    let result = election_ref
-                        .try_claim_leadership(&txn, process_id, 0, current_time())
+                    let (result, _) = election_ref
+                        .try_claim_leadership(
+                            &txn,
+                            process_id,
+                            0,
+                            current_time(),
+                            LeaseObservation::default(),
+                        )
                         .await?;
                     Ok::<_, FdbBindingError>(result.is_some())
                 })
@@ -219,8 +231,14 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, leader_id, 0, current_time())
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        leader_id,
+                        0,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
                     .await?;
                 Ok::<_, FdbBindingError>(result.is_some())
             })
@@ -302,30 +320,47 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, initial_leader, 0, current_time())
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        initial_leader,
+                        0,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
                     .await?;
                 Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(became_leader, "Initial process should become leader");
 
-        // New leader tries to claim (should fail - lease is valid)
+        // new_leader owns an observation that it threads across claim attempts.
+        // Stealing an expired lease now requires observing the same leader
+        // record for a full lease_duration, so the first attempt only starts
+        // the timer.
+        let mut obs = LeaseObservation::default();
+
+        // New leader tries to claim (should fail - lease is valid, and this is
+        // the first observation of the incumbent record anyway)
         let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, new_leader, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
+        let (became_leader, next_obs) = db
+            .run(|txn, _| {
+                let obs = obs.clone();
+                async move {
+                    let (result, next_obs) = election_ref
+                        .try_claim_leadership(&txn, new_leader, 0, current_time(), obs)
+                        .await?;
+                    Ok::<_, FdbBindingError>((result.is_some(), next_obs))
+                }
             })
             .await?;
+        obs = next_obs;
         assert!(
             !became_leader,
-            "New process should not become leader while initial lease is valid"
+            "New process should not become leader on first observation of the incumbent"
         );
 
-        // Wait for lease to expire
+        // Wait longer than the lease so the observation window is satisfied
         sleep(Duration::from_secs(4));
 
         // Keep new_leader alive via heartbeat
@@ -338,19 +373,23 @@ mod leader_election_tests {
         })
         .await?;
 
-        // New leader tries to claim again (should succeed - lease expired)
+        // New leader tries to claim again with the same observation (should
+        // succeed - it has now observed the unrefreshed incumbent for >= lease)
         let election_ref = &election;
         let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, new_leader, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
+            .run(|txn, _| {
+                let obs = obs.clone();
+                async move {
+                    let (result, _) = election_ref
+                        .try_claim_leadership(&txn, new_leader, 0, current_time(), obs)
+                        .await?;
+                    Ok::<_, FdbBindingError>(result.is_some())
+                }
             })
             .await?;
         assert!(
             became_leader,
-            "New process should become leader after initial lease expires"
+            "New process should become leader after observing the stale lease for a full lease_duration"
         );
 
         // Verify new leadership
@@ -491,15 +530,23 @@ mod leader_election_tests {
         })
         .await?;
 
-        // Leader claims leadership
+        // Leader claims leadership (ballot 1)
         let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .try_claim_leadership(&txn, leader_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
+        let leader_ballot = db
+            .run(|txn, _| async move {
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        leader_id,
+                        0,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
+                    .await?;
+                Ok::<_, FdbBindingError>(result.map(|s| s.ballot))
+            })
+            .await?;
+        assert_eq!(leader_ballot, Some(1), "First claim should be ballot 1");
 
         // Leader resigns
         let election_ref = &election;
@@ -511,19 +558,27 @@ mod leader_election_tests {
             .await?;
         assert!(resigned, "Leader should be able to resign");
 
-        // Follower can now claim leadership
+        // Follower can now claim leadership immediately (vacant record, no wait).
+        // The ballot must continue from the resigned record, not reset.
         let election_ref = &election;
-        let became_leader = db
+        let follower_ballot = db
             .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, follower_id, 0, current_time())
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        follower_id,
+                        0,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
                     .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
+                Ok::<_, FdbBindingError>(result.map(|s| s.ballot))
             })
             .await?;
-        assert!(
-            became_leader,
-            "Follower should become leader after resignation"
+        assert_eq!(
+            follower_ballot,
+            Some(2),
+            "Ballot must continue across resignation (2, not reset to 1)"
         );
 
         Ok(())
@@ -575,20 +630,32 @@ mod leader_election_tests {
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, low_priority, 1, current_time())
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        low_priority,
+                        1,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
                     .await?;
                 Ok::<_, FdbBindingError>(result.is_some())
             })
             .await?;
         assert!(became_leader, "Low priority should become leader initially");
 
-        // High priority preempts
+        // High priority preempts (bypasses the observation wait)
         let election_ref = &election;
         let became_leader = db
             .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, high_priority, 10, current_time())
+                let (result, _) = election_ref
+                    .try_claim_leadership(
+                        &txn,
+                        high_priority,
+                        10,
+                        current_time(),
+                        LeaseObservation::default(),
+                    )
                     .await?;
                 Ok::<_, FdbBindingError>(result.is_some())
             })

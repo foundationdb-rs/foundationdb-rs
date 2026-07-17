@@ -10,7 +10,7 @@ use std::time::Duration;
 use foundationdb::{
     FdbBindingError, RangeOption,
     options::{MutationType, TransactionOption},
-    recipes::leader_election::{ElectionConfig, LeaderElection},
+    recipes::leader_election::{ElectionConfig, LeaderElection, LeaderState, LeaseObservation},
     tuple::{Versionstamp, pack, unpack},
 };
 use foundationdb_simulation::{Metric, Metrics, RustWorkload, Severity, SimDatabase, details};
@@ -49,9 +49,12 @@ impl RustWorkload for LeaderElectionWorkload {
         // Client 0 initializes the leader election
         if self.client_id == 0 {
             let election = LeaderElection::new(self.election_subspace.clone());
-            let config = ElectionConfig::with_lease_duration(Duration::from_secs(
-                self.heartbeat_timeout_secs,
-            ));
+            let config = ElectionConfig {
+                allow_preemption: self.allow_preemption,
+                ..ElectionConfig::with_lease_duration(Duration::from_secs(
+                    self.heartbeat_timeout_secs,
+                ))
+            };
 
             const MAX_INIT_RETRIES: u32 = 10;
             let mut init_success = false;
@@ -103,6 +106,7 @@ impl RustWorkload for LeaderElectionWorkload {
             for cid in 0..self.client_count {
                 let process_id = format!("process_{cid}");
                 let timestamp = self.local_time();
+                let sim_now_nanos = (self.context.now() * 1e9) as i64;
                 let log_subspace = self.log_subspace.clone();
 
                 let result = db
@@ -123,9 +127,17 @@ impl RustWorkload for LeaderElectionWorkload {
                                 cid,
                                 0_u64, // op_num 0 for registration
                             ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let log_value =
-                                pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos, sim_time_nanos)
+                            let log_value = pack(&(
+                                OP_REGISTER,
+                                success,
+                                false,
+                                0_u64,
+                                0_u64,
+                                0_i64,
+                                0_i64,
+                                sim_now_nanos,
+                            ));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             reg_result.map_err(FdbBindingError::from)
@@ -168,7 +180,8 @@ impl RustWorkload for LeaderElectionWorkload {
         for _ in 0..self.operation_count {
             // Use local_time() for clock skew simulation
             let timestamp = self.local_time();
-            let current_time = timestamp.as_secs_f64();
+            // Unskewed sim time for the log (drives belief-interval reconstruction)
+            let sim_now_nanos = (self.context.now() * 1e9) as i64;
 
             // Send heartbeat
             {
@@ -196,9 +209,17 @@ impl RustWorkload for LeaderElectionWorkload {
                                 client_id,
                                 op_num,
                             ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let log_value =
-                                pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos, sim_time_nanos)
+                            let log_value = pack(&(
+                                OP_HEARTBEAT,
+                                success,
+                                false,
+                                0_u64,
+                                0_u64,
+                                0_i64,
+                                0_i64,
+                                sim_now_nanos,
+                            ));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
                             hb_result.map_err(FdbBindingError::from)
@@ -222,21 +243,50 @@ impl RustWorkload for LeaderElectionWorkload {
                 let log_subspace = self.log_subspace.clone();
                 let client_id = self.client_id;
                 let op_num = self.op_num;
+                // Observation state threaded into the claim; db.run re-executes
+                // its closure on conflict, so clone per retry from this snapshot.
+                let observation = self.lease_observation.clone();
+                // Sample the clock INSIDE the transaction (below), not at loop
+                // top: the recipe's lease-observation window is measured in
+                // caller-supplied time, and a stale outer sample would let the
+                // heartbeat's and retries' elapsed simulation time inflate the
+                // observed duration, causing premature steals. `context` is a
+                // cheap handle clone; `clock_offset` reproduces this client's
+                // fixed skew without the mutable drift state local_time needs.
+                let context = self.context.clone();
+                let clock_offset = self.clock_offset_secs;
 
-                let result: Result<Option<_>, _> = db
-                    .run(|trx, _maybe_committed| {
+                let result: Result<(Option<LeaderState>, LeaseObservation), _> = db
+                    .run(move |trx, _maybe_committed| {
                         let election = election.clone();
                         let process_id = process_id.clone();
                         let log_subspace = log_subspace.clone();
+                        let observation = observation.clone();
+                        let context = context.clone();
                         async move {
                             trx.set_option(TransactionOption::AutomaticIdempotency)?;
 
-                            // Get previous ballot before claim attempt
+                            // Get previous ballot before claim attempt (this read
+                            // establishes the transaction's read version).
                             let current = election.get_leader_raw(&trx).await.ok().flatten();
                             let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
 
-                            let claim_result = election
-                                .try_claim_leadership(&trx, &process_id, 0, timestamp)
+                            // Read-anchored, per-attempt time: sampled after the
+                            // leader read, so the observation and lease reflect
+                            // real record-existence time even across retries.
+                            let now = context.now();
+                            let current_time =
+                                Duration::from_secs_f64((now + clock_offset).max(0.0));
+                            let sim_now_nanos = (now * 1e9) as i64;
+
+                            let (claim_result, new_obs) = election
+                                .try_claim_leadership(
+                                    &trx,
+                                    &process_id,
+                                    0,
+                                    current_time,
+                                    observation,
+                                )
                                 .await
                                 .map_err(FdbBindingError::from)?;
 
@@ -249,8 +299,8 @@ impl RustWorkload for LeaderElectionWorkload {
                             };
 
                             // Log with versionstamp-ordered key (FDB commit order)
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let claim_timestamp_nanos = timestamp.as_nanos() as i64;
+                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos, sim_time_nanos)
+                            let claim_timestamp_nanos = current_time.as_nanos() as i64;
                             let log_key = log_subspace.pack_with_versionstamp(&(
                                 Versionstamp::incomplete(0),
                                 client_id,
@@ -264,52 +314,60 @@ impl RustWorkload for LeaderElectionWorkload {
                                 previous_ballot,
                                 lease_expiry,
                                 claim_timestamp_nanos,
+                                sim_now_nanos,
                             ));
                             trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
 
-                            Ok::<_, FdbBindingError>(claim_result)
+                            Ok::<_, FdbBindingError>((claim_result, new_obs))
                         }
                     })
                     .await;
 
                 self.op_num += 1;
                 self.leadership_attempts += 1;
-                let became_leader = matches!(&result, Ok(Some(_)));
-                if became_leader {
-                    self.times_became_leader += 1;
-                    // Enhanced logging with ballot and lease info for debugging
-                    if let Ok(Some(ref state)) = result {
-                        self.context.trace(
-                            Severity::Info,
-                            "BecameLeader",
-                            details![
-                                "Layer" => "Rust",
-                                "Client" => self.client_id,
-                                "ProcessId" => self.process_id.clone(),
-                                "Timestamp" => current_time,
-                                "Ballot" => state.ballot,
-                                "LeaseExpirySecs" => state.lease_expiry_nanos as f64 / 1_000_000_000.0
-                            ],
-                        );
+
+                match result {
+                    Ok((claim_result, new_obs)) => {
+                        // Persist the updated observation for the next attempt.
+                        self.lease_observation = new_obs;
+                        let now = self.context.now();
+                        let became_leader = claim_result.is_some();
+                        if let Some(ref state) = claim_result {
+                            self.times_became_leader += 1;
+                            // Enhanced logging with ballot and lease info for debugging
+                            self.context.trace(
+                                Severity::Info,
+                                "BecameLeader",
+                                details![
+                                    "Layer" => "Rust",
+                                    "Client" => self.client_id,
+                                    "ProcessId" => self.process_id.clone(),
+                                    "Timestamp" => now,
+                                    "Ballot" => state.ballot,
+                                    "LeaseExpirySecs" => state.lease_expiry_nanos as f64 / 1_000_000_000.0
+                                ],
+                            );
+                        } else {
+                            // Log when leadership claim is rejected (for debugging overlaps)
+                            self.context.trace(
+                                Severity::Debug,
+                                "LeadershipClaimRejected",
+                                details![
+                                    "Layer" => "Rust",
+                                    "Client" => self.client_id,
+                                    "ProcessId" => self.process_id.clone(),
+                                    "Timestamp" => now,
+                                    "Reason" => "Still observing incumbent lease"
+                                ],
+                            );
+                        }
+                        became_leader
                     }
-                } else if result.is_ok() {
-                    // Log when leadership claim is rejected (for debugging overlaps)
-                    self.context.trace(
-                        Severity::Debug,
-                        "LeadershipClaimRejected",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id,
-                            "ProcessId" => self.process_id.clone(),
-                            "Timestamp" => current_time,
-                            "Reason" => "Another leader has valid lease"
-                        ],
-                    );
+                    Err(_) => {
+                        self.error_count += 1;
+                        false
+                    }
                 }
-                if result.is_err() {
-                    self.error_count += 1;
-                }
-                became_leader
             };
 
             // Randomly resign if we became leader
@@ -321,12 +379,14 @@ impl RustWorkload for LeaderElectionWorkload {
                     let log_subspace = self.log_subspace.clone();
                     let client_id = self.client_id;
                     let op_num = self.op_num;
+                    let context = self.context.clone();
 
                     let resign_result: Result<bool, _> = db
-                        .run(|trx, _maybe_committed| {
+                        .run(move |trx, _maybe_committed| {
                             let election = election.clone();
                             let process_id = process_id.clone();
                             let log_subspace = log_subspace.clone();
+                            let context = context.clone();
                             async move {
                                 trx.set_option(TransactionOption::AutomaticIdempotency)?;
 
@@ -339,8 +399,12 @@ impl RustWorkload for LeaderElectionWorkload {
                                     .await
                                     .map_err(FdbBindingError::from)?;
 
+                                // Read-anchored sim time (after the read), for
+                                // consistent belief-interval reconstruction.
+                                let sim_now_nanos = (context.now() * 1e9) as i64;
+
                                 // Log with versionstamp-ordered key (FDB commit order)
-                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
+                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos, sim_time_nanos)
                                 let log_key = log_subspace.pack_with_versionstamp(&(
                                     Versionstamp::incomplete(0),
                                     client_id,
@@ -354,6 +418,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                     previous_ballot,
                                     0_i64,
                                     0_i64,
+                                    sim_now_nanos,
                                 ));
                                 trx.atomic_op(
                                     &log_key,
@@ -377,7 +442,7 @@ impl RustWorkload for LeaderElectionWorkload {
                                 "Layer" => "Rust",
                                 "Client" => self.client_id,
                                 "ProcessId" => self.process_id.clone(),
-                                "Timestamp" => current_time
+                                "Timestamp" => self.context.now()
                             ],
                         );
                     }
@@ -405,15 +470,16 @@ impl RustWorkload for LeaderElectionWorkload {
     async fn check(&mut self, db: SimDatabase) {
         self.trace_check_start();
 
-        // Only client 0 performs verification
-        if self.client_id != 0 {
-            return;
-        }
+        // Verification is read-only and deterministic (it reads the global
+        // le_log and replays it), so every surviving client verifies. This
+        // closes the hole where Attrition killing client 0 skipped all checks.
 
         // Step 1: Read all log entries and snapshot in a single transaction
         // Capture read version for debugging (like Cycle.actor.cpp)
         let log_subspace = self.log_subspace.clone();
         let election_subspace = self.election_subspace.clone();
+        // Unskewed sim time for the candidate-liveness filter in the snapshot.
+        let snapshot_time = Duration::from_secs_f64(self.context.now());
 
         let check_result = db
             .run(|trx, _maybe_committed| {
@@ -439,8 +505,8 @@ impl RustWorkload for LeaderElectionWorkload {
                             .map_err(FdbBindingError::PackError)?;
                         let (versionstamp, client_id, op_num) = key_tuple;
 
-                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                        let value_tuple: (i64, bool, bool, u64, u64, i64, i64) =
+                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos, sim_time_nanos)
+                        let value_tuple: (i64, bool, bool, u64, u64, i64, i64, i64) =
                             unpack(kv.value()).map_err(FdbBindingError::PackError)?;
 
                         entries.push(LogEntry {
@@ -454,12 +520,12 @@ impl RustWorkload for LeaderElectionWorkload {
                             previous_ballot: value_tuple.4,
                             lease_expiry_nanos: value_tuple.5,
                             claim_timestamp_nanos: value_tuple.6,
+                            sim_time_nanos: value_tuple.7,
                         });
                     }
 
                     // Read snapshot data
                     let election = LeaderElection::new(election_subspace);
-                    let current_time = Duration::from_secs_f64(0.0); // Will use context.now() later
 
                     let leader_state = election
                         .get_leader_raw(&trx)
@@ -467,7 +533,7 @@ impl RustWorkload for LeaderElectionWorkload {
                         .map_err(FdbBindingError::from)?;
 
                     let candidates = election
-                        .list_candidates(&trx, current_time)
+                        .list_candidates(&trx, snapshot_time)
                         .await
                         .map_err(FdbBindingError::from)?;
 

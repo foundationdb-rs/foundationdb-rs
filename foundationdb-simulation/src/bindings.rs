@@ -70,6 +70,13 @@ macro_rules! details {
 // Rust Types
 
 /// Wrapper around the C FDBWorkloadContext
+///
+/// `Clone` copies the underlying handle (a set of raw pointers owned by the
+/// simulation harness, not by Rust - there is no `Drop`). This lets a workload
+/// hand a context to a transaction closure so it can read `now()`/`rnd()`/emit
+/// traces from inside the transaction. The handle is valid for the workload's
+/// lifetime and its accessors are read-only, so sharing a clone is sound.
+#[derive(Clone)]
 pub struct WorkloadContext(FDBWorkloadContext);
 /// Wrapper around the C FDBPromise
 pub struct Promise(FDBPromise);
