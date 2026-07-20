@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-20
+
+### <!-- 0 -->⚠️ BREAKING CHANGES
+
+- Feat!: manage the network thread with a process-global lifecycle state machine
+- Fix: address review findings on exit logging and range test isolation
+- Feat!: remove experimental tenant support (#468)
+- Feat!: typed closure errors for Database::run via RetryableError (#479)
+
+### <!-- 2 -->🐛 Bug Fixes
+
+- Fix: address self-review findings on network lifecycle
+- Fix: resolve FdbError through the error source chain in get_fdb_error (#479)
+
+### <!-- 5 -->📚 Documentation
+
+- Docs: recommend explicit network shutdown in production
+- Docs: fix the four rustdoc warnings
+
+### <!-- 6 -->🧪 Testing
+
+- Test: replace block_on wrappers with #[tokio::test] async tests
+- Test: scope directory and tuple test clears to their own subspaces
+- Test: prove retry behavior for wrapped and stringified closure errors (#479)
+
+### <!-- 8 -->⚙️ Miscellaneous
+
+- Chore: fix useless_borrows_in_formatting lints from clippy 1.97
+
+[0.12.0]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.11.0..0.12.0
+
+
 ## [0.11.0] - 2026-06-24
 
 ### <!-- 1 -->🚀 Features
