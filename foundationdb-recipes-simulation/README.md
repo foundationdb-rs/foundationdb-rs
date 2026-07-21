@@ -44,7 +44,14 @@ Tests the leader election recipe with:
 **Configuration (TOML):**
 - `operationCount`: Number of heartbeat+leadership cycles per client (default: 50)
 - `heartbeatTimeoutSecs`: Lease duration in seconds (default: 10)
-- `resignProbability`: Probability of resigning after becoming leader (default: 0.2)
+- `resignProbability`: Probability of resigning after becoming leader (default: 0.1)
+- `allowPreemption`: Integer `0`/`1` (default: `1`). Set `0` to disable priority
+  preemption, which is required for the strict `NoBeliefOverlap` assertion.
+- `maxClockSkewSecs`: Override the randomized per-client clock skew with a fixed
+  one-sided bound in seconds. `0.0` disables skew entirely (local time equals
+  simulation time). When unset, each client gets a random skew tier.
+- `minLeadershipClaims` / `minHeartbeats`: Minimum successful operations a run
+  must produce for `ProgressMade` to pass (default: `1`, floored at `1`).
 
 **Test Configurations:**
 
@@ -54,47 +61,42 @@ Tests the leader election recipe with:
 | `test_ballot_stress.toml` | High contention test with rapid ballot transitions |
 | `test_rapid_leadership.toml` | Fast leadership turnover with high resign probability |
 | `test_short_lease.toml` | Short lease duration for timing edge cases |
+| `test_strict_mutex.toml` | Preemption off + zero skew: strict belief-overlap assertion under chaos |
 
-**Invariants Verified (13 total):**
+Note: a check-phase violation fails the simulation by emitting a
+`Severity::Error` trace (FDB tallies `SevError` events as failures); the check
+phase's return value alone does not signal failure. Every client runs the check
+against the shared operation log, so verification survives Attrition killing any
+single client.
 
-### Core Invariants (Foundational Safety)
+**Invariants Verified:**
 
-**1. DualPathValidation** - The keystone invariant using the "atomic ops pattern". Replays all logged operations in true FDB commit order (versionstamp-ordered keys) to compute expected leader state, then compares with the actual FDB snapshot. This single invariant subsumes both safety (at most one leader at a time) and ballot conservation (ballot matches claims). If the replayed state diverges from the database state, it indicates a bug in the leader election logic or logging.
+**1. DualPathValidation** - The keystone invariant. Replays all logged operations in true FDB commit order (versionstamp-ordered keys) to compute the expected leader identity and running ballot, then compares with the actual FDB snapshot. Subsumes both safety (at most one leader record) and ballot conservation. A resignation leaves a *vacant* record (no holder, ballot preserved), which the replay models as leaderless-but-ballot-preserved.
 
-**2. LeaderIsCandidate** - Validates structural integrity: the current leader must exist in the candidates list. This ensures leadership can only be claimed by registered candidates. Exception: if the leader's lease has expired, candidate eviction is valid (the candidate may have timed out).
+**2. LeaderIsCandidate** - The current active leader must exist in the candidate list. A vacant record (resigned) is skipped. If the leader's lease has expired, candidate eviction is valid.
 
-**3. CandidateTimestamps** - Clock skew detection: ensures no candidate has a heartbeat timestamp more than 3 seconds in the future. This tolerance accounts for extreme clock skew simulation (up to ±1s offset, 1s drift ahead, 1.1x jitter multiplier). Future timestamps beyond this threshold indicate clock handling bugs.
+**3. CandidateTimestamps** - No candidate heartbeat timestamp is implausibly in the future. The tolerance tracks the configured clock-skew bound (plus a small margin) and collapses toward zero in the strict configuration.
 
-**4. LeadershipSequence** - Validates log ordering: each client's operation numbers (`op_num`) must be strictly monotonically increasing. With versionstamp-ordered logging, this verifies the log entries are properly sequenced per client.
+**4. LeadershipSequence** - Each client's operation numbers (`op_num`) are strictly increasing.
 
-**5. RegistrationCoverage** - Protocol compliance: every client that successfully claimed leadership must have a prior registration entry in the log. This ensures the registration requirement of the leader election protocol is enforced.
+**5. RegistrationCoverage** - Every client that claimed leadership has a prior registration entry.
 
-### Split-Brain Detection
+**6. BallotSuccession** - Every successful leadership claim satisfies `ballot == previous_ballot + 1`, unconditionally. Because ballots are globally monotonic and never reset (resign preserves the ballot in a vacant record), this holds for first claims (`0 -> 1`), steals, preemptions, refreshes, and post-resign claims alike. Replaces the older per-tenure ballot invariants, which existed only to work around the ballot reset that the recipe no longer does.
 
-**6. NoOverlappingLeadership** - Ensures leadership claims have distinct versionstamps. Since FDB commits are serialized and each successful leadership claim commits atomically, versionstamp ordering guarantees sequential transitions. Duplicate versionstamps would indicate a logging bug. This invariant catches split-brain scenarios where two clients might incorrectly believe they are both leaders.
+**7. OneValuePerBallot** - Each ballot number maps to exactly one client, globally. Since ballots strictly increase across the whole run, a ballot claimed by two clients indicates broken conflict ranges or ballot-assignment logic.
 
-**7. BallotValueBinding** - Validates ballot progression within each claim: the new ballot must be greater than the previous ballot read in the same transaction. This ensures the fencing token mechanism is working correctly and prevents duplicate elections at the same ballot number.
+**8. LeaseExpiryAfterClaim** - Every successful claim has a lease that expires after its claim timestamp (catches lease-duration or clock bugs).
 
-### Timing and Ballot Bug Detection
+**9. NoBeliefOverlap** - Real mutual exclusion. A belief overlap can only be created by a *steal* (one client taking the leader record from a different client that neither resigned nor lost it), so the check walks the log in commit order and asserts that every steal lands after the victim's lease horizon (`victim_last_refresh + lease_duration`), within `2 * maxClockSkewSecs` plus a small floor. Resign -> vacant -> claim handoffs create no overlap and are not flagged. Only meaningful with preemption disabled (preemption deliberately steals a live lease; the fencing ballot, not the lease, provides safety there), so it reports an informational skip when `allowPreemption` is on. In `test_strict_mutex.toml` (zero skew, read-anchored timestamps) steals reliably land after the lease expires.
 
-**8. FencingTokenMonotonicity** - Ensures ballots never regress: each successful leadership claim must have `ballot > previous_ballot` (or `previous_ballot == 0` for first claims after system reset). This catches stale leader writes where an old leader might attempt to use an outdated fencing token.
-
-**9. GlobalBallotSuccession** - State machine safety: each new leader's ballot must be strictly greater than the predecessor's ballot. This invariant catches state regression bugs where the system might accept a lower ballot number.
-
-### Correctness
-
-**10. MutexLinearizability** - Leadership transfers must happen sequentially with at most one holder at a time in log order. In lease-based systems, a new leader claiming leadership implicitly ends the previous leader's tenure (lease expired or preempted). This tracks both explicit resigns and implicit releases to verify the leadership history linearizes to a valid mutex model.
-
-**11. LeaseOverlapCheck** - Validates each successful leadership claim has a positive, non-zero `lease_expiry_nanos`. This ensures every leader has a bounded lease duration, which is essential for the lease-based leadership protocol to function correctly.
-
-**12. OneValuePerBallot** - Paxos safety property within each tenure: each ballot number must map to exactly one client between ballot resets. The ballot resets to 0 after a resign, starting a new tenure. This catches broken conflict ranges or ballot assignment logic where two clients might somehow both claim the same ballot within the same tenure.
-
-**13. LeaseExpiryAfterClaim** - Validates that every successful leadership claim has a lease that expires AFTER the claim was made. This catches incorrect lease duration calculations, clock skew causing past-expiry leases, or missing lease assignments. Uses the logged `claim_timestamp_nanos` to verify `lease_expiry > claim_time`.
+**10. ProgressMade** - Guards against a vacuous pass: the log must be non-empty and the run must produce at least `minLeadershipClaims` successful claims and `minHeartbeats` successful heartbeats.
 
 ### Architecture Notes
 
-**Versionstamp-Ordered Logging**: All log entries use FDB versionstamp-ordered keys, providing true causal ordering based on actual FDB commit order rather than wall-clock time. This eliminates clock skew issues in log replay.
+**Versionstamp-Ordered Logging**: All log entries use FDB versionstamp-ordered keys, providing true causal ordering based on actual FDB commit order rather than wall-clock time. Each entry also records the unskewed simulation time (`context.now()`) at commit, used to reconstruct belief intervals without clock-skew contamination.
 
-**Dual-Path Validation Pattern**: The simulation uses a "dual-path" approach where one path replays the operation log to compute expected state, while the other path reads the actual FDB state. Comparing these two paths catches bugs that might only manifest under specific timing or failure conditions.
+**Dual-Path Validation Pattern**: The simulation replays the operation log to compute expected state and compares it against the actual FDB state, catching bugs that only manifest under specific timing or failure conditions.
 
-**Clock Skew Simulation**: The simulation injects extreme clock skew (up to 2.2s total deviation) to stress-test time-dependent logic like lease expiry handling.
+**Read-Anchored Timestamps**: The recipe measures its lease-observation window against a caller-supplied `current_time`. The workload samples that clock *inside* the claim transaction, after the leader read, rather than at loop-top. This matters because a stale, pre-transaction sample would let heartbeat/retry/clogging latency inflate the observed duration and cause spurious belief overlaps. This is also a real deployment note for the recipe: sample `current_time` close to the transaction, or belief-level exclusion can be under-counted (record-level exclusion and fencing are unaffected).
+
+**Clock Skew Simulation**: Each client gets a randomized skew tier (offset + drift + jitter, up to ~2.2s worst-case one-sided deviation) unless `maxClockSkewSecs` overrides it. Skew perturbs measured durations, so time-based invariants carry a matching tolerance; the strict configuration disables skew so `NoBeliefOverlap` asserts that every steal lands after the victim's lease has expired.

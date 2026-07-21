@@ -202,15 +202,99 @@ where
 // LEADER OPERATIONS - ALL O(1)
 // ============================================================================
 
+/// Outcome of the pure claim decision, see [`decide_claim`].
+#[derive(Debug, PartialEq, Eq)]
+enum ClaimOutcome {
+    /// The caller may claim leadership with this ballot.
+    Claim { new_ballot: u64 },
+    /// The caller may not claim (must keep observing / following).
+    Deny,
+}
+
+/// Pure decision for whether `process_id` may claim leadership right now.
+///
+/// This holds all the election policy so it can be unit-tested without a
+/// cluster. It never consults the absolute lease validity of a live leader;
+/// stealing an unrefreshed lease is gated purely on how long the *same* leader
+/// record has been observed (`observation`), measured on the caller's own
+/// clock. See [`LeaseObservation`] for the rationale.
+fn decide_claim(
+    current: Option<&LeaderState>,
+    process_id: &str,
+    my_priority: i32,
+    allow_preemption: bool,
+    lease_duration: Duration,
+    current_time: Duration,
+    observation: &mut LeaseObservation,
+) -> ClaimOutcome {
+    match current {
+        // No record at all: first claim ever.
+        None => {
+            observation.clear();
+            ClaimOutcome::Claim { new_ballot: 1 }
+        }
+        // Vacant record left by a resignation: claim immediately, ballot continues.
+        Some(leader) if leader.is_vacant() => {
+            observation.clear();
+            ClaimOutcome::Claim {
+                new_ballot: leader.ballot + 1,
+            }
+        }
+        // Already the leader (refresh-like re-claim): no waiting.
+        Some(leader) if leader.leader_id == process_id => {
+            observation.clear();
+            ClaimOutcome::Claim {
+                new_ballot: leader.ballot + 1,
+            }
+        }
+        // Some other live leader.
+        Some(leader) => {
+            // Preemption bypasses the observation wait by design. This
+            // sacrifices belief-level mutual exclusion (the old leader may
+            // still think it holds the lease); safety then relies on the
+            // fencing ballot alone.
+            if allow_preemption && my_priority > leader.priority {
+                observation.clear();
+                return ClaimOutcome::Claim {
+                    new_ballot: leader.ballot + 1,
+                };
+            }
+
+            // Elapsed-time stealing: only steal once we have observed this
+            // exact record (ballot + versionstamp identity) continuously for
+            // at least `lease_duration` on our own clock.
+            let observed = observation.observe(leader.ballot, leader.versionstamp, current_time);
+            if observed >= lease_duration {
+                observation.clear();
+                ClaimOutcome::Claim {
+                    new_ballot: leader.ballot + 1,
+                }
+            } else {
+                ClaimOutcome::Deny
+            }
+        }
+    }
+}
+
 /// Try to claim leadership
 ///
 /// This is the core leader election operation:
 /// 1. Look up candidate registration (O(1))
 /// 2. Read current leader state (O(1))
-/// 3. Decide if we can claim based on ballot/priority/lease
+/// 3. Decide if we can claim (see [`decide_claim`])
 /// 4. Write new state with incremented ballot (O(1))
 ///
 /// FDB transaction conflict detection ensures safety.
+///
+/// # Observation state
+///
+/// Stealing an apparently-expired lease requires observing the same leader
+/// record for `lease_duration` on the caller's own clock. The caller owns a
+/// [`LeaseObservation`] and threads it through successive calls: pass it in,
+/// keep the returned value for the next call. Taking it by value (rather than
+/// `&mut`) keeps this usable inside a `Database::run` closure, which is
+/// re-executed on conflict; the update is a pure function of the read record,
+/// so retries recompute the same result.
 ///
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
@@ -218,10 +302,12 @@ where
 /// * `process_id` - ID of the process attempting to claim leadership
 /// * `my_priority` - This process's priority (higher = more preferred)
 /// * `current_time` - Current time for lease calculation
+/// * `observation` - Caller-owned lease-observation state
 ///
 /// # Returns
-/// * `Ok(Some(state))` - Successfully claimed leadership
-/// * `Ok(None)` - Cannot claim, another valid leader exists
+/// A tuple of the claim result and the updated observation:
+/// * `Ok((Some(state), obs))` - Successfully claimed leadership
+/// * `Ok((None, obs))` - Cannot claim yet (keep observing, another leader exists)
 /// * `Err(UnregisteredCandidate)` - Process is not registered as a candidate
 /// * `Err(_)` - Other error occurred
 pub async fn try_claim_leadership<T>(
@@ -230,7 +316,8 @@ pub async fn try_claim_leadership<T>(
     process_id: &str,
     my_priority: i32,
     current_time: Duration,
-) -> Result<Option<LeaderState>>
+    mut observation: LeaseObservation,
+) -> Result<(Option<LeaderState>, LeaseObservation)>
 where
     T: Deref<Target = Transaction>,
 {
@@ -248,21 +335,21 @@ where
     let key = leader_key(subspace);
     let current_leader = read_leader_state(txn, &key).await?;
 
-    let can_claim = match &current_leader {
-        None => true, // No leader exists
-        Some(leader) => {
-            leader.leader_id == process_id // Already leader (refresh)
-                || !leader.is_lease_valid(current_time) // Lease expired
-                || (config.allow_preemption && my_priority > leader.priority) // Preemption
-        }
+    let outcome = decide_claim(
+        current_leader.as_ref(),
+        process_id,
+        my_priority,
+        config.allow_preemption,
+        config.lease_duration,
+        current_time,
+        &mut observation,
+    );
+
+    let new_ballot = match outcome {
+        ClaimOutcome::Deny => return Ok((None, observation)),
+        ClaimOutcome::Claim { new_ballot } => new_ballot,
     };
 
-    if !can_claim {
-        return Ok(None);
-    }
-
-    // Claim leadership with incremented ballot
-    let new_ballot = current_leader.as_ref().map(|l| l.ballot + 1).unwrap_or(1);
     let lease_expiry = current_time + config.lease_duration;
 
     let new_state = LeaderState {
@@ -274,7 +361,7 @@ where
     };
 
     write_leader_state(txn, &key, &new_state);
-    Ok(Some(new_state))
+    Ok((Some(new_state), observation))
 }
 
 /// Refresh leadership lease
@@ -324,7 +411,11 @@ where
 
 /// Voluntarily resign leadership
 ///
-/// Immediately releases leadership. Other candidates can claim.
+/// Immediately releases leadership. Other candidates can claim right away
+/// (no lease wait), because a resigned record is written as *vacant* rather
+/// than deleted: `leader_id` is cleared and `lease_expiry_nanos` set to `0`
+/// while the ballot is preserved. Preserving the ballot keeps it globally
+/// monotonic so it stays valid as a fencing token across resignations.
 ///
 /// # Arguments
 /// * `txn` - The FoundationDB transaction
@@ -342,7 +433,15 @@ where
 
     match current {
         Some(leader) if leader.leader_id == process_id => {
-            txn.clear(&key);
+            // Write a vacant record: preserve the ballot, drop the holder.
+            let vacant = LeaderState {
+                ballot: leader.ballot,
+                leader_id: String::new(),
+                priority: 0,
+                lease_expiry_nanos: 0,
+                versionstamp: leader.versionstamp,
+            };
+            write_leader_state(txn, &key, &vacant);
             Ok(true)
         }
         _ => Ok(false),
@@ -710,12 +809,20 @@ where
 /// # Returns
 /// `ElectionResult::Leader` if this process is leader, `ElectionResult::Follower` otherwise
 ///
+/// # Observation state
+///
+/// Like [`try_claim_leadership`], this threads a caller-owned
+/// [`LeaseObservation`] value in and out so an unrefreshed lease can be stolen
+/// only after being observed for `lease_duration`.
+///
 /// # Example
 /// ```ignore
+/// let mut obs = LeaseObservation::new();
 /// loop {
-///     let result = db.run(|txn| {
-///         run_election_cycle(&txn, &subspace, &my_id, my_priority, now())
+///     let (result, next_obs) = db.run(|txn| {
+///         run_election_cycle(&txn, &subspace, &my_id, my_priority, now(), obs.clone())
 ///     }).await?;
+///     obs = next_obs;
 ///
 ///     match result {
 ///         ElectionResult::Leader(state) => {
@@ -738,7 +845,8 @@ pub async fn run_election_cycle<T>(
     process_id: &str,
     my_priority: i32,
     current_time: Duration,
-) -> Result<ElectionResult>
+    observation: LeaseObservation,
+) -> Result<(ElectionResult, LeaseObservation)>
 where
     T: Deref<Target = Transaction>,
 {
@@ -746,11 +854,247 @@ where
     heartbeat_candidate(txn, subspace, process_id, my_priority, current_time).await?;
 
     // 2. Try to claim/maintain leadership
-    match try_claim_leadership(txn, subspace, process_id, my_priority, current_time).await? {
-        Some(state) => Ok(ElectionResult::Leader(state)),
+    let (claim, observation) = try_claim_leadership(
+        txn,
+        subspace,
+        process_id,
+        my_priority,
+        current_time,
+        observation,
+    )
+    .await?;
+    match claim {
+        Some(state) => Ok((ElectionResult::Leader(state), observation)),
         None => {
             let current_leader = get_leader(txn, subspace, current_time).await?;
-            Ok(ElectionResult::Follower(current_leader))
+            Ok((ElectionResult::Follower(current_leader), observation))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn leader(id: &str, ballot: u64, priority: i32, vs_seed: u8) -> LeaderState {
+        LeaderState {
+            ballot,
+            leader_id: id.to_string(),
+            priority,
+            lease_expiry_nanos: 1_000, // non-zero => not vacant
+            versionstamp: [vs_seed; 12],
+        }
+    }
+
+    fn vacant(ballot: u64, vs_seed: u8) -> LeaderState {
+        LeaderState {
+            ballot,
+            leader_id: String::new(),
+            priority: 0,
+            lease_expiry_nanos: 0,
+            versionstamp: [vs_seed; 12],
+        }
+    }
+
+    const LEASE: Duration = Duration::from_secs(10);
+
+    #[test]
+    fn no_record_claims_ballot_one() {
+        let mut obs = LeaseObservation::new();
+        let outcome = decide_claim(None, "p1", 0, true, LEASE, Duration::from_secs(1), &mut obs);
+        assert_eq!(outcome, ClaimOutcome::Claim { new_ballot: 1 });
+        assert_eq!(obs, LeaseObservation::new());
+    }
+
+    #[test]
+    fn vacant_record_claims_next_ballot_without_waiting() {
+        let mut obs = LeaseObservation::new();
+        let state = vacant(7, 3);
+        let outcome = decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Claim { new_ballot: 8 });
+        assert_eq!(obs, LeaseObservation::new());
+    }
+
+    #[test]
+    fn already_leader_reclaims_next_ballot() {
+        let mut obs = LeaseObservation::new();
+        let state = leader("p1", 4, 0, 1);
+        let outcome = decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Claim { new_ballot: 5 });
+    }
+
+    #[test]
+    fn other_leader_first_sight_denies_and_starts_timer() {
+        let mut obs = LeaseObservation::new();
+        let state = leader("p2", 4, 0, 1);
+        let outcome = decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Deny);
+        // Now watching, timer at t=1s.
+        assert_ne!(obs, LeaseObservation::new());
+    }
+
+    #[test]
+    fn other_leader_same_identity_before_lease_keeps_denying() {
+        let mut obs = LeaseObservation::new();
+        let state = leader("p2", 4, 0, 1);
+        // First sight at t=1.
+        decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        let snapshot = obs.clone();
+        // Same identity at t=5 (elapsed 4s < 10s lease): still deny, timer unchanged.
+        let outcome = decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(5),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Deny);
+        assert_eq!(
+            obs, snapshot,
+            "first_seen must not move while identity is stable"
+        );
+    }
+
+    #[test]
+    fn other_leader_same_identity_after_lease_steals() {
+        let mut obs = LeaseObservation::new();
+        let state = leader("p2", 4, 0, 1);
+        // First sight at t=1.
+        decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        // Same identity at t=11 (elapsed 10s >= 10s lease): steal.
+        let outcome = decide_claim(
+            Some(&state),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(11),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Claim { new_ballot: 5 });
+        assert_eq!(
+            obs,
+            LeaseObservation::new(),
+            "observation cleared after steal"
+        );
+    }
+
+    #[test]
+    fn identity_change_resets_timer() {
+        let mut obs = LeaseObservation::new();
+        // Watch p2 ballot 4 from t=1.
+        decide_claim(
+            Some(&leader("p2", 4, 0, 1)),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        // Leader refreshed to ballot 5 (identity changed) at t=11: timer resets, deny.
+        let outcome = decide_claim(
+            Some(&leader("p2", 5, 0, 1)),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(11),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Deny);
+        // A further 9s (t=20, elapsed 9s < 10s) still denies: the timer restarted at t=11.
+        let outcome = decide_claim(
+            Some(&leader("p2", 5, 0, 1)),
+            "p1",
+            0,
+            false,
+            LEASE,
+            Duration::from_secs(20),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Deny);
+    }
+
+    #[test]
+    fn preemption_bypasses_observation_wait() {
+        let mut obs = LeaseObservation::new();
+        let state = leader("p2", 4, 1, 1);
+        // Higher priority (10 > 1), preemption on: claim immediately on first sight.
+        let outcome = decide_claim(
+            Some(&state),
+            "p1",
+            10,
+            true,
+            LEASE,
+            Duration::from_secs(1),
+            &mut obs,
+        );
+        assert_eq!(outcome, ClaimOutcome::Claim { new_ballot: 5 });
+        assert_eq!(obs, LeaseObservation::new());
+    }
+
+    #[test]
+    fn decision_is_idempotent_under_identical_inputs() {
+        let state = leader("p2", 4, 0, 1);
+        let mut obs_a = LeaseObservation::new();
+        let mut obs_b = LeaseObservation::new();
+        let t = Duration::from_secs(3);
+
+        let a = decide_claim(Some(&state), "p1", 0, false, LEASE, t, &mut obs_a);
+        // Same call twice on obs_a: a retry recomputes the same result and state.
+        let a_retry = decide_claim(Some(&state), "p1", 0, false, LEASE, t, &mut obs_a);
+        // Fresh observation reaching the same input reaches the same state.
+        let b = decide_claim(Some(&state), "p1", 0, false, LEASE, t, &mut obs_b);
+
+        assert_eq!(a, ClaimOutcome::Deny);
+        assert_eq!(a_retry, ClaimOutcome::Deny);
+        assert_eq!(b, ClaimOutcome::Deny);
+        assert_eq!(
+            obs_a, obs_b,
+            "retry leaves observation identical to first run"
+        );
     }
 }

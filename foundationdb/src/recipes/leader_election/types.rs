@@ -40,6 +40,14 @@ pub const DEFAULT_CANDIDATE_TIMEOUT: Duration = Duration::from_secs(15);
 /// - Higher ballot always wins
 /// - Prevents split-brain after recovery/partition
 /// - Incremented on every leadership claim or refresh
+///
+/// # Vacant Records
+///
+/// When a leader resigns, the record is not deleted. Instead a *vacant*
+/// record is written: `leader_id` is empty and `lease_expiry_nanos` is `0`,
+/// while `ballot` is preserved. This keeps ballots globally monotonic so they
+/// remain usable as fencing tokens across resignations. Use [`is_vacant`](Self::is_vacant)
+/// to detect this state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LeaderState {
     /// Ballot number (like Raft's term)
@@ -94,6 +102,83 @@ impl LeaderState {
             ))
         } else {
             None
+        }
+    }
+
+    /// Check if this is a vacant record left behind by a resignation
+    ///
+    /// A vacant record preserves the ballot (so fencing tokens stay monotonic)
+    /// but has no holder: `leader_id` is empty and `lease_expiry_nanos` is `0`.
+    /// A vacant record can be claimed immediately by any candidate without
+    /// waiting for a lease to expire.
+    pub fn is_vacant(&self) -> bool {
+        self.lease_expiry_nanos == 0
+    }
+}
+
+/// Caller-owned state for elapsed-time lease stealing
+///
+/// To claim leadership from a leader whose lease looks expired, a candidate
+/// must first observe the *same* leader record continuously for
+/// `lease_duration` measured on its own clock. This mirrors the DynamoDB lock
+/// client approach and avoids assuming clocks are synchronized: a healthy
+/// leader bumps its ballot on every refresh, which changes the record identity
+/// and resets every observer's timer, so a live leader can never be stolen
+/// from. Only a stalled leader (crash or partition, no refresh) keeps a fixed
+/// identity long enough to be stolen.
+///
+/// Each participating process owns one `LeaseObservation` and threads it
+/// through successive [`try_claim_leadership`](crate::recipes::leader_election::LeaderElection::try_claim_leadership)
+/// / [`run_election_cycle`](crate::recipes::leader_election::LeaderElection::run_election_cycle)
+/// calls: pass it in, then keep the returned value for the next call. The
+/// update is a pure function of the observed record and the supplied
+/// `current_time`, so it is safe under transaction retries.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LeaseObservation {
+    seen: Option<SeenRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SeenRecord {
+    ballot: u64,
+    versionstamp: [u8; 12],
+    /// Caller's own clock when this record identity was first observed.
+    first_seen: Duration,
+}
+
+impl LeaseObservation {
+    /// Create a fresh observation that is not watching any record
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Stop watching (called once a claim is made or the record identity changes)
+    pub(crate) fn clear(&mut self) {
+        self.seen = None;
+    }
+
+    /// Record that we saw `(ballot, versionstamp)` at `current_time`.
+    ///
+    /// Returns how long the same identity has been observed. Starting to watch
+    /// a new identity (or a changed one) resets the timer to zero.
+    pub(crate) fn observe(
+        &mut self,
+        ballot: u64,
+        versionstamp: [u8; 12],
+        current_time: Duration,
+    ) -> Duration {
+        match &self.seen {
+            Some(s) if s.ballot == ballot && s.versionstamp == versionstamp => {
+                current_time.saturating_sub(s.first_seen)
+            }
+            _ => {
+                self.seen = Some(SeenRecord {
+                    ballot,
+                    versionstamp,
+                    first_seen: current_time,
+                });
+                Duration::ZERO
+            }
         }
     }
 }

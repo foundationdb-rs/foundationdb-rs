@@ -17,6 +17,7 @@ TESTS=(
     "foundationdb-recipes-simulation/test_ballot_stress.toml"
     "foundationdb-recipes-simulation/test_rapid_leadership.toml"
     "foundationdb-recipes-simulation/test_short_lease.toml"
+    "foundationdb-recipes-simulation/test_strict_mutex.toml"
 )
 
 for test in "${TESTS[@]}"; do

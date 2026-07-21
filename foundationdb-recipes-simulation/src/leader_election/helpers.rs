@@ -29,8 +29,10 @@ impl LeaderElectionWorkload {
         let real_time = self.context.now();
 
         // 1. Apply FDB-style timer drift
-        // Timer moves partway toward (real_time + base_offset + max_drift)
-        let max_ahead = self.clock_skew_level.max_offset_secs();
+        // Timer moves partway toward (real_time + base_offset + max_drift).
+        // `clock_max_ahead` is 0 in the strict (zero-skew) config, which -
+        // together with a 0 offset - makes local_time collapse to real_time.
+        let max_ahead = self.clock_max_ahead;
         let target = real_time + self.clock_offset_secs + max_ahead;
         self.clock_timer_time += self.rnd_f64() * (target - self.clock_timer_time) / 2.0;
 
