@@ -51,9 +51,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { example: atomic, test_file: test_file_74.toml }
-          - { example: noop, test_file: test_file.toml }
-          - { example: shared, test_file: test_file.toml }
+          - { package: foundationdb-simulation, example: atomic, test_file: test_file_74.toml }
+          - { package: foundationdb-simulation, example: noop, test_file: test_file.toml }
+          - { package: foundationdb-simulation, example: shared, test_file: test_file.toml }
+          - { package: foundationdb-simulation-tracing, example: tracing_demo, test_file: test_tracing_demo.toml }
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.0
@@ -69,7 +70,7 @@ jobs:
           toolchain: "stable"
 
       - name: Build ${{ matrix.example }} workload
-        run: cargo build -p foundationdb-simulation --release --example ${{ matrix.example }} --features fdb-7_4
+        run: cargo build -p ${{ matrix.package }} --release --example ${{ matrix.example }} --features fdb-7_4
 
       - name: Test ${{ matrix.example }} workload
-        run: fdbserver -r simulation -f foundationdb-simulation/examples/${{ matrix.example }}/${{ matrix.test_file }} -b on --trace-format json
+        run: fdbserver -r simulation -f ${{ matrix.package }}/examples/${{ matrix.example }}/${{ matrix.test_file }} -b on --trace-format json
