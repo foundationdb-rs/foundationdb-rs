@@ -398,6 +398,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "foundationdb-simulation-tracing"
+version = "0.1.0"
+dependencies = [
+ "foundationdb",
+ "foundationdb-simulation",
+ "tracing",
+ "tracing-core",
+]
+
+[[package]]
 name = "foundationdb-sys"
 version = "0.11.0"
 dependencies = [
