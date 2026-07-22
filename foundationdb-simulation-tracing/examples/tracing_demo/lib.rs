@@ -6,6 +6,7 @@ use foundationdb_simulation::{
     register_workload,
 };
 use foundationdb_simulation_tracing::{TracingGuard, install};
+use tracing::Instrument;
 
 /// Demo workload that emits `tracing` events across its phases and forces one
 /// transaction conflict, so both the workload's own events and the SDK's
@@ -54,6 +55,11 @@ impl RustWorkload for TracingDemoWorkload {
         // `not_committed` conflict so the SDK's retry events fire deterministically.
         let interfere = AtomicBool::new(true);
 
+        // Wrap the retry loop in a span so forwarded events (including the SDK's
+        // own retry diagnostics) carry the Span/SpanPath and the `client` field.
+        // Attached with `.instrument` rather than `span.enter()` because the
+        // future is awaited.
+        let span = tracing::info_span!("demo_transaction", client = client_id);
         let result = db
             .run(|trx, _maybe_committed| {
                 let key = key.clone();
@@ -84,6 +90,7 @@ impl RustWorkload for TracingDemoWorkload {
                     Ok(())
                 }
             })
+            .instrument(span)
             .await;
 
         match result {

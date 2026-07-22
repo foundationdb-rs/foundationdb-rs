@@ -45,6 +45,25 @@ grep '"Type": *"RustTracingEvent"' target/traces/trace.*.json
 Each forwarded event carries `Target`, `File`, `Line`, and `Message` details
 (when present) followed by the event's own fields.
 
+## Span context
+
+The subscriber is built on `tracing-subscriber`'s `Registry`, so events fired
+inside a span carry that span's context. For an event with an enclosing span,
+the forwarded details also include:
+
+- `Span`: the name of the innermost span.
+- `SpanPath`: the span names from the root to the innermost span, joined with
+  `/` (for example `demo_transaction` or `outer/inner`).
+- the fields of every ancestor span, from root to leaf.
+
+Attach a span to an async block with the `tracing::Instrument` trait
+(`future.instrument(span)`) rather than `span.enter()`, which must not be held
+across an `.await`.
+
+Collision rule: an event's own field always wins over a span field of the same
+name. A span field is skipped when the key is already present in the details, so
+no duplicate key is produced for that case.
+
 ## Severity mapping
 
 `tracing` levels map to FDB severities as follows:
@@ -71,8 +90,6 @@ fail the run on purpose, call `context.trace(Severity::Error, ...)` directly.
   field named `file`, `line`, `target`, or `message` collides with the meta
   keys this crate prepends (and `type`, `time`, `machine`, ... collide with
   TraceEvent's own reserved keys). Duplicate keys are kept as-is in the JSON.
-- Only events are forwarded in this version; span context (`#[instrument]`
-  fields and parentage) is dropped.
 
 ## Features
 

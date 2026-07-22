@@ -405,6 +405,7 @@ dependencies = [
  "foundationdb-simulation",
  "tracing",
  "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]

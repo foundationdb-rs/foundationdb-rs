@@ -4,17 +4,19 @@
 use std::{
     cell::RefCell,
     fmt,
-    sync::{
-        Once,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Once, atomic::AtomicU64},
 };
 
 use foundationdb_simulation::{Severity, WorkloadContext};
 use tracing_core::{
-    Dispatch, Event, Level, Metadata, Subscriber,
+    Dispatch, Event, Level, Subscriber,
     field::{Field, Visit},
     span::{Attributes, Id, Record},
+};
+use tracing_subscriber::{
+    Registry,
+    layer::{Context, Layer, SubscriberExt},
+    registry::LookupSpan,
 };
 
 // The context bound to the current simulation thread. `WorkloadContext` is
@@ -39,22 +41,27 @@ static INIT: Once = Once::new();
 /// teardown), the binding is cleared, so no event can ever reach a freed
 /// context.
 ///
+/// The subscriber is a [`tracing_subscriber::Registry`] with a forwarding
+/// [`tracing_subscriber::Layer`], so span context (names and fields) is
+/// captured and attached to each forwarded event.
+///
 /// If another global tracing subscriber is already installed, this prints a
 /// warning to stderr and forwarding stays disabled (events reach the
 /// pre-existing subscriber instead).
-// Not `#[instrument]`: the crate depends only on `tracing-core`, which has no
-// attribute macro (`#[instrument]` lives in `tracing`), and on the first call
-// the subscriber does not exist yet, so there would be nothing to record.
+// Not `#[instrument]`: the crate depends only on `tracing-core` /
+// `tracing-subscriber`, neither of which provides the attribute macro
+// (`#[instrument]` lives in `tracing`), and on the first call the subscriber
+// does not exist yet, so there would be nothing to record.
 #[must_use = "dropping the guard immediately unbinds the context, so tracing \
               events would no longer be forwarded"]
 pub fn install(context: &WorkloadContext) -> TracingGuard {
-    let generation = GENERATION.fetch_add(1, Ordering::Relaxed);
+    let generation = GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     SIM_CONTEXT.with(|slot| {
         *slot.borrow_mut() = Some((context.clone(), generation));
     });
     INIT.call_once(|| {
-        let dispatch = Dispatch::new(SimSubscriber::default());
-        if tracing_core::dispatcher::set_global_default(dispatch).is_err() {
+        let subscriber = Registry::default().with(SimLayer);
+        if tracing_core::dispatcher::set_global_default(Dispatch::new(subscriber)).is_err() {
             eprintln!(
                 "foundationdb-simulation-tracing: a global tracing subscriber is already \
                  installed; simulator trace forwarding is disabled and events will reach the \
@@ -84,65 +91,119 @@ impl Drop for TracingGuard {
     }
 }
 
-/// Bare `tracing_core::Subscriber` that only reacts to events: spans get a
-/// unique id but are otherwise ignored, and every event is forwarded to the
-/// thread-local simulation context. Holds no `WorkloadContext`, so it stays
+/// Fields captured for a span, stored in its registry extensions so events
+/// fired inside the span can attach them. Keys and values are already
+/// NUL-sanitized.
+struct SpanFields(Vec<(String, String)>);
+
+/// `tracing_subscriber::Layer` that captures span fields into the registry and
+/// forwards every event to the thread-local simulation context. It holds no
+/// `WorkloadContext` (the registry owns all span state), so it stays
 /// `Send + Sync` as `Dispatch` requires.
-#[derive(Default)]
-struct SimSubscriber {
-    next_span_id: AtomicU64,
-}
+struct SimLayer;
 
-impl Subscriber for SimSubscriber {
-    fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
-        true
-    }
-
-    fn new_span(&self, _span: &Attributes<'_>) -> Id {
-        // span ids must be non-zero
-        Id::from_u64(self.next_span_id.fetch_add(1, Ordering::Relaxed) + 1)
-    }
-
-    fn record(&self, _span: &Id, _values: &Record<'_>) {}
-
-    fn record_follows_from(&self, _span: &Id, _follows: &Id) {}
-
-    fn event(&self, event: &Event<'_>) {
-        forward_event(event);
-    }
-
-    fn enter(&self, _span: &Id) {}
-
-    fn exit(&self, _span: &Id) {}
-}
-
-/// Forwards a single event to the bound context, or does nothing when no
-/// context is bound to the current thread.
-fn forward_event(event: &Event<'_>) {
-    SIM_CONTEXT.with(|slot| {
-        let slot = slot.borrow();
-        let Some((context, _)) = slot.as_ref() else {
-            return;
-        };
-        let metadata = event.metadata();
+impl<S> Layer<S> for SimLayer
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+        let span = ctx.span(id).expect("span must exist for its id");
         let mut visitor = DetailVisitor::default();
-        event.record(&mut visitor);
+        attrs.record(&mut visitor);
+        span.extensions_mut()
+            .insert(SpanFields(visitor.into_all_fields()));
+    }
 
-        let mut details: Vec<(String, String)> = Vec::with_capacity(visitor.fields.len() + 4);
-        details.push(("Target".to_owned(), sanitize(metadata.target())));
-        if let Some(file) = metadata.file() {
-            details.push(("File".to_owned(), sanitize(file)));
+    fn on_record(&self, id: &Id, values: &Record<'_>, ctx: Context<'_, S>) {
+        let span = ctx.span(id).expect("span must exist for its id");
+        let mut extensions = span.extensions_mut();
+        if let Some(fields) = extensions.get_mut::<SpanFields>() {
+            let mut visitor = DetailVisitor::default();
+            values.record(&mut visitor);
+            for (key, value) in visitor.into_all_fields() {
+                if let Some(existing) = fields.0.iter_mut().find(|(k, _)| *k == key) {
+                    existing.1 = value;
+                } else {
+                    fields.0.push((key, value));
+                }
+            }
         }
-        if let Some(line) = metadata.line() {
-            details.push(("Line".to_owned(), line.to_string()));
-        }
-        if let Some(message) = visitor.message {
-            details.push(("Message".to_owned(), message));
-        }
-        details.extend(visitor.fields);
+    }
 
-        context.trace(severity(metadata.level()), "RustTracingEvent", &details);
-    });
+    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        SIM_CONTEXT.with(|slot| {
+            let slot = slot.borrow();
+            let Some((context, _)) = slot.as_ref() else {
+                return;
+            };
+            let details = event_details(event, &ctx);
+            context.trace(
+                severity(event.metadata().level()),
+                "RustTracingEvent",
+                &details,
+            );
+        });
+    }
+}
+
+/// Builds the `(key, value)` details for an event: the `Target`/`File`/`Line`/
+/// `Message` meta keys, then the event's own fields, then span context (`Span`,
+/// `SpanPath`, and ancestor span fields from root to leaf). A span field is
+/// skipped when its key is already present, so an event field always wins over
+/// a span field of the same name.
+fn event_details<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Vec<(String, String)>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    let metadata = event.metadata();
+    let mut visitor = DetailVisitor::default();
+    event.record(&mut visitor);
+
+    let mut details: Vec<(String, String)> = Vec::with_capacity(visitor.fields.len() + 6);
+    details.push(("Target".to_owned(), sanitize(metadata.target())));
+    if let Some(file) = metadata.file() {
+        details.push(("File".to_owned(), sanitize(file)));
+    }
+    if let Some(line) = metadata.line() {
+        details.push(("Line".to_owned(), line.to_string()));
+    }
+    if let Some(message) = visitor.message {
+        details.push(("Message".to_owned(), message));
+    }
+    details.extend(visitor.fields);
+
+    if let Some(scope) = ctx.event_scope(event) {
+        // `from_root` yields the ancestors from the outermost span to the
+        // innermost, which is the order we want for both `Span` (the leaf) and
+        // `SpanPath` (root to leaf).
+        let spans: Vec<_> = scope.from_root().collect();
+        if let Some(leaf) = spans.last() {
+            details.push(("Span".to_owned(), sanitize(leaf.name())));
+        }
+        let path = spans
+            .iter()
+            .map(|span| span.name())
+            .collect::<Vec<_>>()
+            .join("/");
+        details.push(("SpanPath".to_owned(), sanitize(&path)));
+
+        // Append span fields from leaf to root, with skip-if-present, so a
+        // deeper span's field overrides a shallower one. Combined with event
+        // fields being added first, the precedence is event > innermost span >
+        // ... > root span.
+        for span in spans.iter().rev() {
+            let extensions = span.extensions();
+            if let Some(fields) = extensions.get::<SpanFields>() {
+                for (key, value) in &fields.0 {
+                    if !details.iter().any(|(existing, _)| existing == key) {
+                        details.push((key.clone(), value.clone()));
+                    }
+                }
+            }
+        }
+    }
+
+    details
 }
 
 /// Maps a `tracing` level to an FDB [`Severity`]. `ERROR` maps to
@@ -173,9 +234,9 @@ fn sanitize(value: &str) -> String {
     }
 }
 
-/// Collects an event's fields into `(key, value)` strings, pulling the field
-/// literally named `message` out separately. Every key and value has NUL
-/// bytes stripped before it is stored.
+/// Collects fields into `(key, value)` strings, pulling the field literally
+/// named `message` out separately (used for the event `Message` detail). Every
+/// key and value has NUL bytes stripped before it is stored.
 #[derive(Default)]
 struct DetailVisitor {
     message: Option<String>,
@@ -190,6 +251,16 @@ impl DetailVisitor {
         } else {
             self.fields.push((sanitize(field.name()), value));
         }
+    }
+
+    /// Returns every captured field, folding a captured `message` back in as a
+    /// regular `message` field. Used for spans, where the `message` field (if
+    /// any) is just another field to carry.
+    fn into_all_fields(mut self) -> Vec<(String, String)> {
+        if let Some(message) = self.message {
+            self.fields.insert(0, ("message".to_owned(), message));
+        }
+        self.fields
     }
 }
 
@@ -233,7 +304,6 @@ mod tests {
 
     use foundationdb_simulation::WorkloadContext;
     use foundationdb_simulation::internals::FDBWorkloadContext;
-    use tracing_core::{Dispatch, Event, span::Id};
 
     use super::*;
 
@@ -245,6 +315,38 @@ mod tests {
 
     fn slot_generation() -> Option<u64> {
         SIM_CONTEXT.with(|slot| slot.borrow().as_ref().map(|(_, generation)| *generation))
+    }
+
+    /// Shared slot the capture layer writes the forwarded details into.
+    type CapturedSlot = Arc<Mutex<Option<Vec<(String, String)>>>>;
+
+    /// Test layer that records the details `event_details` would forward, so we
+    /// can assert on them without a live `WorkloadContext`.
+    struct CaptureLayer(CapturedSlot);
+
+    impl<S> Layer<S> for CaptureLayer
+    where
+        S: Subscriber + for<'a> LookupSpan<'a>,
+    {
+        fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+            *self.0.lock().unwrap() = Some(event_details(event, &ctx));
+        }
+    }
+
+    /// Runs `emit` under a `Registry` stacked with `SimLayer` (so span fields
+    /// are captured) and a `CaptureLayer` (so we can read the forwarded
+    /// details), returning the details of the single emitted event.
+    fn capture(emit: impl FnOnce()) -> Vec<(String, String)> {
+        let captured = Arc::new(Mutex::new(None));
+        let subscriber = Registry::default()
+            .with(SimLayer)
+            .with(CaptureLayer(captured.clone()));
+        tracing_core::dispatcher::with_default(&Dispatch::new(subscriber), emit);
+        captured.lock().unwrap().take().unwrap()
+    }
+
+    fn has(details: &[(String, String)], key: &str, value: &str) -> bool {
+        details.iter().any(|(k, v)| k == key && v == value)
     }
 
     #[test]
@@ -263,78 +365,84 @@ mod tests {
         assert_eq!(sanitize("\0"), "");
     }
 
-    /// Captures what `DetailVisitor` extracts from a real `tracing` event.
-    #[derive(Clone, Default)]
-    struct Captured {
-        message: Option<String>,
-        fields: Vec<(String, String)>,
-    }
-
-    struct CaptureSubscriber(Arc<Mutex<Option<Captured>>>);
-
-    impl Subscriber for CaptureSubscriber {
-        fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
-            true
-        }
-        fn new_span(&self, _span: &Attributes<'_>) -> Id {
-            Id::from_u64(1)
-        }
-        fn record(&self, _span: &Id, _values: &Record<'_>) {}
-        fn record_follows_from(&self, _span: &Id, _follows: &Id) {}
-        fn event(&self, event: &Event<'_>) {
-            let mut visitor = DetailVisitor::default();
-            event.record(&mut visitor);
-            *self.0.lock().unwrap() = Some(Captured {
-                message: visitor.message,
-                fields: visitor.fields,
-            });
-        }
-        fn enter(&self, _span: &Id) {}
-        fn exit(&self, _span: &Id) {}
-    }
-
-    fn capture(emit: impl FnOnce()) -> Captured {
-        let captured = Arc::new(Mutex::new(None));
-        let subscriber = CaptureSubscriber(captured.clone());
-        tracing_core::dispatcher::with_default(&Dispatch::new(subscriber), emit);
-        captured.lock().unwrap().take().unwrap()
+    #[test]
+    fn event_splits_message_from_fields() {
+        let details = capture(|| tracing::info!(client = 3, "hello world"));
+        assert!(has(&details, "Message", "hello world"));
+        assert!(has(&details, "client", "3"));
     }
 
     #[test]
-    fn visitor_splits_message_from_fields() {
-        let captured = capture(|| tracing::info!(client = 3, "hello world"));
-        assert_eq!(captured.message.as_deref(), Some("hello world"));
-        assert!(
-            captured
-                .fields
-                .iter()
-                .any(|(key, value)| key == "client" && value == "3")
-        );
+    fn event_treats_explicit_message_field_as_message() {
+        let details = capture(|| tracing::info!(message = "explicit", other = 1));
+        assert!(has(&details, "Message", "explicit"));
+        assert!(has(&details, "other", "1"));
+        assert!(!details.iter().any(|(key, _)| key == "message"));
     }
 
     #[test]
-    fn visitor_treats_explicit_message_field_as_message() {
-        let captured = capture(|| tracing::info!(message = "explicit", other = 1));
-        assert_eq!(captured.message.as_deref(), Some("explicit"));
-        assert!(!captured.fields.iter().any(|(key, _)| key == "message"));
-        assert!(
-            captured
-                .fields
-                .iter()
-                .any(|(key, value)| key == "other" && value == "1")
-        );
+    fn event_strips_nul_from_keys_and_values() {
+        let details = capture(|| tracing::info!(dirty = "a\0b", "mes\0sage"));
+        assert!(has(&details, "Message", "message"));
+        assert!(has(&details, "dirty", "ab"));
     }
 
     #[test]
-    fn visitor_strips_nul_from_keys_and_values() {
-        let captured = capture(|| tracing::info!(dirty = "a\0b", "mes\0sage"));
-        assert_eq!(captured.message.as_deref(), Some("message"));
-        assert!(
-            captured
-                .fields
-                .iter()
-                .any(|(key, value)| key == "dirty" && value == "ab")
+    fn event_in_span_carries_span_context() {
+        let details = capture(|| {
+            let span = tracing::info_span!("demo_span", client = 7);
+            let _entered = span.enter();
+            tracing::info!("inside the span");
+        });
+        assert!(has(&details, "Span", "demo_span"));
+        assert!(has(&details, "SpanPath", "demo_span"));
+        assert!(has(&details, "client", "7"));
+        assert!(has(&details, "Message", "inside the span"));
+    }
+
+    #[test]
+    fn nested_spans_produce_full_path() {
+        let details = capture(|| {
+            let outer = tracing::info_span!("outer", a = 1);
+            let _outer = outer.enter();
+            let inner = tracing::info_span!("inner", b = 2);
+            let _inner = inner.enter();
+            tracing::info!("deep event");
+        });
+        assert!(has(&details, "Span", "inner"));
+        assert!(has(&details, "SpanPath", "outer/inner"));
+        assert!(has(&details, "a", "1"));
+        assert!(has(&details, "b", "2"));
+    }
+
+    #[test]
+    fn event_field_wins_over_span_field() {
+        let details = capture(|| {
+            let span = tracing::info_span!("collision", shared = "from_span");
+            let _entered = span.enter();
+            tracing::info!(shared = "from_event", "msg");
+        });
+        let shared: Vec<_> = details.iter().filter(|(key, _)| key == "shared").collect();
+        assert_eq!(shared.len(), 1, "span field must be skipped on collision");
+        assert_eq!(shared[0].1, "from_event");
+    }
+
+    #[test]
+    fn innermost_span_field_wins_over_outer() {
+        let details = capture(|| {
+            let outer = tracing::info_span!("outer", shared = "from_outer");
+            let _outer = outer.enter();
+            let inner = tracing::info_span!("inner", shared = "from_inner");
+            let _inner = inner.enter();
+            tracing::info!("event without a shared field");
+        });
+        let shared: Vec<_> = details.iter().filter(|(key, _)| key == "shared").collect();
+        assert_eq!(
+            shared.len(),
+            1,
+            "outer span field must be skipped on collision"
         );
+        assert_eq!(shared[0].1, "from_inner");
     }
 
     #[test]
