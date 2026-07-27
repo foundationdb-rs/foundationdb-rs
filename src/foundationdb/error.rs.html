@@ -329,38 +329,7 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#331" id="331">331</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -370,7 +339,8 @@
 
 </span><span class="doccomment">//! Error types for the Fdb crate
 
-</span><span class="kw">use </span><span class="kw">crate</span>::directory::DirectoryError;
+</span><span class="kw">use </span><span class="kw">crate</span>::budget::BudgetExceeded;
+<span class="kw">use </span><span class="kw">crate</span>::directory::DirectoryError;
 <span class="kw">use </span><span class="kw">crate</span>::options;
 <span class="kw">use </span><span class="kw">crate</span>::tuple::PackError;
 <span class="kw">use </span><span class="kw">crate</span>::tuple::hca::HcaError;
@@ -387,38 +357,6 @@
         <span class="prelude-val">Err</span>(FdbError::from_code(error_code))
     }
 }
-
-<span class="doccomment">/// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation.
-///
-/// This error occurs when calling methods like `set_custom_metric` or `increment_custom_metric` on a
-/// transaction that was created without metrics instrumentation (i.e., using `create_trx` instead of
-/// `create_instrumented_trx`).
-///
-/// # Example
-/// ```
-/// # use foundationdb::*;
-/// # async fn example() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
-/// let db = Database::default()?;
-///
-/// // This transaction doesn't have metrics instrumentation
-/// let txn = db.create_trx()?;
-///
-/// // This will return a TransactionMetricsNotFound error
-/// let result = txn.set_custom_metric("my_metric", 42, &amp;[("label", "value")]);
-/// assert!(result.is_err());
-/// # Ok(())
-/// # }
-/// ```
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>TransactionMetricsNotFound;
-
-<span class="kw">impl </span>std::fmt::Display <span class="kw">for </span>TransactionMetricsNotFound {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">"Transaction metrics not found"</span>)
-    }
-}
-
-<span class="kw">impl </span>std::error::Error <span class="kw">for </span>TransactionMetricsNotFound {}
 
 <span class="doccomment">/// The Standard Error type of FoundationDB
 </span><span class="attr">#[derive(Debug, Copy, Clone)]
@@ -500,8 +438,9 @@
     /// Never box a stringified error (`e.to_string().into()`): the conversion
     /// destroys the source chain, and a retryable error becomes fatal.
     </span>CustomError(Box&lt;<span class="kw">dyn </span>std::error::Error + Send + Sync&gt;),
-    <span class="doccomment">/// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation
-    </span>TransactionMetricsNotFound,
+    <span class="doccomment">/// The client-side budget of the transaction attempt was exceeded, as
+    /// reported by [`crate::Transaction::check_client_budget`]
+    </span>ClientBudgetExceeded(BudgetExceeded),
     <span class="attr">#[cfg(feature = <span class="string">"recipes-leader-election"</span>)]
     </span><span class="doccomment">/// Leader election specific error
     </span>LeaderElectionError(<span class="kw">crate</span>::recipes::leader_election::LeaderElectionError),
@@ -560,9 +499,9 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;TransactionMetricsNotFound&gt; <span class="kw">for </span>FdbBindingError {
-    <span class="kw">fn </span>from(_e: TransactionMetricsNotFound) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::TransactionMetricsNotFound
+<span class="kw">impl </span>From&lt;BudgetExceeded&gt; <span class="kw">for </span>FdbBindingError {
+    <span class="kw">fn </span>from(e: BudgetExceeded) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::ClientBudgetExceeded(e)
     }
 }
 
@@ -591,9 +530,7 @@
                 <span class="macro">write!</span>(f, <span class="string">"Reference to transaction kept"</span>)
             }
             FdbBindingError::CustomError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">"{err:?}"</span>),
-            FdbBindingError::TransactionMetricsNotFound =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"Transaction metrics not found"</span>)
-            }
+            FdbBindingError::ClientBudgetExceeded(err) =&gt; <span class="macro">write!</span>(f, <span class="string">"{err}"</span>),
             <span class="attr">#[cfg(feature = <span class="string">"recipes-leader-election"</span>)]
             </span>FdbBindingError::LeaderElectionError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">"{err:?}"</span>),
         }
@@ -614,7 +551,8 @@
             <span class="self">Self</span>::DirectoryError(e) =&gt; <span class="prelude-val">Some</span>(e),
             <span class="self">Self</span>::PackError(e) =&gt; <span class="prelude-val">Some</span>(e),
             <span class="self">Self</span>::CustomError(e) =&gt; <span class="prelude-val">Some</span>(e.as_ref()),
-            <span class="self">Self</span>::ReferenceToTransactionKept | <span class="self">Self</span>::TransactionMetricsNotFound =&gt; <span class="prelude-val">None</span>,
+            <span class="self">Self</span>::ClientBudgetExceeded(e) =&gt; <span class="prelude-val">Some</span>(e),
+            <span class="self">Self</span>::ReferenceToTransactionKept =&gt; <span class="prelude-val">None</span>,
             <span class="attr">#[cfg(feature = <span class="string">"recipes-leader-election"</span>)]
             </span><span class="self">Self</span>::LeaderElectionError(e) =&gt; <span class="prelude-val">Some</span>(e),
         }

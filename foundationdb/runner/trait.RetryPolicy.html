@@ -1,0 +1,52 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Decides what the runner does with a failed attempt."><title>RetryPolicy in foundationdb::runner - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.1 (4eb161250 2025-03-15)" data-channel="1.85.1" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../foundationdb/index.html">foundationdb</a><span class="version">0.11.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Retry<wbr>Policy</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example-cap-the-number-of-attempts" title="Example: cap the number of attempts">Example: cap the number of attempts</a></li></ul><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.decide" title="decide">decide</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In foundationdb::<wbr>runner</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="../index.html">foundationdb</a>::<wbr><a href="index.html">runner</a></span><h1>Trait <span class="trait">RetryPolicy</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/foundationdb/runner.rs.html#515-524">Source</a> </span></div><pre class="rust item-decl"><code>pub trait RetryPolicy&lt;E&gt; {
+    // Required method
+    fn <a href="#tymethod.decide" class="fn">decide</a>(
+        &amp;self,
+        failure: <a class="enum" href="enum.AttemptFailure.html" title="enum foundationdb::runner::AttemptFailure">AttemptFailure</a>&lt;'_, E&gt;,
+        proposed: <a class="enum" href="../enum.RetryDecision.html" title="enum foundationdb::RetryDecision">RetryDecision</a>,
+        attempt: <a class="primitive" href="https://doc.rust-lang.org/1.85.1/std/primitive.usize.html">usize</a>,
+    ) -&gt; <a class="enum" href="../enum.RetryDecision.html" title="enum foundationdb::RetryDecision">RetryDecision</a>;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Decides what the runner does with a failed attempt.</p>
+<p>The runner classifies the failure on its own and passes its verdict as
+<code>proposed</code>; the policy returns the decision to apply, which is <code>proposed</code>
+itself unless it wants to override it:</p>
+<ul>
+<li><a href="../enum.RetryDecision.html#variant.Fatal" title="variant foundationdb::RetryDecision::Fatal"><code>RetryDecision::Fatal</code></a> ends the run and returns the original error, the
+one the closure produced or the commit error, never something the policy
+made up.</li>
+<li><a href="../enum.RetryDecision.html#variant.Fdb" title="variant foundationdb::RetryDecision::Fdb"><code>RetryDecision::Fdb</code></a> hands that error to <code>fdb_transaction_on_error</code>,
+which judges retryability and applies the backoff.</li>
+<li><a href="../enum.RetryDecision.html#variant.Retry" title="variant foundationdb::RetryDecision::Retry"><code>RetryDecision::Retry</code></a> does the same with code 1020 (<code>not_committed</code>),
+which is retryable by definition.</li>
+</ul>
+<p>A policy cannot corrupt the
+<a href="../struct.MaybeCommitted.html" title="struct foundationdb::MaybeCommitted"><code>MaybeCommitted</code></a> flag handed to the closure: it is
+computed from the original error before the policy is consulted.</p>
+<h2 id="example-cap-the-number-of-attempts"><a class="doc-anchor" href="#example-cap-the-number-of-attempts">§</a>Example: cap the number of attempts</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>foundationdb::runner::{AttemptFailure, RetryPolicy};
+<span class="kw">use </span>foundationdb::{FdbBindingError, RetryDecision};
+
+<span class="kw">struct </span>MaxAttempts(usize);
+
+<span class="kw">impl </span>RetryPolicy&lt;FdbBindingError&gt; <span class="kw">for </span>MaxAttempts {
+    <span class="kw">fn </span>decide(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _failure: AttemptFailure&lt;<span class="lifetime">'_</span>, FdbBindingError&gt;,
+        proposed: RetryDecision,
+        attempt: usize,
+    ) -&gt; RetryDecision {
+        <span class="kw">if </span>attempt + <span class="number">1 </span>&gt;= <span class="self">self</span>.<span class="number">0 </span>{
+            RetryDecision::Fatal
+        } <span class="kw">else </span>{
+            proposed
+        }
+    }
+}</code></pre></div>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.decide" class="method"><a class="src rightside" href="../../src/foundationdb/runner.rs.html#518-523">Source</a><h4 class="code-header">fn <a href="#tymethod.decide" class="fn">decide</a>(
+    &amp;self,
+    failure: <a class="enum" href="enum.AttemptFailure.html" title="enum foundationdb::runner::AttemptFailure">AttemptFailure</a>&lt;'_, E&gt;,
+    proposed: <a class="enum" href="../enum.RetryDecision.html" title="enum foundationdb::RetryDecision">RetryDecision</a>,
+    attempt: <a class="primitive" href="https://doc.rust-lang.org/1.85.1/std/primitive.usize.html">usize</a>,
+) -&gt; <a class="enum" href="../enum.RetryDecision.html" title="enum foundationdb::RetryDecision">RetryDecision</a></h4></section></summary><div class="docblock"><p>Returns the decision to apply for <code>failure</code>, <code>proposed</code> being what the
+runner would do on its own.</p>
+</div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-RetryPolicy%3CE%3E-for-NativeRetryPolicy" class="impl"><a class="src rightside" href="../../src/foundationdb/runner.rs.html#531-540">Source</a><a href="#impl-RetryPolicy%3CE%3E-for-NativeRetryPolicy" class="anchor">§</a><h3 class="code-header">impl&lt;E&gt; <a class="trait" href="trait.RetryPolicy.html" title="trait foundationdb::runner::RetryPolicy">RetryPolicy</a>&lt;E&gt; for <a class="struct" href="struct.NativeRetryPolicy.html" title="struct foundationdb::runner::NativeRetryPolicy">NativeRetryPolicy</a></h3></section></div><script src="../../trait.impl/foundationdb/runner/trait.RetryPolicy.js" async></script></section></div></main></body></html>

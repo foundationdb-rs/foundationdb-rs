@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AttemptFailure"],"struct":["MetricsHooks","NativeRetryPolicy","TransactionRunner"],"trait":["RetryPolicy","RunnerHooks"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BudgetKind"],"struct":["AttemptUsage","BudgetExceeded","ClientBudget","UsageSnapshot"]};

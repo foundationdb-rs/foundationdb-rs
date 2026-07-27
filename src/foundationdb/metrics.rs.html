@@ -588,9 +588,26 @@
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::transaction::ConflictingKeyRange;
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a></pre></div><pre class="rust"><code><span class="doccomment">//! Per-attempt metrics collected by [`Database::instrumented_run`](crate::Database::instrumented_run).
+//!
+//! The report is a list of [`AttemptMetrics`], one per transaction attempt, in
+//! order: a retried transaction keeps everything it did in its earlier
+//! attempts. Operation counters come from the always-on
+//! [`UsageSnapshot`] of the attempt, so
+//! instrumentation only adds the timings, the outcome and the aggregates on
+//! top of what the binding already counts.
+
+</span><span class="kw">use </span><span class="kw">crate</span>::budget::{AttemptUsage, UsageSnapshot};
+<span class="kw">use </span><span class="kw">crate</span>::error::FdbError;
+<span class="kw">use </span><span class="kw">crate</span>::transaction::ConflictingKeyRange;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::{Arc, Mutex};
+<span class="kw">use </span>std::time::Duration;
 
 <span class="doccomment">/// Label key-value pairs for metrics
 </span><span class="kw">pub type </span>Labels = Vec&lt;(String, String)&gt;;
@@ -628,393 +645,337 @@
     }
 }
 
-<span class="doccomment">/// Tracks metrics for a transaction.
+<span class="doccomment">/// How a transaction attempt ended.
 ///
-/// This struct maintains transaction metrics protected by a mutex to allow safe concurrent access.
-</span><span class="attr">#[derive(Debug, Clone, Default)]
-</span><span class="kw">pub struct </span>TransactionMetrics {
-    <span class="doccomment">/// All metrics for the transaction, organized by category
-    </span><span class="kw">pub </span>metrics: Arc&lt;Mutex&lt;MetricsReport&gt;&gt;,
+/// Marked non exhaustive: finer-grained failure reporting is expected to add
+/// variants.
+</span><span class="attr">#[derive(Debug, Clone)]
+#[non_exhaustive]
+</span><span class="kw">pub enum </span>AttemptOutcome {
+    <span class="doccomment">/// The attempt committed. For a run, only the last attempt can be in this
+    /// state.
+    </span>Committed,
+    <span class="doccomment">/// The attempt was retried, `cause` being the error handed to `on_error`.
+    /// A closure error asking for a retry without a native error underneath
+    /// surfaces here as code 1020 (`not_committed`).
+    </span>Retried { cause: FdbError },
+    <span class="doccomment">/// The attempt ended the run without committing: the error was not
+    /// retryable, or the retries were exhausted.
+    </span>Failed,
 }
 
-<span class="doccomment">/// Transaction-level information that persists across retries
+<span class="doccomment">/// The conflicting key ranges of a transaction attempt.
+///
+/// They are only read after a commit conflict, and only carry ranges when
+/// [`TransactionOption::ReportConflictingKeys`](crate::options::TransactionOption::ReportConflictingKeys)
+/// was set on the transaction.
+</span><span class="attr">#[derive(Debug, Clone, Default)]
+</span><span class="kw">pub enum </span>ConflictKeys {
+    <span class="doccomment">/// The attempt did not fail on a commit conflict, so nothing was read.
+    </span><span class="attr">#[default]
+    </span>NotRequested,
+    <span class="doccomment">/// The special keyspace was read. The list is empty when
+    /// `ReportConflictingKeys` was not enabled.
+    </span>Available(Vec&lt;ConflictingKeyRange&gt;),
+    <span class="doccomment">/// The special keyspace read failed.
+    </span>ReadFailed(FdbError),
+}
+
+<span class="kw">impl </span>ConflictKeys {
+    <span class="doccomment">/// The conflicting ranges, empty unless they were read successfully.
+    </span><span class="kw">pub fn </span>ranges(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[ConflictingKeyRange] {
+        <span class="kw">match </span><span class="self">self </span>{
+            ConflictKeys::Available(ranges) =&gt; ranges,
+            ConflictKeys::NotRequested | ConflictKeys::ReadFailed(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span>[],
+        }
+    }
+}
+
+<span class="doccomment">/// Everything recorded about a single transaction attempt.
+///
+/// One is pushed to [`MetricsReport::attempts`] when the attempt ends, so an
+/// attempt that was retried keeps its own counters, timings and custom metrics
+/// instead of being overwritten by the next one.
+</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>AttemptMetrics {
+    <span class="doccomment">/// Position of the attempt in the run, starting at 0.
+    </span><span class="kw">pub </span>index: usize,
+    <span class="doccomment">/// Operation counters and bytes of the attempt, from the always-on
+    /// accounting. See [`crate::budget`] for how precise they are.
+    </span><span class="kw">pub </span>usage: UsageSnapshot,
+    <span class="doccomment">/// Application metrics recorded during the attempt with
+    /// [`Transaction::set_custom_metric`](crate::Transaction::set_custom_metric).
+    </span><span class="kw">pub </span>custom_metrics: HashMap&lt;MetricKey, u64&gt;,
+    <span class="doccomment">/// Wall clock of the attempt, measured from its start to the end of its
+    /// work: the retry backoff performed by `on_error` is **not** included.
+    </span><span class="kw">pub </span>duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="doccomment">/// Time spent in `commit`, `None` if the attempt never reached it.
+    </span><span class="kw">pub </span>commit_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="doccomment">/// Time spent in `on_error`, backoff included. `None` if `on_error` did not
+    /// run, which is the case for the last attempt of a run.
+    </span><span class="kw">pub </span>on_error_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="doccomment">/// How the attempt ended.
+    </span><span class="kw">pub </span>outcome: AttemptOutcome,
+    <span class="doccomment">/// Conflicting key ranges, only read after a commit conflict.
+    </span><span class="kw">pub </span>conflicting_keys: ConflictKeys,
+    <span class="doccomment">/// Read version of the attempt, recorded when
+    /// [`Transaction::get_read_version`](crate::Transaction::get_read_version)
+    /// is called. The binding never fetches it on its own.
+    </span><span class="kw">pub </span>read_version: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+}
+
+<span class="doccomment">/// Transaction-level information that spans attempts
 </span><span class="attr">#[derive(Debug, Default, Clone)]
 </span><span class="kw">pub struct </span>TransactionInfo {
-    <span class="doccomment">/// Number of retries performed
+    <span class="doccomment">/// Number of retries performed, that is `attempts.len() - 1` for a
+    /// completed run
     </span><span class="kw">pub </span>retries: u64,
     <span class="doccomment">/// Number of retries caused by commit conflicts (`not_committed`, error 1020)
     </span><span class="kw">pub </span>conflict_count: u64,
-    <span class="doccomment">/// Transaction read version
+    <span class="doccomment">/// Last read version observed, see [`AttemptMetrics::read_version`]
     </span><span class="kw">pub </span>read_version: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-    <span class="doccomment">/// Transaction commit version
+    <span class="doccomment">/// Commit version of the committed attempt
     </span><span class="kw">pub </span>commit_version: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 }
 
-<span class="doccomment">/// Data structure containing the actual metrics for a transaction,
-/// organized into different categories
+<span class="doccomment">/// The metrics of a whole `instrumented_run`: the detail of every attempt plus
+/// the aggregates that only make sense for the run as a whole.
 </span><span class="attr">#[derive(Debug, Clone, Default)]
 </span><span class="kw">pub struct </span>MetricsReport {
-    <span class="doccomment">/// Metrics for the current transaction attempt
-    </span><span class="kw">pub </span>current: CounterMetrics,
-    <span class="doccomment">/// Aggregated metrics across all transaction attempts, including retries
-    </span><span class="kw">pub </span>total: CounterMetrics,
-    <span class="doccomment">/// Time-related metrics for performance analysis
-    </span><span class="kw">pub </span>time: TimingMetrics,
-    <span class="doccomment">/// Custom metrics for the current transaction attempt
-    </span><span class="kw">pub </span>custom_metrics: HashMap&lt;MetricKey, u64&gt;,
-    <span class="doccomment">/// Transaction-level information
+    <span class="doccomment">/// One entry per transaction attempt, in order. Nothing is lost across
+    /// retries.
+    </span><span class="kw">pub </span>attempts: Vec&lt;AttemptMetrics&gt;,
+    <span class="doccomment">/// Wall clock of the whole run, every attempt and backoff included.
+    </span><span class="kw">pub </span>total_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="doccomment">/// Information that spans attempts.
     </span><span class="kw">pub </span>transaction: TransactionInfo,
-    <span class="doccomment">/// Conflicting key ranges from the last commit conflict.
-    /// Empty if `TransactionOption::ReportConflictingKeys` was not enabled or the read failed.
-    </span><span class="kw">pub </span>conflicting_keys: Vec&lt;ConflictingKeyRange&gt;,
 }
 
 <span class="kw">impl </span>MetricsReport {
-    <span class="doccomment">/// Set the read version for the transaction
+    <span class="doccomment">/// Sums the usage of every attempt, retries included.
     ///
-    /// # Arguments
-    /// * `version` - The read version
-    </span><span class="kw">pub fn </span>set_read_version(<span class="kw-2">&amp;mut </span><span class="self">self</span>, version: i64) {
-        <span class="self">self</span>.transaction.read_version = <span class="prelude-val">Some</span>(version);
+    /// `elapsed` is the sum of the attempt durations, which is shorter than
+    /// [`total_duration`](Self::total_duration): the retry backoffs are not
+    /// part of any attempt.
+    </span><span class="kw">pub fn </span>total_usage(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UsageSnapshot {
+        <span class="self">self</span>.attempts
+            .iter()
+            .fold(UsageSnapshot::default(), |<span class="kw-2">mut </span>total, attempt| {
+                <span class="kw">let </span>usage = <span class="kw-2">&amp;</span>attempt.usage;
+                total.elapsed += usage.elapsed;
+                total.bytes_read += usage.bytes_read;
+                total.bytes_written += usage.bytes_written;
+                total.keys_values_fetched += usage.keys_values_fetched;
+                total.call_get += usage.call_get;
+                total.call_get_range += usage.call_get_range;
+                total.call_set += usage.call_set;
+                total.call_clear += usage.call_clear;
+                total.call_clear_range += usage.call_clear_range;
+                total.call_atomic_op += usage.call_atomic_op;
+                total
+            })
     }
 
-    <span class="doccomment">/// Set the commit version for the transaction
-    ///
-    /// # Arguments
-    /// * `version` - The commit version
-    </span><span class="kw">pub fn </span>set_commit_version(<span class="kw-2">&amp;mut </span><span class="self">self</span>, version: i64) {
-        <span class="self">self</span>.transaction.commit_version = <span class="prelude-val">Some</span>(version);
-    }
-
-    <span class="doccomment">/// Increment the retry counter
-    </span><span class="kw">pub fn </span>increment_retries(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.transaction.retries += <span class="number">1</span>;
+    <span class="doccomment">/// The attempt that ended the run, `None` if no attempt was ever started.
+    </span><span class="kw">pub fn </span>last_attempt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AttemptMetrics&gt; {
+        <span class="self">self</span>.attempts.last()
     }
 }
 
-<span class="doccomment">/// Time-related metrics for performance analysis of transaction execution phases
-</span><span class="attr">#[derive(Debug, Default, Clone)]
-</span><span class="kw">pub struct </span>TimingMetrics {
-    <span class="doccomment">/// Time spent in commit phase execution
-    </span><span class="kw">pub </span>commit_execution_ms: u64,
-    <span class="doccomment">/// Time spent handling errors and retries
-    </span><span class="kw">pub </span>on_error_execution_ms: Vec&lt;u64&gt;,
-    <span class="doccomment">/// Total transaction duration from start to finish
-    </span><span class="kw">pub </span>total_execution_ms: u64,
+<span class="doccomment">/// The attempt currently being recorded.
+///
+/// Holds the accounting generation of the transaction, so that the attempt can
+/// be pushed to the report even after the transaction itself is gone (a
+/// non-retryable `on_error` consumes it), and the pieces that are known before
+/// the attempt ends.
+</span><span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">struct </span>OpenAttempt {
+    usage: <span class="prelude-ty">Option</span>&lt;Arc&lt;AttemptUsage&gt;&gt;,
+    duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    commit_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    conflicting_keys: ConflictKeys,
+    read_version: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 }
 
-<span class="kw">impl </span>TimingMetrics {
-    <span class="doccomment">/// Record commit execution time
-    ///
-    /// # Arguments
-    /// * `duration_ms` - The duration of the commit execution in milliseconds
-    </span><span class="kw">pub fn </span>record_commit_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, duration_ms: u64) {
-        <span class="self">self</span>.commit_execution_ms = duration_ms;
-    }
-
-    <span class="doccomment">/// Add an error execution time to the list
-    ///
-    /// # Arguments
-    /// * `duration_ms` - The duration of the error handling in milliseconds
-    </span><span class="kw">pub fn </span>add_error_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, duration_ms: u64) {
-        <span class="self">self</span>.on_error_execution_ms.push(duration_ms);
-    }
-
-    <span class="doccomment">/// Set the total execution time
-    ///
-    /// # Arguments
-    /// * `duration_ms` - The total duration of the transaction in milliseconds
-    </span><span class="kw">pub fn </span>set_execution_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, duration_ms: u64) {
-        <span class="self">self</span>.total_execution_ms = duration_ms;
-    }
-
-    <span class="doccomment">/// Get the sum of all error handling times
-    ///
-    /// # Returns
-    /// * `u64` - The total time spent handling errors in milliseconds
-    </span><span class="kw">pub fn </span>get_total_error_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="self">self</span>.on_error_execution_ms.iter().sum()
-    }
+<span class="doccomment">/// Collects the metrics of a transaction, attempt after attempt.
+///
+/// This is the handle shared between the transaction, the runner hooks and the
+/// caller: cloning it clones the handle, not the data. The recording methods
+/// are called by the binding as the transaction progresses, the report is read
+/// back with [`get_metrics_data`](Self::get_metrics_data).
+</span><span class="attr">#[derive(Debug, Clone, Default)]
+</span><span class="kw">pub struct </span>TransactionMetrics {
+    <span class="doccomment">/// The report being built.
+    </span><span class="kw">pub </span>metrics: Arc&lt;Mutex&lt;MetricsReport&gt;&gt;,
+    <span class="doccomment">/// The attempt being recorded, pushed to the report when it ends.
+    </span>open: Arc&lt;Mutex&lt;OpenAttempt&gt;&gt;,
 }
-
-<span class="doccomment">/// Represents a FoundationDB command.
-</span><span class="kw">pub enum </span>FdbCommand {
-    <span class="doccomment">/// Atomic operation
-    </span>Atomic,
-    <span class="doccomment">/// Clear operation
-    </span>Clear,
-    <span class="doccomment">/// Clear range operation
-    </span>ClearRange,
-    <span class="doccomment">/// Get operation
-    </span>Get(u64, u64),
-    GetRange(u64, u64),
-    Set(u64),
-}
-
-<span class="kw">const </span>INCREMENT: u64 = <span class="number">1</span>;
 
 <span class="kw">impl </span>TransactionMetrics {
     <span class="doccomment">/// Create a new instance of TransactionMetrics
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            metrics: Arc::new(Mutex::new(MetricsReport::default())),
+        <span class="self">Self</span>::default()
+    }
+
+    <span class="kw">fn </span>report(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::sync::MutexGuard&lt;<span class="lifetime">'_</span>, MetricsReport&gt; {
+        <span class="self">self</span>.metrics
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    <span class="kw">fn </span>open(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::sync::MutexGuard&lt;<span class="lifetime">'_</span>, OpenAttempt&gt; {
+        <span class="self">self</span>.open
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    <span class="doccomment">/// Starts recording a new attempt, on the accounting generation the
+    /// transaction just entered.
+    ///
+    /// Anything recorded on a previous attempt that was not ended with
+    /// [`finish_attempt`](Self::finish_attempt) is dropped: the transaction
+    /// restarted without reaching a conclusion, typically because
+    /// [`Transaction::set_client_budget`](crate::Transaction::set_client_budget)
+    /// or [`Transaction::reset`](crate::Transaction::reset) was called.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>begin_attempt(<span class="kw-2">&amp;</span><span class="self">self</span>, usage: Arc&lt;AttemptUsage&gt;) {
+        <span class="kw">let </span><span class="kw-2">mut </span>open = <span class="self">self</span>.open();
+
+        <span class="attr">#[cfg(feature = <span class="string">"trace"</span>)]
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(dropped) = open.usage.as_ref() {
+            <span class="comment">// `elapsed` always moves, so the counters are what tells whether
+            // the attempt being dropped did anything worth reporting. Some
+            // activity is recorded straight on `OpenAttempt` instead of
+            // `AttemptUsage` (read version, conflicting keys, commit
+            // duration), so it has to be checked too.
+            </span><span class="kw">let </span>snapshot = dropped.snapshot();
+            <span class="kw">let </span>idle = snapshot
+                == UsageSnapshot {
+                    elapsed: snapshot.elapsed,
+                    ..UsageSnapshot::default()
+                }
+                &amp;&amp; dropped.custom_metrics().is_empty()
+                &amp;&amp; open.read_version.is_none()
+                &amp;&amp; open.duration.is_none()
+                &amp;&amp; open.commit_duration.is_none()
+                &amp;&amp; <span class="macro">matches!</span>(open.conflicting_keys, ConflictKeys::NotRequested);
+
+            <span class="kw">if </span>!idle {
+                <span class="macro">tracing::warn!</span>(
+                    <span class="string">"a new attempt was opened while the previous one was still open, its usage and custom metrics are dropped (set_client_budget or reset called mid-attempt)"
+                </span>);
+            }
+        }
+
+        <span class="kw-2">*</span>open = OpenAttempt {
+            usage: <span class="prelude-val">Some</span>(usage),
+            ..OpenAttempt::default()
+        };
+    }
+
+    <span class="doccomment">/// Freezes the duration of the attempt at the current elapsed time, so that
+    /// what happens next (retry backoff, error handling) is not counted as part
+    /// of it. Later calls do not move it.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mark_attempt_end(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">let </span><span class="kw-2">mut </span>open = <span class="self">self</span>.open();
+        <span class="kw">if </span>open.duration.is_none() {
+            open.duration = open.usage.as_ref().map(|usage| usage.elapsed());
         }
     }
 
-    <span class="doccomment">/// Set the read version for the transaction
+    <span class="doccomment">/// Records the time spent in `commit`, whatever its result, and ends the
+    /// attempt's work.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>record_commit(<span class="kw-2">&amp;</span><span class="self">self</span>, duration: Duration) {
+        <span class="kw">let </span><span class="kw-2">mut </span>open = <span class="self">self</span>.open();
+        open.commit_duration = <span class="prelude-val">Some</span>(duration);
+        <span class="kw">if </span>open.duration.is_none() {
+            open.duration = open.usage.as_ref().map(|usage| usage.elapsed());
+        }
+    }
+
+    <span class="doccomment">/// Ends the current attempt and pushes it to the report.
     ///
-    /// # Arguments
-    /// * `version` - The read version
+    /// Does nothing when no attempt is being recorded, which makes it safe to
+    /// call on the exit paths of a runner that may already have ended it.
+    </span><span class="kw">pub fn </span>finish_attempt(<span class="kw-2">&amp;</span><span class="self">self</span>, outcome: AttemptOutcome) {
+        <span class="kw">let </span>(usage, open) = {
+            <span class="kw">let </span><span class="kw-2">mut </span>open = <span class="self">self</span>.open();
+            <span class="kw">match </span>open.usage.take() {
+                <span class="comment">// `usage` was taken above, so this leaves the scratch empty.
+                </span><span class="prelude-val">Some</span>(usage) =&gt; (usage, std::mem::take(<span class="kw-2">&amp;mut *</span>open)),
+                <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
+            }
+        };
+
+        <span class="kw">let </span>retried = <span class="macro">matches!</span>(outcome, AttemptOutcome::Retried { .. });
+
+        <span class="kw">let </span><span class="kw-2">mut </span>report = <span class="self">self</span>.report();
+        <span class="kw">let </span>index = report.attempts.len();
+        report.attempts.push(AttemptMetrics {
+            index,
+            usage: usage.snapshot(),
+            custom_metrics: usage.custom_metrics(),
+            duration: open.duration.or_else(|| <span class="prelude-val">Some</span>(usage.elapsed())),
+            commit_duration: open.commit_duration,
+            on_error_duration: <span class="prelude-val">None</span>,
+            outcome,
+            conflicting_keys: open.conflicting_keys,
+            read_version: open.read_version,
+        });
+
+        <span class="kw">if </span>retried {
+            report.transaction.retries += <span class="number">1</span>;
+        }
+    }
+
+    <span class="doccomment">/// Records the time spent in `on_error` for the attempt that just ended.
+    ///
+    /// The runner measures it after `on_error` returned, hence after the
+    /// attempt was pushed: it lands on the last attempt of the report.
+    </span><span class="kw">pub fn </span>set_on_error_duration(<span class="kw-2">&amp;</span><span class="self">self</span>, duration: Duration) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(attempt) = <span class="self">self</span>.report().attempts.last_mut() {
+            attempt.on_error_duration = <span class="prelude-val">Some</span>(duration);
+        }
+    }
+
+    <span class="doccomment">/// Records the total duration of the run.
+    </span><span class="kw">pub fn </span>set_total_duration(<span class="kw-2">&amp;</span><span class="self">self</span>, duration: Duration) {
+        <span class="self">self</span>.report().total_duration = <span class="prelude-val">Some</span>(duration);
+    }
+
+    <span class="doccomment">/// Records the read version of the current attempt.
     </span><span class="kw">pub fn </span>set_read_version(<span class="kw-2">&amp;</span><span class="self">self</span>, version: i64) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.set_read_version(version);
+        <span class="self">self</span>.open().read_version = <span class="prelude-val">Some</span>(version);
+        <span class="self">self</span>.report().transaction.read_version = <span class="prelude-val">Some</span>(version);
     }
 
-    <span class="doccomment">/// Set the commit version for the transaction
-    ///
-    /// # Arguments
-    /// * `version` - The commit version
+    <span class="doccomment">/// Records the commit version of the transaction.
     </span><span class="kw">pub fn </span>set_commit_version(<span class="kw-2">&amp;</span><span class="self">self</span>, version: i64) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.set_commit_version(version);
+        <span class="self">self</span>.report().transaction.commit_version = <span class="prelude-val">Some</span>(version);
     }
 
-    <span class="doccomment">/// Resets the current metrics and increments the retry counter in total metrics.
-    ///
-    /// This method is called when a transaction is retried due to a conflict or other retryable error.
-    /// It increments the retry count in the transaction info and resets the current metrics to zero.
-    /// It also merges current custom metrics into total custom metrics before clearing them.
-    </span><span class="kw">pub fn </span>reset_current(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.increment_retries();
-        data.current = CounterMetrics::default();
-        data.custom_metrics.clear();
-    }
-
-    <span class="doccomment">/// Increment the retry counter
-    </span><span class="kw">pub fn </span>increment_retries(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.increment_retries();
+    <span class="doccomment">/// Records the conflicting key ranges of the current attempt.
+    </span><span class="kw">pub fn </span>set_conflicting_keys(<span class="kw-2">&amp;</span><span class="self">self</span>, keys: ConflictKeys) {
+        <span class="self">self</span>.open().conflicting_keys = keys;
     }
 
     <span class="doccomment">/// Increment the conflict counter
     </span><span class="kw">pub fn </span>increment_conflict_count(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.transaction.conflict_count += <span class="number">1</span>;
-    }
-
-    <span class="doccomment">/// Reports metrics for a specific FDB command by incrementing the appropriate counters.
-    ///
-    /// This method updates both the current and total metrics for the given command.
-    ///
-    /// # Arguments
-    /// * `fdb_command` - The FDB command to report metrics for
-    </span><span class="kw">pub fn </span>report_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, fdb_command: FdbCommand) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.current.increment(<span class="kw-2">&amp;</span>fdb_command);
-        data.total.increment(<span class="kw-2">&amp;</span>fdb_command);
+        <span class="self">self</span>.report().transaction.conflict_count += <span class="number">1</span>;
     }
 
     <span class="doccomment">/// Get the number of retries
-    ///
-    /// # Returns
-    /// * `u64` - The number of retries
     </span><span class="kw">pub fn </span>get_retries(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="kw">let </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.transaction.retries
+        <span class="self">self</span>.report().transaction.retries
     }
 
-    <span class="doccomment">/// Returns a clone of all metrics data.
-    ///
-    /// # Returns
-    /// * `MetricsData` - A clone of all metrics data
+    <span class="doccomment">/// Returns a clone of the report built so far.
     </span><span class="kw">pub fn </span>get_metrics_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricsReport {
-        <span class="kw">let </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.clone()
+        <span class="self">self</span>.report().clone()
     }
 
     <span class="doccomment">/// Returns a clone of the transaction information.
-    ///
-    /// # Returns
-    /// * `TransactionInfo` - A clone of the transaction information
     </span><span class="kw">pub fn </span>get_transaction_info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TransactionInfo {
-        <span class="kw">let </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.transaction.clone()
-    }
-
-    <span class="doccomment">/// Set a custom metric
-    ///
-    /// # Arguments
-    /// * `name` - The name of the metric
-    /// * `value` - The value to set
-    /// * `labels` - Key-value pairs for labeling the metric
-    </span><span class="kw">pub fn </span>set_custom(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str, value: u64, labels: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)]) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        <span class="kw">let </span>key = MetricKey::new(name, labels);
-        data.custom_metrics.insert(key.clone(), value);
-    }
-
-    <span class="doccomment">/// Increment a custom metric
-    ///
-    /// # Arguments
-    /// * `name` - The name of the metric
-    /// * `amount` - The amount to increment by
-    /// * `labels` - Key-value pairs for labeling the metric
-    </span><span class="kw">pub fn </span>increment_custom(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str, amount: u64, labels: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)]) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        <span class="kw">let </span>key = MetricKey::new(name, labels);
-        <span class="comment">// Increment in both current and total custom metrics
-        </span><span class="kw-2">*</span>data.custom_metrics.entry(key.clone()).or_insert(<span class="number">0</span>) += amount;
-    }
-
-    <span class="doccomment">/// Set the conflicting key ranges from a commit conflict.
-    </span><span class="kw">pub fn </span>set_conflicting_keys(<span class="kw-2">&amp;</span><span class="self">self</span>, keys: Vec&lt;ConflictingKeyRange&gt;) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.conflicting_keys = keys;
-    }
-
-    <span class="doccomment">/// Record commit execution time
-    ///
-    /// # Arguments
-    /// * `duration_ms` - The duration of the commit execution in milliseconds
-    </span><span class="kw">pub fn </span>record_commit_time(<span class="kw-2">&amp;</span><span class="self">self</span>, duration_ms: u64) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.time.commit_execution_ms = duration_ms;
-    }
-
-    <span class="doccomment">/// Add an error execution time to the list
-    ///
-    /// # Arguments
-    /// * `duration_ms` - The duration of the error handling in milliseconds
-    </span><span class="kw">pub fn </span>add_error_time(<span class="kw-2">&amp;</span><span class="self">self</span>, duration_ms: u64) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.time.on_error_execution_ms.push(duration_ms);
-    }
-
-    <span class="doccomment">/// Set the total execution time
-    ///
-    /// # Arguments
-    /// * `duration_ms` - The total duration of the transaction in milliseconds
-    </span><span class="kw">pub fn </span>set_execution_time(<span class="kw-2">&amp;</span><span class="self">self</span>, duration_ms: u64) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.time.set_execution_time(duration_ms);
-    }
-
-    <span class="doccomment">/// Get the sum of all error handling times
-    ///
-    /// # Returns
-    /// * `u64` - The total time spent handling errors in milliseconds
-    </span><span class="kw">pub fn </span>get_total_error_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="kw">let </span>data = <span class="self">self
-            </span>.metrics
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        data.time.on_error_execution_ms.iter().sum()
-    }
-}
-
-<span class="doccomment">/// `CounterMetrics` is used in two contexts within the metrics system:
-/// - As `current` metrics: tracking operations for the current transaction attempt
-/// - As `total` metrics: aggregating operations across all transaction attempts including retries
-///
-/// Each counter is incremented when the corresponding operation is performed, allowing
-/// for detailed analysis of transaction behavior and performance characteristics.
-</span><span class="attr">#[derive(Debug, Default, Clone)]
-</span><span class="kw">pub struct </span>CounterMetrics {
-    <span class="comment">// ATOMIC OP
-    </span><span class="doccomment">/// Number of atomic operations performed (add, and, or, etc.)
-    </span><span class="kw">pub </span>call_atomic_op: u64,
-    <span class="comment">// CLEAR
-    </span><span class="doccomment">/// Number of key clear operations performed
-    </span><span class="kw">pub </span>call_clear: u64,
-    <span class="comment">// CLEAR RANGE
-    </span><span class="doccomment">/// Number of range clear operations performed
-    </span><span class="kw">pub </span>call_clear_range: u64,
-    <span class="comment">// GET
-    </span><span class="doccomment">/// Number of get operations performed
-    </span><span class="kw">pub </span>call_get: u64,
-    <span class="doccomment">/// Total number of key-value pairs fetched across all read operations
-    </span><span class="kw">pub </span>keys_values_fetched: u64,
-    <span class="doccomment">/// Total number of bytes read from the database
-    </span><span class="kw">pub </span>bytes_read: u64,
-    <span class="comment">// SET
-    </span><span class="doccomment">/// Number of set operations performed
-    </span><span class="kw">pub </span>call_set: u64,
-    <span class="doccomment">/// Total number of bytes written to the database
-    </span><span class="kw">pub </span>bytes_written: u64,
-}
-
-<span class="kw">impl </span>CounterMetrics {
-    <span class="doccomment">/// Increments the metrics for a given FDB command.
-    ///
-    /// This method updates the metrics counters based on the type of FDB command.
-    ///
-    /// # Arguments
-    /// * `fdb_command` - The FDB command to increment metrics for
-    </span><span class="kw">pub fn </span>increment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fdb_command: <span class="kw-2">&amp;</span>FdbCommand) {
-        <span class="kw">match </span>fdb_command {
-            FdbCommand::Atomic =&gt; <span class="self">self</span>.call_atomic_op += INCREMENT,
-            FdbCommand::Clear =&gt; <span class="self">self</span>.call_clear += INCREMENT,
-            FdbCommand::ClearRange =&gt; <span class="self">self</span>.call_clear_range += INCREMENT,
-            FdbCommand::Get(bytes_count, kv_fetched) =&gt; {
-                <span class="self">self</span>.keys_values_fetched += <span class="kw-2">*</span>kv_fetched;
-                <span class="self">self</span>.bytes_read += <span class="kw-2">*</span>bytes_count;
-                <span class="self">self</span>.call_get += INCREMENT
-            }
-            FdbCommand::GetRange(bytes_count, keys_values_fetched) =&gt; {
-                <span class="self">self</span>.keys_values_fetched += <span class="kw-2">*</span>keys_values_fetched;
-                <span class="self">self</span>.bytes_read += <span class="kw-2">*</span>bytes_count;
-            }
-            FdbCommand::Set(bytes_count) =&gt; {
-                <span class="self">self</span>.bytes_written += <span class="kw-2">*</span>bytes_count;
-                <span class="self">self</span>.call_set += INCREMENT
-            }
-        }
+        <span class="self">self</span>.report().transaction.clone()
     }
 }
 
@@ -1135,47 +1096,96 @@
         </span><span class="macro">assert_eq!</span>(unique_keys.len(), <span class="number">1</span>);
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_custom_metrics_operations() {
-        <span class="comment">// Create a metrics instance
-        </span><span class="kw">let </span>metrics = TransactionMetrics::new();
+    <span class="doccomment">/// Every attempt keeps its own counters and custom metrics, and the report
+    /// aggregates them.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>attempts_are_recorded_one_by_one() {
+        <span class="kw">let </span>metrics = TransactionMetrics::new();
+        <span class="kw">let </span>key = MetricKey::new(<span class="string">"documents"</span>, <span class="kw-2">&amp;</span>[]);
 
-        <span class="comment">// Set initial value for a custom metric
-        </span>metrics.set_custom(
-            <span class="string">"api_calls"</span>,
-            <span class="number">100</span>,
-            <span class="kw-2">&amp;</span>[(<span class="string">"endpoint"</span>, <span class="string">"users"</span>), (<span class="string">"method"</span>, <span class="string">"GET"</span>)],
-        );
+        <span class="comment">// Nothing to push before an attempt is opened.
+        </span>metrics.finish_attempt(AttemptOutcome::Failed);
+        <span class="macro">assert!</span>(metrics.get_metrics_data().attempts.is_empty());
 
-        <span class="comment">// Get the metrics data and verify the value was set
-        </span><span class="kw">let </span>data = metrics.get_metrics_data();
-        <span class="kw">let </span>key = MetricKey::new(<span class="string">"api_calls"</span>, <span class="kw-2">&amp;</span>[(<span class="string">"endpoint"</span>, <span class="string">"users"</span>), (<span class="string">"method"</span>, <span class="string">"GET"</span>)]);
-        <span class="macro">assert_eq!</span>(data.custom_metrics.get(<span class="kw-2">&amp;</span>key).copied(), <span class="prelude-val">Some</span>(<span class="number">100</span>));
+        <span class="kw">let </span>first = Arc::new(AttemptUsage::new());
+        metrics.begin_attempt(first.clone());
+        first.record_set(<span class="number">10</span>);
+        first.increment_custom(key.clone(), <span class="number">1</span>);
+        metrics.record_commit(Duration::from_millis(<span class="number">3</span>));
+        metrics.finish_attempt(AttemptOutcome::Retried {
+            cause: FdbError::from_code(<span class="number">1020</span>),
+        });
+        metrics.set_on_error_duration(Duration::from_millis(<span class="number">7</span>));
 
-        <span class="comment">// Increment the same metric
-        </span>metrics.increment_custom(<span class="string">"api_calls"</span>, <span class="number">50</span>, <span class="kw-2">&amp;</span>[(<span class="string">"endpoint"</span>, <span class="string">"users"</span>), (<span class="string">"method"</span>, <span class="string">"GET"</span>)]);
+        <span class="kw">let </span>second = Arc::new(AttemptUsage::new());
+        metrics.begin_attempt(second.clone());
+        second.record_set(<span class="number">4</span>);
+        second.increment_custom(key.clone(), <span class="number">2</span>);
+        metrics.finish_attempt(AttemptOutcome::Committed);
 
-        <span class="comment">// Verify the value was incremented
-        </span><span class="kw">let </span>data = metrics.get_metrics_data();
-        <span class="macro">assert_eq!</span>(data.custom_metrics.get(<span class="kw-2">&amp;</span>key).copied(), <span class="prelude-val">Some</span>(<span class="number">150</span>));
+        <span class="comment">// A second end is a no-op: an attempt is pushed exactly once.
+        </span>metrics.finish_attempt(AttemptOutcome::Failed);
 
-        <span class="comment">// Set the same metric to a new value (overwrite)
-        </span>metrics.set_custom(
-            <span class="string">"api_calls"</span>,
-            <span class="number">200</span>,
-            <span class="kw-2">&amp;</span>[(<span class="string">"endpoint"</span>, <span class="string">"users"</span>), (<span class="string">"method"</span>, <span class="string">"GET"</span>)],
-        );
+        <span class="kw">let </span>report = metrics.get_metrics_data();
+        <span class="macro">assert_eq!</span>(report.attempts.len(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(report.transaction.retries, <span class="number">1</span>);
 
-        <span class="comment">// Verify the value was overwritten
-        </span><span class="kw">let </span>data = metrics.get_metrics_data();
-        <span class="macro">assert_eq!</span>(data.custom_metrics.get(<span class="kw-2">&amp;</span>key).copied(), <span class="prelude-val">Some</span>(<span class="number">200</span>));
+        <span class="kw">let </span>first = <span class="kw-2">&amp;</span>report.attempts[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(first.index, <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(first.usage.bytes_written, <span class="number">10</span>);
+        <span class="macro">assert_eq!</span>(first.custom_metrics.get(<span class="kw-2">&amp;</span>key), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">1</span>));
+        <span class="macro">assert_eq!</span>(first.commit_duration, <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">3</span>)));
+        <span class="macro">assert_eq!</span>(first.on_error_duration, <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">7</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            first.outcome,
+            AttemptOutcome::Retried { cause } <span class="kw">if </span>cause.code() == <span class="number">1020
+        </span>));
 
-        <span class="comment">// Test with different label order
-        </span>metrics.increment_custom(<span class="string">"api_calls"</span>, <span class="number">75</span>, <span class="kw-2">&amp;</span>[(<span class="string">"method"</span>, <span class="string">"GET"</span>), (<span class="string">"endpoint"</span>, <span class="string">"users"</span>)]);
+        <span class="kw">let </span>second = <span class="kw-2">&amp;</span>report.attempts[<span class="number">1</span>];
+        <span class="macro">assert_eq!</span>(second.index, <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(second.usage.bytes_written, <span class="number">4</span>);
+        <span class="macro">assert_eq!</span>(second.custom_metrics.get(<span class="kw-2">&amp;</span>key), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">2</span>));
+        <span class="macro">assert!</span>(second.commit_duration.is_none());
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(second.outcome, AttemptOutcome::Committed));
 
-        <span class="comment">// Verify the value was incremented regardless of label order
-        </span><span class="kw">let </span>data = metrics.get_metrics_data();
-        <span class="macro">assert_eq!</span>(data.custom_metrics.get(<span class="kw-2">&amp;</span>key).copied(), <span class="prelude-val">Some</span>(<span class="number">275</span>));
+        <span class="macro">assert_eq!</span>(report.total_usage().bytes_written, <span class="number">14</span>);
+        <span class="macro">assert_eq!</span>(report.total_usage().call_set, <span class="number">2</span>);
+    }
+
+    <span class="doccomment">/// An attempt whose only activity was `set_read_version` (no counter
+    /// touched, no custom metric) must not be silently dropped: it should be
+    /// discarded the same way a busy attempt is when a new one starts before
+    /// `finish_attempt` was called, and the crate must keep working normally
+    /// afterwards. This covers the state side of the `idle` heuristic in
+    /// `begin_attempt`; the `#[cfg(feature = "trace")]` warning itself is not
+    /// asserted here as the crate has no test pattern capturing `tracing`
+    /// output content (see `tests/trace.rs`, which only checks the writer
+    /// doesn't panic).
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>dropped_attempt_with_only_read_version_is_handled() {
+        <span class="kw">let </span>metrics = TransactionMetrics::new();
+
+        <span class="kw">let </span>first = Arc::new(AttemptUsage::new());
+        metrics.begin_attempt(first.clone());
+        metrics.set_read_version(<span class="number">42</span>);
+
+        <span class="comment">// A new attempt starts (e.g. `set_client_budget`/`reset`) without the
+        // first one ever reaching `finish_attempt`: it must be dropped
+        // cleanly, no panic.
+        </span><span class="kw">let </span>second = Arc::new(AttemptUsage::new());
+        metrics.begin_attempt(second.clone());
+        second.record_set(<span class="number">1</span>);
+        metrics.finish_attempt(AttemptOutcome::Committed);
+
+        <span class="kw">let </span>report = metrics.get_metrics_data();
+        <span class="macro">assert_eq!</span>(report.attempts.len(), <span class="number">1</span>);
+        <span class="kw">let </span>only = <span class="kw-2">&amp;</span>report.attempts[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(only.usage.bytes_written, <span class="number">1</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(only.outcome, AttemptOutcome::Committed));
+
+        <span class="comment">// The read version set on the dropped attempt is still reflected at
+        // the transaction level.
+        </span><span class="macro">assert_eq!</span>(report.transaction.read_version, <span class="prelude-val">Some</span>(<span class="number">42</span>));
     }
 }
 </code></pre></div></section></main></body></html>

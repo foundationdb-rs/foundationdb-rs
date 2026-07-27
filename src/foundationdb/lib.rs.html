@@ -134,7 +134,19 @@
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
 <a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -148,6 +160,8 @@
 </span><span class="kw">extern crate </span>static_assertions;
 
 <span class="kw">pub mod </span>api;
+<span class="attr">#[deny(missing_docs)]
+</span><span class="kw">pub mod </span>budget;
 <span class="macro">if_cfg_api_versions!</span> {min = <span class="number">510</span>, max = <span class="number">600 </span>=&gt;
     <span class="kw">pub mod </span>cluster;
 }
@@ -175,7 +189,13 @@
 </span><span class="kw">pub mod </span>recipes;
 
 <span class="comment">// Re-export metrics types for convenience
-</span><span class="kw">pub use </span><span class="kw">crate</span>::metrics::TransactionMetrics;
+</span><span class="kw">pub use </span><span class="kw">crate</span>::metrics::{
+    AttemptMetrics, AttemptOutcome, ConflictKeys, MetricsReport, TransactionMetrics,
+};
+
+<span class="attr">#[deny(missing_docs)]
+</span><span class="kw">pub mod </span>runner;
+
 <span class="kw">pub mod </span>timekeeper;
 <span class="kw">mod </span>transaction;
 <span class="kw">mod </span>tuple_ext;
@@ -189,10 +209,14 @@
     <span class="kw">pub use </span><span class="kw">crate</span>::cluster::Cluster;
 }
 
+<span class="kw">pub use </span><span class="kw">crate</span>::budget::{AttemptUsage, BudgetExceeded, BudgetKind, ClientBudget, UsageSnapshot};
 <span class="kw">pub use </span><span class="kw">crate</span>::database::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::error::{FdbBindingError, RetryDecision, RetryableError};
 <span class="kw">pub use </span><span class="kw">crate</span>::error::{FdbError, FdbResult};
 <span class="kw">pub use </span><span class="kw">crate</span>::keyselector::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::runner::{
+    AttemptFailure, MetricsHooks, NativeRetryPolicy, RetryPolicy, RunnerHooks, TransactionRunner,
+};
 <span class="kw">pub use </span><span class="kw">crate</span>::transaction::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// Initialize the FoundationDB Client API and start the network thread.
