@@ -37,7 +37,7 @@ async fn instrumented_example() -> Result<(), FdbBindingError> {
             let _ = txn.get(b"instrumented_key", false).await?;
 
             // Register a custom metric directly on the transaction
-            txn.set_custom_metric("operations_count", 1, &[("type", "write")])?;
+            txn.set_custom_metric("operations_count", 1, &[("type", "write")]);
 
             Ok(())
         })
@@ -70,47 +70,53 @@ Running an instrumented transaction...
 Transaction successful!
 --- Metrics Report ---
 MetricsReport {
-    current: CounterMetrics {
-        call_atomic_op: 0,
-        call_clear: 0,
-        call_clear_range: 0,
-        call_get: 1,
-        keys_values_fetched: 1,
-        bytes_read: 34,
-        call_set: 1,
-        bytes_written: 34,
-    },
-    total: CounterMetrics {
-        call_atomic_op: 0,
-        call_clear: 0,
-        call_clear_range: 0,
-        call_get: 1,
-        keys_values_fetched: 1,
-        bytes_read: 34,
-        call_set: 1,
-        bytes_written: 34,
-    },
-    time: TimingMetrics {
-        commit_execution_ms: 2,
-        on_error_execution_ms: [],
-        total_execution_ms: 4,
-    },
-    custom_metrics: {
-        MetricKey {
-            name: "operations_count",
-            labels: [
-                (
-                    "type",
-                    "write",
-                ),
-            ],
-        }: 1,
-    },
+    attempts: [
+        AttemptMetrics {
+            index: 0,
+            usage: UsageSnapshot {
+                elapsed: 11.703552ms,
+                bytes_read: 34,
+                bytes_written: 34,
+                keys_values_fetched: 1,
+                call_get: 1,
+                call_get_range: 0,
+                call_set: 1,
+                call_clear: 0,
+                call_clear_range: 0,
+                call_atomic_op: 0,
+            },
+            custom_metrics: {
+                MetricKey {
+                    name: "operations_count",
+                    labels: [
+                        (
+                            "type",
+                            "write",
+                        ),
+                    ],
+                }: 1,
+            },
+            duration: Some(
+                11.701935ms,
+            ),
+            commit_duration: Some(
+                10.609832ms,
+            ),
+            on_error_duration: None,
+            outcome: Committed,
+            conflicting_keys: NotRequested,
+            read_version: None,
+        },
+    ],
+    total_duration: Some(
+        11.726852ms,
+    ),
     transaction: TransactionInfo {
         retries: 0,
+        conflict_count: 0,
         read_version: None,
         commit_version: Some(
-            21848159754,
+            70442567195,
         ),
     },
 }

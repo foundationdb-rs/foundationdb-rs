@@ -20,7 +20,7 @@ use fdb_sys::if_cfg_api_versions;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 
-use crate::metrics::{MetricsReport, TransactionMetrics};
+use crate::metrics::{AttemptOutcome, ConflictKeys, MetricsReport, TransactionMetrics};
 use crate::options;
 use crate::transaction::*;
 use crate::{FdbError, FdbResult, error};
@@ -100,31 +100,42 @@ impl RunnerHooks for InstrumentedHooks {
         // goes through the FDB network thread event loop, but the data comes from an
         // in-memory map populated during the commit response. Returns empty if
         // ReportConflictingKeys was not set.
-        let keys = err.conflicting_keys().await?;
-        if !keys.is_empty() {
-            self.metrics.set_conflicting_keys(keys);
+        match err.conflicting_keys().await {
+            Ok(keys) => {
+                self.metrics
+                    .set_conflicting_keys(ConflictKeys::Available(keys));
+                Ok(())
+            }
+            Err(read_error) => {
+                self.metrics
+                    .set_conflicting_keys(ConflictKeys::ReadFailed(read_error));
+                Err(read_error)
+            }
         }
-        Ok(())
     }
 
     fn on_error_duration(&self, duration_ms: u64) {
-        self.metrics.add_error_time(duration_ms);
+        // `on_error` already pushed the attempt it ended, so this lands on the
+        // last attempt of the report.
+        self.metrics
+            .set_on_error_duration(Duration::from_millis(duration_ms));
     }
 
-    fn on_commit_success(&self, committed: &TransactionCommitted, commit_duration_ms: u64) {
-        self.metrics.record_commit_time(commit_duration_ms);
+    fn on_commit_success(&self, committed: &TransactionCommitted, _commit_duration_ms: u64) {
+        // The attempt itself was pushed by `Transaction::commit`, which also
+        // recorded how long the commit took.
         if let Ok(version) = committed.committed_version() {
             self.metrics.set_commit_version(version);
         }
     }
 
-    fn on_retry(&self) {
-        self.metrics.reset_current();
-    }
-
     fn on_complete(&self) {
-        let total_duration = self.start.elapsed().as_millis() as u64;
-        self.metrics.set_execution_time(total_duration);
+        // phase 3: the runner has no hook on its failure paths, so an attempt
+        // still open when it returns is the one that failed. Attempts that
+        // committed or were retried are already pushed, which makes this a
+        // no-op for them.
+        self.metrics.finish_attempt(AttemptOutcome::Failed);
+        self.metrics.set_total_duration(self.start.elapsed());
     }
 }
 

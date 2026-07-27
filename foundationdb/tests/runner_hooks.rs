@@ -23,13 +23,15 @@ async fn test_happy_path_instrumented() -> FdbResult<()> {
 
     assert_eq!(result, 42);
     assert_eq!(metrics.transaction.retries, 0);
-    assert!(metrics.conflicting_keys.is_empty());
+    assert_eq!(metrics.attempts.len(), 1);
+    assert!(metrics.attempts[0].conflicting_keys.ranges().is_empty());
 
     Ok(())
 }
 
-/// Conflict path via instrumented_run: force a conflict and verify
-/// MetricsReport.conflicting_keys is populated when ReportConflictingKeys is enabled.
+/// Conflict path via instrumented_run: force a conflict and verify the
+/// conflicting keys of the conflicted attempt are populated when
+/// ReportConflictingKeys is enabled.
 ///
 /// ReportConflictingKeys (option 712) was added in FDB 6.3.
 #[cfg_api_versions(min = 630)]
@@ -72,9 +74,12 @@ async fn test_conflict_reports_in_metrics() -> FdbResult<()> {
     assert!(metrics.transaction.retries >= 1);
     // Should have recorded at least one conflict
     assert!(metrics.transaction.conflict_count >= 1);
-    // Conflicting keys should be populated from the first (failed) attempt
+    // Conflicting keys should be populated on the attempt that conflicted
     assert!(
-        !metrics.conflicting_keys.is_empty(),
+        metrics
+            .attempts
+            .iter()
+            .any(|attempt| !attempt.conflicting_keys.ranges().is_empty()),
         "expected conflicting keys to be reported"
     );
 

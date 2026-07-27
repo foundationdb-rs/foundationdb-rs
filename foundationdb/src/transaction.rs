@@ -15,17 +15,18 @@ use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use crate::budget::{AttemptUsage, BudgetExceeded, ClientBudget, UsageSlot, UsageSnapshot};
 use crate::future::*;
 use crate::keyselector::*;
-use crate::metrics::{FdbCommand, TransactionMetrics};
+use crate::metrics::{AttemptOutcome, MetricKey, TransactionMetrics};
 use crate::options;
 
 use crate::{FdbError, FdbResult, error};
 use foundationdb_macros::cfg_api_versions;
 
-use crate::error::{FdbBindingError, TransactionMetricsNotFound};
+use crate::error::FdbBindingError;
 
 use futures::{
     Future, FutureExt, Stream, TryFutureExt, TryStreamExt, future, future::Either, stream,
@@ -142,10 +143,14 @@ impl TransactionCommitError {
     /// [usage](Transaction::attempt_usage) restarts from zero, while its
     /// [client budget](Transaction::set_client_budget) is kept.
     pub fn on_error(self) -> impl Future<Output = FdbResult<Transaction>> {
+        self.tr.mark_attempt_end();
+        let cause = self.err;
+
         FdbFuture::<()>::new(unsafe {
             fdb_sys::fdb_transaction_on_error(self.tr.inner.as_ptr(), self.err.code())
         })
-        .map_ok(|()| {
+        .map_ok(move |()| {
+            self.tr.end_attempt(AttemptOutcome::Retried { cause });
             self.tr.begin_attempt_usage();
             self.tr
         })
@@ -455,11 +460,36 @@ impl Transaction {
         inner: NonNull<fdb_sys::FDBTransaction>,
         metrics: TransactionMetrics,
     ) -> Self {
-        Self {
+        let transaction = Self {
             inner,
             metrics: Some(metrics),
             usage: UsageSlot::default(),
             budget: Mutex::new(ClientBudget::default()),
+        };
+        transaction.open_metrics_attempt();
+        transaction
+    }
+
+    /// Points the metrics at the accounting generation of the current attempt,
+    /// so that whatever happens from now on is recorded there.
+    fn open_metrics_attempt(&self) {
+        if let Some(metrics) = &self.metrics {
+            metrics.begin_attempt(self.usage.current());
+        }
+    }
+
+    /// Freezes the duration of the current attempt: it is over, only the retry
+    /// machinery runs from here.
+    fn mark_attempt_end(&self) {
+        if let Some(metrics) = &self.metrics {
+            metrics.mark_attempt_end();
+        }
+    }
+
+    /// Pushes the current attempt to the metrics report.
+    fn end_attempt(&self, outcome: AttemptOutcome) {
+        if let Some(metrics) = &self.metrics {
+            metrics.finish_attempt(outcome);
         }
     }
 
@@ -476,8 +506,13 @@ impl Transaction {
     ///
     /// Usage counters restart from zero and the elapsed time is measured from
     /// here. The client budget, being configuration, is left untouched.
+    ///
+    /// An instrumented transaction also starts recording a new attempt: call
+    /// [`end_attempt`](Self::end_attempt) first when the attempt that is ending
+    /// must appear in the report.
     pub(crate) fn begin_attempt_usage(&self) {
         self.usage.begin();
+        self.open_metrics_attempt();
     }
 
     /// Returns the usage accounted for the current transaction attempt.
@@ -499,6 +534,10 @@ impl Transaction {
     /// Setting a budget starts a fresh accounting generation, so the limits
     /// apply to what happens from now on. They then survive `on_error` and
     /// `reset`, and apply to each subsequent attempt with usage back at zero.
+    ///
+    /// On an instrumented transaction, set the budget before doing anything
+    /// else: the new generation is also the one the metrics record into, so
+    /// operations performed before this call are not reported.
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn set_client_budget(&self, budget: ClientBudget) {
         self.begin_attempt_usage();
@@ -625,10 +664,6 @@ impl Transaction {
         }
 
         self.usage().record_set((key.len() + value.len()) as u64);
-
-        if let Some(metrics) = &self.metrics {
-            metrics.report_metrics(FdbCommand::Set((key.len() + value.len()) as u64));
-        }
     }
 
     /// Modify the database snapshot represented by transaction to remove the given key from the
@@ -655,10 +690,6 @@ impl Transaction {
         }
 
         self.usage().record_clear(key.len() as u64);
-
-        if let Some(metrics) = &self.metrics {
-            metrics.report_metrics(FdbCommand::Clear);
-        }
     }
 
     /// Reads a value from the database snapshot represented by transaction.
@@ -683,7 +714,6 @@ impl Transaction {
         key: &[u8],
         snapshot: bool,
     ) -> impl Future<Output = FdbResult<Option<FdbSlice>>> + Send + Sync + Unpin + use<> {
-        let metrics = self.metrics.clone();
         let usage = self.usage();
         let lenght_key = key.len();
 
@@ -704,10 +734,6 @@ impl Transaction {
                 };
 
                 usage.record_get(bytes_count, kv_fetched);
-
-                if let Some(metrics) = metrics.as_ref() {
-                    metrics.report_metrics(FdbCommand::Get(bytes_count, kv_fetched));
-                }
             }
             result
         })
@@ -755,10 +781,6 @@ impl Transaction {
 
         self.usage()
             .record_atomic_op((key.len() + param.len()) as u64);
-
-        if let Some(metrics) = &self.metrics {
-            metrics.report_metrics(FdbCommand::Atomic);
-        }
     }
 
     /// Resolves a key selector against the keys in the database snapshot represented by
@@ -936,8 +958,6 @@ impl Transaction {
         let key_begin = begin.key();
         let key_end = end.key();
 
-        let metrics = self.metrics.clone();
-
         FdbFuture::<FdbValues>::new(unsafe {
             fdb_sys::fdb_transaction_get_range(
                 self.inner.as_ptr(),
@@ -971,10 +991,6 @@ impl Transaction {
 
                 if let Some(usage) = usage.as_ref() {
                     usage.record_get_range(bytes_count, kv_fetched as u64);
-                }
-
-                if let Some(metrics) = metrics.as_ref() {
-                    metrics.report_metrics(FdbCommand::GetRange(bytes_count, kv_fetched as u64));
                 }
             };
 
@@ -1146,10 +1162,6 @@ impl Transaction {
 
         self.usage()
             .record_clear_range((begin.len() + end.len()) as u64);
-
-        if let Some(metrics) = &self.metrics {
-            metrics.report_metrics(FdbCommand::ClearRange);
-        }
     }
 
     /// Get the estimated byte size of the key range based on the byte sample collected by FDB
@@ -1193,12 +1205,28 @@ impl Transaction {
     /// Normally, commit will wait for outstanding reads to return. However, if those reads were
     /// snapshot reads or the transaction option for disabling “read-your-writes” has been invoked,
     /// any outstanding reads will immediately return errors.
+    ///
+    /// On an instrumented transaction, the commit ends the current attempt: its
+    /// duration is recorded whatever the result, and a successful commit pushes
+    /// the attempt to the metrics report as
+    /// [`AttemptOutcome::Committed`](crate::metrics::AttemptOutcome::Committed).
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
+        let metrics = self.metrics.clone();
+        let started_at = Instant::now();
+
         FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
-            move |r| match r {
-                Ok(()) => Ok(TransactionCommitted { tr: self }),
-                Err(err) => Err(TransactionCommitError { tr: self, err }),
+            move |r| {
+                if let Some(metrics) = &metrics {
+                    metrics.record_commit(started_at.elapsed());
+                }
+                match r {
+                    Ok(()) => {
+                        self.end_attempt(AttemptOutcome::Committed);
+                        Ok(TransactionCommitted { tr: self })
+                    }
+                    Err(err) => Err(TransactionCommitError { tr: self, err }),
+                }
             },
         )
     }
@@ -1223,10 +1251,13 @@ impl Transaction {
         self,
         err: FdbError,
     ) -> impl Future<Output = FdbResult<Transaction>> + Send + Sync + Unpin {
+        self.mark_attempt_end();
+
         FdbFuture::<()>::new(unsafe {
             fdb_sys::fdb_transaction_on_error(self.inner.as_ptr(), err.code())
         })
-        .map_ok(|()| {
+        .map_ok(move |()| {
+            self.end_attempt(AttemptOutcome::Retried { cause: err });
             self.begin_attempt_usage();
             self
         })
@@ -1241,59 +1272,49 @@ impl Transaction {
         TransactionCancelled { tr: self }
     }
 
-    /// Sets a custom metric for the transaction with the specified name, value, and labels.
+    /// Records an application metric for the current attempt, replacing any
+    /// value previously recorded under the same name and labels.
     ///
-    /// Custom metrics allow you to track application-specific metrics during transaction execution.
-    /// These metrics are collected alongside the standard FoundationDB metrics and can be used
-    /// for monitoring, debugging, and performance analysis.
+    /// Custom metrics are always on, like the [usage](Self::attempt_usage)
+    /// counters, and scoped to the current attempt: a retry starts from an
+    /// empty set, and the values of the attempt that ended stay attached to it
+    /// in the report. Recording one on a transaction nobody collects metrics
+    /// from is free of consequence: the values are dropped along with the
+    /// attempt.
     ///
     /// # Arguments
     /// * `name` - The name of the metric (e.g., "query_time", "cache_hits")
-    /// * `value` - The value to set for the metric
+    /// * `value` - The value to record
     /// * `labels` - Key-value pairs for labeling the metric, allowing for dimensional metrics
     ///   (e.g., `[("operation", "read"), ("region", "us-west")]`)
-    ///
-    /// # Returns
-    /// * `Ok(())` if the metric was set successfully
-    /// * `Err(TransactionMetricsNotFound)` if this transaction was not created with metrics instrumentation
     ///
     /// # Example
     /// ```
     /// # use foundationdb::*;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let db = Database::default()?;
-    /// let metrics = TransactionMetrics::new();
-    /// let txn = db.create_instrumented_trx(metrics)?;
+    /// let (_, metrics) = db
+    ///     .instrumented_run(|txn, _| async move {
+    ///         txn.set_custom_metric("documents_indexed", 42, &[("kind", "user")]);
+    ///         Ok::<_, FdbBindingError>(())
+    ///     })
+    ///     .await
+    ///     .map_err(|(err, _)| err)?;
     ///
-    /// // Set a custom metric with labels
-    /// txn.set_custom_metric("query_processing_time", 42, &[("query_type", "select"), ("table", "users")])?;
+    /// // The values are attached to the attempt that recorded them.
+    /// let attempt = metrics.attempts.last().expect("one attempt");
+    /// # let _ = attempt;
     /// # Ok(())
     /// # }
     /// ```
-    ///
-    /// # Note
-    /// This method only works on transactions created with `create_instrumented_trx()` or within
-    /// `instrumented_run()`. For regular transactions created with `create_trx()`, this will
-    /// return `Err(TransactionMetricsNotFound)`.
-    pub fn set_custom_metric(
-        &self,
-        name: &str,
-        value: u64,
-        labels: &[(&str, &str)],
-    ) -> Result<(), TransactionMetricsNotFound> {
-        if let Some(metrics) = &self.metrics {
-            metrics.set_custom(name, value, labels);
-            Ok(())
-        } else {
-            Err(TransactionMetricsNotFound)
-        }
+    pub fn set_custom_metric(&self, name: &str, value: u64, labels: &[(&str, &str)]) {
+        self.usage().set_custom(MetricKey::new(name, labels), value);
     }
 
-    /// Increments a custom metric for the transaction by the specified amount.
+    /// Adds `amount` to an application metric of the current attempt, starting
+    /// from zero if it was not recorded yet.
     ///
-    /// This is useful for counting events or accumulating values during transaction execution.
-    /// If the metric doesn't exist yet, it will be created with the specified amount.
-    /// If it already exists with the same labels, its value will be incremented.
+    /// Same per-attempt semantics as [`set_custom_metric`](Self::set_custom_metric).
     ///
     /// # Arguments
     /// * `name` - The name of the metric to increment (e.g., "requests", "bytes_processed")
@@ -1301,45 +1322,22 @@ impl Transaction {
     /// * `labels` - Key-value pairs for labeling the metric, allowing for dimensional metrics
     ///   (e.g., `[("status", "success"), ("endpoint", "api/v1/users")]`)
     ///
-    /// # Returns
-    /// * `Ok(())` if the metric was incremented successfully
-    /// * `Err(TransactionMetricsNotFound)` if this transaction was not created with metrics instrumentation
-    ///
     /// # Example
     /// ```
     /// # use foundationdb::*;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let db = Database::default()?;
-    /// let metrics = TransactionMetrics::new();
-    /// let txn = db.create_instrumented_trx(metrics)?;
+    /// let txn = db.create_trx()?;
     ///
-    /// // Increment a counter each time a specific operation occurs
-    /// txn.increment_custom_metric("cache_misses", 1, &[("cache", "user_data")])?;
-    ///
-    /// // Later in the transaction, increment it again
-    /// txn.increment_custom_metric("cache_misses", 1, &[("cache", "user_data")])?;
-    ///
-    /// // The final value will be 2
+    /// txn.increment_custom_metric("cache_misses", 1, &[("cache", "user_data")]);
+    /// txn.increment_custom_metric("cache_misses", 1, &[("cache", "user_data")]);
+    /// // The metric of the current attempt is now 2.
     /// # Ok(())
     /// # }
     /// ```
-    ///
-    /// # Note
-    /// This method only works on transactions created with `create_instrumented_trx()` or within
-    /// `instrumented_run()`. For regular transactions created with `create_trx()`, this will
-    /// return `Err(TransactionMetricsNotFound)`.
-    pub fn increment_custom_metric(
-        &self,
-        name: &str,
-        amount: u64,
-        labels: &[(&str, &str)],
-    ) -> Result<(), TransactionMetricsNotFound> {
-        if let Some(metrics) = &self.metrics {
-            metrics.increment_custom(name, amount, labels);
-            Ok(())
-        } else {
-            Err(TransactionMetricsNotFound)
-        }
+    pub fn increment_custom_metric(&self, name: &str, amount: u64, labels: &[(&str, &str)]) {
+        self.usage()
+            .increment_custom(MetricKey::new(name, labels), amount);
     }
 
     /// Returns a list of public network addresses as strings, one for each of the storage servers
@@ -1449,10 +1447,24 @@ impl Transaction {
     /// to `get_*()` (including this one) and (unless causal consistency has been deliberately
     /// compromised by transaction options) is guaranteed to represent all transactions which were
     /// reported committed before that call.
+    ///
+    /// On an instrumented transaction, the version is recorded in the metrics of
+    /// the current attempt. It is only ever recorded when this method is called:
+    /// the binding never fetches a read version on its own.
     pub fn get_read_version(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
-        FdbFuture::new(unsafe { fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr()) })
+        let metrics = self.metrics.clone();
+
+        FdbFuture::<i64>::new(unsafe {
+            fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr())
+        })
+        .map_ok(move |version| {
+            if let Some(metrics) = &metrics {
+                metrics.set_read_version(version);
+            }
+            version
+        })
     }
 
     /// Sets the snapshot read version used by a transaction.
@@ -1523,7 +1535,9 @@ impl Transaction {
     /// transaction has already been reset.
     ///
     /// This starts a new attempt: the [usage](Self::attempt_usage) restarts from
-    /// zero, while the [client budget](Self::set_client_budget) is kept.
+    /// zero, while the [client budget](Self::set_client_budget) is kept. On an
+    /// instrumented transaction, the attempt being recorded is abandoned rather
+    /// than reported: it reached no conclusion.
     pub fn reset(&mut self) {
         unsafe { fdb_sys::fdb_transaction_reset(self.inner.as_ptr()) }
         self.begin_attempt_usage();

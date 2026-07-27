@@ -35,11 +35,14 @@
 //! transaction therefore gets a fresh time and byte allowance, exactly like it
 //! gets a fresh read version.
 
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+
+use crate::metrics::MetricKey;
 
 /// Client-side limits applied to a single transaction attempt.
 ///
@@ -178,6 +181,14 @@ impl std::error::Error for BudgetExceeded {}
 ///
 /// A new instance is created for every attempt, see the
 /// [module documentation](self).
+///
+/// The application metrics recorded with
+/// [`Transaction::set_custom_metric`](crate::Transaction::set_custom_metric) are
+/// stored here too, and are therefore per-attempt as well. Their map is
+/// allocated on first use, so a transaction that never records one pays
+/// nothing. Without a metrics consumer collecting them (typically
+/// [`Database::instrumented_run`](crate::Database::instrumented_run)), they are
+/// simply dropped with the generation.
 #[derive(Debug)]
 pub struct AttemptUsage {
     started_at: Instant,
@@ -190,6 +201,8 @@ pub struct AttemptUsage {
     call_clear: AtomicU64,
     call_clear_range: AtomicU64,
     call_atomic_op: AtomicU64,
+    /// Application metrics of this attempt, allocated on first use.
+    custom: Mutex<Option<HashMap<MetricKey, u64>>>,
 }
 
 impl Default for AttemptUsage {
@@ -212,6 +225,7 @@ impl AttemptUsage {
             call_clear: AtomicU64::new(0),
             call_clear_range: AtomicU64::new(0),
             call_atomic_op: AtomicU64::new(0),
+            custom: Mutex::new(None),
         }
     }
 
@@ -288,6 +302,38 @@ impl AttemptUsage {
     pub(crate) fn record_atomic_op(&self, bytes: u64) {
         self.bytes_written.fetch_add(bytes, Ordering::Relaxed);
         self.call_atomic_op.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Sets an application metric of this attempt, replacing any previous value.
+    pub(crate) fn set_custom(&self, key: MetricKey, value: u64) {
+        self.with_custom(|custom| {
+            custom.insert(key, value);
+        });
+    }
+
+    /// Adds `amount` to an application metric of this attempt, starting from
+    /// zero if it was not recorded yet.
+    pub(crate) fn increment_custom(&self, key: MetricKey, amount: u64) {
+        self.with_custom(|custom| {
+            *custom.entry(key).or_insert(0) += amount;
+        });
+    }
+
+    /// The application metrics recorded during this attempt.
+    pub fn custom_metrics(&self) -> HashMap<MetricKey, u64> {
+        self.custom
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+            .unwrap_or_default()
+    }
+
+    fn with_custom<R>(&self, f: impl FnOnce(&mut HashMap<MetricKey, u64>) -> R) -> R {
+        let mut custom = self
+            .custom
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        f(custom.get_or_insert_with(HashMap::new))
     }
 }
 
@@ -460,6 +506,24 @@ mod tests {
         assert_eq!(snapshot.call_clear, 1);
         assert_eq!(snapshot.call_clear_range, 1);
         assert_eq!(snapshot.call_atomic_op, 1);
+    }
+
+    #[test]
+    fn custom_metrics_are_scoped_to_the_generation() {
+        let slot = UsageSlot::default();
+        let key = MetricKey::new("documents", &[("kind", "user")]);
+
+        assert!(slot.current().custom_metrics().is_empty());
+
+        slot.current().set_custom(key.clone(), 2);
+        slot.current().increment_custom(key.clone(), 3);
+        assert_eq!(slot.current().custom_metrics().get(&key), Some(&5));
+
+        let previous = slot.current();
+        slot.begin();
+
+        assert!(slot.current().custom_metrics().is_empty());
+        assert_eq!(previous.custom_metrics().get(&key), Some(&5));
     }
 
     #[test]
