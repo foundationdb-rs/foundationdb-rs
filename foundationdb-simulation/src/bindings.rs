@@ -3,7 +3,11 @@
 //! This module defines all C and Rust structures.
 //! It also provides bindings and wrappers to map behavior from Rust to C.
 
-use std::{ffi, str::FromStr, time::Duration};
+use std::{
+    ffi::{self, c_char},
+    str::FromStr,
+    time::Duration,
+};
 
 use foundationdb as fdb;
 
@@ -32,7 +36,7 @@ pub const FDB_WORKLOAD_API_VERSION: i32 = raw_bindings::FDB_WORKLOAD_API_VERSION
 
 #[doc(hidden)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub fn str_from_c(c_buf: *const i8) -> String {
+pub fn str_from_c(c_buf: *const c_char) -> String {
     let c_str = unsafe { ffi::CStr::from_ptr(c_buf) };
     c_str.to_str().unwrap().to_string()
 }

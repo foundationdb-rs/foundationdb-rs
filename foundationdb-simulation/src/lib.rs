@@ -224,7 +224,7 @@ macro_rules! register_factory {
     ($name:ident) => {
         #[unsafe(no_mangle)]
         extern "C" fn workloadCFactory(
-            raw_name: *const i8,
+            raw_name: *const std::ffi::c_char,
             raw_context: $crate::internals::FDBWorkloadContext,
         ) -> $crate::WrappedWorkload {
             use std::sync::atomic::{AtomicBool, Ordering};
@@ -260,7 +260,7 @@ macro_rules! register_workload {
     ($name:ident) => {
         #[unsafe(no_mangle)]
         extern "C" fn workloadCFactory(
-            raw_name: *const i8,
+            raw_name: *const std::ffi::c_char,
             raw_context: $crate::internals::FDBWorkloadContext,
         ) -> $crate::WrappedWorkload {
             use std::sync::atomic::{AtomicBool, Ordering};
