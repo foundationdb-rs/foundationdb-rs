@@ -12,6 +12,8 @@ use foundationdb_sys::if_cfg_api_versions;
 extern crate static_assertions;
 
 pub mod api;
+#[deny(missing_docs)]
+pub mod budget;
 if_cfg_api_versions! {min = 510, max = 600 =>
     pub mod cluster;
 }
@@ -53,6 +55,7 @@ if_cfg_api_versions! {min = 510, max = 600 =>
     pub use crate::cluster::Cluster;
 }
 
+pub use crate::budget::{AttemptUsage, BudgetExceeded, BudgetKind, ClientBudget, UsageSnapshot};
 pub use crate::database::*;
 pub use crate::error::{FdbBindingError, RetryDecision, RetryableError};
 pub use crate::error::{FdbError, FdbResult};

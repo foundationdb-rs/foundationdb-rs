@@ -8,6 +8,7 @@
 
 //! Error types for the Fdb crate
 
+use crate::budget::BudgetExceeded;
 use crate::directory::DirectoryError;
 use crate::options;
 use crate::tuple::PackError;
@@ -140,6 +141,9 @@ pub enum FdbBindingError {
     CustomError(Box<dyn std::error::Error + Send + Sync>),
     /// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation
     TransactionMetricsNotFound,
+    /// The client-side budget of the transaction attempt was exceeded, as
+    /// reported by [`crate::Transaction::check_client_budget`]
+    ClientBudgetExceeded(BudgetExceeded),
     #[cfg(feature = "recipes-leader-election")]
     /// Leader election specific error
     LeaderElectionError(crate::recipes::leader_election::LeaderElectionError),
@@ -198,6 +202,12 @@ impl From<DirectoryError> for FdbBindingError {
     }
 }
 
+impl From<BudgetExceeded> for FdbBindingError {
+    fn from(e: BudgetExceeded) -> Self {
+        Self::ClientBudgetExceeded(e)
+    }
+}
+
 impl From<TransactionMetricsNotFound> for FdbBindingError {
     fn from(_e: TransactionMetricsNotFound) -> Self {
         Self::TransactionMetricsNotFound
@@ -232,6 +242,7 @@ impl Debug for FdbBindingError {
             FdbBindingError::TransactionMetricsNotFound => {
                 write!(f, "Transaction metrics not found")
             }
+            FdbBindingError::ClientBudgetExceeded(err) => write!(f, "{err}"),
             #[cfg(feature = "recipes-leader-election")]
             FdbBindingError::LeaderElectionError(err) => write!(f, "{err:?}"),
         }
@@ -252,6 +263,7 @@ impl std::error::Error for FdbBindingError {
             Self::DirectoryError(e) => Some(e),
             Self::PackError(e) => Some(e),
             Self::CustomError(e) => Some(e.as_ref()),
+            Self::ClientBudgetExceeded(e) => Some(e),
             Self::ReferenceToTransactionKept | Self::TransactionMetricsNotFound => None,
             #[cfg(feature = "recipes-leader-election")]
             Self::LeaderElectionError(e) => Some(e),
