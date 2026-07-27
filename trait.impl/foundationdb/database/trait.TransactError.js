@@ -1,9 +1,9 @@
 (function() {
-    const implementors = Object.fromEntries([["foundationdb",[]]]);
+    var implementors = Object.fromEntries([["foundationdb",[]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":59,"fragment_lengths":[19]}
+//{"start":57,"fragment_lengths":[19]}

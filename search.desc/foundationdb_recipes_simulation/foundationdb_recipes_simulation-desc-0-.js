@@ -1,0 +1,1 @@
+searchState.loadedDescShard("foundationdb_recipes_simulation", 0, "Simulation workloads for FoundationDB recipes\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.")

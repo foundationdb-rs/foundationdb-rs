@@ -1,0 +1,1 @@
+searchState.loadedDescShard("foundationdb_simulation_tracing", 0, "foundationdb-simulation-tracing\nClears the thread-local context slot on drop, but only if …\nReturns the argument unchanged.\nInstalls the global tracing subscriber (first call only, …\nCalls <code>U::from(self)</code>.")
