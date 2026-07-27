@@ -248,14 +248,21 @@ impl TransactionMetrics {
         #[cfg(feature = "trace")]
         if let Some(dropped) = open.usage.as_ref() {
             // `elapsed` always moves, so the counters are what tells whether
-            // the attempt being dropped did anything worth reporting.
+            // the attempt being dropped did anything worth reporting. Some
+            // activity is recorded straight on `OpenAttempt` instead of
+            // `AttemptUsage` (read version, conflicting keys, commit
+            // duration), so it has to be checked too.
             let snapshot = dropped.snapshot();
             let idle = snapshot
                 == UsageSnapshot {
                     elapsed: snapshot.elapsed,
                     ..UsageSnapshot::default()
                 }
-                && dropped.custom_metrics().is_empty();
+                && dropped.custom_metrics().is_empty()
+                && open.read_version.is_none()
+                && open.duration.is_none()
+                && open.commit_duration.is_none()
+                && matches!(open.conflicting_keys, ConflictKeys::NotRequested);
 
             if !idle {
                 tracing::warn!(
@@ -548,5 +555,41 @@ mod tests {
 
         assert_eq!(report.total_usage().bytes_written, 14);
         assert_eq!(report.total_usage().call_set, 2);
+    }
+
+    /// An attempt whose only activity was `set_read_version` (no counter
+    /// touched, no custom metric) must not be silently dropped: it should be
+    /// discarded the same way a busy attempt is when a new one starts before
+    /// `finish_attempt` was called, and the crate must keep working normally
+    /// afterwards. This covers the state side of the `idle` heuristic in
+    /// `begin_attempt`; the `#[cfg(feature = "trace")]` warning itself is not
+    /// asserted here as the crate has no test pattern capturing `tracing`
+    /// output content (see `tests/trace.rs`, which only checks the writer
+    /// doesn't panic).
+    #[test]
+    fn dropped_attempt_with_only_read_version_is_handled() {
+        let metrics = TransactionMetrics::new();
+
+        let first = Arc::new(AttemptUsage::new());
+        metrics.begin_attempt(first.clone());
+        metrics.set_read_version(42);
+
+        // A new attempt starts (e.g. `set_client_budget`/`reset`) without the
+        // first one ever reaching `finish_attempt`: it must be dropped
+        // cleanly, no panic.
+        let second = Arc::new(AttemptUsage::new());
+        metrics.begin_attempt(second.clone());
+        second.record_set(1);
+        metrics.finish_attempt(AttemptOutcome::Committed);
+
+        let report = metrics.get_metrics_data();
+        assert_eq!(report.attempts.len(), 1);
+        let only = &report.attempts[0];
+        assert_eq!(only.usage.bytes_written, 1);
+        assert!(matches!(only.outcome, AttemptOutcome::Committed));
+
+        // The read version set on the dropped attempt is still reflected at
+        // the transaction level.
+        assert_eq!(report.transaction.read_version, Some(42));
     }
 }
