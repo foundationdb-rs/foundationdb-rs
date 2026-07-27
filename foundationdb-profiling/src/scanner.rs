@@ -82,13 +82,13 @@ impl<'a> Deref for Scanner<'a> {
 /// // Accessing a Cursor method directly via the Scanner instance
 /// assert_eq!(scanner.position(), 0);
 /// ```
-impl<'a> DerefMut for Scanner<'a> {
+impl DerefMut for Scanner<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.cursor
     }
 }
 
-impl<'a> Scanner<'a> {
+impl Scanner<'_> {
     pub async fn parse<T: Parse>(&mut self) -> Result<T, Box<dyn Error + Send + Sync>> {
         T::parse(self).await
     }
