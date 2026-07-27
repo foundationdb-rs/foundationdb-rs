@@ -80,8 +80,12 @@ Layered, bottom to top:
   - `api.rs` - process-global `NetworkLifecycle` state machine managing the C API and the
     network event-loop: safe idempotent `boot()`, lazy start from `Database` constructors,
     automatic stop + join at process exit (atexit hook), explicit `stop_network()`.
-  - `database.rs` - `Database`, plus the closure retry loop `run()` / `instrumented_run()`
-    with backoff and the pluggable `RunnerHooks` trait (no-op vs metrics paths).
+  - `database.rs` - `Database` and the entry points of the retry runner: `run()`,
+    `runner()` (builder), `run_with_hooks()`, `instrumented_run()`.
+  - `runner.rs` - the retry runner itself: one attempt (closure + commit), the retry loop
+    on top of it (classification, `on_error`, backoff), the observational `RunnerHooks`
+    trait with its `()`/`&H`/`Option<H>`/`(A, B)` impls, `MetricsHooks`, and the typed
+    `RetryPolicy` (`NativeRetryPolicy` by default).
   - `transaction.rs` - `Transaction` (get/set/clear/atomic_op), commit/retry error types.
   - `future.rs` - `FdbFuture<T>`: non-blocking poll of `FDBFuture` + waker callback, the
     bridge to async/await across the network thread.

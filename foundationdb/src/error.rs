@@ -8,6 +8,7 @@
 
 //! Error types for the Fdb crate
 
+use crate::budget::BudgetExceeded;
 use crate::directory::DirectoryError;
 use crate::options;
 use crate::tuple::PackError;
@@ -25,38 +26,6 @@ pub(crate) fn eval(error_code: fdb_sys::fdb_error_t) -> FdbResult<()> {
         Err(FdbError::from_code(error_code))
     }
 }
-
-/// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation.
-///
-/// This error occurs when calling methods like `set_custom_metric` or `increment_custom_metric` on a
-/// transaction that was created without metrics instrumentation (i.e., using `create_trx` instead of
-/// `create_instrumented_trx`).
-///
-/// # Example
-/// ```
-/// # use foundationdb::*;
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let db = Database::default()?;
-///
-/// // This transaction doesn't have metrics instrumentation
-/// let txn = db.create_trx()?;
-///
-/// // This will return a TransactionMetricsNotFound error
-/// let result = txn.set_custom_metric("my_metric", 42, &[("label", "value")]);
-/// assert!(result.is_err());
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Debug)]
-pub struct TransactionMetricsNotFound;
-
-impl std::fmt::Display for TransactionMetricsNotFound {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Transaction metrics not found")
-    }
-}
-
-impl std::error::Error for TransactionMetricsNotFound {}
 
 /// The Standard Error type of FoundationDB
 #[derive(Debug, Copy, Clone)]
@@ -138,8 +107,9 @@ pub enum FdbBindingError {
     /// Never box a stringified error (`e.to_string().into()`): the conversion
     /// destroys the source chain, and a retryable error becomes fatal.
     CustomError(Box<dyn std::error::Error + Send + Sync>),
-    /// Error returned when attempting to access metrics on a transaction that wasn't created with metrics instrumentation
-    TransactionMetricsNotFound,
+    /// The client-side budget of the transaction attempt was exceeded, as
+    /// reported by [`crate::Transaction::check_client_budget`]
+    ClientBudgetExceeded(BudgetExceeded),
     #[cfg(feature = "recipes-leader-election")]
     /// Leader election specific error
     LeaderElectionError(crate::recipes::leader_election::LeaderElectionError),
@@ -198,9 +168,9 @@ impl From<DirectoryError> for FdbBindingError {
     }
 }
 
-impl From<TransactionMetricsNotFound> for FdbBindingError {
-    fn from(_e: TransactionMetricsNotFound) -> Self {
-        Self::TransactionMetricsNotFound
+impl From<BudgetExceeded> for FdbBindingError {
+    fn from(e: BudgetExceeded) -> Self {
+        Self::ClientBudgetExceeded(e)
     }
 }
 
@@ -229,9 +199,7 @@ impl Debug for FdbBindingError {
                 write!(f, "Reference to transaction kept")
             }
             FdbBindingError::CustomError(err) => write!(f, "{err:?}"),
-            FdbBindingError::TransactionMetricsNotFound => {
-                write!(f, "Transaction metrics not found")
-            }
+            FdbBindingError::ClientBudgetExceeded(err) => write!(f, "{err}"),
             #[cfg(feature = "recipes-leader-election")]
             FdbBindingError::LeaderElectionError(err) => write!(f, "{err:?}"),
         }
@@ -252,7 +220,8 @@ impl std::error::Error for FdbBindingError {
             Self::DirectoryError(e) => Some(e),
             Self::PackError(e) => Some(e),
             Self::CustomError(e) => Some(e.as_ref()),
-            Self::ReferenceToTransactionKept | Self::TransactionMetricsNotFound => None,
+            Self::ClientBudgetExceeded(e) => Some(e),
+            Self::ReferenceToTransactionKept => None,
             #[cfg(feature = "recipes-leader-election")]
             Self::LeaderElectionError(e) => Some(e),
         }
