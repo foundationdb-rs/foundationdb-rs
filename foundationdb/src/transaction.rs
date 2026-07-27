@@ -40,34 +40,47 @@ const CONFLICTING_KEYS_PREFIX: &[u8] = b"\xff\xff/transaction/conflicting_keys/"
 // Matches C++ SystemData.cpp conflictingKeysRange end key.
 const CONFLICTING_KEYS_END: &[u8] = b"\xff\xff/transaction/conflicting_keys/\xff\xff";
 
-/// A key range that conflicted during a transaction commit.
+/// Special keyspace prefix for the read conflict ranges of a transaction.
+#[cfg_api_versions(min = 630)]
+const READ_CONFLICT_RANGE_PREFIX: &[u8] = b"\xff\xff/transaction/read_conflict_range/";
+#[cfg_api_versions(min = 630)]
+const READ_CONFLICT_RANGE_END: &[u8] = b"\xff\xff/transaction/read_conflict_range/\xff\xff";
+
+/// Special keyspace prefix for the write conflict ranges of a transaction.
+#[cfg_api_versions(min = 630)]
+const WRITE_CONFLICT_RANGE_PREFIX: &[u8] = b"\xff\xff/transaction/write_conflict_range/";
+#[cfg_api_versions(min = 630)]
+const WRITE_CONFLICT_RANGE_END: &[u8] = b"\xff\xff/transaction/write_conflict_range/\xff\xff";
+
+/// A key range reported by one of the conflict-range special keyspaces.
 ///
-/// Returned by [`Transaction::conflicting_keys`] after a commit conflict
-/// when [`TransactionOption::ReportConflictingKeys`](crate::options::TransactionOption::ReportConflictingKeys)
-/// is enabled.
+/// Returned by [`Transaction::conflicting_keys`] (the ranges that made a commit
+/// fail), [`Transaction::read_conflict_ranges`] and
+/// [`Transaction::write_conflict_ranges`] (the ranges the transaction has
+/// accumulated so far).
 ///
-/// The special keyspace encodes conflicting ranges using boundary markers:
-/// - Value `b"1"` marks the inclusive start of a conflicting range
-/// - Value `b"0"` marks the exclusive end of a conflicting range
+/// Those keyspaces all encode ranges using boundary markers:
+/// - Value `b"1"` marks the inclusive start of a range
+/// - Value `b"0"` marks the exclusive end of a range
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ConflictingKeyRange {
+pub struct ConflictRange {
     begin: Vec<u8>,
     end: Vec<u8>,
 }
 
-impl ConflictingKeyRange {
-    /// The inclusive begin of the conflicting key range.
+impl ConflictRange {
+    /// The inclusive begin of the range.
     pub fn begin(&self) -> &[u8] {
         &self.begin
     }
 
-    /// The exclusive end of the conflicting key range.
+    /// The exclusive end of the range.
     pub fn end(&self) -> &[u8] {
         &self.end
     }
 }
 
-impl fmt::Display for ConflictingKeyRange {
+impl fmt::Display for ConflictRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -75,6 +88,70 @@ impl fmt::Display for ConflictingKeyRange {
             String::from_utf8_lossy(&self.begin),
             String::from_utf8_lossy(&self.end),
         )
+    }
+}
+
+/// The range type returned by [`Transaction::conflicting_keys`], an alias of
+/// [`ConflictRange`] which all three conflict-range readers share.
+pub type ConflictingKeyRange = ConflictRange;
+
+/// Incremental parser of the `b"1"` / `b"0"` boundary encoding used by the
+/// `\xff\xff/transaction/*` conflict-range special keyspaces.
+///
+/// A range is only emitted once its end marker arrives, and the open begin
+/// marker survives across [`feed`](Self::feed) calls: a `b"1"` and its matching
+/// `b"0"` can land in two different `get_range` batches, so the parser is fed
+/// batch after batch and the caller paginates until the keyspace is exhausted.
+///
+/// A begin marker whose end marker never arrives is dropped: only complete
+/// ranges are returned, in every build profile.
+struct ConflictRangeParser {
+    prefix_len: usize,
+    ranges: Vec<ConflictRange>,
+    open_begin: Option<Vec<u8>>,
+}
+
+impl ConflictRangeParser {
+    /// `prefix` is the special keyspace prefix to strip from the keys fed in.
+    fn new(prefix: &[u8]) -> Self {
+        Self {
+            prefix_len: prefix.len(),
+            ranges: Vec::new(),
+            open_begin: None,
+        }
+    }
+
+    /// Feeds one batch of `(key, value)` pairs, in keyspace order.
+    fn feed<'a, I>(&mut self, batch: I)
+    where
+        I: IntoIterator<Item = (&'a [u8], &'a [u8])>,
+    {
+        for (raw_key, value) in batch {
+            let key = raw_key.get(self.prefix_len..).unwrap_or_default().to_vec();
+
+            match value {
+                b"1" => self.open_begin = Some(key),
+                b"0" => {
+                    if let Some(begin) = self.open_begin.take() {
+                        self.ranges.push(ConflictRange { begin, end: key });
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Returns the complete ranges parsed so far, dropping a begin marker left
+    /// open by the end of the stream.
+    fn finish(self) -> Vec<ConflictRange> {
+        #[cfg(feature = "trace")]
+        if self.open_begin.is_some() {
+            tracing::warn!(
+                "unpaired '1' marker at the end of a conflict range keyspace, range dropped"
+            );
+        }
+
+        self.ranges
     }
 }
 
@@ -1581,50 +1658,105 @@ impl Transaction {
     /// [`TransactionOption::ReportConflictingKeys`](crate::options::TransactionOption::ReportConflictingKeys)
     /// was not set.
     ///
+    /// Requires API version 630 or later: the special keyspace does not exist on
+    /// older versions, where this read fails.
+    ///
+    /// Only complete ranges are returned. A begin marker whose end marker never
+    /// arrives is dropped, identically in debug and release builds.
+    ///
     /// # Errors
     ///
     /// Returns an `FdbError` if the special keyspace read fails.
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub async fn conflicting_keys(&self) -> FdbResult<Vec<ConflictingKeyRange>> {
-        let opt = RangeOption::from((CONFLICTING_KEYS_PREFIX, CONFLICTING_KEYS_END));
-        // Client-side read of the special keyspace, performed by the binding
-        // itself: it is not part of the user's attempt usage.
-        let range_result = self.get_range_unmetered(&opt, 1, false).await?;
+        self.read_conflict_range_keyspace(CONFLICTING_KEYS_PREFIX, CONFLICTING_KEYS_END)
+            .await
+    }
 
-        let prefix_len = CONFLICTING_KEYS_PREFIX.len();
-        let mut ranges = Vec::new();
-        let mut current_begin: Option<Vec<u8>> = None;
+    /// Reads the read conflict ranges accumulated by this transaction so far.
+    ///
+    /// These are the ranges the resolver will check for conflicts at commit
+    /// time: every key read by the transaction, plus the ranges added with
+    /// [`add_conflict_range`](Self::add_conflict_range). A point read of `k`
+    /// shows up as `k..k\x00`.
+    ///
+    /// <div class="warning">
+    /// Reading this keyspace waits for every pending read of the transaction to
+    /// settle, since a read that has not returned yet has not registered its
+    /// conflict range. Called in the middle of a batch of concurrent reads, it
+    /// is therefore as slow as the slowest of them.
+    /// </div>
+    ///
+    /// The read itself is performed by the binding on your behalf: it is not
+    /// accounted in the [attempt usage](Self::attempt_usage) and does not
+    /// consume the [client budget](Self::set_client_budget).
+    ///
+    /// Only complete ranges are returned, see [`conflicting_keys`](Self::conflicting_keys).
+    ///
+    /// # Errors
+    ///
+    /// Returns an `FdbError` if the special keyspace read fails.
+    #[cfg_api_versions(min = 630)]
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub async fn read_conflict_ranges(&self) -> FdbResult<Vec<ConflictRange>> {
+        self.read_conflict_range_keyspace(READ_CONFLICT_RANGE_PREFIX, READ_CONFLICT_RANGE_END)
+            .await
+    }
 
-        for kv in range_result.iter() {
-            let raw_key = kv.key();
-            let actual_key = if raw_key.len() > prefix_len {
-                raw_key[prefix_len..].to_vec()
-            } else {
-                Vec::new()
-            };
+    /// Reads the write conflict ranges accumulated by this transaction so far.
+    ///
+    /// These are the ranges the transaction will conflict *other* transactions
+    /// on: every key it wrote, plus the ranges added with
+    /// [`add_conflict_range`](Self::add_conflict_range). A single `set` of `k`
+    /// shows up as `k..k\x00`.
+    ///
+    /// <div class="warning">
+    /// Before the commit, this is an approximate <em>superset</em> of the final
+    /// write conflict ranges when the transaction uses versionstamped keys: the
+    /// versionstamp is only known at commit time, so the incomplete key is
+    /// reported with its placeholder bytes.
+    /// </div>
+    ///
+    /// The read itself is performed by the binding on your behalf: it is not
+    /// accounted in the [attempt usage](Self::attempt_usage) and does not
+    /// consume the [client budget](Self::set_client_budget).
+    ///
+    /// Only complete ranges are returned, see [`conflicting_keys`](Self::conflicting_keys).
+    ///
+    /// # Errors
+    ///
+    /// Returns an `FdbError` if the special keyspace read fails.
+    #[cfg_api_versions(min = 630)]
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub async fn write_conflict_ranges(&self) -> FdbResult<Vec<ConflictRange>> {
+        self.read_conflict_range_keyspace(WRITE_CONFLICT_RANGE_PREFIX, WRITE_CONFLICT_RANGE_END)
+            .await
+    }
 
-            match kv.value() {
-                b"1" => {
-                    current_begin = Some(actual_key);
-                }
-                b"0" => {
-                    if let Some(begin) = current_begin.take() {
-                        ranges.push(ConflictingKeyRange {
-                            begin,
-                            end: actual_key,
-                        });
-                    }
-                }
-                _ => {}
-            }
+    /// Reads one conflict-range special keyspace to its end and parses it.
+    ///
+    /// The reads go through the unmetered path: they are performed by the
+    /// binding itself and must not show up in the user's usage or budget. The
+    /// keyspace is paginated because a marker pair can straddle two batches,
+    /// which [`ConflictRangeParser`] handles by carrying the open begin marker
+    /// from one batch to the next.
+    async fn read_conflict_range_keyspace(
+        &self,
+        prefix: &[u8],
+        end: &[u8],
+    ) -> FdbResult<Vec<ConflictRange>> {
+        let mut parser = ConflictRangeParser::new(prefix);
+        let mut next = Some(RangeOption::from((prefix, end)));
+        let mut iteration = 1;
+
+        while let Some(opt) = next {
+            let values = self.get_range_unmetered(&opt, iteration, false).await?;
+            parser.feed(values.iter().map(|kv| (kv.key(), kv.value())));
+            next = opt.next_range(&values);
+            iteration += 1;
         }
 
-        debug_assert!(
-            current_begin.is_none(),
-            "unpaired '1' marker in conflicting keys response"
-        );
-
-        Ok(ranges)
+        Ok(parser.finish())
     }
 
     /// Adds a conflict range to a transaction without performing the associated read or write.
@@ -1702,5 +1834,98 @@ impl RetryableTransaction {
         self,
     ) -> Result<Result<TransactionCommitted, TransactionCommitError>, FdbBindingError> {
         Ok(self.take()?.commit().await)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CONFLICTING_KEYS_PREFIX, ConflictRangeParser};
+
+    /// Builds a marker as the special keyspace returns it: the prefix, the key
+    /// it is a boundary of, and the `1`/`0` value.
+    fn marker(key: &str, value: &'static [u8]) -> (Vec<u8>, &'static [u8]) {
+        let mut full = CONFLICTING_KEYS_PREFIX.to_vec();
+        full.extend_from_slice(key.as_bytes());
+        (full, value)
+    }
+
+    fn feed(parser: &mut ConflictRangeParser, batch: &[(Vec<u8>, &'static [u8])]) {
+        parser.feed(batch.iter().map(|(k, v)| (k.as_slice(), *v)));
+    }
+
+    #[test]
+    fn parses_ranges_within_one_batch() {
+        let mut parser = ConflictRangeParser::new(CONFLICTING_KEYS_PREFIX);
+        feed(
+            &mut parser,
+            &[
+                marker("a", b"1"),
+                marker("b", b"0"),
+                marker("c", b"1"),
+                marker("d", b"0"),
+            ],
+        );
+
+        let ranges = parser.finish();
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(ranges[0].begin(), b"a");
+        assert_eq!(ranges[0].end(), b"b");
+        assert_eq!(ranges[1].begin(), b"c");
+        assert_eq!(ranges[1].end(), b"d");
+    }
+
+    /// The whole point of the incremental parser: a begin marker in one batch
+    /// and its end marker in the next one still make a single range.
+    #[test]
+    fn open_range_survives_across_batches() {
+        let mut parser = ConflictRangeParser::new(CONFLICTING_KEYS_PREFIX);
+        feed(&mut parser, &[marker("a", b"1")]);
+        feed(&mut parser, &[marker("b", b"0"), marker("c", b"1")]);
+        feed(&mut parser, &[marker("d", b"0")]);
+
+        let ranges = parser.finish();
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(ranges[0].begin(), b"a");
+        assert_eq!(ranges[0].end(), b"b");
+        assert_eq!(ranges[1].begin(), b"c");
+        assert_eq!(ranges[1].end(), b"d");
+    }
+
+    #[test]
+    fn empty_input_yields_no_range() {
+        let mut parser = ConflictRangeParser::new(CONFLICTING_KEYS_PREFIX);
+        feed(&mut parser, &[]);
+        assert!(parser.finish().is_empty());
+    }
+
+    /// A begin marker whose end marker never arrives is dropped, in every build
+    /// profile: the guarantee is that only complete ranges come out.
+    #[test]
+    fn unmatched_begin_at_end_of_stream_is_dropped() {
+        let mut parser = ConflictRangeParser::new(CONFLICTING_KEYS_PREFIX);
+        feed(
+            &mut parser,
+            &[marker("a", b"1"), marker("b", b"0"), marker("c", b"1")],
+        );
+
+        let ranges = parser.finish();
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].begin(), b"a");
+        assert_eq!(ranges[0].end(), b"b");
+    }
+
+    /// Values that are neither `1` nor `0` are not boundaries and are ignored.
+    #[test]
+    fn unknown_marker_values_are_ignored() {
+        let mut parser = ConflictRangeParser::new(CONFLICTING_KEYS_PREFIX);
+        feed(
+            &mut parser,
+            &[marker("a", b"1"), marker("x", b"?"), marker("b", b"0")],
+        );
+
+        let ranges = parser.finish();
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].begin(), b"a");
+        assert_eq!(ranges[0].end(), b"b");
     }
 }

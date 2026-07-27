@@ -287,3 +287,114 @@ async fn budget_exceeded_is_fatal_in_run() -> FdbResult<()> {
 
     Ok(())
 }
+
+/// The pattern of `examples/budgeted_scan.rs`: a scan cut into pages by the
+/// budget, each page resuming exclusively after the last key of the previous
+/// one. Every row must be seen exactly once across the pages.
+#[tokio::test]
+async fn budgeted_scan_resumes_without_losing_or_repeating_rows() -> FdbResult<()> {
+    const PREFIX: &[u8] = b"test-budget-scan/";
+    const END: &[u8] = b"test-budget-scan0";
+    const ROWS: usize = 400;
+    const VALUE_SIZE: usize = 1024;
+
+    fn key_of(index: usize) -> Vec<u8> {
+        let mut key = PREFIX.to_vec();
+        key.extend_from_slice(format!("{index:05}").as_bytes());
+        key
+    }
+
+    let db = common::database().await?;
+
+    db.run(|trx, _| async move {
+        trx.clear_range(PREFIX, END);
+        for index in 0..ROWS {
+            trx.set(&key_of(index), &vec![b'x'; VALUE_SIZE]);
+        }
+        Ok::<_, FdbBindingError>(())
+    })
+    .await
+    .expect("setup");
+
+    let mut seen: Vec<Vec<u8>> = Vec::new();
+    let mut continuation: Option<Vec<u8>> = None;
+    let mut transactions = 0;
+
+    loop {
+        let after = continuation.clone();
+        // A budget smaller than one batch: each transaction reads a single
+        // batch, then stops on the check that follows it.
+        let (keys, complete) = db
+            .run(move |trx, _| {
+                let after = after.clone();
+                async move {
+                    trx.set_client_budget(ClientBudget {
+                        max_bytes_read: Some(1),
+                        ..ClientBudget::default()
+                    });
+
+                    let begin = match &after {
+                        Some(last) => KeySelector::first_greater_than(last.as_slice()),
+                        None => KeySelector::first_greater_or_equal(PREFIX),
+                    };
+                    let opt = RangeOption {
+                        begin,
+                        end: KeySelector::first_greater_or_equal(END),
+                        mode: StreamingMode::Serial,
+                        target_bytes: 1 << 20,
+                        ..RangeOption::default()
+                    };
+
+                    let mut keys: Vec<Vec<u8>> = Vec::new();
+                    let mut complete = true;
+                    let mut batches = trx.get_ranges(opt, false);
+                    while let Some(batch) =
+                        futures_util::TryStreamExt::try_next(&mut batches).await?
+                    {
+                        for kv in batch.iter() {
+                            keys.push(kv.key().to_vec());
+                        }
+                        // Matched, not propagated: the page is kept and the
+                        // caller resumes from its last key.
+                        if trx.check_client_budget().is_err() {
+                            complete = false;
+                            break;
+                        }
+                    }
+
+                    Ok::<_, FdbBindingError>((keys, complete))
+                }
+            })
+            .await
+            .expect("scan page");
+
+        transactions += 1;
+        let last = keys.last().cloned();
+        seen.extend(keys);
+
+        if complete {
+            break;
+        }
+        match last {
+            Some(last) => continuation = Some(last),
+            None => break,
+        }
+    }
+
+    assert!(
+        transactions > 1,
+        "the budget should have cut the scan into several transactions, got {transactions}"
+    );
+    assert_eq!(seen.len(), ROWS, "a row was lost or read twice");
+    let expected: Vec<Vec<u8>> = (0..ROWS).map(key_of).collect();
+    assert_eq!(seen, expected, "rows are not the expected ones, in order");
+
+    db.run(|trx, _| async move {
+        trx.clear_range(PREFIX, END);
+        Ok::<_, FdbBindingError>(())
+    })
+    .await
+    .expect("cleanup");
+
+    Ok(())
+}

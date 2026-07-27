@@ -10,8 +10,39 @@
 use foundationdb::options::TransactionOption;
 use foundationdb::runner::MetricsHooks;
 use foundationdb::*;
+use foundationdb_macros::cfg_api_versions;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Prints the write conflict ranges the attempt accumulated, which is what the
+/// resolver will check other transactions against.
+///
+/// Before the commit these are an approximate superset when versionstamped keys
+/// are used: the versionstamp is only resolved at commit time.
+///
+/// The `\xff\xff/transaction/write_conflict_range/` special keyspace exists from
+/// API version 630, hence the two variants below.
+#[cfg_api_versions(min = 630)]
+async fn print_write_conflict_ranges(trx: &Transaction, attempt: usize) -> FdbResult<()> {
+    let ranges = trx.write_conflict_ranges().await?;
+    println!(
+        "  before_commit (attempt {attempt}): {} write conflict range(s)",
+        ranges.len()
+    );
+    for range in &ranges {
+        println!(
+            "    {:?} .. {:?}",
+            String::from_utf8_lossy(range.begin()),
+            String::from_utf8_lossy(range.end()),
+        );
+    }
+    Ok(())
+}
+
+#[cfg_api_versions(min = 510, max = 620)]
+async fn print_write_conflict_ranges(_trx: &Transaction, _attempt: usize) -> FdbResult<()> {
+    Ok(())
+}
 
 /// A simple hook implementation that prints each lifecycle event.
 struct PrintHooks;
@@ -19,6 +50,13 @@ struct PrintHooks;
 impl RunnerHooks for PrintHooks {
     fn on_attempt_start(&self, _trx: &Transaction, attempt: usize) {
         println!("  on_attempt_start: attempt {attempt}");
+    }
+
+    /// Last point where the transaction can be inspected inside the attempt:
+    /// the write conflict ranges are complete here, while `conflicting_keys`
+    /// below only tells what actually clashed, and only once the commit failed.
+    async fn before_commit(&self, trx: &Transaction, attempt: usize) -> FdbResult<()> {
+        print_write_conflict_ranges(trx, attempt).await
     }
 
     async fn on_commit_error(&self, err: &TransactionCommitError, attempt: usize) -> FdbResult<()> {
@@ -144,11 +182,15 @@ async fn run_example() -> Result<(), FdbBindingError> {
 // Running transaction with PrintHooks (forcing a conflict)...
 //   on_attempt_start: attempt 0
 //   (injected conflicting write)
+//   before_commit (attempt 0): 1 write conflict range(s)
+//     "example_conflict_key" .. "example_conflict_key\0"
 //   on_commit_error (attempt 0): 1 range(s)
 //     "example_conflict_key" .. "example_conflict_key\0"
 //   on_error_duration (attempt 0): 0ms
 //   on_retry: attempt 0 is over
 //   on_attempt_start: attempt 1
+//   before_commit (attempt 1): 1 write conflict range(s)
+//     "example_conflict_key" .. "example_conflict_key\0"
 //   on_commit_success (attempt 1): committed in 1ms
 //   on_complete
 // Transaction succeeded after conflict!
