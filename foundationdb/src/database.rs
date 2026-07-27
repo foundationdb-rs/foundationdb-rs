@@ -26,7 +26,7 @@ use crate::runner::{MetricsHooks, RunnerHooks, TransactionRunner};
 use crate::transaction::*;
 use crate::{FdbError, FdbResult, error};
 
-use crate::error::{FdbBindingError, RetryableError};
+use crate::error::RetryableError;
 use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
@@ -159,31 +159,6 @@ impl Database {
         Ok(Transaction::new(NonNull::new(trx).expect(
             "fdb_database_create_transaction to not return null if there is no error",
         )))
-    }
-
-    /// Creates a new transaction on the given database with metrics collection.
-    ///
-    /// This method is similar to `create_trx()` but additionally collects metrics about
-    /// the transaction execution, including operation counts, bytes read/written, and retry counts.
-    ///
-    /// # Arguments
-    /// * `metrics` - A TransactionMetrics instance to collect metrics
-    ///
-    /// # Returns
-    /// * `Result<Transaction, (FdbBindingError, MetricsData)>` - A transaction with metrics collection enabled
-    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
-    pub fn create_instrumented_trx(
-        &self,
-        metrics: TransactionMetrics,
-    ) -> Result<Transaction, FdbBindingError> {
-        let mut trx: *mut fdb_sys::FDBTransaction = std::ptr::null_mut();
-        let err =
-            unsafe { fdb_sys::fdb_database_create_transaction(self.inner.as_ptr(), &mut trx) };
-        error::eval(err)?;
-
-        let inner = NonNull::new(trx)
-            .expect("fdb_database_create_transaction to not return null if there is no error");
-        Ok(Transaction::new_instrumented(inner, metrics))
     }
 
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]

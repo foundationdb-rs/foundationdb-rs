@@ -554,15 +554,6 @@ impl Transaction {
         }
     }
 
-    pub fn new_instrumented(
-        inner: NonNull<fdb_sys::FDBTransaction>,
-        metrics: TransactionMetrics,
-    ) -> Self {
-        let transaction = Self::new(inner);
-        transaction.attach_metrics(&metrics);
-        transaction
-    }
-
     /// Attaches a metrics collector to this transaction and opens its first
     /// attempt on the accounting generation currently in use.
     ///
