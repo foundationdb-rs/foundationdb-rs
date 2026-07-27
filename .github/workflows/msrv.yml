@@ -10,6 +10,12 @@ on:
 jobs:
   msrv:
     runs-on: ubuntu-latest
+    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.85.1).
+    # cargo-msrv itself needs a current rustc to build, and it selects the
+    # toolchain to test per-check (rustup run / +version), so override the file
+    # here to install and run it on stable.
+    env:
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.0

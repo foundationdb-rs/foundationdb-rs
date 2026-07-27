@@ -36,7 +36,7 @@ impl Rank {
     /// The sequence occupies the high 32 bits and the process ID the low 32 bits,
     /// so ranks are ordered primarily by sequence, then by process ID.
     pub fn new(process_id: u32, sequence: u32) -> Self {
-        Self((sequence as u64) << 32 | process_id as u64)
+        Self(((sequence as u64) << 32) | process_id as u64)
     }
 
     /// Returns the process ID component of this rank

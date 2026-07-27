@@ -30,10 +30,10 @@ impl Task {
         let waker = unsafe { Waker::from_raw(self.clone().into_waker()) };
         let cx = &mut Context::from_waker(&waker);
         let slot = unsafe { &mut *self.f.get() };
-        if let Some(mut f) = slot.take()
-            && f.as_mut().poll(cx).is_pending()
-        {
-            *slot = Some(f);
+        if let Some(mut f) = slot.take() {
+            if f.as_mut().poll(cx).is_pending() {
+                *slot = Some(f);
+            }
         }
     }
 

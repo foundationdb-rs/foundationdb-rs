@@ -207,13 +207,13 @@ impl LeaderElectionWorkload {
 
         for entry in entries {
             // Track last op_num per client
-            if let Some(last_op) = client_last_op.get(&entry.client_id)
-                && entry.op_num <= *last_op
-            {
-                violations.push(format!(
-                    "Client {} op_num {} not greater than previous {}",
-                    entry.client_id, entry.op_num, last_op
-                ));
+            if let Some(last_op) = client_last_op.get(&entry.client_id) {
+                if entry.op_num <= *last_op {
+                    violations.push(format!(
+                        "Client {} op_num {} not greater than previous {}",
+                        entry.client_id, entry.op_num, last_op
+                    ));
+                }
             }
             client_last_op.insert(entry.client_id, entry.op_num);
 
@@ -474,20 +474,19 @@ impl LeaderElectionWorkload {
         for entry in entries {
             if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
                 acquire_count += 1;
-                if let Some(prev_holder) = current_holder
-                    && prev_holder != entry.client_id
-                {
-                    // Different client claiming - previous holder's lease expired
-                    // or was preempted. This is an implicit release.
-                    implicit_releases += 1;
+                if let Some(prev_holder) = current_holder {
+                    if prev_holder != entry.client_id {
+                        // Different client claiming - previous holder's lease expired
+                        // or was preempted. This is an implicit release.
+                        implicit_releases += 1;
+                    }
                 }
                 // New leader takes over
                 current_holder = Some(entry.client_id);
             }
             if entry.op_type == OP_RESIGN
                 && entry.success
-                && let Some(holder) = current_holder
-                && holder == entry.client_id
+                && current_holder == Some(entry.client_id)
             {
                 release_count += 1;
                 current_holder = None;
@@ -573,13 +572,13 @@ impl LeaderElectionWorkload {
                     continue; // Skip ballot 0 (initial state)
                 }
 
-                if let Some(&prev_client) = ballot_to_client.get(&entry.ballot)
-                    && prev_client != entry.client_id
-                {
-                    violations.push(format!(
-                        "Tenure {}: Ballot {} claimed by client {} and client {}",
-                        tenure_count, entry.ballot, prev_client, entry.client_id
-                    ));
+                if let Some(&prev_client) = ballot_to_client.get(&entry.ballot) {
+                    if prev_client != entry.client_id {
+                        violations.push(format!(
+                            "Tenure {}: Ballot {} claimed by client {} and client {}",
+                            tenure_count, entry.ballot, prev_client, entry.client_id
+                        ));
+                    }
                 }
                 ballot_to_client.insert(entry.ballot, entry.client_id);
             }

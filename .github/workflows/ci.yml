@@ -82,6 +82,8 @@ jobs:
         run: cargo test -p foundationdb-tuple --all-features
       - name: Run all tests of foundationdb-macros
         run: cargo test -p foundationdb-macros
+      - name: Run all tests of foundationdb-simulation-tracing
+        run: cargo test -p foundationdb-simulation-tracing --no-default-features --features embedded-fdb-include,fdb-7_4
 
   lint:
     name: Rustfmt / Clippy
@@ -110,6 +112,10 @@ jobs:
   audit:
     name: Cargo audit
     runs-on: ubuntu-latest
+    # rustsec/audit-check builds cargo-audit, which needs a current rustc; the
+    # checked-in rust-toolchain.toml would otherwise force it onto the MSRV.
+    env:
+      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - name: Checkout repository

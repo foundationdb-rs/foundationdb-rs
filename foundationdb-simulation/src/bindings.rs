@@ -114,6 +114,17 @@ macro_rules! with {
     };
 }
 
+impl Clone for WorkloadContext {
+    /// Clones the wrapper by copying the underlying `FDBWorkloadContext` POD (a
+    /// bundle of raw pointers owned by fdbserver, with no `Drop`). The clone
+    /// aliases the same fdbserver-owned context, so it is only valid for the
+    /// lifetime of the workload instance the original was handed to; once
+    /// fdbserver frees that context, every clone dangles.
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
 impl WorkloadContext {
     #[doc(hidden)]
     pub fn new(raw: FDBWorkloadContext) -> Self {
