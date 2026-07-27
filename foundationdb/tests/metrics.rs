@@ -1,4 +1,5 @@
 use foundationdb::metrics::{AttemptOutcome, MetricKey, TransactionMetrics};
+use foundationdb::runner::MetricsHooks;
 use foundationdb::*;
 mod common;
 use std::borrow::Cow;
@@ -314,17 +315,24 @@ async fn test_transaction_info() -> FdbResult<()> {
     // the transaction information.
     {
         let metrics = TransactionMetrics::new();
-        let txn = db
-            .create_instrumented_trx(metrics.clone())
-            .expect("Could not create transaction");
+        let hooks = MetricsHooks::new(&metrics);
 
-        let read_version = txn.get_read_version().await?;
-        assert_eq!(
-            metrics.get_transaction_info().read_version,
-            Some(read_version)
-        );
-
-        txn.commit().await?;
+        let read_version = db
+            .run_with_hooks(&hooks, |txn, _| {
+                let metrics = metrics.clone();
+                async move {
+                    let read_version = txn.get_read_version().await?;
+                    // Visible on the transaction information as soon as it is
+                    // read, without waiting for the run to end.
+                    assert_eq!(
+                        metrics.get_transaction_info().read_version,
+                        Some(read_version)
+                    );
+                    Ok::<_, FdbBindingError>(read_version)
+                }
+            })
+            .await
+            .expect("transaction should succeed");
 
         let report = metrics.get_metrics_data();
         assert_eq!(report.attempts.len(), 1);
@@ -372,6 +380,54 @@ async fn test_transaction_info() -> FdbResult<()> {
         assert_eq!(metrics.transaction.retries, EXPECTED_RETRIES);
         assert_eq!(metrics.attempts.len(), EXPECTED_RETRIES as usize + 1);
     }
+
+    Ok(())
+}
+
+/// Setting a client budget mid-attempt starts a fresh accounting generation,
+/// and the attempt being recorded goes with it: only what happens after the call
+/// is reported.
+#[tokio::test]
+async fn set_client_budget_mid_attempt_drops_what_was_recorded() -> FdbResult<()> {
+    const KEY: &[u8] = b"test_metrics_budget_mid_attempt";
+    const VALUE: &[u8] = b"value";
+
+    let db = common::database().await?;
+
+    let (_, metrics) = db
+        .instrumented_run(|txn, _| async move {
+            txn.set(b"test_metrics_budget_before", VALUE);
+            txn.set_custom_metric("before_budget", 1, &[]);
+
+            txn.set_client_budget(ClientBudget::default());
+
+            txn.set(KEY, VALUE);
+            txn.set_custom_metric("after_budget", 1, &[]);
+            Ok::<_, FdbBindingError>(())
+        })
+        .await
+        .expect("transaction should succeed");
+
+    assert_eq!(metrics.attempts.len(), 1);
+    let attempt = &metrics.attempts[0];
+
+    // The write itself did happen, only its accounting was dropped.
+    assert_eq!(attempt.usage.call_set, 1);
+    assert_eq!(
+        attempt.usage.bytes_written,
+        (KEY.len() + VALUE.len()) as u64
+    );
+
+    assert!(
+        attempt
+            .custom_metrics
+            .contains_key(&MetricKey::new("after_budget", &[]))
+    );
+    assert!(
+        !attempt
+            .custom_metrics
+            .contains_key(&MetricKey::new("before_budget", &[]))
+    );
 
     Ok(())
 }

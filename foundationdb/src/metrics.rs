@@ -243,7 +243,28 @@ impl TransactionMetrics {
     /// [`Transaction::set_client_budget`](crate::Transaction::set_client_budget)
     /// or [`Transaction::reset`](crate::Transaction::reset) was called.
     pub(crate) fn begin_attempt(&self, usage: Arc<AttemptUsage>) {
-        *self.open() = OpenAttempt {
+        let mut open = self.open();
+
+        #[cfg(feature = "trace")]
+        if let Some(dropped) = open.usage.as_ref() {
+            // `elapsed` always moves, so the counters are what tells whether
+            // the attempt being dropped did anything worth reporting.
+            let snapshot = dropped.snapshot();
+            let idle = snapshot
+                == UsageSnapshot {
+                    elapsed: snapshot.elapsed,
+                    ..UsageSnapshot::default()
+                }
+                && dropped.custom_metrics().is_empty();
+
+            if !idle {
+                tracing::warn!(
+                    "a new attempt was opened while the previous one was still open, its usage and custom metrics are dropped (set_client_budget or reset called mid-attempt)"
+                );
+            }
+        }
+
+        *open = OpenAttempt {
             usage: Some(usage),
             ..OpenAttempt::default()
         };

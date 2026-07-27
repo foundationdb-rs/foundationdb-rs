@@ -130,7 +130,16 @@ impl ConflictRangeParser {
             let key = raw_key.get(self.prefix_len..).unwrap_or_default().to_vec();
 
             match value {
-                b"1" => self.open_begin = Some(key),
+                b"1" => {
+                    #[cfg(feature = "trace")]
+                    if self.open_begin.is_some() {
+                        tracing::warn!(
+                            "'1' marker following an unpaired one in a conflict range keyspace, range dropped"
+                        );
+                    }
+
+                    self.open_begin = Some(key);
+                }
                 b"0" => {
                     if let Some(begin) = self.open_begin.take() {
                         self.ranges.push(ConflictRange { begin, end: key });
@@ -623,6 +632,7 @@ impl Transaction {
     /// Accounting is always on, no instrumentation needed. The counters are
     /// client-side estimates and are reset on every new attempt, see
     /// [`crate::budget`].
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn attempt_usage(&self) -> UsageSnapshot {
         self.usage().snapshot()
     }
@@ -698,6 +708,7 @@ impl Transaction {
     ///
     /// Returns the first [`BudgetExceeded`] limit found, checked in order:
     /// time, bytes read, bytes written.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn check_client_budget(&self) -> Result<(), BudgetExceeded> {
         let budget = self
             .budget
@@ -1410,6 +1421,10 @@ impl Transaction {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, labels))
+    )]
     pub fn set_custom_metric(&self, name: &str, value: u64, labels: &[(&str, &str)]) {
         self.usage().set_custom(MetricKey::new(name, labels), value);
     }
@@ -1438,6 +1453,10 @@ impl Transaction {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, labels))
+    )]
     pub fn increment_custom_metric(&self, name: &str, amount: u64, labels: &[(&str, &str)]) {
         self.usage()
             .increment_custom(MetricKey::new(name, labels), amount);
@@ -1912,6 +1931,22 @@ mod tests {
         assert_eq!(ranges.len(), 1);
         assert_eq!(ranges[0].begin(), b"a");
         assert_eq!(ranges[0].end(), b"b");
+    }
+
+    /// A begin marker arriving while one is still open replaces it: the range
+    /// the dropped marker opened is never emitted.
+    #[test]
+    fn a_second_begin_marker_replaces_the_open_one() {
+        let mut parser = ConflictRangeParser::new(CONFLICTING_KEYS_PREFIX);
+        feed(
+            &mut parser,
+            &[marker("a", b"1"), marker("b", b"1"), marker("c", b"0")],
+        );
+
+        let ranges = parser.finish();
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].begin(), b"b");
+        assert_eq!(ranges[0].end(), b"c");
     }
 
     /// Values that are neither `1` nor `0` are not boundaries and are ignored.
