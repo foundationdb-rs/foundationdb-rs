@@ -51,6 +51,10 @@ The cluster file must point at it (e.g. `/etc/foundationdb/fdb.cluster`).
 venv for the bindingtester, and release tooling. Env vars (LIBCLANG_PATH, FDB_CLIENT_LIB_PATH,
 etc.) are set by `flake.nix`.
 
+The Rust toolchain is pinned to the workspace MSRV (`1.85.1`) via `rust-toolchain.toml`, which
+`flake.nix` reads (`fromRustupToolchainFile`). So `nix develop` (and any local rustup) builds
+at MSRV, catching version-too-new features (e.g. let-chains, stable in 1.88) before CI does.
+
 ## Feature flags (API version selection)
 
 `foundationdb`, `foundationdb-sys`, and `foundationdb-gen` are gated by exactly one FDB

@@ -12,12 +12,13 @@
     # Utilized by `nix develop`
     devShells.x86_64-linux.default =
       let
-        rustChannel = "stable";
         overlays = [ (import rust-overlay) fdb-overlay.overlays.default ];
         pkgs = import nixpkgs {
           inherit overlays;
           system = "x86_64-linux";
         };
+        # Toolchain pinned to the workspace MSRV via ./rust-toolchain.toml
+        rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       in
       with pkgs;
       mkShell {
@@ -35,18 +36,7 @@
           # uncomment when https://github.com/NixOS/nixpkgs/issues/354058 is fixed
           # cargo-llvm-cov
           cargo-audit
-          rust-analyzer
-          (rust-bin.${rustChannel}.latest.default.override {
-            extensions = [
-              "cargo"
-              "clippy"
-              "rust-src"
-              "rustc"
-              "rustfmt"
-              "rust-analyzer"
-              "llvm-tools-preview"
-            ];
-          })
+          rustToolchain
 
           git-cliff
           release-plz
@@ -68,8 +58,8 @@
         LD_LIBRARY_PATH = "${libfdb74}/include";
 
         # To import with Intellij IDEA
-        RUST_TOOLCHAIN_PATH = "${pkgs.rust-bin.${rustChannel}.latest.default}/bin";
-        RUST_SRC_PATH = "${pkgs.rust-bin.${rustChannel}.latest.rust-src}/lib/rustlib/src/rust/library";
+        RUST_TOOLCHAIN_PATH = "${rustToolchain}/bin";
+        RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
 
         RUST_BACKTRACE = "1";
       };
