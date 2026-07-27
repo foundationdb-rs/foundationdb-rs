@@ -14,7 +14,7 @@ use foundationdb_sys as fdb_sys;
 use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::budget::{AttemptUsage, BudgetExceeded, ClientBudget, UsageSlot, UsageSnapshot};
@@ -179,6 +179,16 @@ impl TransactionCommitError {
         self.tr.reset();
         self.tr
     }
+
+    /// Splits the error into the transaction it failed on and the error itself,
+    /// without resetting anything.
+    ///
+    /// Used by the retry runner to hand `on_error` an error chosen by a
+    /// [`RetryPolicy`](crate::runner::RetryPolicy) rather than the commit error
+    /// itself.
+    pub(crate) fn into_parts(self) -> (Transaction, FdbError) {
+        (self.tr, self.err)
+    }
 }
 
 impl Deref for TransactionCommitError {
@@ -246,7 +256,9 @@ pub struct Transaction {
     // Order of fields should not be changed, because Rust drops field top-to-bottom, and
     // transaction should be dropped before cluster.
     inner: NonNull<fdb_sys::FDBTransaction>,
-    metrics: Option<TransactionMetrics>,
+    /// Metrics collector of the transaction, attached at creation or by a
+    /// runner hook, see [`Transaction::attach_metrics`]. Set at most once.
+    metrics: OnceLock<TransactionMetrics>,
     /// Always-on accounting of the current attempt, see [`crate::budget`].
     usage: UsageSlot,
     /// Client-side limits applied to the current attempt. Unlike `usage`, they
@@ -450,7 +462,7 @@ impl Transaction {
     pub(crate) fn new(inner: NonNull<fdb_sys::FDBTransaction>) -> Self {
         Self {
             inner,
-            metrics: None,
+            metrics: OnceLock::new(),
             usage: UsageSlot::default(),
             budget: Mutex::new(ClientBudget::default()),
         }
@@ -460,20 +472,34 @@ impl Transaction {
         inner: NonNull<fdb_sys::FDBTransaction>,
         metrics: TransactionMetrics,
     ) -> Self {
-        let transaction = Self {
-            inner,
-            metrics: Some(metrics),
-            usage: UsageSlot::default(),
-            budget: Mutex::new(ClientBudget::default()),
-        };
-        transaction.open_metrics_attempt();
+        let transaction = Self::new(inner);
+        transaction.attach_metrics(&metrics);
         transaction
+    }
+
+    /// Attaches a metrics collector to this transaction and opens its first
+    /// attempt on the accounting generation currently in use.
+    ///
+    /// A transaction collects metrics for at most one
+    /// [`TransactionMetrics`]: attaching a second one does nothing, the first
+    /// collector keeps receiving everything. This is what
+    /// [`MetricsHooks`](crate::runner::MetricsHooks) uses to wire itself onto a
+    /// transaction created by the runner.
+    pub(crate) fn attach_metrics(&self, metrics: &TransactionMetrics) {
+        if self.metrics.set(metrics.clone()).is_ok() {
+            self.open_metrics_attempt();
+        }
+    }
+
+    /// The metrics collector of the transaction, if one is attached.
+    fn metrics(&self) -> Option<&TransactionMetrics> {
+        self.metrics.get()
     }
 
     /// Points the metrics at the accounting generation of the current attempt,
     /// so that whatever happens from now on is recorded there.
     fn open_metrics_attempt(&self) {
-        if let Some(metrics) = &self.metrics {
+        if let Some(metrics) = self.metrics() {
             metrics.begin_attempt(self.usage.current());
         }
     }
@@ -481,14 +507,14 @@ impl Transaction {
     /// Freezes the duration of the current attempt: it is over, only the retry
     /// machinery runs from here.
     fn mark_attempt_end(&self) {
-        if let Some(metrics) = &self.metrics {
+        if let Some(metrics) = self.metrics() {
             metrics.mark_attempt_end();
         }
     }
 
     /// Pushes the current attempt to the metrics report.
     fn end_attempt(&self, outcome: AttemptOutcome) {
-        if let Some(metrics) = &self.metrics {
+        if let Some(metrics) = self.metrics() {
             metrics.finish_attempt(outcome);
         }
     }
@@ -1212,7 +1238,7 @@ impl Transaction {
     /// [`AttemptOutcome::Committed`](crate::metrics::AttemptOutcome::Committed).
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn commit(self) -> impl Future<Output = TransactionResult> + Send + Sync + Unpin {
-        let metrics = self.metrics.clone();
+        let metrics = self.metrics().cloned();
         let started_at = Instant::now();
 
         FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
@@ -1454,7 +1480,7 @@ impl Transaction {
     pub fn get_read_version(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
-        let metrics = self.metrics.clone();
+        let metrics = self.metrics().cloned();
 
         FdbFuture::<i64>::new(unsafe {
             fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr())

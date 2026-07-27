@@ -3,8 +3,12 @@
 //!
 //! It creates two transactions that conflict on the same key, showing
 //! the full hook lifecycle: commit error → conflicting keys → retry → success.
+//!
+//! The user hook is stacked with [`MetricsHooks`] in a tuple, so the same run
+//! also produces the per-attempt metrics report of `instrumented_run`.
 
 use foundationdb::options::TransactionOption;
+use foundationdb::runner::MetricsHooks;
 use foundationdb::*;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,9 +17,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 struct PrintHooks;
 
 impl RunnerHooks for PrintHooks {
-    async fn on_commit_error(&self, err: &TransactionCommitError) -> FdbResult<()> {
+    fn on_attempt_start(&self, _trx: &Transaction, attempt: usize) {
+        println!("  on_attempt_start: attempt {attempt}");
+    }
+
+    async fn on_commit_error(&self, err: &TransactionCommitError, attempt: usize) -> FdbResult<()> {
         let keys = err.conflicting_keys().await?;
-        println!("  on_commit_error: {} conflicting range(s)", keys.len());
+        println!(
+            "  on_commit_error (attempt {attempt}): {} range(s)",
+            keys.len()
+        );
         for range in &keys {
             println!(
                 "    {:?} .. {:?}",
@@ -26,20 +37,24 @@ impl RunnerHooks for PrintHooks {
         Ok(())
     }
 
-    fn on_closure_error(&self, err: &FdbError) {
-        println!("  on_closure_error: {}", err.message());
+    fn on_hook_error(&self, err: &FdbError, attempt: usize) {
+        println!("  on_hook_error (attempt {attempt}): {}", err.message());
     }
 
-    fn on_error_duration(&self, ms: u64) {
-        println!("  on_error_duration: {ms}ms");
+    fn on_closure_error(&self, err: &FdbError, attempt: usize) {
+        println!("  on_closure_error (attempt {attempt}): {}", err.message());
     }
 
-    fn on_commit_success(&self, _committed: &TransactionCommitted, ms: u64) {
-        println!("  on_commit_success: committed in {ms}ms");
+    fn on_error_duration(&self, ms: u64, attempt: usize) {
+        println!("  on_error_duration (attempt {attempt}): {ms}ms");
     }
 
-    fn on_retry(&self) {
-        println!("  on_retry");
+    fn on_commit_success(&self, _committed: &TransactionCommitted, ms: u64, attempt: usize) {
+        println!("  on_commit_success (attempt {attempt}): committed in {ms}ms");
+    }
+
+    fn on_retry(&self, attempt: usize) {
+        println!("  on_retry: attempt {attempt} is over");
     }
 
     fn on_complete(&self) {
@@ -69,7 +84,11 @@ async fn run_example() -> Result<(), FdbBindingError> {
 
     println!("Running transaction with PrintHooks (forcing a conflict)...");
 
-    let hooks = PrintHooks;
+    // Both hooks observe the same run: the metrics ones fill the report, the
+    // printing ones comment on it. Callbacks fire left to right.
+    let metrics = TransactionMetrics::new();
+    let hooks = (MetricsHooks::new(&metrics), PrintHooks);
+
     db.run_with_hooks(&hooks, |trx, _| {
         let attempt = attempt.clone();
         async move {
@@ -99,7 +118,23 @@ async fn run_example() -> Result<(), FdbBindingError> {
     })
     .await?;
 
+    let report = metrics.get_metrics_data();
     println!("Transaction succeeded after conflict!");
+    println!(
+        "{} attempt(s), {} conflict(s), total usage: {:?}",
+        report.attempts.len(),
+        report.transaction.conflict_count,
+        report.total_usage(),
+    );
+    for attempt in &report.attempts {
+        println!(
+            "  attempt {}: {:?}, {} conflicting range(s)",
+            attempt.index,
+            attempt.outcome,
+            attempt.conflicting_keys.ranges().len(),
+        );
+    }
+
     Ok(())
 }
 
@@ -107,11 +142,17 @@ async fn run_example() -> Result<(), FdbBindingError> {
 // Expected output:
 //
 // Running transaction with PrintHooks (forcing a conflict)...
+//   on_attempt_start: attempt 0
 //   (injected conflicting write)
-//   on_commit_error: 1 conflicting range(s)
+//   on_commit_error (attempt 0): 1 range(s)
 //     "example_conflict_key" .. "example_conflict_key\0"
-//   on_error_duration: 0ms
-//   on_retry
-//   on_commit_success: committed in 1ms
+//   on_error_duration (attempt 0): 0ms
+//   on_retry: attempt 0 is over
+//   on_attempt_start: attempt 1
+//   on_commit_success (attempt 1): committed in 1ms
+//   on_complete
 // Transaction succeeded after conflict!
+// 2 attempt(s), 1 conflict(s), total usage: UsageSnapshot { .. }
+//   attempt 0: Retried { cause: FdbError { error_code: 1020 } }, 1 conflicting range(s)
+//   attempt 1: Committed, 0 conflicting range(s)
 */

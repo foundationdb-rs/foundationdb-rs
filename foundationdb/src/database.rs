@@ -20,12 +20,13 @@ use fdb_sys::if_cfg_api_versions;
 use foundationdb_macros::cfg_api_versions;
 use foundationdb_sys as fdb_sys;
 
-use crate::metrics::{AttemptOutcome, ConflictKeys, MetricsReport, TransactionMetrics};
+use crate::metrics::{MetricsReport, TransactionMetrics};
 use crate::options;
+use crate::runner::{MetricsHooks, RunnerHooks, TransactionRunner};
 use crate::transaction::*;
 use crate::{FdbError, FdbResult, error};
 
-use crate::error::{FdbBindingError, RetryDecision, RetryableError};
+use crate::error::{FdbBindingError, RetryableError};
 use futures::prelude::*;
 
 /// Wrapper around the boolean representing whether the
@@ -36,251 +37,15 @@ use futures::prelude::*;
 /// capturing the environment.
 pub struct MaybeCommitted(bool);
 
+impl MaybeCommitted {
+    pub(crate) fn new(maybe_committed: bool) -> Self {
+        Self(maybe_committed)
+    }
+}
+
 impl From<MaybeCommitted> for bool {
     fn from(value: MaybeCommitted) -> Self {
         value.0
-    }
-}
-
-/// Lifecycle hooks for the transaction retry runner.
-///
-/// All methods have default no-op implementations, so callers only override what they need.
-/// This trait enables a single internal retry loop (`run_with_hooks`) to serve both
-/// `Database::run()` (no-op hooks) and `Database::instrumented_run()` (metrics hooks).
-pub trait RunnerHooks {
-    /// Called when commit fails, **before** `on_error()` resets the transaction.
-    /// This is the only window to read conflicting keys or inspect error state.
-    ///
-    /// Errors are logged (behind `trace` feature) but do not abort the retry loop.
-    fn on_commit_error(
-        &self,
-        _err: &TransactionCommitError,
-    ) -> impl Future<Output = FdbResult<()>> + Send {
-        async { Ok(()) }
-    }
-
-    /// Called when a closure error triggers a retry.
-    ///
-    /// A closure error classified as [`crate::RetryDecision::Retry`] surfaces
-    /// here as a synthetic `FdbError` with code 1020 (not_committed).
-    fn on_closure_error(&self, _err: &FdbError) {}
-
-    /// Called after `on_error()` completes with its duration.
-    fn on_error_duration(&self, _duration_ms: u64) {}
-
-    /// Called after successful commit with the committed transaction and commit duration.
-    fn on_commit_success(&self, _committed: &TransactionCommitted, _commit_duration_ms: u64) {}
-
-    /// Called before the next retry iteration (after `on_error` succeeds).
-    fn on_retry(&self) {}
-
-    /// Called when the runner finishes (success or final failure).
-    fn on_complete(&self) {}
-}
-
-/// No-op hooks — zero overhead. Used by [`Database::run()`].
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoopHooks;
-impl RunnerHooks for NoopHooks {}
-
-/// Metrics-collecting hooks for `Database::instrumented_run()`.
-pub(crate) struct InstrumentedHooks {
-    pub(crate) metrics: TransactionMetrics,
-    pub(crate) start: Instant,
-}
-
-impl RunnerHooks for InstrumentedHooks {
-    async fn on_commit_error(&self, err: &TransactionCommitError) -> FdbResult<()> {
-        // not_committed (1020) = commit conflict
-        if err.code() == 1020 {
-            self.metrics.increment_conflict_count();
-        }
-        // Reading from the \xff\xff/transaction/conflicting_keys/ special keyspace is
-        // resolved client-side — no network round-trip to the cluster. The future still
-        // goes through the FDB network thread event loop, but the data comes from an
-        // in-memory map populated during the commit response. Returns empty if
-        // ReportConflictingKeys was not set.
-        match err.conflicting_keys().await {
-            Ok(keys) => {
-                self.metrics
-                    .set_conflicting_keys(ConflictKeys::Available(keys));
-                Ok(())
-            }
-            Err(read_error) => {
-                self.metrics
-                    .set_conflicting_keys(ConflictKeys::ReadFailed(read_error));
-                Err(read_error)
-            }
-        }
-    }
-
-    fn on_error_duration(&self, duration_ms: u64) {
-        // `on_error` already pushed the attempt it ended, so this lands on the
-        // last attempt of the report.
-        self.metrics
-            .set_on_error_duration(Duration::from_millis(duration_ms));
-    }
-
-    fn on_commit_success(&self, committed: &TransactionCommitted, _commit_duration_ms: u64) {
-        // The attempt itself was pushed by `Transaction::commit`, which also
-        // recorded how long the commit took.
-        if let Ok(version) = committed.committed_version() {
-            self.metrics.set_commit_version(version);
-        }
-    }
-
-    fn on_complete(&self) {
-        // phase 3: the runner has no hook on its failure paths, so an attempt
-        // still open when it returns is the one that failed. Attempts that
-        // committed or were retried are already pushed, which makes this a
-        // no-op for them.
-        self.metrics.finish_attempt(AttemptOutcome::Failed);
-        self.metrics.set_total_duration(self.start.elapsed());
-    }
-}
-
-/// Single internal retry loop that the public entrypoints (`run`, `instrumented_run`)
-/// delegate to.
-///
-/// # Hook lifecycle per iteration
-///
-/// 1. Execute closure
-/// 2. If closure returns `Err` classified as `Fdb` or `Retry`:
-///    - `on_closure_error` → `on_error()` → `on_error_duration` → `on_retry` → loop
-/// 3. If closure succeeds, attempt commit:
-///    - Commit succeeds → `on_commit_success` → return `Ok`
-///    - Commit fails (retryable) → `on_commit_error` → `on_error()` → `on_error_duration` → `on_retry` → loop
-///    - Commit fails (non-retryable) → return `Err`
-#[cfg_attr(
-    feature = "trace",
-    tracing::instrument(level = "debug", skip(initial_transaction, hooks, closure))
-)]
-pub(crate) async fn run_with_hooks<F, Fut, T, E, H: RunnerHooks>(
-    initial_transaction: RetryableTransaction,
-    hooks: &H,
-    closure: F,
-) -> Result<T, E>
-where
-    F: Fn(RetryableTransaction, MaybeCommitted) -> Fut,
-    Fut: Future<Output = Result<T, E>>,
-    E: RetryableError,
-{
-    let mut maybe_committed = false;
-    let mut transaction = initial_transaction;
-    #[cfg(feature = "trace")]
-    let mut iteration: u64 = 0;
-
-    loop {
-        #[cfg(feature = "trace")]
-        {
-            iteration += 1;
-        }
-
-        let result_closure = closure(transaction.clone(), MaybeCommitted(maybe_committed)).await;
-
-        if let Err(e) = result_closure {
-            let fdb_err = match e.retry_decision() {
-                RetryDecision::Fdb(fdb_err) => {
-                    maybe_committed = fdb_err.is_maybe_committed();
-                    fdb_err
-                }
-                // Synthetic retryable code (1020, not_committed): backoff and
-                // RetryLimit stay governed by fdb_transaction_on_error.
-                // maybe_committed is left untouched: a previous maybe-committed
-                // attempt must stay visible to the closure.
-                RetryDecision::Retry => FdbError::from_code(1020),
-                RetryDecision::Fatal => return Err(e),
-            };
-            hooks.on_closure_error(&fdb_err);
-
-            let now_on_error = Instant::now();
-            match transaction.on_error(fdb_err).await {
-                Ok(Ok(t)) => {
-                    hooks.on_error_duration(now_on_error.elapsed().as_millis() as u64);
-
-                    #[cfg(feature = "trace")]
-                    {
-                        let error_code = fdb_err.code();
-                        tracing::warn!(iteration, error_code, "restarting transaction");
-                    }
-
-                    hooks.on_retry();
-                    transaction = t;
-                    continue;
-                }
-                // Retries exhausted or non-retryable: return the original
-                // closure error, which carries the caller's context.
-                Ok(Err(_non_retryable)) => {
-                    return Err(e);
-                }
-                Err(binding_err) => {
-                    return Err(E::from(binding_err));
-                }
-            }
-        }
-
-        #[cfg(feature = "trace")]
-        tracing::info!(iteration, "closure executed, checking result...");
-
-        let now_commit = Instant::now();
-        let commit_result = transaction.commit().await;
-        let commit_duration = now_commit.elapsed().as_millis() as u64;
-
-        match commit_result {
-            Err(err) => {
-                #[cfg(feature = "trace")]
-                tracing::error!(
-                    iteration,
-                    "transaction reference kept, aborting transaction"
-                );
-                return Err(E::from(err));
-            }
-            Ok(Ok(committed)) => {
-                hooks.on_commit_success(&committed, commit_duration);
-
-                #[cfg(feature = "trace")]
-                tracing::info!(iteration, "success, returning result");
-
-                return result_closure;
-            }
-            Ok(Err(commit_error)) => {
-                #[cfg(feature = "trace")]
-                let error_code = commit_error.code();
-
-                maybe_committed = commit_error.is_maybe_committed();
-                if let Err(_e) = hooks.on_commit_error(&commit_error).await {
-                    #[cfg(feature = "trace")]
-                    tracing::debug!(error_code = _e.code(), "on_commit_error hook failed");
-                }
-
-                let now_on_error = Instant::now();
-                match commit_error.on_error().await {
-                    Ok(t) => {
-                        hooks.on_error_duration(now_on_error.elapsed().as_millis() as u64);
-
-                        #[cfg(feature = "trace")]
-                        tracing::warn!(iteration, error_code, "restarting transaction");
-
-                        hooks.on_retry();
-                        transaction = RetryableTransaction::new(t);
-                        continue;
-                    }
-                    Err(non_retryable) => {
-                        #[cfg(feature = "trace")]
-                        {
-                            let error_code = non_retryable.code();
-                            tracing::error!(
-                                iteration,
-                                error_code,
-                                "could not commit, non retryable error"
-                            );
-                        }
-
-                        return Err(E::from(FdbBindingError::from(non_retryable)));
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -422,28 +187,8 @@ impl Database {
     }
 
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
-    fn create_retryable_trx(&self) -> FdbResult<RetryableTransaction> {
+    pub(crate) fn create_retryable_trx(&self) -> FdbResult<RetryableTransaction> {
         Ok(RetryableTransaction::new(self.create_trx()?))
-    }
-
-    /// Creates a new retryable transaction on the given database with metrics collection.
-    ///
-    /// This method is similar to `create_retryable_trx()` but additionally collects metrics about
-    /// the transaction execution, including operation counts, bytes read/written, and retry counts.
-    ///
-    /// # Arguments
-    /// * `metrics` - A TransactionMetrics instance to collect metrics
-    ///
-    /// # Returns
-    /// * `Result<RetryableTransaction, (FdbBindingError, MetricsData)>` - A retryable transaction with metrics collection enabled
-    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
-    pub fn create_intrumented_retryable_trx(
-        &self,
-        metrics: TransactionMetrics,
-    ) -> Result<RetryableTransaction, FdbBindingError> {
-        Ok(RetryableTransaction::new(
-            self.create_instrumented_trx(metrics.clone())?,
-        ))
     }
 
     /// `transact` returns a future which retries on error. It tries to resolve a future created by
@@ -648,6 +393,13 @@ impl Database {
     ///
     /// A closure that never names an error type is ambiguous; pin it on the
     /// tail expression, for example `Ok::<_, FdbBindingError>(value)`.
+    ///
+    /// # Hooks and retry policy
+    ///
+    /// This is [`runner()`](Self::runner) with its defaults: no hooks and the
+    /// native retry policy. Use the builder to observe the run with
+    /// [`RunnerHooks`] or to decide the retries with a
+    /// [`RetryPolicy`](crate::runner::RetryPolicy).
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, closure))
@@ -658,23 +410,43 @@ impl Database {
         Fut: Future<Output = Result<T, E>>,
         E: RetryableError,
     {
-        let transaction = self.create_retryable_trx()?;
-        run_with_hooks(transaction, &NoopHooks, closure).await
+        self.runner().run(closure).await
+    }
+
+    /// A builder for a transactional run, to plug [`RunnerHooks`] and a
+    /// [`RetryPolicy`](crate::runner::RetryPolicy) into it.
+    ///
+    /// ```no_run
+    /// # use foundationdb::*;
+    /// # use foundationdb::runner::MetricsHooks;
+    /// # async fn example(db: &Database) -> Result<(), FdbBindingError> {
+    /// let metrics = TransactionMetrics::new();
+    /// db.runner()
+    ///     .hooks(&MetricsHooks::new(&metrics))
+    ///     .run(|trx, _| async move {
+    ///         trx.set(b"key", b"value");
+    ///         Ok::<_, FdbBindingError>(())
+    ///     })
+    ///     .await
+    /// # }
+    /// ```
+    pub fn runner(&self) -> TransactionRunner<'_> {
+        TransactionRunner::new(self)
     }
 
     /// Runs a transactional function against this Database with retry logic and custom hooks.
     ///
-    /// This is the most flexible entrypoint — implement [`RunnerHooks`] to observe
-    /// or react to each phase of the retry loop (commit errors, retries, success).
+    /// Sugar for `db.runner().hooks(hooks).run(closure)`. Stack several hooks
+    /// with a tuple: `db.run_with_hooks(&(first, second), closure)`.
     ///
-    /// See [`RunnerHooks`] for the hook lifecycle documentation.
+    /// See [`RunnerHooks`] for what each hook observes and in which order.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, hooks, closure))
     )]
-    pub async fn run_with_hooks<F, Fut, T, E, H: RunnerHooks>(
-        &self,
-        hooks: &H,
+    pub async fn run_with_hooks<'a, F, Fut, T, E, H: RunnerHooks>(
+        &'a self,
+        hooks: &'a H,
         closure: F,
     ) -> Result<T, E>
     where
@@ -682,8 +454,7 @@ impl Database {
         Fut: Future<Output = Result<T, E>>,
         E: RetryableError,
     {
-        let transaction = self.create_retryable_trx()?;
-        run_with_hooks(transaction, hooks, closure).await
+        self.runner().hooks(hooks).run(closure).await
     }
 
     /// Runs a transactional function against this Database with retry logic and metrics collection.
@@ -692,6 +463,9 @@ impl Database {
     ///
     /// This method is similar to `run()` but additionally collects and returns metrics about
     /// the transaction execution, including operation counts, bytes read/written, and retry counts.
+    /// It is [`MetricsHooks`] plugged into [`runner()`](Self::runner): stack them
+    /// on your own hooks with `db.run_with_hooks(&(MetricsHooks::new(&metrics), my_hooks), closure)`
+    /// to get the same report out of a run you observe yourself.
     ///
     /// # Arguments
     /// * `closure` - A function that takes a RetryableTransaction and MaybeCommitted flag and returns a Future
@@ -725,27 +499,11 @@ impl Database {
         E: RetryableError,
     {
         let metrics = TransactionMetrics::new();
-        let hooks = InstrumentedHooks {
-            metrics: metrics.clone(),
-            start: Instant::now(),
-        };
-        let transaction = match self.create_intrumented_retryable_trx(metrics.clone()) {
-            Ok(trx) => trx,
-            Err(err) => {
-                hooks.on_complete();
-                return Err((E::from(err), metrics.get_metrics_data()));
-            }
-        };
+        let hooks = MetricsHooks::new(&metrics);
 
-        match run_with_hooks(transaction, &hooks, closure).await {
-            Ok(val) => {
-                hooks.on_complete();
-                Ok((val, metrics.get_metrics_data()))
-            }
-            Err(err) => {
-                hooks.on_complete();
-                Err((err, metrics.get_metrics_data()))
-            }
+        match self.runner().hooks(&hooks).run(closure).await {
+            Ok(value) => Ok((value, metrics.get_metrics_data())),
+            Err(err) => Err((err, metrics.get_metrics_data())),
         }
     }
 

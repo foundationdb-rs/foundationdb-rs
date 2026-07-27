@@ -9,8 +9,9 @@
 //! FdbError, request an app-level retry, or are fatal (#479).
 
 use std::fmt;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
+use foundationdb::runner::{AttemptFailure, RetryPolicy};
 use foundationdb::{FdbBindingError, FdbError, RetryDecision, RetryableError, options};
 
 mod common;
@@ -199,4 +200,81 @@ async fn run_typed_error_fatal_returns_original() {
         "fatal error must be returned as-is, got {result:?}"
     );
     assert_eq!(attempt.load(Ordering::SeqCst), 1);
+}
+
+/// `MaybeCommitted` is computed from the closure error itself: an error
+/// wrapping `commit_unknown_result` (1021) tells the next attempt that the
+/// previous one may have committed.
+#[tokio::test]
+async fn run_reports_maybe_committed_from_the_closure_error() {
+    let db = common::database().await.expect("failed to open database");
+    let attempt = AtomicU8::new(0);
+    let attempt_ref = &attempt;
+    let seen = AtomicBool::new(false);
+    let seen_ref = &seen;
+
+    let result: Result<(), RetryTestError> = db
+        .run(|trx, maybe_committed| async move {
+            if attempt_ref.fetch_add(1, Ordering::SeqCst) == 0 {
+                // commit_unknown_result: retryable and maybe committed.
+                return Err(RetryTestError::from(FdbError::from_code(1021)));
+            }
+            seen_ref.store(maybe_committed.into(), Ordering::SeqCst);
+            trx.set(b"run_retry_maybe_committed", b"ok");
+            Ok(())
+        })
+        .await;
+
+    assert!(result.is_ok(), "1021 must be retried: {result:?}");
+    assert_eq!(attempt.load(Ordering::SeqCst), 2);
+    assert!(
+        seen.load(Ordering::SeqCst),
+        "the retried closure must see maybe_committed"
+    );
+}
+
+/// A [`RetryPolicy`] rewriting the decision cannot clear `MaybeCommitted`: the
+/// flag is computed from the original error, before the policy is consulted.
+#[tokio::test]
+async fn retry_policy_cannot_clear_maybe_committed() {
+    /// Turns every failure into a plain retry, which on its own would leave
+    /// `MaybeCommitted` untouched.
+    struct AlwaysRetry;
+
+    impl RetryPolicy<RetryTestError> for AlwaysRetry {
+        fn decide(
+            &self,
+            _failure: AttemptFailure<'_, RetryTestError>,
+            _proposed: RetryDecision,
+            _attempt: usize,
+        ) -> RetryDecision {
+            RetryDecision::Retry
+        }
+    }
+
+    let db = common::database().await.expect("failed to open database");
+    let attempt = AtomicU8::new(0);
+    let attempt_ref = &attempt;
+    let seen = AtomicBool::new(false);
+    let seen_ref = &seen;
+
+    let result: Result<(), RetryTestError> = db
+        .runner()
+        .retry_policy(&AlwaysRetry)
+        .run(|trx, maybe_committed| async move {
+            if attempt_ref.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(RetryTestError::from(FdbError::from_code(1021)));
+            }
+            seen_ref.store(maybe_committed.into(), Ordering::SeqCst);
+            trx.set(b"run_retry_policy_maybe_committed", b"ok");
+            Ok(())
+        })
+        .await;
+
+    assert!(result.is_ok(), "the policy must retry: {result:?}");
+    assert_eq!(attempt.load(Ordering::SeqCst), 2);
+    assert!(
+        seen.load(Ordering::SeqCst),
+        "the policy must not be able to clear maybe_committed"
+    );
 }

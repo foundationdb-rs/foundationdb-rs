@@ -41,7 +41,13 @@ pub mod options;
 pub mod recipes;
 
 // Re-export metrics types for convenience
-pub use crate::metrics::TransactionMetrics;
+pub use crate::metrics::{
+    AttemptMetrics, AttemptOutcome, ConflictKeys, MetricsReport, TransactionMetrics,
+};
+
+#[deny(missing_docs)]
+pub mod runner;
+
 pub mod timekeeper;
 mod transaction;
 mod tuple_ext;
@@ -60,6 +66,9 @@ pub use crate::database::*;
 pub use crate::error::{FdbBindingError, RetryDecision, RetryableError};
 pub use crate::error::{FdbError, FdbResult};
 pub use crate::keyselector::*;
+pub use crate::runner::{
+    AttemptFailure, MetricsHooks, NativeRetryPolicy, RetryPolicy, RunnerHooks, TransactionRunner,
+};
 pub use crate::transaction::*;
 
 /// Initialize the FoundationDB Client API and start the network thread.
