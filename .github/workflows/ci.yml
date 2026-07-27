@@ -112,6 +112,10 @@ jobs:
   audit:
     name: Cargo audit
     runs-on: ubuntu-latest
+    # rustsec/audit-check builds cargo-audit, which needs a current rustc; the
+    # checked-in rust-toolchain.toml would otherwise force it onto the MSRV.
+    env:
+      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - name: Checkout repository
