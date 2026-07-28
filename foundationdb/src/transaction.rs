@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::budget::{AttemptUsage, BudgetExceeded, ClientBudget, UsageSlot, UsageSnapshot};
+use crate::env::Clock;
 use crate::future::*;
 use crate::keyselector::*;
 use crate::metrics::{AttemptOutcome, MetricKey, TransactionMetrics};
@@ -605,17 +606,33 @@ impl Transaction {
         self.usage.current()
     }
 
+    /// Starts a fresh accounting generation measured with `clock`.
+    ///
+    /// This never touches the budget mutex: callers take the clock out of the
+    /// budget themselves, in the same critical section as whatever else they
+    /// need from it.
+    fn begin_attempt_with_clock(&self, clock: Option<Arc<dyn Clock>>) {
+        self.usage.begin(clock);
+        self.open_metrics_attempt();
+    }
+
     /// Starts a fresh accounting generation for a new transaction attempt.
     ///
     /// Usage counters restart from zero and the elapsed time is measured from
-    /// here. The client budget, being configuration, is left untouched.
+    /// here, with the clock of the current budget. The client budget, being
+    /// configuration, is left untouched.
     ///
     /// An instrumented transaction also starts recording a new attempt: call
     /// [`end_attempt`](Self::end_attempt) first when the attempt that is ending
     /// must appear in the report.
     pub(crate) fn begin_attempt_usage(&self) {
-        self.usage.begin();
-        self.open_metrics_attempt();
+        let clock = self
+            .budget
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clock
+            .clone();
+        self.begin_attempt_with_clock(clock);
     }
 
     /// Returns the usage accounted for the current transaction attempt.
@@ -638,17 +655,26 @@ impl Transaction {
     /// Setting a budget starts a fresh accounting generation, so the limits
     /// apply to what happens from now on. They then survive `on_error` and
     /// `reset`, and apply to each subsequent attempt with usage back at zero.
+    /// That generation, and every later one, is measured with the
+    /// [`clock`](ClientBudget::clock) of this budget.
     ///
     /// On an instrumented transaction, set the budget before doing anything
     /// else: the new generation is also the one the metrics record into, so
     /// operations performed before this call are not reported.
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn set_client_budget(&self, budget: ClientBudget) {
-        self.begin_attempt_usage();
-        *self
-            .budget
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = budget;
+        // One critical section: store the budget and take its clock out, so the
+        // generation below cannot be stamped with the clock of a budget that a
+        // concurrent call has already replaced.
+        let clock = {
+            let mut slot = self
+                .budget
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *slot = budget;
+            slot.clock.clone()
+        };
+        self.begin_attempt_with_clock(clock);
     }
 
     /// Removes every client-side limit of this transaction.
@@ -664,8 +690,9 @@ impl Transaction {
 
     /// Checks the usage of the current attempt against the client-side budget.
     ///
-    /// This is a synchronous, cheap check: a few atomic loads and an `Instant`
-    /// comparison, no call to the database. Nothing calls it for you, so call it
+    /// This is a synchronous, cheap check: a few atomic loads and one reading of
+    /// the [`clock`](ClientBudget::clock) of the budget, the wall clock by
+    /// default, no call to the database. Nothing calls it for you, so call it
     /// between the operations of your transaction, typically inside a
     /// [`Database::run`](crate::Database::run) closure where
     /// [`FdbBindingError`](crate::FdbBindingError) makes `?` work:

@@ -9,12 +9,35 @@
 
 use foundationdb::options::StreamingMode;
 use foundationdb::*;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 mod common;
 
 /// `transaction_too_old`, retryable, retried without any backoff.
 const TRANSACTION_TOO_OLD: i32 = 1007;
+
+/// A clock the test moves by hand, in milliseconds, standing in for the
+/// simulated time a workload would run on.
+#[derive(Debug, Clone, Default)]
+struct FakeClock(Arc<AtomicU64>);
+
+impl FakeClock {
+    fn set_millis(&self, millis: u64) {
+        self.0.store(millis, Ordering::Relaxed);
+    }
+}
+
+impl Clock for FakeClock {
+    fn monotonic(&self) -> Duration {
+        Duration::from_millis(self.0.load(Ordering::Relaxed))
+    }
+
+    fn wall(&self) -> Duration {
+        self.monotonic()
+    }
+}
 
 /// Writes are accounted as soon as they are issued, no commit needed.
 #[tokio::test]
@@ -184,6 +207,90 @@ async fn budget_exceeded_on_time() -> FdbResult<()> {
     let err = trx.check_client_budget().unwrap_err();
     assert_eq!(err.kind, BudgetKind::Time);
     assert!(err.used >= 20, "used {} ms", err.used);
+    assert_eq!(err.limit, 20);
+
+    Ok(())
+}
+
+/// With a [`Clock`] the time limit no longer depends on how fast the machine
+/// is: the test advances time itself and the numbers are exact.
+#[tokio::test]
+async fn budget_exceeded_on_time_with_a_custom_clock() -> FdbResult<()> {
+    let db = common::database().await?;
+    let trx = db.create_trx()?;
+
+    let clock = FakeClock::default();
+    clock.set_millis(1_000);
+
+    trx.set_client_budget(
+        ClientBudget {
+            time_limit: Some(Duration::from_millis(20)),
+            ..ClientBudget::default()
+        }
+        .with_clock(clock.clone()),
+    );
+    assert!(trx.check_client_budget().is_ok());
+
+    // The limit itself is allowed, anything past it is not.
+    clock.set_millis(1_020);
+    assert!(trx.check_client_budget().is_ok());
+
+    clock.set_millis(1_050);
+
+    let err = trx.check_client_budget().unwrap_err();
+    assert_eq!(err.kind, BudgetKind::Time);
+    assert_eq!(err.used, 50);
+    assert_eq!(err.limit, 20);
+    assert_eq!(trx.attempt_usage().elapsed, Duration::from_millis(50));
+
+    Ok(())
+}
+
+/// The clock is configuration too: the generation a new attempt starts is
+/// measured with the clock of the budget, not with the wall clock.
+#[tokio::test]
+async fn the_clock_survives_a_new_attempt() -> FdbResult<()> {
+    let db = common::database().await?;
+    let mut trx = db.create_trx()?;
+
+    let clock = FakeClock::default();
+    clock.set_millis(1_000);
+
+    trx.set_client_budget(
+        ClientBudget {
+            time_limit: Some(Duration::from_millis(20)),
+            ..ClientBudget::default()
+        }
+        .with_clock(clock.clone()),
+    );
+
+    clock.set_millis(1_100);
+    assert!(trx.check_client_budget().is_err());
+
+    trx.reset();
+
+    // The new attempt was stamped at 1_100 ms, so it starts from zero.
+    assert_eq!(trx.attempt_usage().elapsed, Duration::ZERO);
+    assert!(trx.check_client_budget().is_ok());
+
+    clock.set_millis(1_130);
+
+    let err = trx.check_client_budget().unwrap_err();
+    assert_eq!(err.kind, BudgetKind::Time);
+    assert_eq!(err.used, 30);
+    assert_eq!(err.limit, 20);
+
+    // Same contract after an `on_error` restart.
+    let trx = trx
+        .on_error(FdbError::from_code(TRANSACTION_TOO_OLD))
+        .await?;
+    assert_eq!(trx.attempt_usage().elapsed, Duration::ZERO);
+
+    clock.set_millis(1_175);
+
+    let err = trx.check_client_budget().unwrap_err();
+    assert_eq!(err.kind, BudgetKind::Time);
+    assert_eq!(err.used, 45);
     assert_eq!(err.limit, 20);
 
     Ok(())
