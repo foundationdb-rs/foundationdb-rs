@@ -1,9 +1,0 @@
-[[test]]
-testTitle = 'BudgetWorkload'
-
-  [[test.workload]]
-    testName = 'External'
-    useCAPI = true
-    libraryName = 'budget'
-    workloadName = 'BudgetWorkload'
-    libraryPath = './target/release/examples'
