@@ -64,7 +64,7 @@ if_cfg_api_versions! {min = 510, max = 600 =>
 pub use crate::budget::{AttemptUsage, BudgetExceeded, BudgetKind, ClientBudget, UsageSnapshot};
 pub use crate::database::*;
 pub use crate::error::{FdbBindingError, RetryDecision, RetryableError};
-pub use crate::error::{FdbError, FdbResult};
+pub use crate::error::{FdbError, FdbErrorCode, FdbResult};
 pub use crate::keyselector::*;
 pub use crate::runner::{
     AttemptFailure, MetricsHooks, NativeRetryPolicy, RetryPolicy, RunnerHooks, TransactionRunner,
