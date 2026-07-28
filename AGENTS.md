@@ -126,3 +126,10 @@ CI runs this hourly and on PRs labelled `correctness`.
 - `boot()` is safe and idempotent; tests can boot (or just create a `Database`) in any order,
   in parallel. Never call `api::stop_network()` in tests except the dedicated lifecycle test
   (`foundationdb/tests/api.rs`): it is terminal for the process.
+- Control flow must never depend on wall-clock time (`Instant::now()`, `SystemTime`): it is
+  not reproducible under FDB's deterministic simulator (simulated time comes from
+  `WorkloadContext::now()`, which `Instant` knows nothing about). Any time that influences
+  behavior must come from a caller-pluggable source (see the `Clock` trait in
+  `foundationdb/src/env.rs`; measure with `monotonic()`, persist with `wall()`).
+  Wall-clock is acceptable only for observational output
+  (metrics durations, logs) that nothing branches on.
