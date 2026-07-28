@@ -60,6 +60,7 @@ fn main() {
     // Link against fdb_c.
     println!("cargo:rustc-link-lib=fdb_c");
 
+    println!("cargo:rerun-if-env-changed=FDB_CLIENT_LIB_PATH");
     if let Ok(lib_path) = env::var("FDB_CLIENT_LIB_PATH") {
         println!("cargo:rustc-link-search=native={lib_path}");
     }
