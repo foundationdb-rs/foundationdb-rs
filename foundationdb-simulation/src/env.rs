@@ -53,8 +53,8 @@ impl ContextHandle {
 ///
 /// [`monotonic`](Clock::monotonic) is the simulated clock, which starts at zero
 /// and only moves when the simulator decides to advance it, so a run replays
-/// identically. [`wall`](Clock::wall) is that same reading offset by a fixed
-/// base, zero unless [`with_wall_base`](Self::with_wall_base) supplied one.
+/// identically. [`wall`](Clock::wall) is that same reading: simulated wall time
+/// counts from the UNIX epoch at simulation start, second zero being the epoch.
 ///
 /// Simulated wall time is therefore deterministic and, unlike a real machine
 /// clock, never jumps: a workload cannot exercise clock-skew handling this way.
@@ -62,7 +62,6 @@ impl ContextHandle {
 /// See the [module documentation](self) for how long an instance stays valid.
 pub struct SimClock {
     context: ContextHandle,
-    wall_base: Duration,
 }
 
 // SAFETY: the wrapped context is a bundle of raw pointers into fdbserver, which
@@ -74,24 +73,10 @@ unsafe impl Send for SimClock {}
 unsafe impl Sync for SimClock {}
 
 impl SimClock {
-    /// Reads simulated time from `context`, with a wall base of zero.
+    /// Reads simulated time from `context`.
     pub fn new(context: &WorkloadContext) -> Self {
         Self {
             context: ContextHandle::new(context),
-            wall_base: Duration::ZERO,
-        }
-    }
-
-    /// Reads simulated time from `context`, offsetting [`Clock::wall`] by
-    /// `base`.
-    ///
-    /// Pass the epoch the workload should pretend to start at when it produces
-    /// timestamps that need to look plausible. This changes nothing about
-    /// determinism: the offset is a constant.
-    pub fn with_wall_base(context: &WorkloadContext, base: Duration) -> Self {
-        Self {
-            context: ContextHandle::new(context),
-            wall_base: base,
         }
     }
 }
@@ -109,8 +94,11 @@ impl Clock for SimClock {
         Duration::from_secs_f64(self.context.0.now().max(0.0))
     }
 
+    /// Simulated wall time counts from the UNIX epoch at simulation start, so
+    /// second zero is the epoch itself: only differences and orderings carry
+    /// meaning. It never jumps, so clock-skew handling cannot be exercised here.
     fn wall(&self) -> Duration {
-        self.wall_base + self.monotonic()
+        self.monotonic()
     }
 }
 
