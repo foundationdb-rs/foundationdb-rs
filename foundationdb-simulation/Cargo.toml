@@ -55,3 +55,8 @@ crate-type = ["cdylib"]
 name = "shared"
 path = "examples/shared/lib.rs"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "budget"
+path = "examples/budget/lib.rs"
+crate-type = ["cdylib"]
