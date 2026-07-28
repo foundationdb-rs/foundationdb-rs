@@ -1,0 +1,46 @@
+# Leader Election Pause and Fencing
+#
+# Purpose: the Kleppmann pause, which the previous suite did not test at all. A
+# leader takes a term, installs its fence, stops for longer than its lease, and
+# then tries to finish what it started. Both of its stale operations, the
+# ranked-register write and the lease renewal, must be refused.
+#
+# Scenario:
+# - The Sleeper role is on, and pauses for two full leases
+# - The scenario is barriered: the stale operations are only attempted once a
+#   successor has *both* taken the term and committed a write under a higher
+#   rank. Without that, a refused write proves nothing, since it could have
+#   been refused for want of any fence at all
+# - No attrition and no clogging: the barrier needs the successor to actually
+#   get there, and a killed successor would turn a real test into a skipped one
+# - Identical clocks, so the belief bookkeeping around the pause is judged with
+#   no slack
+# - Two minutes, which is a claim, a pause, a takeover and the stale attempts
+#   with room to spare
+#
+# Bug classes this configuration catches:
+# - A stale leader's write landing after its term ended (the defect fencing
+#   exists to prevent)
+# - A returning leader silently resurrecting its own lease
+# - Fenced writes carrying a ballot other than the term that authorised them
+
+[[test]]
+testTitle = 'LeaderElectionPauseFencing'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    leaseDurationSecs = 10.0
+    stepIntervalSecs = 1.0
+    testDurationSecs = 120.0
+    resignProbability = 0.1
+    crashProbability = 0.0
+    clockSkewMode = 'none'
+    pauseFactor = 2.0
+    sleeperEnabled = true
+    minLeadershipClaims = 2
+    minRenewals = 2
+    minObservedIdentities = 3

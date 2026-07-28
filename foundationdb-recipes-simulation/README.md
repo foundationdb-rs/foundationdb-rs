@@ -1,100 +1,213 @@
 # FoundationDB Recipes Simulation
 
-Simulation workloads for testing FoundationDB recipes under chaos conditions.
+Deterministic-simulation workloads for the recipes shipped with `foundationdb`.
+Today that means one workload, `LeaderElectionWorkload`, which drives the leader
+election recipe inside FoundationDB's own simulator and then judges the run
+against ten invariants.
 
-## Building
+## What it tests, and what it does not
 
-```bash
-cargo build -p foundationdb-recipes-simulation --release
-```
+The workload drives the recipe's **transaction-level primitives**
+(`try_claim`, `refresh`, `resign`, `watch_term`) and emulates, on simulated
+time, the state machine that the async handle layer (`LeaderElector`,
+`LeaseHandle`) implements on real time: campaign, renew, hard-stop at the belief
+horizon, resign.
+
+That split is deliberate. The primitives take every instant they use as an
+argument, so they are pure functions of `(record, observation state, supplied
+time)` and a simulator can drive them exactly. The handle layer takes its time
+through a `Clock` trait whose production implementation is backed by `Instant`
+and `tokio::time::sleep`, which the simulator cannot control, so the handle is
+covered by the live-cluster integration tests in
+`foundationdb/tests/leader_election.rs` instead. Backing that `Clock` with
+`context.now()` / `context.delay()` and running the real elector in here is a
+natural follow-up, and nothing in the design blocks it.
+
+The consequence worth remembering: the belief intervals the simulation checks
+are the ones **this driver** computed and logged, not ones the shipped handle
+produced.
+
+## Roles
+
+| Role | Who | What it does |
+|------|-----|--------------|
+| Contender | everyone not below | Campaigns, renews, does fenced work under its ballot, resigns, occasionally "crashes" (stops for longer than its lease without saying so) |
+| Sleeper | client 1, when `sleeperEnabled` and there are at least 3 clients | The Kleppmann pause: takes a term, writes under it, stops for `pauseFactor` leases, then tries to use the stale term. Both the write and the renewal must be refused |
+| Watcher | client 2, when there are at least 4 clients | Discovers leadership through the term key with a watch rather than by polling |
+
+Every role logs sightings of the leader record, not only the Watcher: attrition
+kills clients, and the liveness check needs *somebody* to have been watching.
+That is the failover story, and it needs no coordination.
+
+The Sleeper's scenario is **barriered**: the stale write and the stale renewal
+are only attempted once a successor has both taken the term *and* committed a
+write under a higher rank. Without that, a refused write proves nothing (it
+could have been refused for want of any fence at all). The other clients hold
+back for half a lease at the start of a run where a Sleeper exists, so that the
+scenario actually happens rather than depending on who wins the opening race.
+
+## Renewals are scheduled, not polled for
+
+A renewal is due at a deadline, and the handle layer treats it as one: its
+renewal driver is a future racing the work, and it sleeps exactly until the
+deadline. This workload emulates that in two places, and both were bugs before
+`ProgressMade` learned to report belief intervals that outlived their renewal
+deadline without renewing:
+
+- a step that finds the renewal already due renews *before* it rolls for a
+  crash or a resign. Rolling first meant a term that already owed a renewal
+  could be ended instead, which suppressed renewals systematically rather than
+  randomly;
+- a leader waits until its renewal is due rather than a whole step past it.
+  With a three second lease a step is a large fraction of a term, and
+  overshooting the deadline is how a leader reaches its horizon having never
+  renewed at all.
+
+## Fencing, and when it is installed
+
+Winning a ballot fences nothing by itself: the ranked register refuses an old
+rank only once a higher one has been read into it. This workload therefore
+installs the fence **in the claim transaction**, not in one of its own
+afterwards. Two windows close as a result, and both were observed in early
+runs of this suite:
+
+- between a claim committing and its fence being installed, the deposed
+  leader's writes are still accepted;
+- a term that is won and then abandoned (a claim that took so long to commit
+  that it came back past its own lease, for instance) leaves that window open
+  for good, because its winner never installs anything.
+
+Fenced work is also raced against the belief horizon and dropped when the
+horizon wins, which is what the handle layer does to the work future. Dropping
+a transaction cannot un-issue a commit, so it is the fence, not the horizon,
+that makes a late write safe; the horizon race only keeps a leader from
+knowingly retrying work it has stopped believing in.
+
+## Clocks
+
+Each client reads time through its own skewed clock, and that reading is the
+only notion of time the recipe ever receives; true simulated time is reserved
+for the check phase, which uses it as an oracle.
+
+- **Offset** is injected but cancels out of every measurement the protocol
+  makes, since all of them are elapsed times on one clock. It is there so that a
+  recipe that accidentally compared two clients' timestamps would fail loudly.
+- **Rate error** does not cancel. It is the assumption the belief-exclusion
+  argument rests on, and the check phase derives its tolerances from the same
+  bound the clocks are built with (`none` = 0, `random` = 1%, `extreme` = 5%).
+- **Jumps and regressions** (`extreme` only) are injected separately from rate
+  error and kept inside the same budget. A step larger than that is a fault the
+  design makes no claim about, and injecting one would produce a "failure" that
+  says nothing except that the simulation broke its own assumptions.
+
+## Configuration
+
+Every knob is read exactly once, in the workload's constructor. `getOption`
+consumes, and fdbserver fails a run that leaves options unconsumed, so a
+misspelled knob is a failed run rather than a silently ignored setting. That is
+also why all five configurations carry the same knobs even where a value does
+nothing.
+
+| Knob | Meaning |
+|------|---------|
+| `leaseDurationSecs` | The lease every claim advertises |
+| `stepIntervalSecs` | How long a client waits between actions (jittered) |
+| `testDurationSecs` | How long the start phase runs, in simulated time |
+| `resignProbability` | Chance per step that a leader hands its term back |
+| `crashProbability` | Chance per step that a leader stops responding for longer than its lease |
+| `clockSkewMode` | `none`, `random` or `extreme` |
+| `pauseFactor` | How many leases the Sleeper pauses for |
+| `sleeperEnabled` | Whether the Sleeper role is assigned at all |
+| `minLeadershipClaims` | Applied claims and steals the run must have achieved |
+| `minRenewals` | Applied renewals the run must have achieved |
+| `minObservedIdentities` | Distinct leader identities the sightings must cover |
+
+| Configuration | Purpose |
+|---------------|---------|
+| `test_baseline.toml` | The ordinary path, all three roles, moderate clogging and attrition |
+| `test_strict_mutex.toml` | Identical clocks, no faults: the check runs with **zero** tolerance |
+| `test_short_lease_stress.toml` | Three second leases, so every margin is the only thing left |
+| `test_churn_attrition.toml` | Harshest faults, extreme skew, highest progress thresholds |
+| `test_pause_fencing.toml` | The Kleppmann pause, barriered, with no attrition to interrupt it |
+
+In the three configurations that inject faults, the chaos workloads stop at
+about two thirds of the run and the workload keeps going to
+`testDurationSecs`. `ProgressMade` asks whether the run recovered and made
+progress, and a run whose faults never stop has no window to recover *into*:
+whether it clears the floor then depends on how the kills happened to land
+rather than on the protocol.
+
+## Invariants
+
+Each one is a pure function of the replayed log plus the evidence it needs, and
+each one has unit tests that feed it a hand-mutated log it must reject. The
+suite this replaces had seven invariants that could not fail for any input, so
+a check earns its place here only with a counterexample.
+
+| # | Invariant | Falsified by |
+|---|-----------|--------------|
+| 1 | `DualPathReplay` | A write nobody logged, or a logged write that never landed |
+| 2 | `BallotSuccession` | A ballot that resets, skips, or moves on a renewal; a write decided on a stale read |
+| 3 | `OneClaimPerBallot` | Two processes acquiring the same ballot, which is the state fencing assumes cannot exist |
+| 4 | `NoBeliefOverlap` | A successor believing it leads while its predecessor still does |
+| 5 | `StealObservationDiscipline` | A steal taken before a full lease of unbroken observation |
+| 6 | `VacantReclaim` | A resign that loses the ballot, or a claim over a live record |
+| 7 | `FencingHolds` | The paused leader's stale write landing after its term ended |
+| 8 | `UuidRecoveryNoDup` | A recovered unknown commit claiming a second time instead of adopting its own record |
+| 9 | `ProgressMade` | A run in which nothing happened, which every safety check passes vacuously |
+| 10 | `HistoryFaithful` | A history entry escaping the transaction of the transition it describes |
+
+A violation is traced at `Severity::Error`, which is the only thing that fails a
+FoundationDB simulation run, and the log is dumped around the first one. The
+check phase runs on **every** client: attrition kills clients, and a run whose
+only judge was killed used to pass by default.
 
 ## Running
 
-### Searching for bugs
-
-Use the provided scripts to run simulations:
-
-```bash
-# Run all test configurations (1 iteration each by default)
-./scripts/run_leader_election_simulation.sh
-
-# Run all test configurations with 10 iterations each
-./scripts/run_leader_election_simulation.sh 10
-```
-
-Traces are stored in `./target/traces/`.
-
-### Debugging
+`fdbserver` **7.4.6 or newer** is required: the C-API workload path in 7.4.3,
+7.4.4 and 7.4.5 has an incompatible ABI. `nix develop` provides a suitable one.
 
 ```bash
-# Don't forget to rm old traces to facilitate the search inside the traces
-fdbserver -r simulation -f foundationdb-recipes-simulation/test_leader_election.toml -b on --trace-format json -L ./target/traces --logsize 1GiB --seed <SEED>
+# Every configuration once
+nix develop -c ./scripts/run_leader_election_simulation.sh
+
+# Ten iterations of each
+nix develop -c ./scripts/run_leader_election_simulation.sh 10
+
+# Ten iterations of one
+nix develop -c ./scripts/run_leader_election_simulation.sh 10 pause_fencing
 ```
 
-## Workloads
+The script prints the seed of every iteration and, on failure, the exact command
+to replay it. Traces land in `./target/traces/`.
 
-### LeaderElectionWorkload
+To run one configuration by hand:
 
-Tests the leader election recipe with:
-- Multiple clients registering as candidates
-- Periodic heartbeats and leadership attempts
-- Ballot-based leadership claims with lease expiry
-- Operation logging for verification
+```bash
+cargo build -p foundationdb-recipes-simulation --release
+nix develop -c fdbserver -r simulation \
+    -f foundationdb-recipes-simulation/test_baseline.toml \
+    -b on --trace-format json -L ./target/traces --logsize 1GiB -s <SEED>
+```
 
-**Configuration (TOML):**
-- `operationCount`: Number of heartbeat+leadership cycles per client (default: 50)
-- `heartbeatTimeoutSecs`: Lease duration in seconds (default: 10)
-- `resignProbability`: Probability of resigning after becoming leader (default: 0.2)
+The pure half of the crate needs no simulator at all:
 
-**Test Configurations:**
+```bash
+cargo test -p foundationdb-recipes-simulation --lib
+```
 
-| Test File | Purpose |
-|-----------|---------|
-| `test_leader_election.toml` | Basic functionality test with moderate settings |
-| `test_ballot_stress.toml` | High contention test with rapid ballot transitions |
-| `test_rapid_leadership.toml` | Fast leadership turnover with high resign probability |
-| `test_short_lease.toml` | Short lease duration for timing edge cases |
+## Layout
 
-**Invariants Verified (13 total):**
+| File | What lives there |
+|------|------------------|
+| `log_schema.rs` | The versionstamped operation log: records, keys, and the hand-built fixtures the invariant tests mutate |
+| `replay.rs` | Commit-ordered replay. Judges nothing, which is what keeps the invariants falsifiable |
+| `invariants.rs` | The ten checks, their tolerances, and a counterexample test for each |
+| `clock.rs` | Per-client skewed clocks |
+| `logged_op.rs` | The wrapper that commits a primitive and its log record together |
+| `roles.rs` | The role loops, and the belief bookkeeping |
+| `workload.rs` | Option parsing, the three phases, and the check phase's reporting |
 
-### Core Invariants (Foundational Safety)
-
-**1. DualPathValidation** - The keystone invariant using the "atomic ops pattern". Replays all logged operations in true FDB commit order (versionstamp-ordered keys) to compute expected leader state, then compares with the actual FDB snapshot. This single invariant subsumes both safety (at most one leader at a time) and ballot conservation (ballot matches claims). If the replayed state diverges from the database state, it indicates a bug in the leader election logic or logging.
-
-**2. LeaderIsCandidate** - Validates structural integrity: the current leader must exist in the candidates list. This ensures leadership can only be claimed by registered candidates. Exception: if the leader's lease has expired, candidate eviction is valid (the candidate may have timed out).
-
-**3. CandidateTimestamps** - Clock skew detection: ensures no candidate has a heartbeat timestamp more than 3 seconds in the future. This tolerance accounts for extreme clock skew simulation (up to ±1s offset, 1s drift ahead, 1.1x jitter multiplier). Future timestamps beyond this threshold indicate clock handling bugs.
-
-**4. LeadershipSequence** - Validates log ordering: each client's operation numbers (`op_num`) must be strictly monotonically increasing. With versionstamp-ordered logging, this verifies the log entries are properly sequenced per client.
-
-**5. RegistrationCoverage** - Protocol compliance: every client that successfully claimed leadership must have a prior registration entry in the log. This ensures the registration requirement of the leader election protocol is enforced.
-
-### Split-Brain Detection
-
-**6. NoOverlappingLeadership** - Ensures leadership claims have distinct versionstamps. Since FDB commits are serialized and each successful leadership claim commits atomically, versionstamp ordering guarantees sequential transitions. Duplicate versionstamps would indicate a logging bug. This invariant catches split-brain scenarios where two clients might incorrectly believe they are both leaders.
-
-**7. BallotValueBinding** - Validates ballot progression within each claim: the new ballot must be greater than the previous ballot read in the same transaction. This ensures the fencing token mechanism is working correctly and prevents duplicate elections at the same ballot number.
-
-### Timing and Ballot Bug Detection
-
-**8. FencingTokenMonotonicity** - Ensures ballots never regress: each successful leadership claim must have `ballot > previous_ballot` (or `previous_ballot == 0` for first claims after system reset). This catches stale leader writes where an old leader might attempt to use an outdated fencing token.
-
-**9. GlobalBallotSuccession** - State machine safety: each new leader's ballot must be strictly greater than the predecessor's ballot. This invariant catches state regression bugs where the system might accept a lower ballot number.
-
-### Correctness
-
-**10. MutexLinearizability** - Leadership transfers must happen sequentially with at most one holder at a time in log order. In lease-based systems, a new leader claiming leadership implicitly ends the previous leader's tenure (lease expired or preempted). This tracks both explicit resigns and implicit releases to verify the leadership history linearizes to a valid mutex model.
-
-**11. LeaseOverlapCheck** - Validates each successful leadership claim has a positive, non-zero `lease_expiry_nanos`. This ensures every leader has a bounded lease duration, which is essential for the lease-based leadership protocol to function correctly.
-
-**12. OneValuePerBallot** - Paxos safety property within each tenure: each ballot number must map to exactly one client between ballot resets. The ballot resets to 0 after a resign, starting a new tenure. This catches broken conflict ranges or ballot assignment logic where two clients might somehow both claim the same ballot within the same tenure.
-
-**13. LeaseExpiryAfterClaim** - Validates that every successful leadership claim has a lease that expires AFTER the claim was made. This catches incorrect lease duration calculations, clock skew causing past-expiry leases, or missing lease assignments. Uses the logged `claim_timestamp_nanos` to verify `lease_expiry > claim_time`.
-
-### Architecture Notes
-
-**Versionstamp-Ordered Logging**: All log entries use FDB versionstamp-ordered keys, providing true causal ordering based on actual FDB commit order rather than wall-clock time. This eliminates clock skew issues in log replay.
-
-**Dual-Path Validation Pattern**: The simulation uses a "dual-path" approach where one path replays the operation log to compute expected state, while the other path reads the actual FDB state. Comparing these two paths catches bugs that might only manifest under specific timing or failure conditions.
-
-**Clock Skew Simulation**: The simulation injects extreme clock skew (up to 2.2s total deviation) to stress-test time-dependent logic like lease expiry handling.
+The first three are pure: they know nothing about FoundationDB beyond the tuple
+layer, take their inputs as values, and are tested without a simulator anywhere
+in sight.

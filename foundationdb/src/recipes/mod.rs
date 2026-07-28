@@ -7,10 +7,22 @@
 //!
 //! ## Available Recipes
 //!
-//! - **Leader Election**: Distributed leader election mechanism that allows
-//!   multiple processes to coordinate and elect a single leader. This is useful
-//!   for implementing primary/secondary architectures, distributed task coordination,
-//!   and ensuring single-writer patterns in distributed systems.
+//! - **Leader Election** (`leader_election`): one contested record decides who
+//!   leads, for a term identified by a monotonic ballot. A contender takes a
+//!   term from a live holder only after watching the record hold still for a
+//!   full lease on its own monotonic clock, so no wall clock is ever compared
+//!   across processes. Ships both the transaction-level primitives and an async
+//!   handle that campaigns, renews and hands the term back around your work.
+//! - **Ranked Register** (`ranked_register`): the ranked register of Chockler
+//!   and Malkhi's Active Disk Paxos, a value guarded by monotonic ranks that
+//!   rejects writes from anybody a higher rank has fenced out.
+//!
+//! The two compose into an "election service": the election decides who may
+//! act, and the register is what stops anybody else from acting. Winning a term
+//! fences nothing by itself, so a new leader installs its fence with
+//! `RankedRegister::read` at its own rank before doing any fenced work. Both
+//! module documentations describe the contract; neither recipe requires the
+//! other.
 //!
 //! ## Usage
 //!
@@ -29,10 +41,12 @@
 //! foundationdb = { version = "*", features = ["recipes"] }
 //! ```
 
-/// Leader election recipe for distributed consensus
+// Both modules carry their own documentation. Deliberately no `///` here: a
+// doc comment on the declaration is merged with the module's own, and rustdoc
+// then resolves the whole merged text in *this* module's scope, breaking every
+// intra-doc link written inside the module.
 #[cfg(feature = "recipes-leader-election")]
 pub mod leader_election;
 
-/// Ranked register recipe for Paxos-style ballot fencing
 #[cfg(feature = "recipes-ranked-register")]
 pub mod ranked_register;

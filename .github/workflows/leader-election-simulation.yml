@@ -9,11 +9,20 @@ on:
 
 jobs:
   simulation:
-    name: "Leader Election Simulation (Nix) - ${{ matrix.instance }}"
+    # One job per configuration, so a failure names the configuration that
+    # failed instead of the position in a list. The instances are independent
+    # seeds of the same configuration.
+    name: "Leader Election Simulation (Nix) - ${{ matrix.config }} #${{ matrix.instance }}"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        config:
+          - baseline
+          - strict_mutex
+          - short_lease_stress
+          - churn_attrition
+          - pause_fencing
         instance: [1, 2, 3, 4]
     steps:
       - name: Checkout repository
@@ -22,13 +31,13 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
-      - name: Run leader election simulation (25 iterations)
-        run: nix develop -c ./scripts/run_leader_election_simulation.sh 25
+      - name: Run leader election simulation (10 iterations)
+        run: nix develop -c ./scripts/run_leader_election_simulation.sh 10 ${{ matrix.config }}
 
       - name: Upload traces on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: simulation-traces-${{ matrix.instance }}
+          name: simulation-traces-${{ matrix.config }}-${{ matrix.instance }}
           path: ./target/traces/
           retention-days: 7

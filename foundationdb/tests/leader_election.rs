@@ -5,622 +5,830 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+//! Leader election against a live cluster
+//!
+//! The decision core is unit-tested in the crate itself; what these tests add
+//! is everything that only a real database can show: that the compare-and-set
+//! really serializes concurrent claimants, that watches fire on the transitions
+//! they are supposed to and stay quiet on renewals, that the handle layer takes
+//! over after a leader stops running, and that the fencing composition rejects
+//! a wedged leader's writes.
+//!
+//! Timing assertions are one-sided on purpose. A test never asserts that
+//! something happened *within* a short window, only that a steal could not
+//! happen before its observation window closed, or that a handover happened in
+//! much less than a lease.
+
 mod common;
 
 #[cfg(feature = "recipes-leader-election")]
 mod leader_election_tests {
     use foundationdb::{
-        Database, FdbBindingError,
-        recipes::leader_election::{ElectionConfig, LeaderElection},
+        Database, FdbResult,
+        recipes::leader_election::{
+            ClaimAttempt, ClaimOutcome, ClaimToken, Clock, ElectorConfig, HistoryEventKind,
+            LeadOutcome, LeaderElection, LeaderElectionError, LeaderElector, LeaseDuration,
+            LeaseGrant, LeaseObservation, LeaseStatus, RefreshAttempt, RefreshOutcome,
+            ResignOutcome, Result,
+        },
         tuple::Subspace,
     };
+    use futures::future::BoxFuture;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
+    use tokio::time::Instant;
 
-    fn current_time() -> Duration {
-        std::time::SystemTime::now()
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap()
+    // ========================================================================
+    // HARNESS
+    // ========================================================================
+
+    /// A [`Clock`] over the tokio timeline, one instance per simulated process
+    ///
+    /// The production `TokioClock` lives behind the
+    /// `recipes-leader-election-tokio` feature, which the default test build
+    /// does not enable; implementing the trait here also keeps the tests honest
+    /// about every process measuring time on its own epoch.
+    #[derive(Debug)]
+    struct TestClock {
+        epoch: Instant,
     }
 
-    async fn setup_test(db: &Database, test_name: &str) -> Result<LeaderElection, FdbBindingError> {
+    impl TestClock {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                epoch: Instant::now(),
+            })
+        }
+    }
+
+    impl Clock for TestClock {
+        fn now(&self) -> Duration {
+            self.epoch.elapsed()
+        }
+
+        fn sleep(&self, duration: Duration) -> BoxFuture<'static, ()> {
+            Box::pin(tokio::time::sleep(duration))
+        }
+    }
+
+    /// A cleared subspace of its own, so tests are order-independent even when
+    /// the harness runs them in parallel.
+    async fn setup(test_name: &str) -> Result<(Arc<Database>, Subspace)> {
+        let db = Arc::new(crate::common::database().await?);
         let subspace = Subspace::all().subspace(&test_name);
         let (from, to) = subspace.range();
 
-        // Clear test data
-        let from_ref = &from;
-        let to_ref = &to;
+        let from = &from;
+        let to = &to;
         db.run(|txn, _| async move {
-            txn.clear_range(from_ref, to_ref);
-            Ok::<_, FdbBindingError>(())
+            txn.clear_range(from, to);
+            Ok::<_, LeaderElectionError>(())
         })
         .await?;
+
+        Ok((db, subspace))
+    }
+
+    /// One process driving the transaction-level primitives
+    ///
+    /// It owns the two pieces of state the protocol says must survive across
+    /// transactions: the observation window, and a clock that is only ever
+    /// compared with itself.
+    struct Contender {
+        db: Arc<Database>,
+        election: LeaderElection,
+        id: String,
+        lease: LeaseDuration,
+        clock: Arc<TestClock>,
+        observation: Mutex<LeaseObservation>,
+    }
+
+    impl Contender {
+        fn new(db: &Arc<Database>, subspace: &Subspace, id: &str, lease: Duration) -> Result<Self> {
+            Ok(Self {
+                db: Arc::clone(db),
+                election: LeaderElection::new(subspace.clone()),
+                id: id.to_string(),
+                lease: LeaseDuration::new(lease)?,
+                clock: TestClock::new(),
+                observation: Mutex::new(LeaseObservation::new()),
+            })
+        }
+
+        /// One claim transaction with a fresh single-use attempt
+        async fn claim(&self) -> Result<ClaimOutcome> {
+            let attempt = ClaimAttempt::new(ClaimToken::generate(), self.clock.now())?;
+            self.claim_with(&attempt).await
+        }
+
+        /// One claim transaction reusing an attempt, which is what a retry after
+        /// an unknown commit does.
+        async fn claim_with(&self, attempt: &ClaimAttempt) -> Result<ClaimOutcome> {
+            self.db
+                .run(|txn, _| async move {
+                    let seen = *self.observation.lock().unwrap();
+                    let (outcome, updated) = self
+                        .election
+                        .try_claim(&txn, &self.id, self.lease, attempt, seen, || {
+                            self.clock.now()
+                        })
+                        .await?;
+                    *self.observation.lock().unwrap() = updated;
+                    Ok::<_, LeaderElectionError>(outcome)
+                })
+                .await
+        }
+
+        async fn refresh(&self, grant: &LeaseGrant) -> Result<RefreshOutcome> {
+            let attempt = RefreshAttempt::new(grant, self.clock.now());
+            let attempt = &attempt;
+            self.db
+                .run(|txn, _| async move { self.election.refresh(&txn, grant, attempt).await })
+                .await
+        }
+
+        async fn resign(&self, grant: &LeaseGrant) -> Result<ResignOutcome> {
+            self.db
+                .run(|txn, _| async move { self.election.resign(&txn, grant).await })
+                .await
+        }
+    }
+
+    fn won(outcome: ClaimOutcome) -> LeaseGrant {
+        match outcome {
+            ClaimOutcome::Won(grant) => grant,
+            other => panic!("expected to win the term, got {other:?}"),
+        }
+    }
+
+    fn denied(outcome: ClaimOutcome) -> Duration {
+        match outcome {
+            ClaimOutcome::Denied { retry_after, .. } => retry_after,
+            other => panic!("expected to be denied the term, got {other:?}"),
+        }
+    }
+
+    fn elector_for(
+        db: &Arc<Database>,
+        subspace: &Subspace,
+        id: &str,
+        lease: Duration,
+    ) -> Result<LeaderElector> {
+        LeaderElector::new(
+            Arc::clone(db),
+            subspace.clone(),
+            id,
+            ElectorConfig::new(lease)?,
+            TestClock::new(),
+        )
+    }
+
+    /// Arm a watch on the term key and hand it back to be awaited after commit.
+    async fn arm_term_watch(
+        db: &Database,
+        election: &LeaderElection,
+    ) -> Result<BoxFuture<'static, FdbResult<()>>> {
+        db.run(|txn, _| async move { Ok::<_, LeaderElectionError>(election.watch_term(&txn)) })
+            .await
+    }
+
+    // ========================================================================
+    // PRIMITIVES
+    // ========================================================================
+
+    /// A first claim takes ballot 1 and leaves a record an observer can read
+    /// back, with one matching entry in the transition history.
+    #[tokio::test]
+    async fn claim_vacant_then_state() -> Result<()> {
+        let (db, subspace) = setup("le_claim_vacant_then_state").await?;
+        let leader = Contender::new(&db, &subspace, "leader-a", Duration::from_secs(5))?;
+
+        let grant = won(leader.claim().await?);
+        assert_eq!(grant.ballot(), 1, "a never-claimed term starts at ballot 1");
+        assert_eq!(grant.generation(), 0);
+        assert_eq!(grant.leader_id(), "leader-a");
+
+        let election = &leader.election;
+        let (record, history) = db
+            .run(|txn, _| async move {
+                let record = election.leader(&txn).await?;
+                let history = election.history(&txn, 10).await?;
+                Ok::<_, LeaderElectionError>((record, history))
+            })
+            .await?;
+
+        let record = record.expect("the claim wrote a record");
+        assert_eq!(record.ballot(), 1);
+        assert_eq!(record.leader_id(), Some("leader-a"));
+        assert_eq!(
+            record.lease(),
+            Some(LeaseDuration::new(Duration::from_secs(5))?)
+        );
+        assert!(!record.is_vacant());
+        assert_eq!(record.identity().ballot, grant.ballot());
+        assert_eq!(record.identity().generation, grant.generation());
+        assert_eq!(record.token(), grant.token());
+
+        assert_eq!(history.len(), 1, "one transition, one history entry");
+        assert_eq!(history[0].kind(), HistoryEventKind::Claim);
+        assert_eq!(history[0].ballot(), 1);
+        assert_eq!(history[0].leader_id(), "leader-a");
+
+        Ok(())
+    }
+
+    /// Many processes claiming a vacant term at once: the read conflict on the
+    /// leader key is the whole mutual exclusion argument, so exactly one may
+    /// come back holding it, and no ballot may be handed out twice.
+    #[tokio::test]
+    async fn concurrent_claim_race() -> Result<()> {
+        const RACERS: usize = 8;
+
+        let (db, subspace) = setup("le_concurrent_claim_race").await?;
+
+        let mut tasks = Vec::with_capacity(RACERS);
+        for racer in 0..RACERS {
+            let db = Arc::clone(&db);
+            let subspace = subspace.clone();
+            tasks.push(tokio::spawn(async move {
+                let id = format!("racer-{racer}");
+                let contender = Contender::new(&db, &subspace, &id, Duration::from_secs(30))?;
+                contender.claim().await.map(|outcome| (id, outcome))
+            }));
+        }
+
+        let mut winners = Vec::new();
+        for task in tasks {
+            let (id, outcome) = task.await.expect("the racing task panicked")?;
+            match outcome {
+                ClaimOutcome::Won(grant) => winners.push((id, grant)),
+                // A loser either conflicted on a claim it had already issued
+                // (Superseded, terminally spent) or read the winner's record
+                // before writing anything (Denied). Both are correct; winning
+                // twice is not.
+                ClaimOutcome::Denied { .. } | ClaimOutcome::Superseded => {}
+            }
+        }
+
+        assert_eq!(
+            winners.len(),
+            1,
+            "exactly one contender may hold the term, got {winners:?}"
+        );
+        let (winner_id, grant) = &winners[0];
+        assert_eq!(
+            grant.ballot(),
+            1,
+            "the first term of a subspace is ballot 1"
+        );
 
         let election = LeaderElection::new(subspace);
-        Ok(election)
-    }
-
-    #[tokio::test]
-    async fn test_leader_election_basic() -> Result<(), FdbBindingError> {
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_leader_election_basic_async").await?;
-        let process_id = "test-process-1";
-
-        // Initialize election system
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref.initialize(&txn).await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Register as a candidate
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, process_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Try to claim leadership
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, process_id, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
+        let record = db
+            .run(|txn, _| {
+                let election = &election;
+                async move { election.leader(&txn).await }
             })
-            .await?;
-        assert!(
-            became_leader,
-            "Process should become leader when it's the only one"
-        );
-
-        // Verify leadership
-        let election_ref = &election;
-        let is_leader = db
-            .run(|txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&txn, process_id, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(is_leader)
-            })
-            .await?;
-        assert!(is_leader, "Process should be the leader");
+            .await?
+            .expect("the winner wrote a record");
+        assert_eq!(record.leader_id(), Some(winner_id.as_str()));
+        assert_eq!(record.ballot(), 1);
 
         Ok(())
     }
 
+    /// Resigning preserves the ballot, so the successor takes `ballot + 1`
+    /// immediately: the fencing token never goes backwards, and an orderly
+    /// handover costs no waiting at all.
     #[tokio::test]
-    async fn test_multi_process_leadership() -> Result<(), FdbBindingError> {
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_multi_process_leadership_async").await?;
-        let process_ids = ["process-1", "process-2", "process-3"];
+    async fn resign_reclaim_ballot_continuity() -> Result<()> {
+        let (db, subspace) = setup("le_resign_reclaim_ballot_continuity").await?;
+        let first = Contender::new(&db, &subspace, "leader-a", Duration::from_secs(30))?;
+        let second = Contender::new(&db, &subspace, "leader-b", Duration::from_secs(30))?;
 
-        // Initialize election system
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref.initialize(&txn).await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
+        let grant = won(first.claim().await?);
+        assert_eq!(grant.ballot(), 1);
+        assert_eq!(first.resign(&grant).await?, ResignOutcome::Resigned);
 
-        // Register all processes as candidates
-        for process_id in &process_ids {
-            let election_ref = &election;
-            db.run(|txn, _| async move {
-                election_ref
-                    .register_candidate(&txn, process_id, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(())
-            })
+        let election = &first.election;
+        let vacated = db
+            .run(|txn, _| async move { election.leader(&txn).await })
+            .await?
+            .expect("a resign writes a vacant record, it does not clear the key");
+        assert!(vacated.is_vacant());
+        assert_eq!(vacated.ballot(), 1, "a resign preserves the ballot");
+        assert_eq!(vacated.leader_id(), None);
+
+        // No observation window is owed: the previous holder said it was done,
+        // which a lease running out only ever guesses at. A lease of 30s here
+        // makes the point: waiting one out would blow the test's runtime.
+        let successor = won(second.claim().await?);
+        assert_eq!(
+            successor.ballot(),
+            2,
+            "the successor continues the ballot sequence"
+        );
+
+        // Resigning a term that is no longer ours must not vacate somebody
+        // else's.
+        assert_eq!(first.resign(&grant).await?, ResignOutcome::NotHolder);
+
+        let history = db
+            .run(|txn, _| async move { election.history(&txn, 10).await })
             .await?;
+        let trail: Vec<_> = history
+            .iter()
+            .rev()
+            .map(|event| (event.kind(), event.ballot()))
+            .collect();
+        assert_eq!(
+            trail,
+            vec![
+                (HistoryEventKind::Claim, 1),
+                (HistoryEventKind::Resign, 1),
+                (HistoryEventKind::Claim, 2),
+            ],
+            "the history is the commit-ordered trail of transitions"
+        );
+
+        Ok(())
+    }
+
+    /// A contender may not take a live term before it has watched the record
+    /// hold still for the lease it advertises, and must be able to take it once
+    /// it has.
+    #[tokio::test]
+    async fn lease_expiry_steal_timing() -> Result<()> {
+        const LEASE: Duration = Duration::from_secs(3);
+
+        let (db, subspace) = setup("le_lease_expiry_steal_timing").await?;
+        let holder = Contender::new(&db, &subspace, "leader-a", LEASE)?;
+        let thief = Contender::new(&db, &subspace, "leader-b", LEASE)?;
+
+        let grant = won(holder.claim().await?);
+        assert_eq!(grant.ballot(), 1);
+
+        // First sighting: the window opens now, so this call can never steal
+        // however long the record has actually been there.
+        let remaining = denied(thief.claim().await?);
+        assert_eq!(
+            remaining, LEASE,
+            "a first sighting owes the whole advertised lease"
+        );
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let remaining = denied(thief.claim().await?);
+        assert!(
+            remaining < LEASE,
+            "the window should have advanced, {remaining:?} still owed"
+        );
+
+        // Comfortably past the lease as measured from the first sighting.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        let stolen = won(thief.claim().await?);
+        assert_eq!(stolen.ballot(), 2, "a steal takes the next ballot");
+
+        let election = &holder.election;
+        let history = db
+            .run(|txn, _| async move { election.history(&txn, 10).await })
+            .await?;
+        assert_eq!(
+            history[0].kind(),
+            HistoryEventKind::Steal,
+            "taking a live term is recorded as a steal, not a claim"
+        );
+
+        // The dispossessed holder learns about it on its next renewal.
+        assert!(matches!(
+            holder.refresh(&grant).await?,
+            RefreshOutcome::Lost { .. }
+        ));
+
+        Ok(())
+    }
+
+    /// A renewal changes the record's identity, which restarts every observer's
+    /// window. That is what makes a live leader safe without any process ever
+    /// comparing its clock with another's.
+    #[tokio::test]
+    async fn renewal_extends_observation_reset() -> Result<()> {
+        const LEASE: Duration = Duration::from_secs(4);
+
+        let (db, subspace) = setup("le_renewal_extends_observation_reset").await?;
+        let holder = Contender::new(&db, &subspace, "leader-a", LEASE)?;
+        let watcher = Contender::new(&db, &subspace, "leader-b", LEASE)?;
+
+        let grant = won(holder.claim().await?);
+        assert_eq!(denied(watcher.claim().await?), LEASE);
+
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        let renewed = match holder.refresh(&grant).await? {
+            RefreshOutcome::Refreshed(renewed) => renewed,
+            other => panic!("the holder should still hold its term, got {other:?}"),
+        };
+        assert_eq!(renewed.ballot(), grant.ballot(), "a renewal keeps the term");
+        assert_eq!(
+            renewed.generation(),
+            grant.generation() + 1,
+            "a renewal bumps the generation"
+        );
+
+        // The window restarts here, at the renewal.
+        let remaining = denied(watcher.claim().await?);
+        assert_eq!(
+            remaining, LEASE,
+            "an identity change owes the whole lease again"
+        );
+
+        // Past the original lease, but not past the restarted window.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        let remaining = denied(watcher.claim().await?);
+        assert!(
+            remaining > Duration::ZERO,
+            "the renewal must have pushed the steal out, {remaining:?} owed"
+        );
+
+        Ok(())
+    }
+
+    /// Watches park on the term key, so they fire when leadership itself moves
+    /// and stay quiet through renewals. Waking every contender twice a lease is
+    /// the herd this split exists to avoid.
+    #[tokio::test]
+    async fn watch_discovery() -> Result<()> {
+        let (db, subspace) = setup("le_watch_discovery").await?;
+        let holder = Contender::new(&db, &subspace, "leader-a", Duration::from_secs(30))?;
+        let election = &holder.election;
+
+        let on_claim = arm_term_watch(&db, election).await?;
+        let grant = won(holder.claim().await?);
+        tokio::time::timeout(Duration::from_secs(10), on_claim)
+            .await
+            .expect("a claim must wake a parked follower")
+            .expect("the watch itself failed");
+
+        // Armed before the renewals, and deliberately not awaited until after
+        // them: a renewal that touched the term key would resolve it here.
+        let mut across_renewals = arm_term_watch(&db, election).await?;
+        let mut grant = grant;
+        for _ in 0..2 {
+            grant = match holder.refresh(&grant).await? {
+                RefreshOutcome::Refreshed(renewed) => renewed,
+                other => panic!("the holder should still hold its term, got {other:?}"),
+            };
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(500), &mut across_renewals)
+                .await
+                .is_err(),
+            "renewals must not wake followers"
+        );
+
+        // The same watch is still armed, and a resign is a real transition.
+        assert_eq!(holder.resign(&grant).await?, ResignOutcome::Resigned);
+        tokio::time::timeout(Duration::from_secs(10), across_renewals)
+            .await
+            .expect("a resign must wake a parked follower")
+            .expect("the watch itself failed");
+
+        Ok(())
+    }
+
+    /// A renewal and a steal racing at the boundary: both transactions read and
+    /// write the leader key, so one of them has to lose, and the loser must
+    /// find out rather than proceed.
+    #[tokio::test]
+    async fn concurrent_renew_vs_steal() -> Result<()> {
+        const LEASE: Duration = Duration::from_secs(3);
+
+        let (db, subspace) = setup("le_concurrent_renew_vs_steal").await?;
+        let holder = Contender::new(&db, &subspace, "leader-a", LEASE)?;
+        let thief = Contender::new(&db, &subspace, "leader-b", LEASE)?;
+
+        let grant = won(holder.claim().await?);
+        // Opens the thief's window; no renewal happens until the race, so the
+        // window runs uninterrupted.
+        assert_eq!(denied(thief.claim().await?), LEASE);
+        tokio::time::sleep(LEASE + Duration::from_millis(500)).await;
+
+        let (refreshed, claimed) = tokio::join!(holder.refresh(&grant), thief.claim());
+
+        match (refreshed?, claimed?) {
+            // The renewal got there first: the thief's window restarted on the
+            // new generation and it is owed a full lease again.
+            (RefreshOutcome::Refreshed(renewed), ClaimOutcome::Denied { .. }) => {
+                assert_eq!(renewed.ballot(), grant.ballot());
+                assert_eq!(renewed.generation(), grant.generation() + 1);
+            }
+            // The steal got there first: the renewal reads a record that is no
+            // longer its own.
+            (RefreshOutcome::Lost { observed }, ClaimOutcome::Won(stolen)) => {
+                assert_eq!(stolen.ballot(), grant.ballot() + 1);
+                let observed = observed.expect("the thief's record is there to be read");
+                assert_eq!(observed.ballot(), stolen.ballot());
+            }
+            (refresh, claim) => panic!(
+                "a renewal and a steal must not both take effect: refresh {refresh:?}, claim {claim:?}"
+            ),
         }
 
-        // All processes try to claim leadership
-        let mut leaders = Vec::new();
-        for process_id in process_ids.iter() {
-            let election_ref = &election;
-            let became_leader = db
-                .run(|txn, _| async move {
-                    let result = election_ref
-                        .try_claim_leadership(&txn, process_id, 0, current_time())
-                        .await?;
-                    Ok::<_, FdbBindingError>(result.is_some())
+        Ok(())
+    }
+
+    /// A claim whose reply was lost: the retry recognizes the record it wrote
+    /// itself and adopts it, instead of spending a second ballot on a term it
+    /// already holds.
+    #[tokio::test]
+    async fn maybe_committed_idempotence() -> Result<()> {
+        let (db, subspace) = setup("le_maybe_committed_idempotence").await?;
+        let leader = Contender::new(&db, &subspace, "leader-a", Duration::from_secs(30))?;
+
+        // The attempt outlives the transaction on purpose: this is exactly the
+        // object a `commit_unknown_result` retry would still be holding.
+        let attempt = ClaimAttempt::new(ClaimToken::generate(), leader.clock.now())?;
+        let first = won(leader.claim_with(&attempt).await?);
+        assert_eq!(first.ballot(), 1);
+        assert!(
+            attempt.maybe_committed(),
+            "issuing the write is what makes the attempt recoverable"
+        );
+
+        // Replay the same attempt against the record it already committed.
+        let second = won(leader.claim_with(&attempt).await?);
+        assert_eq!(
+            second.ballot(),
+            first.ballot(),
+            "a retry must not re-ballot"
+        );
+        assert_eq!(second.generation(), first.generation());
+        assert_eq!(second.token(), first.token());
+        assert!(
+            !attempt.is_retired(),
+            "recovering its own record is not a supersession"
+        );
+
+        let election = &leader.election;
+        let (record, history) = db
+            .run(|txn, _| async move {
+                let record = election.leader(&txn).await?;
+                let history = election.history(&txn, 10).await?;
+                Ok::<_, LeaderElectionError>((record, history))
+            })
+            .await?;
+        let record = record.expect("the claim wrote a record");
+        assert_eq!(record.ballot(), 1);
+        assert_eq!(record.generation(), 0, "recovery writes nothing at all");
+        assert_eq!(
+            history.len(),
+            1,
+            "one term, one history entry, however many times the claim was replayed"
+        );
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // HANDLE LAYER
+    // ========================================================================
+
+    /// The ordinary path: campaign, run work that can see it is leading, hand
+    /// the term back, leave the record vacant for the next process.
+    #[tokio::test]
+    async fn elector_end_to_end() -> Result<()> {
+        let (db, subspace) = setup("le_elector_end_to_end").await?;
+        let elector = elector_for(&db, &subspace, "leader-a", Duration::from_secs(4))?;
+
+        let outcome = elector
+            .lead(|handle| async move { (handle.status(), handle.ballot()) })
+            .await?;
+
+        let (status, ballot) = match outcome {
+            LeadOutcome::Completed { value, released } => {
+                assert!(released, "an elector whose work returned should resign");
+                value
+            }
+            LeadOutcome::LeaseLost => panic!("the term ended before the work did"),
+        };
+        assert_eq!(
+            status,
+            LeaseStatus::Leading,
+            "the work runs under a live term"
+        );
+        assert_eq!(ballot, 1);
+
+        let record = elector
+            .current_record()
+            .await?
+            .expect("a resign writes a vacant record");
+        assert!(record.is_vacant(), "the term is free for the next process");
+        assert_eq!(record.ballot(), 1, "and the ballot is preserved");
+
+        Ok(())
+    }
+
+    /// A leader that stops running, rather than resigning, costs its successor
+    /// exactly one lease. The abandoned handle finds out on its own clock, with
+    /// nobody to tell it.
+    #[tokio::test]
+    async fn handle_layer_lifecycle() -> Result<()> {
+        const LEASE: Duration = Duration::from_secs(3);
+
+        let (db, subspace) = setup("le_handle_layer_lifecycle").await?;
+        let first = elector_for(&db, &subspace, "leader-a", LEASE)?;
+        let second = elector_for(&db, &subspace, "leader-b", LEASE)?;
+
+        let (leading_tx, leading_rx) = tokio::sync::oneshot::channel();
+        let leading = tokio::spawn(async move {
+            first
+                .lead(|handle| async move {
+                    leading_tx.send(handle.clone()).expect("the test went away");
+                    // Never returns: the only way out is losing the term.
+                    futures::future::pending::<()>().await;
                 })
-                .await?;
-            if became_leader {
-                leaders.push(*process_id);
+                .await
+        });
+
+        let handle = leading_rx.await.expect("the first elector never led");
+        assert_eq!(handle.status(), LeaseStatus::Leading);
+        assert_eq!(handle.ballot(), 1);
+
+        // An ungraceful release: the future is dropped, so no resign, and no
+        // more renewals either.
+        leading.abort();
+
+        let started = Instant::now();
+        let outcome = second.lead(|handle| async move { handle.ballot() }).await?;
+        let waited = started.elapsed();
+
+        match outcome {
+            LeadOutcome::Completed { value, .. } => {
+                assert_eq!(value, 2, "the successor takes the next ballot");
             }
+            LeadOutcome::LeaseLost => panic!("the successor lost a term it had just taken"),
         }
-
-        // Only one should become leader (the first one to claim)
-        assert_eq!(leaders.len(), 1, "Exactly one process should become leader");
-
-        // Verify the leader
-        let leader_id = leaders[0];
-        let election_ref = &election;
-        let is_leader = db
-            .run(|txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&txn, leader_id, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(is_leader)
-            })
-            .await?;
         assert!(
-            is_leader,
-            "The elected process should be confirmed as leader"
+            waited >= LEASE,
+            "a crashed leader must cost a full lease of observation, waited only {waited:?}"
         );
 
-        // Other processes should not be leaders
-        for process_id in &process_ids {
-            if *process_id != leader_id {
-                let election_ref = &election;
-                let is_leader = db
-                    .run(|txn, _| async move {
-                        let is_leader = election_ref
-                            .is_leader(&txn, process_id, current_time())
-                            .await?;
-                        Ok::<_, FdbBindingError>(is_leader)
-                    })
-                    .await?;
-                assert!(!is_leader, "Non-leader process should not be leader");
+        // Nothing told this handle anything. Its own clock did.
+        assert_eq!(
+            handle.status(),
+            LeaseStatus::Lost,
+            "an abandoned handle must go stale on its own"
+        );
+        assert!(handle.check().is_err());
+
+        Ok(())
+    }
+
+    /// The other half of the resign asymmetry, at the handle layer: a follower
+    /// parked on the term watch takes over as soon as the leader is done, in
+    /// far less than the lease it would have had to wait out.
+    #[tokio::test]
+    async fn elector_handoff_on_completion() -> Result<()> {
+        const LEASE: Duration = Duration::from_secs(6);
+
+        let (db, subspace) = setup("le_elector_handoff_on_completion").await?;
+        let first = elector_for(&db, &subspace, "leader-a", LEASE)?;
+        let second = elector_for(&db, &subspace, "leader-b", LEASE)?;
+
+        let (leading_tx, leading_rx) = tokio::sync::oneshot::channel();
+        let (finish_tx, finish_rx) = tokio::sync::oneshot::channel::<()>();
+        let leading = tokio::spawn(async move {
+            first
+                .lead(|handle| async move {
+                    leading_tx
+                        .send(handle.ballot())
+                        .expect("the test went away");
+                    let _ = finish_rx.await;
+                })
+                .await
+        });
+        assert_eq!(
+            leading_rx.await.expect("the first elector never led"),
+            1,
+            "the first term of a subspace is ballot 1"
+        );
+
+        let follower = tokio::spawn(async move {
+            let started = Instant::now();
+            let outcome = second.lead(|handle| async move { handle.ballot() }).await;
+            (started.elapsed(), outcome)
+        });
+
+        // Long enough for the follower to have been denied and parked on the
+        // term watch, short enough to stay far from the lease.
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        finish_tx.send(()).expect("the leader went away");
+
+        assert!(matches!(
+            leading.await.expect("the leading task panicked")?,
+            LeadOutcome::Completed { released: true, .. }
+        ));
+
+        let (waited, outcome) = follower.await.expect("the follower task panicked");
+        match outcome? {
+            LeadOutcome::Completed { value, .. } => {
+                assert_eq!(value, 2, "a vacated term is reclaimed at the next ballot");
             }
+            LeadOutcome::LeaseLost => panic!("the successor lost a term it had just taken"),
         }
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_heartbeat_and_lease() -> Result<(), FdbBindingError> {
-        use std::thread::sleep;
-
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_heartbeat_and_lease_async").await?;
-        let leader_id = "leader-process";
-        let follower_id = "follower-process";
-
-        // Initialize with short lease for testing
-        let config = ElectionConfig::with_lease_duration(Duration::from_secs(5));
-
-        let election_ref = &election;
-        db.run(|txn, _| {
-            let config = config.clone();
-            async move {
-                election_ref.initialize_with_config(&txn, config).await?;
-                Ok::<_, FdbBindingError>(())
-            }
-        })
-        .await?;
-
-        // Register both candidates
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, leader_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, follower_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Leader claims leadership
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, leader_id, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(became_leader, "First process should become leader");
-
-        // Leader refreshes lease
-        let election_ref = &election;
-        let refreshed = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .refresh_lease(&txn, leader_id, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(refreshed, "Leader should be able to refresh lease");
-
-        // Wait a bit (not long enough for lease to expire)
-        sleep(Duration::from_secs(2));
-
-        // Leader refreshes again
-        let election_ref = &election;
-        let still_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .refresh_lease(&txn, leader_id, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(still_leader, "Leader should still be able to refresh");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_leadership_transfer_on_expired_lease() -> Result<(), FdbBindingError> {
-        use std::thread::sleep;
-
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_leadership_transfer_on_expired_lease_async").await?;
-        let initial_leader = "initial-leader";
-        let new_leader = "new-leader";
-
-        // Initialize with short lease for testing
-        let config = ElectionConfig::with_lease_duration(Duration::from_secs(3));
-
-        let election_ref = &election;
-        db.run(|txn, _| {
-            let config = config.clone();
-            async move {
-                election_ref.initialize_with_config(&txn, config).await?;
-                Ok::<_, FdbBindingError>(())
-            }
-        })
-        .await?;
-
-        // Register both processes
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, initial_leader, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, new_leader, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Initial leader claims leadership
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, initial_leader, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(became_leader, "Initial process should become leader");
-
-        // New leader tries to claim (should fail - lease is valid)
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, new_leader, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
         assert!(
-            !became_leader,
-            "New process should not become leader while initial lease is valid"
+            waited < LEASE - Duration::from_secs(2),
+            "a resigned term must be handed over, not waited out: took {waited:?} of a {LEASE:?} lease"
         );
 
-        // Wait for lease to expire
-        sleep(Duration::from_secs(4));
-
-        // Keep new_leader alive via heartbeat
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .heartbeat_candidate(&txn, new_leader, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // New leader tries to claim again (should succeed - lease expired)
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, new_leader, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(
-            became_leader,
-            "New process should become leader after initial lease expires"
-        );
-
-        // Verify new leadership
-        let election_ref = &election;
-        let is_leader = db
-            .run(|txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&txn, new_leader, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(is_leader)
-            })
-            .await?;
-        assert!(is_leader, "New process should be confirmed as leader");
-
-        // Initial leader should no longer be leader
-        let election_ref = &election;
-        let is_leader = db
-            .run(|txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&txn, initial_leader, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(is_leader)
-            })
-            .await?;
-        assert!(!is_leader, "Initial process should no longer be leader");
-
         Ok(())
     }
 
+    // ========================================================================
+    // FENCING COMPOSITION
+    // ========================================================================
+
+    /// The scenario fencing exists for: a leader is wedged long enough to lose
+    /// its term, wakes up still believing it leads, and writes. The register
+    /// rejects that write because the new leader installed a higher fence, and
+    /// the new leader's own write goes through.
+    ///
+    /// Note the ordering: winning ballot 2 fences nothing by itself. The fence
+    /// is installed by the successor's `read` at its own rank, which is why
+    /// that call comes before any fenced work.
+    #[cfg(feature = "recipes-ranked-register")]
     #[tokio::test]
-    async fn test_config_change() -> Result<(), FdbBindingError> {
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_config_change_async").await?;
-
-        // Initialize with default config
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref.initialize(&txn).await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Change config to disable elections
-        let new_config = ElectionConfig {
-            election_enabled: false,
-            ..Default::default()
+    async fn fencing_end_to_end() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use foundationdb::recipes::ranked_register::{
+            RankedRegister, RankedRegisterError, WriteResult,
         };
 
-        let election_ref = &election;
-        db.run(|txn, _| {
-            let config = new_config.clone();
-            async move {
-                election_ref.write_config(&txn, &config).await?;
-                Ok::<_, FdbBindingError>(())
-            }
-        })
-        .await?;
+        const LEASE: Duration = Duration::from_secs(3);
 
-        // Try to register - should fail due to disabled elections
-        let election_ref = &election;
-        let registration_failed = db
+        let (db, subspace) = setup("le_fencing_end_to_end").await?;
+        let register = RankedRegister::new(subspace.subspace(&"state"));
+        let wedged = Contender::new(&db, &subspace, "leader-a", LEASE)?;
+        let successor = Contender::new(&db, &subspace, "leader-b", LEASE)?;
+
+        let old = won(wedged.claim().await?);
+        assert_eq!(old.ballot(), 1);
+
+        // Activation: winning a term fences nothing until the holder has read
+        // at its own rank. Only then does the fenced work happen.
+        let register_ref = &register;
+        let (old_fence, old_write) = (old.rank(0), old.rank(1));
+        let written = db
             .run(|txn, _| async move {
-                match election_ref
-                    .register_candidate(&txn, "test-process", 0, current_time())
-                    .await
-                {
-                    Err(_) => Ok::<_, FdbBindingError>(true), // Registration failed as expected
-                    Ok(_) => Ok(false),                       // Registration succeeded unexpectedly
-                }
+                register_ref.read(&txn, old_fence).await?;
+                let written = register_ref.write(&txn, old_write, b"written-by-a").await?;
+                Ok::<_, RankedRegisterError>(written)
             })
             .await?;
+        assert_eq!(written, WriteResult::Committed);
 
+        // The wedged leader is now out of contact for longer than its lease.
+        assert_eq!(denied(successor.claim().await?), LEASE);
+        tokio::time::sleep(LEASE + Duration::from_millis(500)).await;
+        let new = won(successor.claim().await?);
+        assert_eq!(new.ballot(), 2);
         assert!(
-            registration_failed,
-            "Registration should fail when elections are disabled"
+            new.rank(0) > old.rank(u32::MAX),
+            "every rank of a term must dominate every rank of the one before"
         );
 
-        // Re-enable elections
-        let enabled_config = ElectionConfig {
-            election_enabled: true,
-            ..Default::default()
-        };
-
-        let election_ref = &election;
-        db.run(|txn, _| {
-            let config = enabled_config.clone();
-            async move {
-                election_ref.write_config(&txn, &config).await?;
-                Ok::<_, FdbBindingError>(())
-            }
-        })
-        .await?;
-
-        // Now registration should work
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, "test-process", 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_resign_leadership() -> Result<(), FdbBindingError> {
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_resign_leadership_async").await?;
-        let leader_id = "leader-process";
-        let follower_id = "follower-process";
-
-        // Initialize
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref.initialize(&txn).await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Register both
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, leader_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, follower_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Leader claims leadership
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .try_claim_leadership(&txn, leader_id, 0, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Leader resigns
-        let election_ref = &election;
-        let resigned = db
-            .run(|txn, _| async move {
-                let resigned = election_ref.resign_leadership(&txn, leader_id).await?;
-                Ok::<_, FdbBindingError>(resigned)
-            })
+        let new_fence = new.rank(0);
+        let fenced = db
+            .run(|txn, _| async move { register_ref.read(&txn, new_fence).await })
             .await?;
-        assert!(resigned, "Leader should be able to resign");
-
-        // Follower can now claim leadership
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, follower_id, 0, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(
-            became_leader,
-            "Follower should become leader after resignation"
+        assert_eq!(
+            fenced.value(),
+            Some(&b"written-by-a"[..]),
+            "the successor reads what its predecessor left"
         );
 
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_preemption() -> Result<(), FdbBindingError> {
-        let db = crate::common::database().await?;
-        let election = setup_test(&db, "test_preemption_async").await?;
-        let low_priority = "low-priority";
-        let high_priority = "high-priority";
-
-        // Initialize with preemption enabled
-        let config = ElectionConfig {
-            allow_preemption: true,
-            ..Default::default()
-        };
-
-        let election_ref = &election;
-        db.run(|txn, _| {
-            let config = config.clone();
-            async move {
-                election_ref.initialize_with_config(&txn, config).await?;
-                Ok::<_, FdbBindingError>(())
-            }
-        })
-        .await?;
-
-        // Register both with different priorities
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, low_priority, 1, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        let election_ref = &election;
-        db.run(|txn, _| async move {
-            election_ref
-                .register_candidate(&txn, high_priority, 10, current_time())
-                .await?;
-            Ok::<_, FdbBindingError>(())
-        })
-        .await?;
-
-        // Low priority claims leadership first
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, low_priority, 1, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
+        // The wedged leader wakes up and writes, still believing it leads.
+        let stale_write = old.rank(2);
+        let stale = db
+            .run(|txn, _| async move { register_ref.write(&txn, stale_write, b"written-late").await })
             .await?;
-        assert!(became_leader, "Low priority should become leader initially");
-
-        // High priority preempts
-        let election_ref = &election;
-        let became_leader = db
-            .run(|txn, _| async move {
-                let result = election_ref
-                    .try_claim_leadership(&txn, high_priority, 10, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(result.is_some())
-            })
-            .await?;
-        assert!(
-            became_leader,
-            "High priority should preempt low priority leader"
+        assert_eq!(
+            stale,
+            WriteResult::Aborted,
+            "a write from a dispossessed term must be rejected"
         );
 
-        // Verify high priority is now leader
-        let election_ref = &election;
-        let is_leader = db
-            .run(|txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&txn, high_priority, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(is_leader)
-            })
+        let new_write = new.rank(1);
+        let fresh = db
+            .run(|txn, _| async move { register_ref.write(&txn, new_write, b"written-by-b").await })
             .await?;
-        assert!(is_leader, "High priority should be the leader");
+        assert_eq!(fresh, WriteResult::Committed);
 
-        // Low priority should not be leader
-        let election_ref = &election;
-        let is_leader = db
-            .run(|txn, _| async move {
-                let is_leader = election_ref
-                    .is_leader(&txn, low_priority, current_time())
-                    .await?;
-                Ok::<_, FdbBindingError>(is_leader)
-            })
+        let value = db
+            .run(|txn, _| async move { register_ref.value(&txn).await })
             .await?;
-        assert!(!is_leader, "Low priority should not be the leader anymore");
+        assert_eq!(
+            value.as_deref(),
+            Some(&b"written-by-b"[..]),
+            "the stale write must not have landed"
+        );
 
         Ok(())
     }

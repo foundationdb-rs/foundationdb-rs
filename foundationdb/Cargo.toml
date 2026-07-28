@@ -48,6 +48,9 @@ fdb-7_3 = ["foundationdb-sys/fdb-7_3", "foundationdb-gen/fdb-7_3"]
 fdb-7_4 = ["foundationdb-sys/fdb-7_4", "foundationdb-gen/fdb-7_4"]
 recipes = ["recipes-leader-election", "recipes-ranked-register"]
 recipes-leader-election = []
+# The leader election handle layer is runtime-agnostic through its `Clock`
+# trait; this adds the tokio-backed implementation of it.
+recipes-leader-election-tokio = ["recipes-leader-election", "dep:tokio"]
 recipes-ranked-register = []
 trace = ["tracing"]
 
@@ -67,6 +70,7 @@ num-bigint = { version = "0.5.1", optional = true }
 async-trait = "0.1.89"
 async-recursion = "1.1.1"
 tracing = { version = "0.1.44", optional = true }
+tokio = { version = "1.52.3", features = ["time"], optional = true }
 
 [dev-dependencies]
 byteorder = "1.5.0"

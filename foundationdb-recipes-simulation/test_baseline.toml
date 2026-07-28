@@ -1,0 +1,64 @@
+# Leader Election Baseline
+#
+# Purpose: the everyday shape of a run. Everything the workload can do happens
+# here at moderate settings, so a failure in this configuration means something
+# broke on the ordinary path rather than under a specific stress.
+#
+# Scenario:
+# - Ten second leases renewed every third of a lease, one action per second
+# - All three roles active: contenders, one Sleeper (the Kleppmann pause), one
+#   Watcher following the term key
+# - Per-client clock offset and rate error inside the bound the belief argument
+#   assumes, so the tolerances the check phase derives are actually exercised
+# - Moderate clogging and attrition over the first two thirds of the run,
+#   then a fault-free tail in which recovery has to show
+#
+# Bug classes this configuration catches:
+# - Ballots that reset, skip or repeat across ordinary handovers
+# - Claims taken without the observation window a live record owes
+# - Renewals that move the ballot instead of the generation
+# - History entries escaping the transaction of the transition they describe
+#
+# On the fault window:
+# The chaos workloads stop at roughly two thirds of the run and the workload
+# keeps going to testDurationSecs, leaving a fault-free tail. ProgressMade asks
+# whether the run recovered and made progress, and a run whose faults never
+# stop has no window to recover *into*: whether it clears the floor then
+# depends on how the kills happened to land rather than on the protocol. The
+# tail is where the recovery property is demonstrated, which is what the floors
+# were always meant to be asking about.
+
+[[test]]
+testTitle = 'LeaderElectionBaseline'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    leaseDurationSecs = 10.0
+    stepIntervalSecs = 1.0
+    testDurationSecs = 120.0
+    resignProbability = 0.15
+    crashProbability = 0.05
+    clockSkewMode = 'random'
+    pauseFactor = 2.0
+    sleeperEnabled = true
+    minLeadershipClaims = 2
+    minRenewals = 2
+    minObservedIdentities = 3
+
+  [[test.workload]]
+    # Network delays, so renewals sometimes lose the race with their horizon
+    testName = 'RandomClogging'
+    testDuration = 78.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Leaders that die without ever saying so
+    testName = 'Attrition'
+    machinesToKill = 4
+    machinesToLeave = 4
+    reboot = true
+    testDuration = 78.0

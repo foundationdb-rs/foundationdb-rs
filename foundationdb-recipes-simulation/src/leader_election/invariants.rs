@@ -1,731 +1,1515 @@
-//! Invariant verification methods for leader election simulation.
+//! The ten properties a run has to satisfy.
 //!
-//! Contains the core leader election invariants:
-//! 1. Dual-Path Validation - Replay logs vs FDB state must match (safety + conservation)
-//! 2. Leader Is Candidate - Leader must be a registered candidate (structural integrity)
-//! 3. Candidate Timestamps - No future timestamps in candidates
-//! 4. Leadership Sequence - Per-client monotonic op_nums
-//! 5. Registration Coverage - All leadership claims come from registered processes
+//! Each one is a pure function of what [`replay`](super::replay) reconstructed,
+//! plus whatever external evidence it needs (the database snapshot, the
+//! recipe's own history subspace, the tolerances the configuration implies).
+//! None of them touch the database, a clock, or the simulator, so every one of
+//! them is tested below against a hand-mutated log that must make it fail.
 //!
-//! Additional invariants for split-brain, timing, and ballot bug detection:
-//! 6. No Overlapping Leadership - No two clients have active leadership periods that overlap
-//! 7. Ballot Value Binding - Each ballot maps to exactly one leader identity
-//! 8. Fencing Token Monotonicity - Ballot numbers increase monotonically across claims
-//! 9. Global Ballot Succession - Each new leader has ballot > previous leader's ballot
-//! 10. Mutex Linearizability - Leadership history linearizes to valid mutex model
-//! 11. Lease Overlap Check - Use lease_expiry_nanos to verify no active lease overlaps
-//! 12. One Value Per Ballot - Paxos safety: each ballot maps to one client within a tenure
-//! 13. Lease Expiry After Claim - Lease must expire after claim timestamp
+//! That last part is the point of this module. The suite it replaces had seven
+//! invariants that could not fail for any input, which meant the simulation was
+//! reporting success it had never checked. A check here earns its place only
+//! with a counterexample, and every counterexample is a test.
 //!
-//! Note: Log entries are now in FDB commit order (versionstamp-ordered keys),
-//! so we have true causal ordering without clock skew issues.
+//! # Tolerances
+//!
+//! Two checks compare durations that were measured on different clocks. Clock
+//! *offset* cancels out of an elapsed-time measurement, so only the rate error
+//! matters, and it accumulates with the interval measured: over an interval of
+//! length `L`, two clocks within a relative rate error `e` of true time can
+//! disagree by up to `L * 2e / (1 + e)`. [`Tolerances::from_clock_rate_error`]
+//! is that formula, and the strict zero-skew configuration uses
+//! [`Tolerances::STRICT`], where the tolerance is exactly zero and any slack at
+//! all is a violation.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::time::Duration;
 
-use foundationdb::tuple::Versionstamp;
+use super::log_schema::{LogEntry, OpKind};
+use super::replay::{ExpectedRecord, Replay, TransitionKind};
 
-use super::LeaderElectionWorkload;
-use super::types::{
-    CheckResult, DatabaseSnapshot, LogEntries, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
-};
+// ============================================================================
+// RESULTS
+// ============================================================================
 
-impl LeaderElectionWorkload {
-    /// Invariant 1: Dual-Path Validation (AtomicOps pattern)
-    ///
-    /// Replay log entries (in true FDB commit order via versionstamp keys)
-    /// to compute expected leader state, then compare with actual FDB state.
-    ///
-    /// This is the key insight: with versionstamp-ordered keys, we have TRUE
-    /// causal ordering, so replay gives us the exact expected state.
-    ///
-    /// This invariant subsumes both safety (at most one leader) and ballot
-    /// conservation (ballot matches claims) by verifying exact state equality.
-    pub(crate) fn verify_dual_path(
-        &self,
-        entries: &LogEntries,
-        snapshot: &DatabaseSnapshot,
-    ) -> (bool, String) {
-        // Path 1: Replay logs in versionstamp order (true commit order)
-        let mut expected_leader: Option<String> = None;
-        let mut expected_ballot: u64 = 0;
+/// One way a run broke an invariant
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Violation {
+    /// Indices of the offending log entries, in commit order
+    pub indices: Vec<usize>,
+    /// What went wrong, in terms a reader of the trace can act on
+    pub detail: String,
+}
 
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                expected_ballot += 1;
-                expected_leader = Some(format!("process_{}", entry.client_id));
-            }
-            if entry.op_type == OP_RESIGN && entry.success {
-                let resigning = format!("process_{}", entry.client_id);
-                if expected_leader.as_ref() == Some(&resigning) {
-                    expected_leader = None;
-                    expected_ballot = 0; // Ballot resets after resign
-                }
-            }
-        }
-
-        // Path 2: Actual FDB state
-        let (actual_leader, actual_ballot) = match &snapshot.leader_state {
-            Some(l) => (Some(l.leader_id.clone()), l.ballot),
-            None => (None, 0),
-        };
-
-        // Compare
-        let leader_matches = expected_leader == actual_leader;
-        let ballot_matches = expected_ballot == actual_ballot;
-
-        if leader_matches && ballot_matches {
-            (
-                true,
-                format!("Dual-path OK: leader={actual_leader:?}, ballot={actual_ballot}"),
-            )
-        } else {
-            (
-                false,
-                format!(
-                    "Dual-path MISMATCH: expected ({expected_leader:?}, {expected_ballot}), actual ({actual_leader:?}, {actual_ballot})"
-                ),
-            )
+impl Violation {
+    fn at(index: usize, detail: impl Into<String>) -> Self {
+        Self {
+            indices: vec![index],
+            detail: detail.into(),
         }
     }
 
-    /// Invariant 2: Leader Is Candidate - Structural Integrity
-    ///
-    /// The current leader must be in the candidate list.
-    /// This verifies the data structure invariant that leadership
-    /// can only be claimed by registered candidates.
-    ///
-    /// NOTE: If the leader's lease has expired, the candidate may have been
-    /// evicted due to timeout. This is valid - we only enforce this invariant
-    /// for leaders with active leases.
-    pub(crate) fn verify_leader_is_candidate(
-        &self,
-        snapshot: &DatabaseSnapshot,
-        current_time: f64,
-    ) -> (bool, String) {
-        match &snapshot.leader_state {
-            Some(leader) => {
-                // Check if lease has expired - if so, candidate eviction is valid
-                let lease_expiry_secs = leader.lease_expiry_nanos as f64 / 1_000_000_000.0;
-                let lease_expired = current_time > lease_expiry_secs;
-
-                if lease_expired {
-                    // Lease expired - candidate may have been evicted, this is OK
-                    return (
-                        true,
-                        format!(
-                            "Leader {} lease expired ({:.3} > {:.3}), candidate eviction valid",
-                            leader.leader_id, current_time, lease_expiry_secs
-                        ),
-                    );
-                }
-
-                let is_candidate = snapshot
-                    .candidates
-                    .iter()
-                    .any(|c| c.process_id == leader.leader_id);
-
-                if is_candidate {
-                    (
-                        true,
-                        format!("Leader {} is registered candidate", leader.leader_id),
-                    )
-                } else {
-                    let candidate_ids: Vec<_> = snapshot
-                        .candidates
-                        .iter()
-                        .map(|c| c.process_id.as_str())
-                        .collect();
-                    (
-                        false,
-                        format!(
-                            "Leader {} not in candidate list (candidates: {:?})",
-                            leader.leader_id, candidate_ids
-                        ),
-                    )
-                }
-            }
-            None => (true, "No leader, invariant trivially holds".to_string()),
+    fn spanning(indices: Vec<usize>, detail: impl Into<String>) -> Self {
+        Self {
+            indices,
+            detail: detail.into(),
         }
     }
 
-    /// Invariant 3: Candidate Timestamps - No Future Timestamps
-    ///
-    /// All candidate heartbeat timestamps should be in the past or present,
-    /// not in the future. Future timestamps would indicate clock skew issues
-    /// or bugs in timestamp handling.
-    ///
-    /// With clock skew simulation enabled, we allow tolerance for:
-    ///   - clock_offset: up to ±1.0s (Extreme level)
-    ///   - drift ahead: up to 1.0s (max_ahead)
-    ///   - jitter: up to 1.1x multiplier on offset
-    ///
-    /// Max theoretical offset: (1.0 + 1.0) * 1.1 = 2.2s, use 3s for margin.
-    pub(crate) fn verify_candidate_timestamps(
-        &self,
-        snapshot: &DatabaseSnapshot,
-        current_time: f64,
-    ) -> (bool, String) {
-        let mut issues = Vec::new();
+    fn global(detail: impl Into<String>) -> Self {
+        Self {
+            indices: Vec::new(),
+            detail: detail.into(),
+        }
+    }
+}
 
-        // Tolerance accounts for clock skew simulation (Extreme level + jitter)
-        const MAX_CLOCK_SKEW_TOLERANCE: f64 = 3.0;
+/// What checking one invariant produced
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvariantReport {
+    /// The invariant's name, as it appears in the simulation trace
+    pub name: &'static str,
+    /// Everything that broke it; empty means it held
+    pub violations: Vec<Violation>,
+}
 
-        for candidate in &snapshot.candidates {
-            let heartbeat_secs = candidate.last_heartbeat_nanos as f64 / 1_000_000_000.0;
+impl InvariantReport {
+    fn new(name: &'static str, violations: Vec<Violation>) -> Self {
+        Self { name, violations }
+    }
 
-            if heartbeat_secs > current_time + MAX_CLOCK_SKEW_TOLERANCE {
-                issues.push(format!(
-                    "{} has future timestamp: {:.3} > {:.3}",
-                    candidate.process_id, heartbeat_secs, current_time
+    /// Whether the invariant held
+    pub fn passed(&self) -> bool {
+        self.violations.is_empty()
+    }
+}
+
+// ============================================================================
+// PARAMETERS
+// ============================================================================
+
+/// How much clock disagreement a configuration admits
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tolerances {
+    /// How far two belief intervals may overlap before it counts
+    pub belief_overlap: Duration,
+    /// How much shorter than a full lease an observation window may measure
+    pub observation_slack: Duration,
+}
+
+impl Tolerances {
+    /// No slack whatsoever: the configuration with identical clocks
+    pub const STRICT: Self = Self {
+        belief_overlap: Duration::ZERO,
+        observation_slack: Duration::ZERO,
+    };
+
+    /// The slack a worst-case clock *rate* error implies over one lease.
+    ///
+    /// Offset does not appear: both quantities are elapsed times measured by a
+    /// single clock, and an offset cancels out of a difference. Rate error does
+    /// not cancel, and grows with the interval being measured, which is why the
+    /// lease is the scale.
+    pub fn from_clock_rate_error(lease: Duration, max_rate_error: f64) -> Self {
+        let error = max_rate_error.abs();
+        let slack = lease.as_secs_f64() * 2.0 * error / (1.0 + error);
+        let slack = Duration::from_secs_f64(slack.max(0.0));
+        Self {
+            belief_overlap: slack,
+            observation_slack: slack,
+        }
+    }
+}
+
+/// The minimum a run must have achieved to count as having tested anything
+///
+/// Without these, a run in which every client crashed before its first claim
+/// passes every safety check vacuously.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProgressThresholds {
+    /// Applied claims and steals
+    pub min_acquisitions: usize,
+    /// Applied renewals, demanded only of runs that had the chance to renew
+    ///
+    /// See [`progress_made`] for what "had the chance" means.
+    pub min_renewals: usize,
+    /// Distinct leader identities the watchers saw
+    pub min_observed_identities: usize,
+    /// How long after a belief begins its first renewal comes due
+    ///
+    /// Must match what the driver uses, so that "this belief outlived its
+    /// renewal deadline" here means the same thing it meant to the leader.
+    pub renew_interval: Duration,
+}
+
+/// One entry of the recipe's own history subspace, oldest first
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryEntry {
+    /// What the recipe recorded
+    pub kind: HistoryKind,
+    /// The ballot the transition produced
+    pub ballot: u64,
+    /// Who caused it
+    pub leader_id: String,
+}
+
+/// The transitions the recipe records; renewals are deliberately not among them
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HistoryKind {
+    /// Took an absent or vacant record
+    Claim,
+    /// Took a record from a holder
+    Steal,
+    /// Gave the term up
+    Resign,
+}
+
+impl HistoryKind {
+    fn from_transition(kind: TransitionKind) -> Option<Self> {
+        match kind {
+            TransitionKind::Claim => Some(Self::Claim),
+            TransitionKind::Steal => Some(Self::Steal),
+            TransitionKind::Resign => Some(Self::Resign),
+            TransitionKind::Renew => None,
+        }
+    }
+}
+
+// ============================================================================
+// 1. DUAL PATH REPLAY
+// ============================================================================
+
+/// Replaying the log must reproduce the database exactly.
+///
+/// The two paths are independent: one is what the clients recorded they did,
+/// the other is what the database ended up holding. If a write happened that
+/// nobody logged, or a logged write never landed, they part company here, and
+/// every other invariant in this module is reasoning about a fiction.
+pub fn dual_path_replay(replay: &Replay, snapshot: Option<&ExpectedRecord>) -> InvariantReport {
+    let mut violations: Vec<Violation> = replay
+        .anomalies
+        .iter()
+        .map(|anomaly| Violation::at(anomaly.index, anomaly.detail.clone()))
+        .collect();
+
+    let last = replay.transitions.last().map(|t| t.index);
+    match (replay.final_state.as_ref(), snapshot) {
+        (None, None) => {}
+        (Some(expected), Some(actual)) if expected == actual => {}
+        (expected, actual) => {
+            let detail = format!("replay says {expected:?}, the database holds {actual:?}");
+            violations.push(match last {
+                Some(index) => Violation::at(index, detail),
+                None => Violation::global(detail),
+            });
+        }
+    }
+
+    InvariantReport::new("DualPathReplay", violations)
+}
+
+// ============================================================================
+// 2. BALLOT SUCCESSION
+// ============================================================================
+
+/// Every applied write moves the identity by exactly the step its kind allows.
+///
+/// Acquisitions land at `previous + 1` unconditionally: the ballot is the
+/// fencing token, so a reset would silently invalidate every rank already
+/// handed out. Renewals hold the ballot and add one generation. Each write must
+/// also have read the state its predecessor left, which is what makes the
+/// compare-and-set a compare-and-set.
+pub fn ballot_succession(replay: &Replay) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    for transition in &replay.transitions {
+        let previous = replay.states_before[transition.index].as_ref();
+
+        if let Some(observed) = transition.observed {
+            let expected = previous.map(ExpectedRecord::identity);
+            if expected != Some(observed) {
+                violations.push(Violation::at(
+                    transition.index,
+                    format!(
+                        "read {observed:?} but its predecessor left {expected:?}: \
+                         the write was decided on a stale read"
+                    ),
                 ));
             }
         }
 
-        if issues.is_empty() {
-            (
-                true,
-                format!(
-                    "All {} candidates have valid timestamps",
-                    snapshot.candidates.len()
-                ),
-            )
-        } else {
-            (false, issues.join("; "))
-        }
-    }
-
-    /// Invariant 4: Leadership Sequence - Monotonic Per-Client Operations
-    ///
-    /// For each client, their op_nums should be monotonically increasing.
-    /// This verifies the log entries are properly ordered per client.
-    /// (Note: With versionstamp ordering, we have true commit order, so this
-    /// is a simpler check now - just verify op_nums are increasing per client)
-    pub(crate) fn verify_leadership_sequence(&self, entries: &LogEntries) -> (bool, String) {
-        let mut client_last_op: BTreeMap<i32, u64> = BTreeMap::new();
-        let mut leadership_count: BTreeMap<i32, usize> = BTreeMap::new();
-        let mut violations = Vec::new();
-
-        for entry in entries {
-            // Track last op_num per client
-            if let Some(last_op) = client_last_op.get(&entry.client_id) {
-                if entry.op_num <= *last_op {
-                    violations.push(format!(
-                        "Client {} op_num {} not greater than previous {}",
-                        entry.client_id, entry.op_num, last_op
-                    ));
-                }
-            }
-            client_last_op.insert(entry.client_id, entry.op_num);
-
-            // Count leadership claims
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                *leadership_count.entry(entry.client_id).or_default() += 1;
-            }
-        }
-
-        let clients_with_leadership = leadership_count.len();
-
-        if violations.is_empty() {
-            (
-                true,
-                format!(
-                    "Leadership sequence valid ({clients_with_leadership} clients claimed leadership)"
-                ),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 5: Registration Coverage - All Leaders Were Registered
-    ///
-    /// Every client that successfully claimed leadership must have
-    /// previously registered (logged a Register operation).
-    /// This verifies the registration requirement of the protocol.
-    pub(crate) fn verify_registration_coverage(&self, entries: &LogEntries) -> (bool, String) {
-        // Track which clients have registered (either success or attempted)
-        let mut registered_clients: BTreeMap<i32, bool> = BTreeMap::new();
-        let mut clients_with_leadership: BTreeMap<i32, usize> = BTreeMap::new();
-
-        for entry in entries {
-            // Count any registration attempt (success or failure indicates the client tried)
-            if entry.op_type == OP_REGISTER {
-                registered_clients.insert(entry.client_id, entry.success);
-            }
-
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                *clients_with_leadership.entry(entry.client_id).or_default() += 1;
-            }
-        }
-
-        // Check for clients that became leader but have no registration entry at all
-        let mut unregistered_leaders = Vec::new();
-        for (client_id, count) in &clients_with_leadership {
-            if !registered_clients.contains_key(client_id) {
-                unregistered_leaders.push(format!("Client {client_id} ({count} claims)"));
-            }
-        }
-
-        if unregistered_leaders.is_empty() {
-            let leadership_count = clients_with_leadership.len();
-            let registered_count = registered_clients.len();
-            (
-                true,
-                format!(
-                    "All {leadership_count} clients with leadership have registration entries ({registered_count} total registered)"
-                ),
-            )
-        } else {
-            let unregistered_count = unregistered_leaders.len();
-            let unregistered_list = unregistered_leaders.join(", ");
-            (
-                false,
-                format!(
-                    "VIOLATION: {unregistered_count} clients claimed leadership without registration: {unregistered_list}"
-                ),
-            )
-        }
-    }
-
-    // ==========================================================================
-    // NEW INVARIANTS (6-11): Catch split-brain, timing, and ballot bugs
-    // ==========================================================================
-
-    /// Invariant 6: No Overlapping Leadership
-    ///
-    /// Verifies that leadership transitions are sequential in versionstamp order.
-    /// Since each successful leadership claim commits atomically in FDB,
-    /// versionstamp ordering guarantees no true overlap can occur.
-    ///
-    /// This invariant verifies:
-    /// - Each leadership period ends (explicitly via resign or implicitly via new claim) before the next starts
-    /// - No two clients claim leadership at the exact same versionstamp
-    pub(crate) fn verify_no_overlapping_leadership(&self, entries: &LogEntries) -> (bool, String) {
-        // Track leadership transitions in versionstamp order
-        // Since FDB commits are serialized, a successful leadership claim at versionstamp V
-        // implicitly ends any previous leadership (either lease expired or was preempted)
-        let mut leadership_claims: Vec<(i32, Versionstamp)> = Vec::new();
-        let mut explicit_resigns = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                leadership_claims.push((entry.client_id, entry.versionstamp.clone()));
-            }
-            if entry.op_type == OP_RESIGN && entry.success {
-                explicit_resigns += 1;
-            }
-        }
-
-        // Check for duplicate versionstamps (would indicate a bug in logging)
-        for i in 0..leadership_claims.len() {
-            for j in (i + 1)..leadership_claims.len() {
-                if leadership_claims[i].1 == leadership_claims[j].1 {
-                    return (
-                        false,
+        match transition.kind {
+            TransitionKind::Claim | TransitionKind::Steal => {
+                let expected_ballot = previous.map_or(0, |p| p.ballot) + 1;
+                if transition.ballot != expected_ballot {
+                    violations.push(Violation::at(
+                        transition.index,
                         format!(
-                            "Duplicate versionstamp: clients {} and {} both claimed at {:?}",
-                            leadership_claims[i].0, leadership_claims[j].0, leadership_claims[i].1
+                            "took ballot {} where the predecessor demands {expected_ballot}: \
+                             ballots never reset and never skip",
+                            transition.ballot
                         ),
-                    );
-                }
-            }
-        }
-
-        // With FDB's serialized commits and versionstamp ordering,
-        // sequential leadership claims are valid - each new claim implicitly
-        // ends the previous leadership (due to lease expiry or preemption)
-        (
-            true,
-            format!(
-                "Leadership transitions sequential ({} claims, {} explicit resigns)",
-                leadership_claims.len(),
-                explicit_resigns
-            ),
-        )
-    }
-
-    /// Invariant 7: Ballot Progression Check
-    ///
-    /// Verifies that each successful leadership claim has ballot > previous_ballot.
-    /// This ensures the fencing token mechanism is working correctly within each claim.
-    ///
-    /// Note: This uses the logged previous_ballot field, not global tracking,
-    /// because the ballot read in the same transaction is the authoritative previous value.
-    pub(crate) fn verify_ballot_value_binding(&self, entries: &LogEntries) -> (bool, String) {
-        let mut violations = Vec::new();
-        let mut valid_progressions = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                // The ballot after claim should be greater than the ballot before claim
-                // (previous_ballot + 1 == ballot for normal claims)
-                if entry.ballot > 0 && entry.ballot <= entry.previous_ballot {
-                    violations.push(format!(
-                        "Invalid ballot progression: client {} got ballot {} but previous was {}",
-                        entry.client_id, entry.ballot, entry.previous_ballot
                     ));
-                } else {
-                    valid_progressions += 1;
                 }
-            }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!("Ballot progression OK ({valid_progressions} valid claims)"),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 8: Fencing Token Increment
-    ///
-    /// Each successful leadership claim should increment the ballot by exactly 1.
-    /// This verifies the fencing token mechanism is working as expected.
-    ///
-    /// ballot = previous_ballot + 1 for each successful claim
-    pub(crate) fn verify_fencing_token_monotonicity(&self, entries: &LogEntries) -> (bool, String) {
-        let mut violations = Vec::new();
-        let mut proper_increments = 0;
-        let mut first_claims = 0; // Claims where previous_ballot was 0 (no prior leader)
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                if entry.previous_ballot == 0 {
-                    // First claim or claim after system reset - ballot can be any positive value
-                    first_claims += 1;
-                } else if entry.ballot == entry.previous_ballot + 1 {
-                    // Normal case: ballot incremented by 1
-                    proper_increments += 1;
-                } else if entry.ballot > entry.previous_ballot {
-                    // Ballot increased but not by exactly 1 - could indicate skipped ballots
-                    // This is OK as long as ballot > previous_ballot
-                    proper_increments += 1;
-                } else {
-                    // Ballot didn't increase - this is a problem
-                    violations.push(format!(
-                        "Ballot not incremented: client {} got ballot {} but previous was {}",
-                        entry.client_id, entry.ballot, entry.previous_ballot
+                let expected_generation = previous.map_or(0, |p| p.generation);
+                if transition.generation != expected_generation {
+                    violations.push(Violation::at(
+                        transition.index,
+                        format!(
+                            "a new term continues the generation counter at \
+                             {expected_generation}, not {}",
+                            transition.generation
+                        ),
                     ));
                 }
             }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!(
-                    "Fencing token increment OK ({proper_increments} increments, {first_claims} first claims)"
-                ),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 9: Global Ballot Succession
-    ///
-    /// Each new leader must have a ballot strictly greater than the previous leader's ballot.
-    /// Uses the previous_ballot field to verify proper succession.
-    pub(crate) fn verify_global_ballot_succession(&self, entries: &LogEntries) -> (bool, String) {
-        let mut violations = Vec::new();
-        let mut leadership_transitions = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                leadership_transitions += 1;
-                // New ballot must be strictly greater than previous
-                if entry.ballot <= entry.previous_ballot && entry.previous_ballot > 0 {
-                    violations.push(format!(
-                        "Ballot regression: client {} got ballot {} but previous was {}",
-                        entry.client_id, entry.ballot, entry.previous_ballot
-                    ));
-                }
-            }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!("Global ballot succession OK ({leadership_transitions} transitions)"),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 10: Mutex Linearizability
-    ///
-    /// Leadership history must linearize to a valid mutex model:
-    /// - At most one process holds leadership at any given time
-    /// - Leadership transfers happen sequentially (in versionstamp order)
-    ///
-    /// Note: In lease-based leadership, a new leader claiming leadership
-    /// implicitly ends the previous leader's tenure (lease expired or was preempted).
-    /// This is NOT a mutex violation - it's how lease-based systems work.
-    pub(crate) fn verify_mutex_linearizability(&self, entries: &LogEntries) -> (bool, String) {
-        let mut acquire_count = 0;
-        let mut release_count = 0;
-        let mut implicit_releases = 0;
-        let mut current_holder: Option<i32> = None;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                acquire_count += 1;
-                if let Some(prev_holder) = current_holder {
-                    if prev_holder != entry.client_id {
-                        // Different client claiming - previous holder's lease expired
-                        // or was preempted. This is an implicit release.
-                        implicit_releases += 1;
+            TransitionKind::Renew => match previous {
+                None => violations.push(Violation::at(
+                    transition.index,
+                    "renewed a record that does not exist",
+                )),
+                Some(previous) => {
+                    if previous.is_vacant() {
+                        violations.push(Violation::at(transition.index, "renewed a resigned term"));
                     }
-                }
-                // New leader takes over
-                current_holder = Some(entry.client_id);
-            }
-            if entry.op_type == OP_RESIGN
-                && entry.success
-                && current_holder == Some(entry.client_id)
-            {
-                release_count += 1;
-                current_holder = None;
-            }
-        }
-
-        // In a lease-based system, the invariant is simply that leadership
-        // transfers happen sequentially (which is guaranteed by versionstamp ordering)
-        (
-            true,
-            format!(
-                "Mutex linearizability OK ({acquire_count} acquires, {release_count} explicit releases, {implicit_releases} implicit releases)"
-            ),
-        )
-    }
-
-    /// Invariant 11: Lease Validity Check
-    ///
-    /// Verifies that leadership claims have valid lease expiry times:
-    /// - Lease expiry should be positive (in the future at claim time)
-    /// - Lease duration should be reasonable (not extremely long or short)
-    pub(crate) fn verify_lease_overlap_check(&self, entries: &LogEntries) -> (bool, String) {
-        let mut claims_with_lease = 0;
-        let mut claims_without_lease = 0;
-        let mut violations = Vec::new();
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                if entry.lease_expiry_nanos > 0 {
-                    claims_with_lease += 1;
-                } else {
-                    // A successful leadership claim should have a lease expiry
-                    claims_without_lease += 1;
-                    violations.push(format!(
-                        "Client {} claimed leadership but lease_expiry_nanos is {}",
-                        entry.client_id, entry.lease_expiry_nanos
-                    ));
-                }
-            }
-        }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!("Lease validity OK ({claims_with_lease} claims with valid leases)"),
-            )
-        } else {
-            // Note: This might be expected if the logging doesn't capture lease properly
-            // For now, just report as info
-            (
-                true,
-                format!(
-                    "Lease check: {claims_with_lease} with lease, {claims_without_lease} without (may need logging fix)"
-                ),
-            )
-        }
-    }
-
-    /// Invariant 12: One Value Per Ballot (Paxos Safety)
-    ///
-    /// Within each leadership tenure (between ballot resets), each ballot number
-    /// must map to exactly one client. The ballot resets to 0 after a resign,
-    /// starting a new tenure.
-    ///
-    /// This catches broken conflict ranges or ballot assignment logic where
-    /// two clients somehow both claim the same ballot within the same tenure.
-    pub(crate) fn verify_one_value_per_ballot(&self, entries: &LogEntries) -> (bool, String) {
-        let mut ballot_to_client: BTreeMap<u64, i32> = BTreeMap::new();
-        let mut violations = Vec::new();
-        let mut tenure_count = 1;
-        let mut total_unique_ballots = 0;
-
-        for entry in entries {
-            // Reset tracking on resign (ballot resets to 0, new tenure starts)
-            if entry.op_type == OP_RESIGN && entry.success {
-                total_unique_ballots += ballot_to_client.len();
-                ballot_to_client.clear();
-                tenure_count += 1;
-            }
-
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                if entry.ballot == 0 {
-                    continue; // Skip ballot 0 (initial state)
-                }
-
-                if let Some(&prev_client) = ballot_to_client.get(&entry.ballot) {
-                    if prev_client != entry.client_id {
-                        violations.push(format!(
-                            "Tenure {}: Ballot {} claimed by client {} and client {}",
-                            tenure_count, entry.ballot, prev_client, entry.client_id
+                    if transition.ballot != previous.ballot {
+                        violations.push(Violation::at(
+                            transition.index,
+                            format!(
+                                "a renewal keeps ballot {}, it does not move to {}",
+                                previous.ballot, transition.ballot
+                            ),
+                        ));
+                    }
+                    if transition.generation != previous.generation + 1 {
+                        violations.push(Violation::at(
+                            transition.index,
+                            format!(
+                                "a renewal adds exactly one generation to {}, not {}",
+                                previous.generation, transition.generation
+                            ),
+                        ));
+                    }
+                    if transition.token != previous.token
+                        || transition.leader_id != previous.leader_id
+                    {
+                        violations.push(Violation::at(
+                            transition.index,
+                            "a renewal came from something other than the holder",
                         ));
                     }
                 }
-                ballot_to_client.insert(entry.ballot, entry.client_id);
-            }
+            },
+            TransitionKind::Resign => match previous {
+                None => violations.push(Violation::at(
+                    transition.index,
+                    "resigned a record that does not exist",
+                )),
+                Some(previous) => {
+                    if transition.ballot != previous.ballot
+                        || transition.generation != previous.generation
+                    {
+                        violations.push(Violation::at(
+                            transition.index,
+                            format!(
+                                "a resign preserves ({}, {}), it wrote ({}, {})",
+                                previous.ballot,
+                                previous.generation,
+                                transition.ballot,
+                                transition.generation
+                            ),
+                        ));
+                    }
+                }
+            },
         }
+    }
 
-        total_unique_ballots += ballot_to_client.len();
+    InvariantReport::new("BallotSuccession", violations)
+}
 
-        if violations.is_empty() {
-            (
-                true,
+// ============================================================================
+// 3. ONE CLAIM PER BALLOT
+// ============================================================================
+
+/// A ballot names one term, held by one process under one token.
+///
+/// Two applied acquisitions at the same ballot would mean two processes hold
+/// ranks that neither dominates, which is precisely the state the fencing
+/// composition assumes cannot exist.
+pub fn one_claim_per_ballot(replay: &Replay) -> InvariantReport {
+    let mut violations = Vec::new();
+    let mut seen: HashMap<u64, (usize, [u8; 16])> = HashMap::new();
+
+    for transition in &replay.transitions {
+        if !transition.kind.is_acquisition() {
+            continue;
+        }
+        match seen.get(&transition.ballot) {
+            Some(&(first, token)) => violations.push(Violation::spanning(
+                vec![first, transition.index],
                 format!(
-                    "Paxos safety OK: {total_unique_ballots} unique ballots across {tenure_count} tenures"
+                    "ballot {} was acquired twice, under tokens {token:?} and {:?}",
+                    transition.ballot, transition.token
                 ),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
-    }
-
-    /// Invariant 13: Lease Expiry After Claim Time
-    ///
-    /// Every successful leadership claim must have a lease that expires
-    /// AFTER the claim was made. This catches:
-    /// - Incorrect lease duration calculation
-    /// - Clock skew causing past-expiry leases
-    /// - Missing lease assignment
-    pub(crate) fn verify_lease_expiry_after_claim(&self, entries: &LogEntries) -> (bool, String) {
-        let mut violations = Vec::new();
-        let mut valid_leases = 0;
-
-        for entry in entries {
-            if entry.op_type == OP_TRY_BECOME_LEADER && entry.success && entry.became_leader {
-                let claim_time = entry.claim_timestamp_nanos;
-                let lease_expiry = entry.lease_expiry_nanos;
-
-                if claim_time <= 0 {
-                    // Skip entries without claim timestamp (shouldn't happen after update)
-                    continue;
-                }
-
-                if lease_expiry <= claim_time {
-                    violations.push(format!(
-                        "Client {} claimed at {} but lease expires at {} (already expired or invalid)",
-                        entry.client_id,
-                        claim_time as f64 / 1_000_000_000.0,
-                        lease_expiry as f64 / 1_000_000_000.0
-                    ));
-                } else {
-                    valid_leases += 1;
-                }
+            )),
+            None => {
+                seen.insert(transition.ballot, (transition.index, transition.token));
             }
         }
-
-        if violations.is_empty() {
-            (
-                true,
-                format!("Lease timing OK: {valid_leases} claims with valid future leases"),
-            )
-        } else {
-            (false, violations.join("; "))
-        }
     }
 
-    /// Run all invariant checks and return results
-    pub(crate) fn run_all_invariant_checks(
-        &self,
-        entries: &LogEntries,
-        snapshot: &DatabaseSnapshot,
-    ) -> CheckResult {
-        let current_time = self.context.now();
+    InvariantReport::new("OneClaimPerBallot", violations)
+}
 
-        let mut results: Vec<(&'static str, bool, String)> = Vec::new();
+// ============================================================================
+// 4. NO BELIEF OVERLAP
+// ============================================================================
 
-        // Invariant 1: Dual-Path Validation (most important!)
-        // Replay logs in true commit order, compare with FDB state
-        // Subsumes safety (at most one leader) and ballot conservation
-        let (pass, detail) = self.verify_dual_path(entries, snapshot);
-        results.push(("DualPathValidation", pass, detail));
+/// No two processes believe they lead at the same time.
+///
+/// This is the weakest of the three safety levels and the only one that rests
+/// on an assumption about clocks, so it is the one stated with a tolerance. A
+/// client that was killed never reports the end of its belief; it is held to
+/// the horizon it had computed for itself, which is the same bound its own
+/// hard-stop would have enforced had it lived.
+pub fn no_belief_overlap(replay: &Replay, tolerances: &Tolerances) -> InvariantReport {
+    let mut violations = Vec::new();
+    let epsilon = tolerances.belief_overlap.as_nanos() as u64;
 
-        // Invariant 2: Leader Is Candidate (structural integrity)
-        let (pass, detail) = self.verify_leader_is_candidate(snapshot, current_time);
-        results.push(("LeaderIsCandidate", pass, detail));
-
-        // Invariant 3: Candidate Timestamps (no future timestamps)
-        let (pass, detail) = self.verify_candidate_timestamps(snapshot, current_time);
-        results.push(("CandidateTimestamps", pass, detail));
-
-        // Invariant 4: Leadership Sequence (per-client monotonic op_nums)
-        let (pass, detail) = self.verify_leadership_sequence(entries);
-        results.push(("LeadershipSequence", pass, detail));
-
-        // Invariant 5: Registration Coverage (all leaders were registered)
-        let (pass, detail) = self.verify_registration_coverage(entries);
-        results.push(("RegistrationCoverage", pass, detail));
-
-        // === NEW INVARIANTS (6-11): Split-brain, timing, and ballot bug detection ===
-
-        // Invariant 6: No Overlapping Leadership (critical - catches split-brain)
-        let (pass, detail) = self.verify_no_overlapping_leadership(entries);
-        results.push(("NoOverlappingLeadership", pass, detail));
-
-        // Invariant 7: Ballot Value Binding (critical - catches duplicate elections)
-        let (pass, detail) = self.verify_ballot_value_binding(entries);
-        results.push(("BallotValueBinding", pass, detail));
-
-        // Invariant 8: Fencing Token Monotonicity (high priority - catches stale leader writes)
-        let (pass, detail) = self.verify_fencing_token_monotonicity(entries);
-        results.push(("FencingTokenMonotonicity", pass, detail));
-
-        // Invariant 9: Global Ballot Succession (high priority - catches state regression)
-        let (pass, detail) = self.verify_global_ballot_succession(entries);
-        results.push(("GlobalBallotSuccession", pass, detail));
-
-        // Invariant 10: Mutex Linearizability (medium priority - general correctness)
-        let (pass, detail) = self.verify_mutex_linearizability(entries);
-        results.push(("MutexLinearizability", pass, detail));
-
-        // Invariant 11: Lease Overlap Check (medium priority - lease extension races)
-        let (pass, detail) = self.verify_lease_overlap_check(entries);
-        results.push(("LeaseOverlapCheck", pass, detail));
-
-        // Invariant 12: One Value Per Ballot (critical - Paxos safety within tenure)
-        let (pass, detail) = self.verify_one_value_per_ballot(entries);
-        results.push(("OneValuePerBallot", pass, detail));
-
-        // Invariant 13: Lease Expiry After Claim Time (critical - lease validity)
-        let (pass, detail) = self.verify_lease_expiry_after_claim(entries);
-        results.push(("LeaseExpiryAfterClaim", pass, detail));
-
-        // Log each result
-        for (name, passed, detail) in &results {
-            if *passed {
-                self.trace_invariant_pass(name, detail);
+    for (i, first) in replay.beliefs.iter().enumerate() {
+        for second in replay.beliefs.iter().skip(i + 1) {
+            let (early, late) = if first.begin_sim_nanos <= second.begin_sim_nanos {
+                (first, second)
             } else {
-                self.trace_invariant_fail(name, "invariant holds", detail);
+                (second, first)
+            };
+            let overlap = early
+                .effective_end_sim_nanos()
+                .saturating_sub(late.begin_sim_nanos);
+            if overlap > epsilon {
+                violations.push(Violation::spanning(
+                    vec![early.begin_index, late.begin_index],
+                    format!(
+                        "client {} believed it held ballot {} until {} ns, \
+                         while client {} started believing it held ballot {} at {} ns \
+                         ({overlap} ns of overlap, tolerance {epsilon} ns)",
+                        early.client_id,
+                        early.ballot,
+                        early.effective_end_sim_nanos(),
+                        late.client_id,
+                        late.ballot,
+                        late.begin_sim_nanos,
+                    ),
+                ));
+            }
+        }
+    }
+
+    InvariantReport::new("NoBeliefOverlap", violations)
+}
+
+// ============================================================================
+// 5. STEAL OBSERVATION DISCIPLINE
+// ============================================================================
+
+/// A steal is earned by watching, not by guessing.
+///
+/// The taker must have seen the same `(ballot, generation)` for at least the
+/// lease that record advertised, on its own clock, and nothing may have changed
+/// the leader record inside that window. Only leader-identity-changing commits
+/// count: fenced writes, denials and observations by other clients are not
+/// interference.
+pub fn steal_observation_discipline(
+    entries: &[LogEntry],
+    replay: &Replay,
+    tolerances: &Tolerances,
+) -> InvariantReport {
+    let mut violations = Vec::new();
+    let slack = tolerances.observation_slack.as_nanos() as u64;
+
+    for transition in &replay.transitions {
+        if transition.kind != TransitionKind::Steal {
+            continue;
+        }
+        let index = transition.index;
+        let record = &entries[index].record;
+
+        let observed = match transition.observed {
+            Some(observed) => observed,
+            None => {
+                violations.push(Violation::at(
+                    index,
+                    "stole a term without recording what it observed",
+                ));
+                continue;
+            }
+        };
+
+        let previous = match replay.states_before[index].as_ref() {
+            Some(previous) => previous,
+            None => {
+                violations.push(Violation::at(index, "stole a term from an absent record"));
+                continue;
+            }
+        };
+
+        match record.observation_start_nanos {
+            None => violations.push(Violation::at(
+                index,
+                "stole a term without an observation window",
+            )),
+            Some(start) => {
+                let elapsed = record.local_nanos.saturating_sub(start);
+                let required = previous.lease_nanos;
+                if elapsed + slack < required {
+                    violations.push(Violation::at(
+                        index,
+                        format!(
+                            "observed the record for {elapsed} ns before taking it, \
+                             but it advertised a lease of {required} ns \
+                             (tolerance {slack} ns)"
+                        ),
+                    ));
+                }
             }
         }
 
-        let passed = results.iter().filter(|(_, p, _)| *p).count();
-        let failed = results.len() - passed;
-
-        self.trace_check_summary(passed, failed);
-
-        CheckResult {
-            passed,
-            failed,
-            results,
+        // The window has to have been uninterrupted. Anything that changed the
+        // leader record between the write that produced the observed identity
+        // and the steal means the taker was timing a record that had already
+        // moved on.
+        match replay.transition_producing(observed, index) {
+            None => violations.push(Violation::at(
+                index,
+                format!("observed {observed:?}, which no applied write ever produced"),
+            )),
+            Some(source) => {
+                let interference: Vec<usize> = replay
+                    .transitions
+                    .iter()
+                    .filter(|t| t.index > source.index && t.index < index)
+                    .map(|t| t.index)
+                    .collect();
+                if !interference.is_empty() {
+                    let mut indices = vec![source.index];
+                    indices.extend(interference.iter().copied());
+                    indices.push(index);
+                    violations.push(Violation::spanning(
+                        indices,
+                        format!(
+                            "{} applied write(s) changed the leader record inside the \
+                             observation window",
+                            interference.len()
+                        ),
+                    ));
+                }
+            }
         }
+    }
+
+    InvariantReport::new("StealObservationDiscipline", violations)
+}
+
+// ============================================================================
+// 6. VACANT RECLAIM
+// ============================================================================
+
+/// An orderly handover costs nothing; a crash costs a full lease.
+///
+/// A resign writes a vacant record that keeps the ballot, so the successor
+/// lands at `ballot + 1` immediately. The asymmetry is deliberate, and it is
+/// only sound if the vacancy is genuine: a record that is merely stale must go
+/// through the observation window instead.
+pub fn vacant_reclaim(replay: &Replay) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    for transition in &replay.transitions {
+        let previous = replay.states_before[transition.index].as_ref();
+        match transition.kind {
+            TransitionKind::Resign => match previous {
+                None => violations.push(Violation::at(
+                    transition.index,
+                    "resigned a record that does not exist",
+                )),
+                Some(previous) => {
+                    if previous.is_vacant() {
+                        violations.push(Violation::at(
+                            transition.index,
+                            "resigned an already vacant term",
+                        ));
+                    }
+                    if transition.ballot != previous.ballot {
+                        violations.push(Violation::at(
+                            transition.index,
+                            format!(
+                                "a resign preserves ballot {}, it wrote {}: \
+                                 the successor would reuse a ballot",
+                                previous.ballot, transition.ballot
+                            ),
+                        ));
+                    }
+                    // Replay writes the vacancy sentinel for a resign, so the
+                    // state after it is the thing to check.
+                    let after = replay.states_before[transition.index + 1..]
+                        .iter()
+                        .flatten()
+                        .next();
+                    if let Some(after) = after {
+                        if after.ballot == transition.ballot && !after.is_vacant() {
+                            violations.push(Violation::at(
+                                transition.index,
+                                "a resign must leave the record vacant",
+                            ));
+                        }
+                    }
+                }
+            },
+            TransitionKind::Claim => {
+                if let Some(previous) = previous {
+                    if !previous.is_vacant() {
+                        violations.push(Violation::at(
+                            transition.index,
+                            "claimed a held record without the observation window a steal owes",
+                        ));
+                    }
+                }
+            }
+            TransitionKind::Steal => match previous {
+                None => violations.push(Violation::at(
+                    transition.index,
+                    "stole from an absent record, which is a claim",
+                )),
+                Some(previous) => {
+                    if previous.is_vacant() {
+                        violations.push(Violation::at(
+                            transition.index,
+                            "stole a vacant record, which is reclaimed without waiting",
+                        ));
+                    }
+                }
+            },
+            TransitionKind::Renew => {}
+        }
+    }
+
+    InvariantReport::new("VacantReclaim", violations)
+}
+
+// ============================================================================
+// 7. FENCING HOLDS
+// ============================================================================
+
+/// A fenced write lands only under the ballot of the term that authorized it.
+///
+/// This is the Kleppmann pause: a leader that stalls long enough to lose its
+/// term must not be able to complete work it started before the pause. Every
+/// applied fenced write must fall inside the leadership interval of the client
+/// that made it, at that client's own ballot.
+pub fn fencing_holds(entries: &[LogEntry], replay: &Replay) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    for (index, entry) in entries.iter().enumerate() {
+        if entry.record.op != OpKind::FencedWrite || !entry.record.outcome.is_applied() {
+            continue;
+        }
+        let ballot = entry.record.ballot;
+        let current = replay.states_before[index]
+            .as_ref()
+            .map_or(0, |state| state.ballot);
+
+        if ballot < current {
+            violations.push(Violation::at(
+                index,
+                format!(
+                    "a write fenced at ballot {ballot} landed while the term had \
+                     already moved to {current}"
+                ),
+            ));
+            continue;
+        }
+
+        match replay.term_at(index) {
+            None => violations.push(Violation::at(
+                index,
+                format!("a write fenced at ballot {ballot} landed while nobody held the term"),
+            )),
+            Some(term) => {
+                if term.ballot != ballot || term.client_id != entry.client_id {
+                    violations.push(Violation::at(
+                        index,
+                        format!(
+                            "client {} wrote at ballot {ballot} while client {} held ballot {}",
+                            entry.client_id, term.client_id, term.ballot
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
+    InvariantReport::new("FencingHolds", violations)
+}
+
+// ============================================================================
+// 8. UUID RECOVERY NO DUP
+// ============================================================================
+
+/// One token accounts for at most one applied claim.
+///
+/// A campaign whose commit reply was lost retries, sees its own record, and
+/// must adopt it rather than write again. If it wrote again it would consume a
+/// second ballot for a term it already held, and the log would show the same
+/// token twice.
+pub fn uuid_recovery_no_dup(entries: &[LogEntry], replay: &Replay) -> InvariantReport {
+    let mut violations = Vec::new();
+    let mut seen: HashMap<(i32, [u8; 16]), (usize, u64)> = HashMap::new();
+
+    for transition in &replay.transitions {
+        if !transition.kind.is_acquisition() {
+            continue;
+        }
+        let key = (transition.client_id, transition.token);
+        match seen.get(&key) {
+            Some(&(first, ballot)) => violations.push(Violation::spanning(
+                vec![first, transition.index],
+                format!(
+                    "client {} claimed twice under one token (ballots {ballot} and {})",
+                    transition.client_id, transition.ballot
+                ),
+            )),
+            None => {
+                seen.insert(key, (transition.index, transition.ballot));
+            }
+        }
+    }
+
+    for (index, entry) in entries.iter().enumerate() {
+        if !entry.record.recovery_noop {
+            continue;
+        }
+        if entry.record.leader_record_written {
+            violations.push(Violation::at(
+                index,
+                "a recovered unknown commit wrote a second time instead of adopting its record",
+            ));
+        }
+        if !entry.record.outcome.is_applied() {
+            violations.push(Violation::at(
+                index,
+                "a recovery no-op reports a rejection: recovery either adopts or is superseded",
+            ));
+        }
+    }
+
+    InvariantReport::new("UuidRecoveryNoDup", violations)
+}
+
+// ============================================================================
+// 9. PROGRESS MADE
+// ============================================================================
+
+/// The run actually elected somebody.
+///
+/// Safety invariants are all vacuously true of a log in which nothing happened,
+/// and a workload that silently stopped doing anything (a configuration typo, a
+/// deadlock, an exception swallowed in a role loop) would otherwise report a
+/// clean run forever.
+///
+/// # The renewal floor is conditional on opportunity
+///
+/// Acquisitions and sightings are demanded unconditionally, renewals are not.
+/// A hostile configuration can produce an honest run with many acquisitions and
+/// no renewals at all: when the cluster spends the window in recovery, a claim
+/// takes most of its lease just to commit, so the belief it yields is nearly
+/// over before it starts and the leader is stolen from long before its first
+/// renewal comes due. Failing that run would be reporting the cluster's
+/// behaviour as a defect of the recipe.
+///
+/// So the floor is applied only when the opportunity existed: count the belief
+/// intervals that outlived `renew_interval` (using the bounded end, so a leader
+/// killed without reporting one is held to the horizon it had computed). If
+/// none did, no renewal is required. If any did, the full `min_renewals` is
+/// required, not a prorated version of it: one leader that lived long enough to
+/// renew and did not is already a bug, and scaling the floor would only make
+/// the check harder to reason about.
+pub fn progress_made(
+    entries: &[LogEntry],
+    replay: &Replay,
+    thresholds: &ProgressThresholds,
+) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    let acquisitions = replay
+        .transitions
+        .iter()
+        .filter(|t| t.kind.is_acquisition())
+        .count();
+    if acquisitions < thresholds.min_acquisitions {
+        violations.push(Violation::global(format!(
+            "{acquisitions} applied claims and steals, expected at least {}",
+            thresholds.min_acquisitions
+        )));
+    }
+
+    let renewals = replay
+        .transitions
+        .iter()
+        .filter(|t| t.kind == TransitionKind::Renew)
+        .count();
+    let renew_interval = thresholds.renew_interval.as_nanos() as u64;
+    let opportunities = replay
+        .beliefs
+        .iter()
+        .filter(|belief| {
+            belief
+                .effective_end_sim_nanos()
+                .saturating_sub(belief.begin_sim_nanos)
+                > renew_interval
+        })
+        .count();
+    if opportunities > 0 && renewals < thresholds.min_renewals {
+        violations.push(Violation::global(format!(
+            "{renewals} applied renewals, expected at least {}: {opportunities} belief \
+             interval(s) outlived their renewal deadline, {renew_interval} ns after the \
+             belief began",
+            thresholds.min_renewals
+        )));
+    }
+
+    let mut identities: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.record.op == OpKind::Observe)
+        .filter_map(|entry| entry.record.observed)
+        .map(|observed| (observed.ballot, observed.generation, observed.vacant))
+        .collect();
+    identities.sort_unstable();
+    identities.dedup();
+    if identities.len() < thresholds.min_observed_identities {
+        violations.push(Violation::global(format!(
+            "the watchers saw {} distinct leader identities, expected at least {}",
+            identities.len(),
+            thresholds.min_observed_identities
+        )));
+    }
+
+    InvariantReport::new("ProgressMade", violations)
+}
+
+// ============================================================================
+// 10. HISTORY FAITHFUL
+// ============================================================================
+
+/// The recipe's own audit trail agrees with what happened.
+///
+/// History entries are written in the same transaction as the transition they
+/// describe, so they commit together or not at all, and they are keyed by
+/// commit versionstamp. Retention trimming may drop the oldest entries, so the
+/// trail is checked as a suffix of the replayed transitions: anything else
+/// (a gap in the middle, a wrong ballot, an entry for a transition that never
+/// happened) means a history write escaped its transaction.
+pub fn history_faithful(replay: &Replay, history: &[HistoryEntry]) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    let expected: Vec<(HistoryKind, u64, &str, usize)> = replay
+        .transitions
+        .iter()
+        .filter_map(|t| {
+            HistoryKind::from_transition(t.kind)
+                .map(|kind| (kind, t.ballot, t.leader_id.as_str(), t.index))
+        })
+        .collect();
+
+    if history.len() > expected.len() {
+        violations.push(Violation::global(format!(
+            "the history holds {} transitions but only {} were applied",
+            history.len(),
+            expected.len()
+        )));
+        return InvariantReport::new("HistoryFaithful", violations);
+    }
+
+    // Retention trims from the front, so the trail must line up with the tail.
+    let offset = expected.len() - history.len();
+    for (position, actual) in history.iter().enumerate() {
+        let (kind, ballot, leader_id, index) = expected[offset + position];
+        if actual.kind != kind || actual.ballot != ballot || actual.leader_id != leader_id {
+            violations.push(Violation::at(
+                index,
+                format!(
+                    "the history records {:?} at ballot {} by {}, but the transition was \
+                     {kind:?} at ballot {ballot} by {leader_id}",
+                    actual.kind, actual.ballot, actual.leader_id
+                ),
+            ));
+        }
+    }
+
+    InvariantReport::new("HistoryFaithful", violations)
+}
+
+// ============================================================================
+// ALL OF THEM
+// ============================================================================
+
+/// Everything a check phase needs to judge a run
+#[derive(Debug, Clone)]
+pub struct CheckInputs<'a> {
+    /// The log, in commit order
+    pub entries: &'a [LogEntry],
+    /// What replaying it produced
+    pub replay: &'a Replay,
+    /// The leader record the database actually holds
+    pub snapshot: Option<&'a ExpectedRecord>,
+    /// The recipe's own history subspace, oldest first
+    pub history: &'a [HistoryEntry],
+    /// What the configuration's clock assumptions allow
+    pub tolerances: Tolerances,
+    /// What the configuration expects the run to have achieved
+    pub thresholds: ProgressThresholds,
+}
+
+/// Run every invariant, in the order they appear in this module
+pub fn check_all(inputs: &CheckInputs<'_>) -> Vec<InvariantReport> {
+    vec![
+        dual_path_replay(inputs.replay, inputs.snapshot),
+        ballot_succession(inputs.replay),
+        one_claim_per_ballot(inputs.replay),
+        no_belief_overlap(inputs.replay, &inputs.tolerances),
+        steal_observation_discipline(inputs.entries, inputs.replay, &inputs.tolerances),
+        vacant_reclaim(inputs.replay),
+        fencing_holds(inputs.entries, inputs.replay),
+        uuid_recovery_no_dup(inputs.entries, inputs.replay),
+        progress_made(inputs.entries, inputs.replay, &inputs.thresholds),
+        history_faithful(inputs.replay, inputs.history),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::log_schema::fixtures::*;
+    use super::super::log_schema::{LogEntry, OpKind, Outcome};
+    use super::super::replay::replay;
+    use super::*;
+
+    const THRESHOLDS: ProgressThresholds = ProgressThresholds {
+        min_acquisitions: 3,
+        min_renewals: 3,
+        min_observed_identities: 4,
+        renew_interval: Duration::from_nanos(LEASE / 3),
+    };
+
+    /// Replay a log the way the check phase does
+    fn replayed(entries: &[LogEntry]) -> Replay {
+        replay(entries, leader_id)
+    }
+
+    fn inputs<'a>(
+        entries: &'a [LogEntry],
+        out: &'a Replay,
+        snapshot: &'a ExpectedRecord,
+        history: &'a [HistoryEntry],
+    ) -> CheckInputs<'a> {
+        CheckInputs {
+            entries,
+            replay: out,
+            snapshot: Some(snapshot),
+            history,
+            tolerances: Tolerances::STRICT,
+            thresholds: THRESHOLDS,
+        }
+    }
+
+    /// Assert the invariant failed, *and* that it failed for the reason the
+    /// test set out to provoke.
+    ///
+    /// Without the second half, a mutation that happens to trip some unrelated
+    /// check would look like a passing falsification test, and the invariant
+    /// under test could quietly become a tautology again.
+    fn assert_failed(report: &InvariantReport, because: &str) {
+        assert!(
+            !report.passed(),
+            "{} passed on a log built to break it",
+            report.name
+        );
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|violation| violation.detail.contains(because)),
+            "{} failed, but not for the reason under test ({because:?}): {:?}",
+            report.name,
+            report.violations
+        );
+    }
+
+    fn find(entries: &[LogEntry], predicate: impl Fn(&LogEntry) -> bool) -> usize {
+        entries
+            .iter()
+            .position(predicate)
+            .expect("the fixture contains the entry this test mutates")
+    }
+
+    // ------------------------------------------------------------------
+    // The clean log satisfies everything, with no slack at all.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn a_well_behaved_run_satisfies_every_invariant() {
+        let entries = clean_log();
+        let out = replayed(&entries);
+        let snapshot = clean_snapshot();
+        let history = clean_history();
+        for report in check_all(&inputs(&entries, &out, &snapshot, &history)) {
+            assert!(
+                report.passed(),
+                "{} failed on the clean log: {:?}",
+                report.name,
+                report.violations
+            );
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 1. DualPathReplay
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn dual_path_replay_catches_a_database_that_moved_on_its_own() {
+        let entries = clean_log();
+        let out = replayed(&entries);
+        assert!(dual_path_replay(&out, Some(&clean_snapshot())).passed());
+
+        // A write nobody logged: the database is one ballot ahead.
+        let mut snapshot = clean_snapshot();
+        snapshot.ballot += 1;
+        assert_failed(
+            &dual_path_replay(&out, Some(&snapshot)),
+            "the database holds",
+        );
+
+        // And a logged write that never landed.
+        assert_failed(&dual_path_replay(&out, None), "the database holds");
+    }
+
+    #[test]
+    fn dual_path_replay_catches_a_self_contradictory_entry() {
+        let mut entries = clean_log();
+        let fenced = find(&entries, |entry| entry.record.op == OpKind::FencedWrite);
+        entries[fenced].record.leader_record_written = true;
+
+        let out = replayed(&entries);
+        assert_failed(
+            &dual_path_replay(&out, Some(&clean_snapshot())),
+            "cannot write the leader record",
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 2. BallotSuccession
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn ballot_succession_catches_a_ballot_that_reset() {
+        // The defect the whole rewrite exists for: leadership handed back at a
+        // ballot already used, invalidating every fencing rank derived from it.
+        let mut entries = clean_log();
+        let reclaim = find(&entries, |entry| {
+            entry.record.op == OpKind::Claim && entry.record.ballot == 2
+        });
+        entries[reclaim].record.ballot = 1;
+
+        assert_failed(
+            &ballot_succession(&replayed(&entries)),
+            "ballots never reset and never skip",
+        );
+    }
+
+    #[test]
+    fn ballot_succession_catches_a_ballot_that_skipped() {
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        entries[steal].record.ballot = 5;
+
+        assert_failed(
+            &ballot_succession(&replayed(&entries)),
+            "ballots never reset and never skip",
+        );
+    }
+
+    #[test]
+    fn ballot_succession_catches_a_renewal_that_moved_the_ballot() {
+        let mut entries = clean_log();
+        let renew = find(&entries, |entry| {
+            entry.record.op == OpKind::Renew && entry.record.leader_record_written
+        });
+        entries[renew].record.ballot += 1;
+
+        assert_failed(
+            &ballot_succession(&replayed(&entries)),
+            "a renewal keeps ballot",
+        );
+    }
+
+    #[test]
+    fn ballot_succession_catches_a_renewal_that_skipped_a_generation() {
+        let mut entries = clean_log();
+        let renew = find(&entries, |entry| {
+            entry.record.op == OpKind::Renew && entry.record.leader_record_written
+        });
+        entries[renew].record.generation += 1;
+
+        assert_failed(
+            &ballot_succession(&replayed(&entries)),
+            "a renewal adds exactly one generation",
+        );
+    }
+
+    #[test]
+    fn ballot_succession_catches_a_write_decided_on_a_stale_read() {
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        let observed = entries[steal]
+            .record
+            .observed
+            .as_mut()
+            .expect("a steal records what it read");
+        observed.generation -= 1;
+
+        assert_failed(&ballot_succession(&replayed(&entries)), "stale read");
+    }
+
+    // ------------------------------------------------------------------
+    // 3. OneClaimPerBallot
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn one_claim_per_ballot_catches_two_holders_of_one_term() {
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        // A second process lands the same ballot: both now hold ranks that
+        // neither dominates.
+        let mut duplicate = entries[steal].clone();
+        duplicate.client_id = 0;
+        duplicate.record.token = token(7);
+        duplicate.record.sim_nanos += SEC;
+        entries.insert(steal + 1, duplicate);
+
+        assert_failed(
+            &one_claim_per_ballot(&replayed(&entries)),
+            "was acquired twice",
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 4. NoBeliefOverlap
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn no_belief_overlap_catches_two_leaders_believing_at_once() {
+        let entries = clean_log();
+        assert!(no_belief_overlap(&replayed(&entries), &Tolerances::STRICT).passed());
+
+        // The successor starts believing while the predecessor still does.
+        let mut entries = clean_log();
+        let successor = find(&entries, |entry| {
+            entry.record.op == OpKind::BeliefBegin && entry.record.ballot == 2
+        });
+        entries[successor].record.sim_nanos = 3 * SEC;
+        entries[successor].record.local_nanos = 3 * SEC;
+
+        assert_failed(
+            &no_belief_overlap(&replayed(&entries), &Tolerances::STRICT),
+            "of overlap",
+        );
+    }
+
+    #[test]
+    fn no_belief_overlap_holds_a_killed_leader_to_its_horizon() {
+        // Client 1 is killed without ever reporting an end. Pushing its horizon
+        // past the moment client 2 starts believing is exactly the failure a
+        // too-generous hard-stop would produce.
+        let mut entries = clean_log();
+        let crashed = find(&entries, |entry| {
+            entry.record.op == OpKind::BeliefBegin && entry.record.ballot == 2
+        });
+        entries[crashed].record.horizon_nanos = 30 * SEC;
+
+        assert_failed(
+            &no_belief_overlap(&replayed(&entries), &Tolerances::STRICT),
+            "of overlap",
+        );
+    }
+
+    #[test]
+    fn belief_overlap_tolerance_is_only_spent_where_a_configuration_allows_it() {
+        let mut entries = clean_log();
+        let successor = find(&entries, |entry| {
+            entry.record.op == OpKind::BeliefBegin && entry.record.ballot == 3
+        });
+        // A tenth of a second of overlap with the crashed leader's horizon: a
+        // violation with identical clocks, inside the budget once a 5% rate
+        // error is admitted over a ten second lease.
+        entries[successor].record.sim_nanos = 15 * SEC + 3 * SEC / 10;
+        let out = replayed(&entries);
+
+        assert_failed(&no_belief_overlap(&out, &Tolerances::STRICT), "of overlap");
+        let generous = Tolerances::from_clock_rate_error(Duration::from_nanos(LEASE), 0.05);
+        assert!(no_belief_overlap(&out, &generous).passed());
+    }
+
+    // ------------------------------------------------------------------
+    // 5. StealObservationDiscipline
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn steal_discipline_catches_a_window_shorter_than_the_lease() {
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        // Started timing five seconds late: half a lease of observation.
+        entries[steal].record.observation_start_nanos = Some(13 * SEC);
+
+        let out = replayed(&entries);
+        assert_failed(
+            &steal_observation_discipline(&entries, &out, &Tolerances::STRICT),
+            "advertised a lease of",
+        );
+    }
+
+    #[test]
+    fn steal_discipline_catches_an_interrupted_window() {
+        // The victim renewed inside the window: the taker was timing a record
+        // that had already moved.
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        let renewal = LogEntry {
+            versionstamp: entries[steal].versionstamp,
+            client_id: 1,
+            op_num: 999,
+            record: write(OpKind::Renew, 2, 4, 2, 15 * SEC),
+        };
+        entries.insert(steal, renewal);
+        // The taker still writes what the (now stale) record it timed implies.
+        entries[steal + 1].record.generation = 4;
+
+        let out = replayed(&entries);
+        assert_failed(
+            &steal_observation_discipline(&entries, &out, &Tolerances::STRICT),
+            "inside the observation window",
+        );
+    }
+
+    #[test]
+    fn steal_discipline_catches_a_steal_with_no_window_at_all() {
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        entries[steal].record.observation_start_nanos = None;
+
+        let out = replayed(&entries);
+        assert_failed(
+            &steal_observation_discipline(&entries, &out, &Tolerances::STRICT),
+            "without an observation window",
+        );
+    }
+
+    #[test]
+    fn steal_discipline_spends_its_tolerance_on_clock_rate_error_only() {
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        // A tenth of a second short of a full lease.
+        entries[steal].record.observation_start_nanos = Some(8 * SEC + 4 * SEC / 10);
+        let out = replayed(&entries);
+
+        assert_failed(
+            &steal_observation_discipline(&entries, &out, &Tolerances::STRICT),
+            "advertised a lease of",
+        );
+        let generous = Tolerances::from_clock_rate_error(Duration::from_nanos(LEASE), 0.01);
+        assert!(steal_observation_discipline(&entries, &out, &generous).passed());
+    }
+
+    // ------------------------------------------------------------------
+    // 6. VacantReclaim
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn vacant_reclaim_catches_a_resign_that_reset_the_ballot() {
+        let mut entries = clean_log();
+        let resign = find(&entries, |entry| entry.record.op == OpKind::Resign);
+        entries[resign].record.ballot = 0;
+
+        assert_failed(
+            &vacant_reclaim(&replayed(&entries)),
+            "a resign preserves ballot",
+        );
+    }
+
+    #[test]
+    fn vacant_reclaim_catches_a_claim_over_a_live_record() {
+        // A claim skips the observation window entirely, so taking a held
+        // record with one is the instant-override defect.
+        let mut entries = clean_log();
+        let steal = find(&entries, |entry| entry.record.op == OpKind::Steal);
+        entries[steal].record.op = OpKind::Claim;
+
+        assert_failed(
+            &vacant_reclaim(&replayed(&entries)),
+            "claimed a held record",
+        );
+    }
+
+    #[test]
+    fn vacant_reclaim_catches_a_steal_of_a_resigned_term() {
+        let mut entries = clean_log();
+        let reclaim = find(&entries, |entry| {
+            entry.record.op == OpKind::Claim && entry.record.ballot == 2
+        });
+        entries[reclaim].record.op = OpKind::Steal;
+
+        assert_failed(
+            &vacant_reclaim(&replayed(&entries)),
+            "stole a vacant record",
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 7. FencingHolds
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn fencing_holds_catches_the_paused_leaders_write_landing() {
+        // The Kleppmann scenario, which the previous suite did not test at all:
+        // client 1 pauses past its lease, wakes up, and its stale write must be
+        // rejected. Flipping it to applied is the defect.
+        let mut entries = clean_log();
+        let stale = find(&entries, |entry| {
+            entry.record.op == OpKind::FencedWrite && entry.record.outcome == Outcome::Rejected
+        });
+        entries[stale].record.outcome = Outcome::Applied;
+
+        assert_failed(
+            &fencing_holds(&entries, &replayed(&entries)),
+            "already moved to",
+        );
+    }
+
+    #[test]
+    fn fencing_holds_catches_a_write_at_somebody_elses_ballot() {
+        let mut entries = clean_log();
+        let fenced = find(&entries, |entry| {
+            entry.record.op == OpKind::FencedWrite && entry.record.outcome == Outcome::Applied
+        });
+        entries[fenced].client_id = 2;
+
+        assert_failed(&fencing_holds(&entries, &replayed(&entries)), "held ballot");
+    }
+
+    // ------------------------------------------------------------------
+    // 8. UuidRecoveryNoDup
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn uuid_recovery_catches_a_recovered_claim_written_twice() {
+        // The unknown-commit path: the retry must adopt the record it already
+        // wrote. Writing again consumes a second ballot under one token.
+        let mut entries = clean_log();
+        let recovery = find(&entries, |entry| entry.record.recovery_noop);
+        entries[recovery].record.leader_record_written = true;
+        entries[recovery].record.recovery_noop = false;
+        entries[recovery].record.ballot = 3;
+
+        assert_failed(
+            &uuid_recovery_no_dup(&entries, &replayed(&entries)),
+            "claimed twice under one token",
+        );
+    }
+
+    #[test]
+    fn uuid_recovery_catches_a_recovery_that_wrote() {
+        let mut entries = clean_log();
+        let recovery = find(&entries, |entry| entry.record.recovery_noop);
+        entries[recovery].record.leader_record_written = true;
+
+        assert_failed(
+            &uuid_recovery_no_dup(&entries, &replayed(&entries)),
+            "wrote a second time",
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 9. ProgressMade
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn progress_made_catches_a_run_where_nothing_happened() {
+        let entries: Vec<LogEntry> = Vec::new();
+        let out = replayed(&entries);
+        assert_failed(
+            &progress_made(&entries, &out, &THRESHOLDS),
+            "applied claims and steals",
+        );
+    }
+
+    #[test]
+    fn progress_made_catches_a_run_that_only_ever_elected_once() {
+        let mut log = LogBuilder::new();
+        log.push(0, write(OpKind::Claim, 1, 0, 1, SEC));
+        let entries = log.into_entries();
+        let out = replayed(&entries);
+        assert_failed(
+            &progress_made(&entries, &out, &THRESHOLDS),
+            "applied claims and steals",
+        );
+    }
+
+    #[test]
+    fn progress_made_catches_a_leader_that_lived_long_enough_to_renew_and_did_not() {
+        // Every belief in the clean log outlives its renewal deadline, so the
+        // floor applies in full: losing the renewals is a defect, not bad luck.
+        let entries: Vec<LogEntry> = clean_log()
+            .into_iter()
+            .filter(|entry| entry.record.op != OpKind::Renew)
+            .collect();
+        let out = replayed(&entries);
+        assert_failed(
+            &progress_made(&entries, &out, &THRESHOLDS),
+            "outlived their renewal deadline",
+        );
+    }
+
+    #[test]
+    fn progress_made_excuses_a_run_that_never_got_the_chance_to_renew() {
+        // The hostile configurations produce honest runs like this one: the
+        // cluster spends the window in recovery, each claim takes most of its
+        // lease just to commit, and the belief that comes out of it is nearly
+        // over before it begins. Nobody ever reaches a renewal deadline, and a
+        // flat floor would fail the run for the cluster's behaviour.
+        let thresholds = ProgressThresholds {
+            min_acquisitions: 2,
+            min_renewals: 3,
+            min_observed_identities: 0,
+            renew_interval: Duration::from_nanos(LEASE / 3),
+        };
+
+        let mut log = LogBuilder::new();
+        log.push(0, write(OpKind::Claim, 1, 0, 1, 9 * SEC));
+        // Anchored at zero, committed at nine: one second of horizon survives,
+        // and the leader is killed without ever reporting an end.
+        log.push(0, belief_begin(0, 1, 9 * SEC, 10 * SEC));
+        let mut steal = write(OpKind::Steal, 2, 0, 2, 20 * SEC);
+        steal.observation_start_nanos = Some(10 * SEC);
+        observed(&mut steal, 1, 0, false);
+        log.push(1, steal);
+        log.push(1, belief_begin(1, 2, 20 * SEC, 21 * SEC));
+
+        let mut entries = log.into_entries();
+        let out = replayed(&entries);
+        assert!(
+            progress_made(&entries, &out, &thresholds).passed(),
+            "a run in which nobody reached a renewal deadline must not be held to the floor"
+        );
+
+        // The condition is a condition, not an escape hatch: one belief that
+        // does outlive its deadline brings the floor back.
+        let belief = find(&entries, |entry| entry.record.op == OpKind::BeliefBegin);
+        entries[belief].record.horizon_nanos = 19 * SEC;
+        let out = replayed(&entries);
+        assert_failed(
+            &progress_made(&entries, &out, &thresholds),
+            "outlived their renewal deadline",
+        );
+    }
+
+    #[test]
+    fn progress_made_catches_a_blind_watcher() {
+        let entries: Vec<LogEntry> = clean_log()
+            .into_iter()
+            .filter(|entry| entry.record.op != OpKind::Observe)
+            .collect();
+        let out = replayed(&entries);
+        assert_failed(
+            &progress_made(&entries, &out, &THRESHOLDS),
+            "distinct leader identities",
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 10. HistoryFaithful
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn history_faithful_accepts_a_trimmed_trail() {
+        // Retention drops the oldest entries, so a suffix is legitimate.
+        let entries = clean_log();
+        let out = replayed(&entries);
+        let history = clean_history();
+        assert!(history_faithful(&out, &history[2..]).passed());
+    }
+
+    #[test]
+    fn history_faithful_catches_a_transition_missing_from_the_middle() {
+        let entries = clean_log();
+        let out = replayed(&entries);
+        let mut history = clean_history();
+        history.remove(1);
+        assert_failed(&history_faithful(&out, &history), "the history records");
+    }
+
+    #[test]
+    fn history_faithful_catches_a_wrong_ballot() {
+        let entries = clean_log();
+        let out = replayed(&entries);
+        let mut history = clean_history();
+        history[3].ballot = 9;
+        assert_failed(&history_faithful(&out, &history), "the history records");
+    }
+
+    #[test]
+    fn history_faithful_catches_an_entry_for_a_transition_that_never_happened() {
+        let entries = clean_log();
+        let out = replayed(&entries);
+        let mut history = clean_history();
+        history.push(HistoryEntry {
+            kind: HistoryKind::Steal,
+            ballot: 4,
+            leader_id: leader_id(0),
+        });
+        assert_failed(&history_faithful(&out, &history), "but only");
+    }
+
+    #[test]
+    fn history_faithful_rejects_a_renewal_that_leaked_into_the_trail() {
+        // Renewals are deliberately not recorded: the trail is a rare-event
+        // audit trail, and logging every heartbeat would make it a contention
+        // point. An extra entry shifts the suffix and is caught.
+        let entries = clean_log();
+        let out = replayed(&entries);
+        let mut history = clean_history();
+        history.insert(
+            1,
+            HistoryEntry {
+                kind: HistoryKind::Claim,
+                ballot: 1,
+                leader_id: leader_id(0),
+            },
+        );
+        assert_failed(&history_faithful(&out, &history), "but only");
+    }
+
+    // ------------------------------------------------------------------
+    // Tolerances
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn the_strict_configuration_admits_no_slack_at_all() {
+        assert_eq!(Tolerances::STRICT.belief_overlap, Duration::ZERO);
+        assert_eq!(
+            Tolerances::from_clock_rate_error(Duration::from_secs(10), 0.0),
+            Tolerances::STRICT
+        );
+        // 0.1% of rate error over ten seconds is just under twenty milliseconds.
+        let derived = Tolerances::from_clock_rate_error(Duration::from_secs(10), 1e-3);
+        assert!(derived.observation_slack > Duration::from_millis(19));
+        assert!(derived.observation_slack < Duration::from_millis(20));
     }
 }

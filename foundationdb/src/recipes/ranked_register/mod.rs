@@ -22,47 +22,91 @@
 //!
 //! ## Composing with Leader Election
 //!
-//! The ranked register is designed to work with the leader election recipe.
-//! The leader election's ballot serves as the rank for register operations,
-//! providing automatic fencing against stale leaders.
+//! The ranked register is the safety half of an "election service": the
+//! [leader election recipe](crate::recipes::leader_election) decides who *may*
+//! act, and the register is what stops anybody else from acting. A term's
+//! ballot becomes the rank of every operation that term performs.
+//!
+//! The order below is the contract, not a suggestion. Winning a term fences
+//! nothing by itself: the register only starts rejecting the old leader once
+//! the new one has installed its fence with [`read`](RankedRegister::read) at
+//! its own rank.
+//!
+//! The example below activates the fence as the first thing the work does,
+//! which is the best the handle layer allows: its campaign runs in a
+//! transaction the caller does not compose into. The stronger form is available
+//! at the primitive layer, where the caller owns the transaction and can put
+//! `try_claim` and the fencing `read` in the same one, so the term change and
+//! the fence commit atomically. Prefer it when you are driving the primitives:
+//! a process that wins a term and then stops before activating leaves the
+//! register carrying its old fence, which keeps a *previous* leader able to
+//! write until somebody else wins a term and activates.
 //!
 //! ```rust,no_run
-//! # fn example() {
-//! use foundationdb::recipes::leader_election::LeaderElection;
-//! use foundationdb::recipes::ranked_register::{RankedRegister, Rank};
+//! use foundationdb::Database;
+//! use foundationdb::recipes::leader_election::{LeadOutcome, LeaderElector};
+//! use foundationdb::recipes::ranked_register::{RankedRegister, RankedRegisterError};
 //! use foundationdb::tuple::Subspace;
 //!
-//! let election = LeaderElection::new(Subspace::all().subspace(&"my-election"));
-//! let register = RankedRegister::new(Subspace::all().subspace(&"my-state"));
+//! async fn lead(db: &Database, elector: &LeaderElector) -> Result<(), RankedRegisterError> {
+//!     let register = RankedRegister::new(Subspace::all().subspace(&"my-state"));
 //!
-//! // In the leader's main loop:
-//! // db.run(|txn, _| async move {
-//! //     let result = election.run_election_cycle(&txn, process_id, priority, now).await?;
-//! //     match result {
-//! //         ElectionResult::Leader(state) => {
-//! //             let rank = Rank::from(state.ballot);
-//! //             // Read current state (installs fence at this ballot)
-//! //             let current = register.read(&txn, rank).await?;
-//! //             // Mutate and write back
-//! //             register.write(&txn, rank, b"new_value").await?;
-//! //         }
-//! //         ElectionResult::Follower(_) => {
-//! //             // Safe read — doesn't interfere with leader's writes
-//! //             let current = register.value(&txn).await?;
-//! //         }
-//! //     }
-//! //     Ok(())
-//! // }).await?;
-//! # }
+//!     let outcome = elector
+//!         .lead(|handle| async move {
+//!             let register = &register;
+//!
+//!             // Step 1: install the fence, before doing anything the term
+//!             // authorizes. `rank(0)` is the first rank of this term.
+//!             let fence = handle.rank(0).expect("the term was just won");
+//!             let current = db
+//!                 .run(|txn, _| async move { register.read(&txn, fence).await })
+//!                 .await?;
+//!
+//!             // Step 2: fenced work. Every write carries a rank of this term,
+//!             // so a predecessor that wakes up mid-write is rejected.
+//!             let mut next = current.value().unwrap_or(b"").to_vec();
+//!             next.push(b'!');
+//!             let next = &next;
+//!             let rank = handle.next_rank().expect("still leading");
+//!             db.run(|txn, _| async move { register.write(&txn, rank, next).await })
+//!                 .await?;
+//!
+//!             Ok::<_, RankedRegisterError>(())
+//!         })
+//!         .await
+//!         .expect("the campaign failed");
+//!
+//!     match outcome {
+//!         LeadOutcome::Completed { value, .. } => value,
+//!         // The term ended mid-work and the work future was dropped. Whatever
+//!         // it had already written stays; the fence is what makes that safe.
+//!         LeadOutcome::LeaseLost => Ok(()),
+//!     }
+//! }
+//!
+//! // Followers read with `value()`, which installs no fence and so cannot
+//! // disturb the leader.
+//! async fn follow(db: &Database, register: &RankedRegister) -> Result<(), RankedRegisterError> {
+//!     let _current = db
+//!         .run(|txn, _| async move { register.value(&txn).await })
+//!         .await?;
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ### Why This Works
 //!
-//! - Leader election's ballot is monotonically increasing
-//! - A deposed leader has a lower ballot than the new leader
-//! - `read(rank)` installs a fence at the ballot value
-//! - Any write with a lower rank is automatically rejected
-//! - `value()` is safe for followers — it never installs a fence
+//! - Ballots are monotonic and never reset, even across a resign, so a
+//!   dispossessed leader's ballot is always below its successor's.
+//! - A rank puts the ballot in the high bits and a per-term sequence in the
+//!   low bits, so every rank of term `b + 1` dominates every rank of term `b`.
+//! - `read(rank)` installs a fence at that rank; any lower-ranked write is
+//!   rejected from then on.
+//! - `value()` is safe for followers, since it never installs a fence.
+//!
+//! The guarantee is transactional and therefore covers FoundationDB-resident
+//! state only. Effects outside the database get the ballot as a token, and the
+//! systems receiving it have to do their own rejecting.
 
 mod algorithm;
 mod errors;

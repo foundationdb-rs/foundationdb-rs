@@ -1,0 +1,64 @@
+# Leader Election Churn and Attrition
+#
+# Purpose: kill things, and require that leadership still moves afterwards.
+# Safety invariants are all vacuously true of a run in which nothing happened,
+# so this configuration pairs the harshest fault injection with the highest
+# progress thresholds: the cluster has to recover, not merely survive.
+#
+# Scenario:
+# - Machines killed and rebooted throughout, half the cluster at a time
+# - Severe clogging on top, so surviving clients lose transactions as well
+# - Extreme clock skew: rate error at the bound, plus one jump and one
+#   regression per client, both sized inside what the rate bound already
+#   implies (a larger step is a fault the design makes no claim about)
+# - Frequent simulated crashes, so leaders vanish mid-term without ever
+#   reporting the end of their belief and successors must wait them out
+# - Faults for the first two thirds, then a quiet tail: recovery is expected
+#   rather than lucky
+#
+# Bug classes this configuration catches:
+# - A restarted process inheriting leadership instead of waiting out the lease
+# - Ballots that reset when the record is rewritten after a failure
+# - Runs that quietly stop making progress and pass every safety check
+#
+# On the fault window:
+# The chaos workloads stop at roughly two thirds of the run and the workload
+# keeps going to testDurationSecs, leaving a fault-free tail. ProgressMade asks
+# whether the run recovered and made progress, and a run whose faults never
+# stop has no window to recover *into*: whether it clears the floor then
+# depends on how the kills happened to land rather than on the protocol. The
+# tail is where the recovery property is demonstrated, which is what the floors
+# were always meant to be asking about.
+
+[[test]]
+testTitle = 'LeaderElectionChurnAttrition'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    leaseDurationSecs = 8.0
+    stepIntervalSecs = 1.0
+    testDurationSecs = 150.0
+    resignProbability = 0.2
+    crashProbability = 0.15
+    clockSkewMode = 'extreme'
+    pauseFactor = 2.0
+    sleeperEnabled = false
+    minLeadershipClaims = 4
+    minRenewals = 2
+    minObservedIdentities = 5
+
+  [[test.workload]]
+    testName = 'RandomClogging'
+    testDuration = 98.0
+    swizzle = 2
+
+  [[test.workload]]
+    testName = 'Attrition'
+    machinesToKill = 6
+    machinesToLeave = 3
+    reboot = true
+    testDuration = 98.0

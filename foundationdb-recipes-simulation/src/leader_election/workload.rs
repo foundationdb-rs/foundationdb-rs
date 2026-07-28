@@ -1,592 +1,557 @@
-//! RustWorkload trait implementation for leader election simulation.
+//! The simulation workload itself.
 //!
-//! Contains the three main workload phases:
-//! - setup: Initialize election and register candidates
-//! - start: Execute heartbeats and leadership attempts
-//! - check: Verify invariants against logged operations
+//! Three phases. `setup` publishes what the run was configured with and lines
+//! the clients up so none of them starts a lease while the others are still
+//! being created. `start` hands each client to its [role](super::roles) until
+//! the simulated deadline. `check` reads the whole log back, replays it, and
+//! judges the run against [`invariants`](super::invariants).
+//!
+//! # Where a failure comes from
+//!
+//! `Severity::Error` is the only thing that fails a FoundationDB simulation
+//! run, and this workload emits it in exactly two situations: an invariant was
+//! violated, or the check phase could not obtain the evidence to judge (an
+//! unreadable log, a configuration it does not understand). Everything else,
+//! including a client whose role died on an infrastructure error, is a warning:
+//! what that client failed to do shows up as missing progress, and
+//! `ProgressMade` is what decides whether that mattered.
+//!
+//! The check runs on *every* client, not just client 0. Attrition kills
+//! clients, and a run whose only judge was killed used to pass by default.
+//!
+//! # Options
+//!
+//! Every knob is read exactly once, in [`new`](LeaderElectionWorkload::new).
+//! `get_option` consumes, and fdbserver fails a run that leaves options
+//! unconsumed, so a misspelled knob is a failed run rather than a silently
+//! ignored setting. That is also why all five configurations carry the same
+//! knobs even where a value does nothing: an unread knob would fail the run it
+//! is irrelevant to.
 
 use std::time::Duration;
 
-use foundationdb::{
-    FdbBindingError, RangeOption,
-    options::{MutationType, TransactionOption},
-    recipes::leader_election::{ElectionConfig, LeaderElection},
-    tuple::{Versionstamp, pack, unpack},
+use foundationdb::options::StreamingMode;
+use foundationdb::recipes::leader_election::{
+    HistoryEvent, HistoryEventKind, LeaderElection, LeaderRecord, LeaseDuration,
 };
-use foundationdb_simulation::{Metric, Metrics, RustWorkload, Severity, SimDatabase, details};
+use foundationdb::recipes::ranked_register::RankedRegister;
+use foundationdb::tuple::{Subspace, pack};
+use foundationdb::{FdbBindingError, RangeOption};
+use foundationdb_simulation::{
+    Metric, Metrics, RustWorkload, Severity, SimDatabase, SingleRustWorkload, WorkloadContext,
+    details,
+};
 use futures::TryStreamExt;
 
-use super::LeaderElectionWorkload;
-use super::types::{
-    LogEntries, LogEntry, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
+use super::clock::{SkewMode, SkewedClock};
+use super::invariants::{
+    CheckInputs, HistoryEntry, HistoryKind, InvariantReport, ProgressThresholds, Tolerances,
+    check_all,
 };
+use super::log_schema::{LogEntry, OpKind, log_subspace};
+use super::logged_op::Journal;
+use super::replay::{ExpectedRecord, TransitionKind, replay};
+use super::roles::{Driver, DriverConfig, Role};
+
+/// How many transition records the check phase asks the recipe for
+///
+/// Larger than any run produces, so the trail is compared whole unless the
+/// recipe's own retention trimmed it, which the invariant allows for.
+const HISTORY_LIMIT: usize = 4096;
+/// How many violations of one invariant are spelled out before the rest are
+/// summarised
+const MAX_VIOLATIONS_TRACED: usize = 5;
+/// How many entries either side of the first violation are dumped
+const DUMP_RADIUS: usize = 10;
+
+/// Drives leader election against the simulated cluster
+pub struct LeaderElectionWorkload {
+    context: WorkloadContext,
+    client_id: i32,
+    client_count: i32,
+    election: LeaderElection,
+    config: DriverConfig,
+    thresholds: ProgressThresholds,
+    role: Role,
+    driver: Driver,
+    /// A configuration this build cannot honour, reported in `setup` where
+    /// there is a trace sink to report it to
+    config_error: Option<String>,
+}
+
+impl SingleRustWorkload for LeaderElectionWorkload {
+    fn new(_name: String, context: WorkloadContext) -> Self {
+        let client_id = context.client_id();
+        let client_count = context.client_count();
+
+        // ------------------------------------------------------------------
+        // Every knob of every configuration, read exactly once.
+        // ------------------------------------------------------------------
+        let lease_secs: f64 = context.get_option("leaseDurationSecs").unwrap_or(10.0);
+        let step_secs: f64 = context.get_option("stepIntervalSecs").unwrap_or(1.0);
+        let test_duration_secs: f64 = context.get_option("testDurationSecs").unwrap_or(60.0);
+        let resign_probability: f64 = context.get_option("resignProbability").unwrap_or(0.1);
+        let crash_probability: f64 = context.get_option("crashProbability").unwrap_or(0.0);
+        let clock_skew_mode: String = context
+            .get_option("clockSkewMode")
+            .unwrap_or_else(|| "none".to_string());
+        let pause_factor: f64 = context.get_option("pauseFactor").unwrap_or(2.0);
+        let sleeper_enabled: bool = context.get_option("sleeperEnabled").unwrap_or(false);
+        let min_acquisitions: usize = context.get_option("minLeadershipClaims").unwrap_or(2);
+        let min_renewals: usize = context.get_option("minRenewals").unwrap_or(2);
+        let min_observed_identities: usize =
+            context.get_option("minObservedIdentities").unwrap_or(2);
+
+        let mut config_error = None;
+        let skew_mode = SkewMode::parse(&clock_skew_mode).unwrap_or_else(|| {
+            config_error = Some(format!(
+                "clockSkewMode {clock_skew_mode:?} is not one of none, random, extreme"
+            ));
+            SkewMode::None
+        });
+        let lease =
+            LeaseDuration::new(Duration::from_secs_f64(lease_secs)).unwrap_or_else(|error| {
+                config_error = Some(format!(
+                    "leaseDurationSecs {lease_secs} is unusable: {error}"
+                ));
+                LeaseDuration::new(Duration::from_secs(10)).expect("ten seconds is a valid lease")
+            });
+
+        let role = Role::assign(client_id, client_count, sleeper_enabled);
+        let config = DriverConfig {
+            lease,
+            step: Duration::from_secs_f64(step_secs.max(0.0)),
+            test_duration: Duration::from_secs_f64(test_duration_secs.max(0.0)),
+            resign_probability,
+            crash_probability,
+            pause_factor,
+            skew_mode,
+            // Only when a Sleeper was actually assigned: the head start is
+            // dead time in every other configuration.
+            sleeper_head_start: match Role::assign(1, client_count, sleeper_enabled) {
+                // Long enough to cover one slow first commit: under contention
+                // an opening claim can take a good fraction of a lease to land,
+                // and a head start shorter than that decides nothing.
+                Role::Sleeper => Duration::from_secs_f64(step_secs.max(0.0) * 5.0)
+                    .max(Duration::from_secs_f64(lease_secs.max(0.0) / 2.0)),
+                _ => Duration::ZERO,
+            },
+        };
+
+        let clock = SkewedClock::new(skew_mode, lease.as_duration(), config.test_duration, || {
+            context.rnd()
+        });
+        let election = LeaderElection::new(Subspace::all().subspace(&("leader_election",)));
+        let journal = Journal::new(
+            context.clone(),
+            clock,
+            election.clone(),
+            RankedRegister::new(Subspace::all().subspace(&("le_register",))),
+            client_id,
+        );
+        Self {
+            driver: Driver::new(context.clone(), journal, config, role),
+            context,
+            client_id,
+            client_count,
+            election,
+            config,
+            thresholds: ProgressThresholds {
+                min_acquisitions,
+                min_renewals,
+                min_observed_identities,
+                // Not a knob: it has to be the interval the driver actually
+                // renews on (`roles.rs`), or the check would excuse runs that
+                // did have the chance to renew.
+                renew_interval: lease.as_duration() / 3,
+            },
+            role,
+            config_error,
+        }
+    }
+}
 
 impl RustWorkload for LeaderElectionWorkload {
     async fn setup(&mut self, db: SimDatabase) {
+        if let Some(problem) = self.config_error.clone() {
+            // A configuration this build does not understand would run a
+            // different test than the one the file describes, and pass.
+            self.context.trace(
+                Severity::Error,
+                "LeaderElectionConfigInvalid",
+                details!["Problem" => problem],
+            );
+        }
+
         self.context.trace(
             Severity::Info,
             "LeaderElectionSetup",
             details![
-                "Layer" => "Rust",
                 "Client" => self.client_id,
-                "Phase" => "Setup"
+                "ClientCount" => self.client_count,
+                "Role" => self.role.as_str(),
+                "LeaseSecs" => self.config.lease.as_duration().as_secs_f64(),
+                "StepSecs" => self.config.step.as_secs_f64(),
+                "TestDurationSecs" => self.config.test_duration.as_secs_f64(),
+                "SafetyMarginSecs" => self.config.safety_margin().as_secs_f64(),
+                "ClockSkewMode" => self.config.skew_mode.as_str(),
+                "ClockRate" => format!("{:.6}", self.driver.journal().clock().rate()),
+                "SharedRandom" => self.context.shared_random_number()
             ],
         );
 
-        // Log clock skew configuration for this client
-        self.context.trace(
-            Severity::Info,
-            "ClockSkewConfig",
-            details![
-                "Layer" => "Rust",
-                "ClientId" => self.client_id,
-                "ClockSkewLevel" => format!("{:?}", self.clock_skew_level),
-                "ClockOffsetSecs" => format!("{:.4}", self.clock_offset_secs),
-                "ClockTimerTime" => format!("{:.4}", self.clock_timer_time)
-            ],
-        );
-
-        // Client 0 initializes the leader election
         if self.client_id == 0 {
-            let election = LeaderElection::new(self.election_subspace.clone());
-            let config = ElectionConfig::with_lease_duration(Duration::from_secs(
-                self.heartbeat_timeout_secs,
+            let key = Subspace::all().subspace(&("le_meta",)).pack(&("config",));
+            let value = pack(&(
+                self.config.lease.as_nanos(),
+                self.client_count,
+                self.config.skew_mode.as_str(),
+                self.config.test_duration.as_secs_f64(),
             ));
-
-            const MAX_INIT_RETRIES: u32 = 10;
-            let mut init_success = false;
-
-            for attempt in 1..=MAX_INIT_RETRIES {
-                let result = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let config = config.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            election
-                                .initialize_with_config(&trx, config)
-                                .await
-                                .map_err(FdbBindingError::from)?;
-                            Ok::<_, FdbBindingError>(())
-                        }
-                    })
-                    .await;
-
-                match result {
-                    Ok(()) => {
-                        init_success = true;
-                        break;
+            let written = db
+                .run(|trx, _| {
+                    let key = key.clone();
+                    let value = value.clone();
+                    async move {
+                        trx.set(&key, &value);
+                        Ok::<_, FdbBindingError>(())
                     }
-                    Err(e) => {
-                        self.context.trace(
-                            Severity::Warn,
-                            "LeaderElectionInitRetry",
-                            details![
-                                "Attempt" => attempt,
-                                "MaxAttempts" => MAX_INIT_RETRIES,
-                                "Error" => format!("{:?}", e)
-                            ],
-                        );
-                    }
-                }
-            }
-
-            if !init_success {
+                })
+                .await;
+            if let Err(error) = written {
                 self.context.trace(
-                    Severity::Error,
-                    "LeaderElectionInitFailed",
-                    details!["Error" => "Exhausted all retry attempts"],
-                );
-            }
-
-            // Register ALL candidates (Client 0 does this for everyone to avoid race condition)
-            for cid in 0..self.client_count {
-                let process_id = format!("process_{cid}");
-                let timestamp = self.local_time();
-                let log_subspace = self.log_subspace.clone();
-
-                let result = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let process_id = process_id.clone();
-                        let log_subspace = log_subspace.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            let reg_result = election
-                                .register_candidate(&trx, &process_id, 0, timestamp)
-                                .await;
-
-                            // Log with versionstamp-ordered key (FDB commit order)
-                            let success = reg_result.is_ok();
-                            let log_key = log_subspace.pack_with_versionstamp(&(
-                                Versionstamp::incomplete(0),
-                                cid,
-                                0_u64, // op_num 0 for registration
-                            ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let log_value =
-                                pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
-                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
-
-                            reg_result.map_err(FdbBindingError::from)
-                        }
-                    })
-                    .await;
-
-                self.context.trace(
-                    Severity::Info,
-                    "ProcessRegistered",
-                    details![
-                        "Layer" => "Rust",
-                        "Client" => cid,
-                        "ProcessId" => process_id,
-                        "Success" => result.is_ok()
-                    ],
+                    Severity::WarnAlways,
+                    "LeaderElectionMetaWriteFailed",
+                    details!["Error" => format!("{error:?}")],
                 );
             }
         }
 
-        // All clients start with op_num = 1 (registration was op 0, done by Client 0)
-        self.op_num = 1;
+        // Line the clients up: one that started campaigning while the others
+        // were still being created would spend the first steps of the run
+        // uncontested, which is the least interesting shape a run can have.
+        let _ = self.context.delay(self.config.step).await;
     }
 
     async fn start(&mut self, db: SimDatabase) {
-        self.context.trace(
-            Severity::Info,
-            "LeaderElectionStart",
-            details![
-                "Layer" => "Rust",
-                "Client" => self.client_id,
-                "Phase" => "Start",
-                "OperationCount" => self.operation_count
-            ],
-        );
+        self.driver.run(&db).await;
 
-        let election = LeaderElection::new(self.election_subspace.clone());
-
-        // Count-based loop (not time-based - simulation time only advances on async ops)
-        for _ in 0..self.operation_count {
-            // Use local_time() for clock skew simulation
-            let timestamp = self.local_time();
-            let current_time = timestamp.as_secs_f64();
-
-            // Send heartbeat
-            {
-                let process_id = self.process_id.clone();
-                let election = election.clone();
-                let log_subspace = self.log_subspace.clone();
-                let client_id = self.client_id;
-                let op_num = self.op_num;
-
-                let result = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let process_id = process_id.clone();
-                        let log_subspace = log_subspace.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            let hb_result = election
-                                .heartbeat_candidate(&trx, &process_id, 0, timestamp)
-                                .await;
-
-                            // Log with versionstamp-ordered key (FDB commit order)
-                            let success = hb_result.is_ok();
-                            let log_key = log_subspace.pack_with_versionstamp(&(
-                                Versionstamp::incomplete(0),
-                                client_id,
-                                op_num,
-                            ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let log_value =
-                                pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
-                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
-
-                            hb_result.map_err(FdbBindingError::from)
-                        }
-                    })
-                    .await;
-
-                self.op_num += 1;
-
-                if result.is_ok() {
-                    self.heartbeat_count += 1;
-                } else {
-                    self.error_count += 1;
-                }
-            }
-
-            // Try to become leader
-            let became_leader = {
-                let process_id = self.process_id.clone();
-                let election = election.clone();
-                let log_subspace = self.log_subspace.clone();
-                let client_id = self.client_id;
-                let op_num = self.op_num;
-
-                let result: Result<Option<_>, _> = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let process_id = process_id.clone();
-                        let log_subspace = log_subspace.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-
-                            // Get previous ballot before claim attempt
-                            let current = election.get_leader_raw(&trx).await.ok().flatten();
-                            let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
-
-                            let claim_result = election
-                                .try_claim_leadership(&trx, &process_id, 0, timestamp)
-                                .await
-                                .map_err(FdbBindingError::from)?;
-
-                            // Extract ballot and lease info from result
-                            let (became_leader, ballot, lease_expiry) = match &claim_result {
-                                Some(state) => {
-                                    (true, state.ballot, state.lease_expiry_nanos as i64)
-                                }
-                                None => (false, previous_ballot, 0_i64),
-                            };
-
-                            // Log with versionstamp-ordered key (FDB commit order)
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let claim_timestamp_nanos = timestamp.as_nanos() as i64;
-                            let log_key = log_subspace.pack_with_versionstamp(&(
-                                Versionstamp::incomplete(0),
-                                client_id,
-                                op_num,
-                            ));
-                            let log_value = pack(&(
-                                OP_TRY_BECOME_LEADER,
-                                true,
-                                became_leader,
-                                ballot,
-                                previous_ballot,
-                                lease_expiry,
-                                claim_timestamp_nanos,
-                            ));
-                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
-
-                            Ok::<_, FdbBindingError>(claim_result)
-                        }
-                    })
-                    .await;
-
-                self.op_num += 1;
-                self.leadership_attempts += 1;
-                let became_leader = matches!(&result, Ok(Some(_)));
-                if became_leader {
-                    self.times_became_leader += 1;
-                    // Enhanced logging with ballot and lease info for debugging
-                    if let Ok(Some(ref state)) = result {
-                        self.context.trace(
-                            Severity::Info,
-                            "BecameLeader",
-                            details![
-                                "Layer" => "Rust",
-                                "Client" => self.client_id,
-                                "ProcessId" => self.process_id.clone(),
-                                "Timestamp" => current_time,
-                                "Ballot" => state.ballot,
-                                "LeaseExpirySecs" => state.lease_expiry_nanos as f64 / 1_000_000_000.0
-                            ],
-                        );
-                    }
-                } else if result.is_ok() {
-                    // Log when leadership claim is rejected (for debugging overlaps)
-                    self.context.trace(
-                        Severity::Debug,
-                        "LeadershipClaimRejected",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id,
-                            "ProcessId" => self.process_id.clone(),
-                            "Timestamp" => current_time,
-                            "Reason" => "Another leader has valid lease"
-                        ],
-                    );
-                }
-                if result.is_err() {
-                    self.error_count += 1;
-                }
-                became_leader
-            };
-
-            // Randomly resign if we became leader
-            if became_leader {
-                let rnd_val = self.context.rnd() as f64 / u32::MAX as f64;
-                if rnd_val < self.resign_probability {
-                    let process_id = self.process_id.clone();
-                    let election = election.clone();
-                    let log_subspace = self.log_subspace.clone();
-                    let client_id = self.client_id;
-                    let op_num = self.op_num;
-
-                    let resign_result: Result<bool, _> = db
-                        .run(|trx, _maybe_committed| {
-                            let election = election.clone();
-                            let process_id = process_id.clone();
-                            let log_subspace = log_subspace.clone();
-                            async move {
-                                trx.set_option(TransactionOption::AutomaticIdempotency)?;
-
-                                // Get previous ballot before resign
-                                let current = election.get_leader_raw(&trx).await.ok().flatten();
-                                let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
-
-                                let did_resign = election
-                                    .resign_leadership(&trx, &process_id)
-                                    .await
-                                    .map_err(FdbBindingError::from)?;
-
-                                // Log with versionstamp-ordered key (FDB commit order)
-                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                                let log_key = log_subspace.pack_with_versionstamp(&(
-                                    Versionstamp::incomplete(0),
-                                    client_id,
-                                    op_num,
-                                ));
-                                let log_value = pack(&(
-                                    OP_RESIGN,
-                                    did_resign,
-                                    false,
-                                    0_u64,
-                                    previous_ballot,
-                                    0_i64,
-                                    0_i64,
-                                ));
-                                trx.atomic_op(
-                                    &log_key,
-                                    &log_value,
-                                    MutationType::SetVersionstampedKey,
-                                );
-
-                                Ok::<_, FdbBindingError>(did_resign)
-                            }
-                        })
-                        .await;
-
-                    self.op_num += 1;
-
-                    if matches!(resign_result, Ok(true)) {
-                        self.resign_count += 1;
-                        self.context.trace(
-                            Severity::Info,
-                            "LeaderResigned",
-                            details![
-                                "Layer" => "Rust",
-                                "Client" => self.client_id,
-                                "ProcessId" => self.process_id.clone(),
-                                "Timestamp" => current_time
-                            ],
-                        );
-                    }
-                    if resign_result.is_err() {
-                        self.error_count += 1;
-                    }
-                }
-            }
-        }
-
+        let counters = self.driver.counters();
         self.context.trace(
             Severity::Info,
             "LeaderElectionStartComplete",
             details![
-                "Layer" => "Rust",
                 "Client" => self.client_id,
-                "HeartbeatCount" => self.heartbeat_count,
-                "LeadershipAttempts" => self.leadership_attempts,
-                "TimesBecameLeader" => self.times_became_leader,
-                "ResignCount" => self.resign_count
+                "Role" => self.role.as_str(),
+                "Acquisitions" => counters.acquisitions,
+                "Renewals" => counters.renewals,
+                "Resigns" => counters.resigns,
+                "Denials" => counters.denials,
+                "Crashes" => counters.crashes,
+                "HorizonStops" => counters.horizon_stops,
+                "FencedApplied" => counters.fenced_applied,
+                "FencedRejected" => counters.fenced_rejected,
+                "WorkAbandoned" => counters.work_abandoned,
+                "MaxObservedSkewSecs" =>
+                    self.driver.journal().clock().max_observed_skew().as_secs_f64()
             ],
         );
     }
 
     async fn check(&mut self, db: SimDatabase) {
-        self.trace_check_start();
-
-        // Only client 0 performs verification
-        if self.client_id != 0 {
-            return;
-        }
-
-        // Step 1: Read all log entries and snapshot in a single transaction
-        // Capture read version for debugging (like Cycle.actor.cpp)
-        let log_subspace = self.log_subspace.clone();
-        let election_subspace = self.election_subspace.clone();
-
-        let check_result = db
-            .run(|trx, _maybe_committed| {
-                let log_subspace = log_subspace.clone();
-                let election_subspace = election_subspace.clone();
-                async move {
-                    // Get read version for debugging
-                    let read_version = trx.get_read_version().await?;
-
-                    // Read log entries - already in versionstamp (commit) order!
-                    let range = RangeOption::from(log_subspace.range());
-                    let kvs: Vec<_> = trx
-                        .get_ranges_keyvalues(range, false)
-                        .try_collect()
-                        .await
-                        .map_err(FdbBindingError::from)?;
-
-                    let mut entries: LogEntries = Vec::with_capacity(kvs.len());
-                    for kv in kvs.iter() {
-                        // Unpack key: (versionstamp, client_id, op_num)
-                        let key_tuple: (Versionstamp, i32, u64) = log_subspace
-                            .unpack(kv.key())
-                            .map_err(FdbBindingError::PackError)?;
-                        let (versionstamp, client_id, op_num) = key_tuple;
-
-                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                        let value_tuple: (i64, bool, bool, u64, u64, i64, i64) =
-                            unpack(kv.value()).map_err(FdbBindingError::PackError)?;
-
-                        entries.push(LogEntry {
-                            versionstamp,
-                            client_id,
-                            op_num,
-                            op_type: value_tuple.0,
-                            success: value_tuple.1,
-                            became_leader: value_tuple.2,
-                            ballot: value_tuple.3,
-                            previous_ballot: value_tuple.4,
-                            lease_expiry_nanos: value_tuple.5,
-                            claim_timestamp_nanos: value_tuple.6,
-                        });
-                    }
-
-                    // Read snapshot data
-                    let election = LeaderElection::new(election_subspace);
-                    let current_time = Duration::from_secs_f64(0.0); // Will use context.now() later
-
-                    let leader_state = election
-                        .get_leader_raw(&trx)
-                        .await
-                        .map_err(FdbBindingError::from)?;
-
-                    let candidates = election
-                        .list_candidates(&trx, current_time)
-                        .await
-                        .map_err(FdbBindingError::from)?;
-
-                    let config = election.read_config(&trx).await.ok();
-
-                    Ok::<_, FdbBindingError>((
-                        read_version,
-                        entries,
-                        leader_state,
-                        candidates,
-                        config,
-                    ))
-                }
-            })
-            .await;
-
-        let (read_version, entries, leader_state, candidates, config) = match check_result {
-            Ok(r) => r,
-            Err(e) => {
+        let evidence = self.read_evidence(&db).await;
+        let (entries, snapshot, history) = match evidence {
+            Ok(evidence) => evidence,
+            Err(error) => {
+                // A check phase that cannot read the log cannot pass: silence
+                // here is exactly what the previous suite mistook for success.
                 self.context.trace(
                     Severity::Error,
-                    "CheckPhaseReadFailed",
+                    "LeaderElectionCheckUnreadable",
                     details![
-                        "Layer" => "Rust",
-                        "Error" => format!("{:?}", e)
+                        "Client" => self.client_id,
+                        "Error" => format!("{error:?}")
                     ],
                 );
                 return;
             }
         };
 
-        // Build snapshot struct
-        let snapshot = super::types::DatabaseSnapshot {
-            leader_state,
-            candidates,
-            config,
+        let replayed = replay(&entries, |client_id| format!("process_{client_id}"));
+        let expected = snapshot.as_ref().map(expected_record);
+        let history: Vec<HistoryEntry> = history.iter().rev().map(history_entry).collect();
+
+        // Zero slack where the clients share one clock; the rate error the
+        // configuration admits, and nothing else, where they do not.
+        let tolerances = match self.config.skew_mode {
+            SkewMode::None => Tolerances::STRICT,
+            mode => Tolerances::from_clock_rate_error(
+                self.config.lease.as_duration(),
+                mode.max_rate_error(),
+            ),
         };
 
-        // Log read version and entry count
+        // The three quantities `ProgressMade` judges, reported whether or not
+        // it passes: thresholds that nobody can see the distance to are
+        // thresholds nobody can set.
+        let acquisitions = replayed
+            .transitions
+            .iter()
+            .filter(|transition| transition.kind.is_acquisition())
+            .count();
+        let renewals = replayed
+            .transitions
+            .iter()
+            .filter(|transition| transition.kind == TransitionKind::Renew)
+            .count();
+        let steals = replayed
+            .transitions
+            .iter()
+            .filter(|transition| transition.kind == TransitionKind::Steal)
+            .count();
+        let mut identities: Vec<_> = entries
+            .iter()
+            .filter(|entry| entry.record.op == OpKind::Observe)
+            .filter_map(|entry| entry.record.observed)
+            .collect();
+        identities.sort_unstable_by_key(|seen| (seen.ballot, seen.generation, seen.vacant));
+        identities.dedup();
+        // Whether the unknown-commit path ran at all. `UuidRecoveryNoDup` holds
+        // vacuously over a run that never lost a commit reply, and a run of
+        // zeroes here says the invariant was never actually asked anything.
+        let recoveries = entries
+            .iter()
+            .filter(|entry| entry.record.recovery_noop)
+            .count();
+
         self.context.trace(
             Severity::Info,
-            "CheckPhaseRead",
+            "LeaderElectionCheckStart",
             details![
-                "Layer" => "Rust",
-                "ReadVersion" => read_version,
-                "EntryCount" => entries.len(),
-                "HasLeader" => snapshot.leader_state.is_some(),
-                "CandidateCount" => snapshot.candidates.len()
+                "Client" => self.client_id,
+                "LogEntries" => entries.len(),
+                "Transitions" => replayed.transitions.len(),
+                "Acquisitions" => acquisitions,
+                "Steals" => steals,
+                "Renewals" => renewals,
+                "ObservedIdentities" => identities.len(),
+                "Recoveries" => recoveries,
+                "Beliefs" => replayed.beliefs.len(),
+                "HistoryEntries" => history.len(),
+                "BeliefToleranceMs" => tolerances.belief_overlap.as_millis() as u64,
+                "ObservationSlackMs" => tolerances.observation_slack.as_millis() as u64
             ],
         );
 
-        // Step 2: Run invariant checks FIRST (before dumping)
-        let result = self.run_all_invariant_checks(&entries, &snapshot);
+        let reports = check_all(&CheckInputs {
+            entries: &entries,
+            replay: &replayed,
+            snapshot: expected.as_ref(),
+            history: &history,
+            tolerances,
+            thresholds: self.thresholds,
+        });
 
-        // Step 3: Conditional dumping - only on failure (AtomicOps pattern)
-        if result.failed > 0 {
-            self.context.trace(
-                Severity::Error,
-                "InvariantFailed_DumpingState",
-                details![
-                    "Layer" => "Rust",
-                    "ReadVersion" => read_version,
-                    "FailedCount" => result.failed
-                ],
-            );
-            // Dump state for debugging
-            self.dump_config(&snapshot);
-            self.dump_leader_state(&snapshot);
-            self.dump_candidates(&snapshot);
-            self.dump_log_entries(&entries);
+        let mut first_violation = None;
+        let mut any_failed = false;
+        for report in &reports {
+            if report.passed() {
+                self.context.trace(
+                    Severity::Info,
+                    "LeaderElectionInvariantHeld",
+                    details!["Invariant" => report.name],
+                );
+                continue;
+            }
+            any_failed = true;
+            first_violation = first_violation.or_else(|| {
+                report
+                    .violations
+                    .first()
+                    .and_then(|violation| violation.indices.first().copied())
+            });
+            self.report_violations(report);
         }
 
-        // Step 4: Extract and log statistics
-        let stats = self.extract_client_stats(&entries);
-        self.log_statistics(&entries, &stats);
-
-        // Step 5: Final summary with pass/fail status
-        if result.failed > 0 {
-            self.context.trace(
-                Severity::Error,
-                "LeaderElectionCheckFailed",
-                details![
-                    "Layer" => "Rust",
-                    "ReadVersion" => read_version,
-                    "InvariantsPassed" => result.passed,
-                    "InvariantsFailed" => result.failed,
-                    "FailedInvariants" => result.results.iter()
-                        .filter(|(_, p, _)| !*p)
-                        .map(|(name, _, _)| *name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ],
-            );
-        } else {
-            self.context.trace(
-                Severity::Info,
-                "LeaderElectionCheckPassed",
-                details![
-                    "Layer" => "Rust",
-                    "ReadVersion" => read_version,
-                    "InvariantsPassed" => result.passed,
-                    "Message" => "All invariants verified successfully"
-                ],
-            );
+        match first_violation {
+            Some(index) => self.dump_around(&entries, index),
+            // A violation about the run as a whole (ProgressMade) names no
+            // entry, so there is nothing to dump *around*. The end of the log
+            // is what a reader needs instead: it says what the run was doing
+            // when it ran out of time.
+            None if any_failed => {
+                self.dump_around(&entries, entries.len().saturating_sub(1));
+            }
+            None => {}
         }
     }
 
     fn get_metrics(&self, mut out: Metrics) {
+        let counters = self.driver.counters();
         out.extend([
-            Metric::val("heartbeat_count", self.heartbeat_count as f64),
-            Metric::val("leadership_attempts", self.leadership_attempts as f64),
-            Metric::val("times_became_leader", self.times_became_leader as f64),
-            Metric::val("resign_count", self.resign_count as f64),
-            Metric::val("error_count", self.error_count as f64),
-            Metric::val("op_count", self.op_num as f64),
+            Metric::val("client_id", f64::from(self.client_id)),
+            Metric::val("acquisitions", counters.acquisitions as f64),
+            Metric::val("renewals", counters.renewals as f64),
+            Metric::val("resigns", counters.resigns as f64),
+            Metric::val("denials", counters.denials as f64),
+            Metric::val("superseded", counters.superseded as f64),
+            Metric::val("lost", counters.lost as f64),
+            Metric::val("crashes", counters.crashes as f64),
+            Metric::val("horizon_stops", counters.horizon_stops as f64),
+            Metric::val("fenced_applied", counters.fenced_applied as f64),
+            Metric::val("fenced_rejected", counters.fenced_rejected as f64),
+            Metric::val("work_abandoned", counters.work_abandoned as f64),
+            Metric::val("sightings", counters.sightings as f64),
+            Metric::val("errors", counters.errors as f64),
+            Metric::val("ops_logged", self.driver.journal().ops_logged() as f64),
+            Metric::val(
+                "max_observed_skew_secs",
+                self.driver
+                    .journal()
+                    .clock()
+                    .max_observed_skew()
+                    .as_secs_f64(),
+            ),
         ]);
     }
 
     fn get_check_timeout(&self) -> f64 {
-        5000.0
+        // The check reads a log whose size grows with the run, so its budget
+        // has to grow with it too.
+        self.config.test_duration.as_secs_f64() * 4.0 + 300.0
+    }
+}
+
+impl LeaderElectionWorkload {
+    /// Read everything the check phase judges from, in one retried transaction
+    ///
+    /// A snapshot read: nothing is writing any more, and taking conflict ranges
+    /// over the whole log would only make the read fight itself on a retry.
+    async fn read_evidence(
+        &self,
+        db: &SimDatabase,
+    ) -> Result<(Vec<LogEntry>, Option<LeaderRecord>, Vec<HistoryEvent>), FdbBindingError> {
+        let subspace = log_subspace();
+        db.run(|trx, _| {
+            let subspace = &subspace;
+            async move {
+                let (begin, end) = subspace.range();
+                let options = RangeOption {
+                    mode: StreamingMode::WantAll,
+                    ..RangeOption::from((begin, end))
+                };
+
+                let mut entries = Vec::new();
+                let mut stream = trx.get_ranges_keyvalues(options, true);
+                while let Some(kv) = stream.try_next().await? {
+                    entries.push(
+                        LogEntry::decode(subspace, kv.key(), kv.value())
+                            .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?,
+                    );
+                }
+
+                let snapshot = self
+                    .election
+                    .leader(&trx)
+                    .await
+                    .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?;
+                let history = self
+                    .election
+                    .history(&trx, HISTORY_LIMIT)
+                    .await
+                    .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?;
+
+                Ok((entries, snapshot, history))
+            }
+        })
+        .await
+    }
+
+    /// Spell out what broke an invariant
+    ///
+    /// `Severity::Error` is what fails the run; everything else here is for
+    /// whoever reads the trace afterwards.
+    fn report_violations(&self, report: &InvariantReport) {
+        for violation in report.violations.iter().take(MAX_VIOLATIONS_TRACED) {
+            self.context.trace(
+                Severity::Error,
+                "LeaderElectionInvariantViolated",
+                details![
+                    "Client" => self.client_id,
+                    "Invariant" => report.name,
+                    "Detail" => violation.detail,
+                    "Entries" => format!("{:?}", violation.indices)
+                ],
+            );
+        }
+        if report.violations.len() > MAX_VIOLATIONS_TRACED {
+            self.context.trace(
+                Severity::WarnAlways,
+                "LeaderElectionInvariantViolationsTruncated",
+                details![
+                    "Invariant" => report.name,
+                    "Total" => report.violations.len(),
+                    "Traced" => MAX_VIOLATIONS_TRACED
+                ],
+            );
+        }
+    }
+
+    /// Dump the log around one point, and only there
+    ///
+    /// A whole run's log is far too much trace to be useful; the entries either
+    /// side of the first failure are what a reader actually needs. A violation
+    /// that names no entry passes the end of the log, which is where a run that
+    /// simply did not do enough shows what it was doing instead.
+    fn dump_around(&self, entries: &[LogEntry], index: usize) {
+        let first = index.saturating_sub(DUMP_RADIUS);
+        let last = (index + DUMP_RADIUS).min(entries.len().saturating_sub(1));
+        for (offset, entry) in entries[first..=last].iter().enumerate() {
+            let record = &entry.record;
+            self.context.trace(
+                Severity::Info,
+                "LeaderElectionLogEntry",
+                details![
+                    "Index" => first + offset,
+                    "Client" => entry.client_id,
+                    "Op" => record.op.as_str(),
+                    "Applied" => record.outcome.is_applied(),
+                    "Ballot" => record.ballot,
+                    "Generation" => record.generation,
+                    "Wrote" => record.leader_record_written,
+                    "RecoveryNoop" => record.recovery_noop,
+                    "Observed" => format!("{:?}", record.observed),
+                    "LocalNanos" => record.local_nanos,
+                    "SimNanos" => record.sim_nanos,
+                    "ObservedSince" => format!("{:?}", record.observation_start_nanos),
+                    "LeaseNanos" => record.lease_nanos,
+                    "HorizonNanos" => record.horizon_nanos
+                ],
+            );
+        }
+    }
+}
+
+/// The stored record as replay describes it
+fn expected_record(record: &LeaderRecord) -> ExpectedRecord {
+    ExpectedRecord {
+        ballot: record.ballot(),
+        generation: record.generation(),
+        leader_id: record.leader_id().unwrap_or_default().to_string(),
+        token: *record.token().as_bytes(),
+        lease_nanos: record.lease().map_or(0, LeaseDuration::as_nanos),
+    }
+}
+
+/// One entry of the recipe's own audit trail
+fn history_entry(event: &HistoryEvent) -> HistoryEntry {
+    HistoryEntry {
+        kind: match event.kind() {
+            HistoryEventKind::Claim => HistoryKind::Claim,
+            HistoryEventKind::Steal => HistoryKind::Steal,
+            HistoryEventKind::Resign => HistoryKind::Resign,
+        },
+        ballot: event.ballot(),
+        leader_id: event.leader_id().to_string(),
     }
 }

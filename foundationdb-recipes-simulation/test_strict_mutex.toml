@@ -1,0 +1,42 @@
+# Leader Election Strict Mutex
+#
+# Purpose: mutual exclusion with no slack at all. Every client reads true
+# simulated time, so the check phase runs with `Tolerances::STRICT`: a single
+# nanosecond of overlap between two clients' beliefs, or an observation window
+# one nanosecond short of a lease, fails the run.
+#
+# Scenario:
+# - Identical clocks (clockSkewMode = 'none'), which is the only setting under
+#   which zero tolerance is a claim the design actually makes
+# - No attrition and no clogging: a killed leader never reports the end of its
+#   belief, and holding that to a zero-tolerance bound would test the
+#   simulator's scheduling rather than the recipe
+# - No simulated crashes, for the same reason
+# - Frequent voluntary resigns, so most transitions are orderly handovers,
+#   which is exactly where an off-by-one in the belief bookkeeping shows up
+#
+# Bug classes this configuration catches:
+# - A successor that starts believing before its predecessor stopped
+# - A resign that does not preserve the ballot, letting the successor reuse one
+# - A steal taken a hair early, which every other configuration would forgive
+
+[[test]]
+testTitle = 'LeaderElectionStrictMutex'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    leaseDurationSecs = 10.0
+    stepIntervalSecs = 1.0
+    testDurationSecs = 120.0
+    resignProbability = 0.3
+    crashProbability = 0.0
+    clockSkewMode = 'none'
+    pauseFactor = 2.0
+    sleeperEnabled = false
+    minLeadershipClaims = 2
+    minRenewals = 2
+    minObservedIdentities = 3

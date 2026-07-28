@@ -110,9 +110,6 @@ pub enum FdbBindingError {
     /// The client-side budget of the transaction attempt was exceeded, as
     /// reported by [`crate::Transaction::check_client_budget`]
     ClientBudgetExceeded(BudgetExceeded),
-    #[cfg(feature = "recipes-leader-election")]
-    /// Leader election specific error
-    LeaderElectionError(crate::recipes::leader_election::LeaderElectionError),
 }
 
 /// Walks an error's `source()` chain, returning the first `FdbError` found.
@@ -174,13 +171,6 @@ impl From<BudgetExceeded> for FdbBindingError {
     }
 }
 
-#[cfg(feature = "recipes-leader-election")]
-impl From<crate::recipes::leader_election::LeaderElectionError> for FdbBindingError {
-    fn from(error: crate::recipes::leader_election::LeaderElectionError) -> Self {
-        Self::LeaderElectionError(error)
-    }
-}
-
 impl FdbBindingError {
     /// create a new custom error
     pub fn new_custom_error(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
@@ -200,8 +190,6 @@ impl Debug for FdbBindingError {
             }
             FdbBindingError::CustomError(err) => write!(f, "{err:?}"),
             FdbBindingError::ClientBudgetExceeded(err) => write!(f, "{err}"),
-            #[cfg(feature = "recipes-leader-election")]
-            FdbBindingError::LeaderElectionError(err) => write!(f, "{err:?}"),
         }
     }
 }
@@ -222,8 +210,6 @@ impl std::error::Error for FdbBindingError {
             Self::CustomError(e) => Some(e.as_ref()),
             Self::ClientBudgetExceeded(e) => Some(e),
             Self::ReferenceToTransactionKept => None,
-            #[cfg(feature = "recipes-leader-election")]
-            Self::LeaderElectionError(e) => Some(e),
         }
     }
 }

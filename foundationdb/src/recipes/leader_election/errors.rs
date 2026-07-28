@@ -6,61 +6,69 @@
 // copied, modified, or distributed except according to those terms.
 
 //! Error types for leader election
-//!
-//! Defines the error hierarchy for leader election operations,
-//! including election-specific errors and conversions from underlying errors.
 
-use crate::FdbError;
 use crate::tuple::PackError;
+use crate::{FdbBindingError, FdbError, RetryableError};
 use std::fmt;
 
 /// Leader election specific errors
 ///
-/// Represents all possible error conditions that can occur during
-/// leader election operations.
+/// The `Binding` payload is boxed so that this type stays small and does not
+/// form a cycle with [`FdbBindingError`]: the retry loop of
+/// [`crate::Database::run`] recovers the underlying [`FdbError`] by walking the
+/// `source()` chain, which this type keeps intact.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum LeaderElectionError {
-    /// Election is currently disabled
-    ///
-    /// Returned when attempting election operations while the election
-    /// system is administratively disabled
-    ElectionDisabled,
-    /// Process not found
-    ///
-    /// The specified process UUID doesn't exist in the election registry
-    ProcessNotFound(String),
-    /// Global configuration not initialized
-    ///
-    /// The election system hasn't been initialized with `initialize()`
-    NotInitialized,
-    /// Invalid state
-    ///
-    /// The election system is in an inconsistent or unexpected state
-    InvalidState(String),
     /// Database error
-    ///
-    /// An underlying FoundationDB error occurred
     Fdb(FdbError),
+    /// Retry loop error
+    Binding(Box<FdbBindingError>),
     /// Serialization error
+    Pack(PackError),
+    /// The stored record could not be decoded as a leader record
     ///
-    /// Failed to pack/unpack data using the tuple layer
-    PackError(PackError),
-    /// Candidate not registered
+    /// Raised on a truncated value, an unknown schema version, or a record
+    /// whose fields contradict each other. Records written by a previous
+    /// version of this recipe decode to this error rather than being silently
+    /// misread: see the migration section of the [module
+    /// documentation](super).
+    CorruptRecord(String),
+    /// The ballot space is exhausted
     ///
-    /// The process attempted to claim leadership without being registered as a candidate
-    UnregisteredCandidate,
+    /// Ballots are capped at [`u32::MAX`] so that `LeaseGrant::rank` stays
+    /// infallible. Practically unreachable: it takes more than four billion
+    /// leadership changes on a single election subspace.
+    BallotExhausted,
+    /// The per-term fencing sequence space is exhausted
+    ///
+    /// Returned before a `u32` rank sequence would wrap, which would let a
+    /// stale rank compare as fresh.
+    RankExhausted,
+    /// A leadership token was used after the term ended
+    ///
+    /// Carries the same information as [`LeaseLostError`], which is what the
+    /// handle's own staleness checks return; this variant is how it reaches
+    /// operations that can also fail for other reasons.
+    LeaseLost(LeaseLostError),
+    /// A configuration value is not usable
+    InvalidConfig(String),
+    /// An argument failed validation
+    InvalidArgument(String),
 }
 
 impl fmt::Display for LeaderElectionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ElectionDisabled => write!(f, "Election is currently disabled"),
-            Self::ProcessNotFound(id) => write!(f, "Process not found: {id}"),
-            Self::NotInitialized => write!(f, "Global configuration not initialized"),
-            Self::InvalidState(msg) => write!(f, "Invalid state: {msg}"),
             Self::Fdb(e) => write!(f, "Database error: {e}"),
-            Self::PackError(e) => write!(f, "Pack error: {e:?}"),
-            Self::UnregisteredCandidate => write!(f, "Candidate not registered"),
+            Self::Binding(e) => write!(f, "Retry loop error: {e}"),
+            Self::Pack(e) => write!(f, "Pack error: {e:?}"),
+            Self::CorruptRecord(msg) => write!(f, "Corrupt leader record: {msg}"),
+            Self::BallotExhausted => write!(f, "Ballot space exhausted"),
+            Self::RankExhausted => write!(f, "Fencing sequence space exhausted"),
+            Self::LeaseLost(e) => write!(f, "{e}"),
+            Self::InvalidConfig(msg) => write!(f, "Invalid configuration: {msg}"),
+            Self::InvalidArgument(msg) => write!(f, "Invalid argument: {msg}"),
         }
     }
 }
@@ -69,7 +77,9 @@ impl std::error::Error for LeaderElectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Fdb(e) => Some(e),
-            Self::PackError(e) => Some(e),
+            Self::Binding(e) => Some(e.as_ref()),
+            Self::Pack(e) => Some(e),
+            Self::LeaseLost(e) => Some(e),
             _ => None,
         }
     }
@@ -81,13 +91,46 @@ impl From<FdbError> for LeaderElectionError {
     }
 }
 
-impl From<PackError> for LeaderElectionError {
-    fn from(error: PackError) -> Self {
-        Self::PackError(error)
+impl From<FdbBindingError> for LeaderElectionError {
+    fn from(error: FdbBindingError) -> Self {
+        Self::Binding(Box::new(error))
     }
 }
 
-/// Result type for leader election operations
+impl From<LeaseLostError> for LeaderElectionError {
+    fn from(error: LeaseLostError) -> Self {
+        Self::LeaseLost(error)
+    }
+}
+
+impl From<PackError> for LeaderElectionError {
+    fn from(error: PackError) -> Self {
+        Self::Pack(error)
+    }
+}
+
+/// The `source()` chain exposes the wrapped `FdbError`, so the default
+/// `retry_decision` makes this error retry-transparent in `db.run`.
+impl RetryableError for LeaderElectionError {}
+
+/// Signals that a leadership token can no longer be trusted
 ///
-/// Convenience type alias for Results that may fail with LeaderElectionError
+/// Returned by the staleness checks on the handle layer. Distinct from
+/// [`LeaderElectionError`] because losing a lease is an expected outcome, not
+/// a failure of the election machinery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LeaseLostError {
+    /// The ballot of the term that was lost
+    pub ballot: u64,
+}
+
+impl fmt::Display for LeaseLostError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "leadership lease lost (ballot {})", self.ballot)
+    }
+}
+
+impl std::error::Error for LeaseLostError {}
+
+/// Result type for leader election operations
 pub type Result<T> = std::result::Result<T, LeaderElectionError>;
