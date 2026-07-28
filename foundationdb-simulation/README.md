@@ -216,6 +216,11 @@ To maintain determinism, all random numbers must be sourced from the simulator.
 Use `WorkloadContext::rnd()` or `WorkloadContext::shared_random_number()` for a shared seed.
 Do not use external entropy sources like `rand::thread_rng()`.
 
+> **Warning:** `std::collections::HashMap` and `HashSet` use `RandomState` by default, which
+> seeds from the OS RNG. This breaks simulation determinism — iteration order and hash values
+> will differ across runs. Use `BTreeMap`/`BTreeSet` instead, or provide a fixed seed to
+> `RandomState::with_seed`. See [#329](https://github.com/foundationdb-rs/foundationdb-rs/issues/329).
+
 # Workload Lifecycle
 
 ## Instantiation
