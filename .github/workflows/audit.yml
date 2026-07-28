@@ -7,12 +7,21 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     if: github.repository == 'foundationdb-rs/foundationdb-rs'
+    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.85.1),
+    # but the latest cargo-audit needs a newer rustc to build. Override the
+    # file here to install and run it on stable (same trick as msrv.yml).
+    env:
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - name: Install FoundationDB
         uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
         with:
           version: "7.1.37"
       - uses: actions/checkout@v7.0.0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
