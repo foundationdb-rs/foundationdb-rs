@@ -3,7 +3,7 @@
 Deterministic-simulation workloads for the recipes shipped with `foundationdb`.
 Today that means one workload, `LeaderElectionWorkload`, which drives the leader
 election recipe inside FoundationDB's own simulator and then judges the run
-against ten invariants.
+against eleven invariants.
 
 ## What it tests, and what it does not
 
@@ -82,6 +82,35 @@ horizon wins, which is what the handle layer does to the work future. Dropping
 a transaction cannot un-issue a commit, so it is the fence, not the horizon,
 that makes a late write safe; the horizon race only keeps a leader from
 knowingly retrying work it has stopped believing in.
+
+## Forced recovery
+
+The recipe's unknown-commit recovery is reached when a claim commits and its
+caller never learns that it did. Under simulation that essentially never
+happens by itself: every logged transaction sets `AutomaticIdempotency`, so
+the client resolves the unknown commit before the recipe is asked anything,
+and `UuidRecoveryNoDup` holds vacuously.
+
+Rather than weaken the log's idempotency (a versionstamped append really is
+not idempotent, and a retried one would double-count), the driver injects the
+condition one layer up. A contender that drew the `forcedRecovery` feature
+throws away a claim reply it did receive, records nothing, believes nothing,
+and re-runs the **same** `ClaimAttempt` later. Everything the recipe sees is
+what it would have seen had the reply really been lost, and both resolutions
+get exercised:
+
+- a short delay resumes inside the lease, so the re-probe finds its own record
+  and adopts it without consuming a second ballot;
+- a delay past a lease resumes after a contender may have stolen the term, so
+  the re-probe finds a stranger at or past its own ballot, retires the token,
+  and campaigns again with a fresh one.
+
+An `injected_unknown` marker is written in a transaction of its own after the
+claim committed, so it exists exactly when the claim it describes does, and
+`RecoveryExercised` uses it to tell a run that took the path from one that
+merely could have. A reply is only dropped while the run still has room to
+re-probe it, so an injection nobody resolved is a broken resumption rather
+than a run that ran out of time.
 
 ## Clocks
 
@@ -162,7 +191,7 @@ almost never runs the streak of same-kind operations a bug needs to surface
 dial down. Both need the feature *absent* for some runs, which is what a hard
 off gives you and a probability never does.
 
-**Why the subset size is fat-tailed.** Five independent coins make the number
+**Why the subset size is fat-tailed.** Six independent coins make the number
 of enabled features binomial, concentrated around half of them: all-on,
 all-off, and the single-feature isolate that best exposes one feature's code
 path all become rare. `SwarmPlan::draw` picks the shape of the subset from a
@@ -217,9 +246,10 @@ a check earns its place here only with a counterexample.
 | 5 | `StealObservationDiscipline` | A steal taken before a full lease of unbroken observation |
 | 6 | `VacantReclaim` | A resign that loses the ballot, or a claim over a live record |
 | 7 | `FencingHolds` | The paused leader's stale write landing after its term ended |
-| 8 | `UuidRecoveryNoDup` | A recovered unknown commit claiming a second time instead of adopting its own record |
+| 8 | `UuidRecoveryNoDup` | A recovered unknown commit claiming a second time instead of adopting its own record, or a retired token campaigning again |
 | 9 | `ProgressMade` | A run in which nothing happened, which every safety check passes vacuously |
 | 10 | `HistoryFaithful` | A history entry escaping the transaction of the transition it describes |
+| 11 | `RecoveryExercised` | An injected unknown commit nobody resolved, or an injector that stopped firing and left `UuidRecoveryNoDup` vacuous |
 
 A violation is traced at `Severity::Error`, which is the only thing that fails a
 FoundationDB simulation run, and the log is dumped around the first one. The
@@ -266,7 +296,7 @@ cargo test -p foundationdb-recipes-simulation --lib
 |------|------------------|
 | `log_schema.rs` | The versionstamped operation log: records, keys, and the hand-built fixtures the invariant tests mutate |
 | `replay.rs` | Commit-ordered replay. Judges nothing, which is what keeps the invariants falsifiable |
-| `invariants.rs` | The ten checks, their tolerances, and a counterexample test for each |
+| `invariants.rs` | The eleven checks, their tolerances, and a counterexample test for each |
 | `clock.rs` | Per-client skewed clocks |
 | `logged_op.rs` | The wrapper that commits a primitive and its log record together |
 | `roles.rs` | The role loops, and the belief bookkeeping |

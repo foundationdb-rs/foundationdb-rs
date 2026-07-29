@@ -22,14 +22,14 @@
 //! and they are what a reader looks at to understand what the workload does.
 //! Swarm runs are what finds the case the reader did not think of.
 //!
-//! # Why the feature subset is not five coin flips
+//! # Why the feature subset is not six coin flips
 //!
-//! Five independent fair coins is the naive way to draw a subset, and it is a
+//! Six independent fair coins is the naive way to draw a subset, and it is a
 //! bad one: the number of enabled features is binomial, so it concentrates
-//! around two and a half. Everything enabled and nothing enabled each happen
-//! one run in thirty-two, and a subset with exactly one feature enabled, which
-//! is the configuration that isolates that feature's code path best, happens
-//! about one run in six spread over five different features. The extremes are
+//! around three. Everything enabled and nothing enabled each happen one run in
+//! sixty-four, and a subset with exactly one feature enabled, which is the
+//! configuration that isolates that feature's code path best, happens about
+//! one run in eleven spread over six different features. The extremes are
 //! exactly the configurations worth oversampling, so [`SwarmPlan::draw`] picks
 //! the *shape* of the subset first from a fat-tailed selector, and only falls
 //! back to coins in the remaining half of the probability mass.
@@ -148,13 +148,13 @@ fn mix(value: u64) -> u64 {
 // ============================================================================
 
 /// How many features the subset is drawn over
-const FEATURE_COUNT: usize = 5;
+const FEATURE_COUNT: usize = 6;
 
 /// Which behaviours a run is allowed to exercise
 ///
 /// A feature being off means the run cannot produce that behaviour at all, not
 /// that it is unlikely to: that is what makes a run with one feature enabled a
-/// deeper test of that feature's code path than a run with all five.
+/// deeper test of that feature's code path than a run with all six.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FeatureSet {
     /// Leaders may hand their term back voluntarily
@@ -167,6 +167,11 @@ pub(crate) struct FeatureSet {
     pub(crate) watcher: bool,
     /// Clients' clocks may disagree
     pub(crate) skew: bool,
+    /// Contenders may throw away a claim reply and re-run the attempt later
+    ///
+    /// The only way the recipe's unknown-commit recovery is reached: see
+    /// [`ForcedRecoveryConfig`](super::roles::ForcedRecoveryConfig).
+    pub(crate) forced_recovery: bool,
 }
 
 impl FeatureSet {
@@ -177,6 +182,7 @@ impl FeatureSet {
         sleeper: true,
         watcher: true,
         skew: true,
+        forced_recovery: true,
     };
 
     /// The subset with nothing enabled
@@ -186,6 +192,7 @@ impl FeatureSet {
         sleeper: false,
         watcher: false,
         skew: false,
+        forced_recovery: false,
     };
 
     /// Rebuild a subset from the bit order the draw uses
@@ -196,6 +203,7 @@ impl FeatureSet {
             sleeper: bits[2],
             watcher: bits[3],
             skew: bits[4],
+            forced_recovery: bits[5],
         }
     }
 
@@ -207,6 +215,7 @@ impl FeatureSet {
             self.sleeper,
             self.watcher,
             self.skew,
+            self.forced_recovery,
         ]
     }
 
@@ -433,6 +442,11 @@ impl SwarmPlan {
             // happened to give us.
             min_observed_identities: (2 + churn).min(5),
             renew_interval: self.lease() / 3,
+            // Not churn: a forced recovery takes no term away from anybody, it
+            // only makes one client stop talking for a while. What it does owe
+            // is proof that the path it exists to reach was reached, and one
+            // resolution is that proof.
+            min_recoveries: usize::from(self.features.forced_recovery),
         }
     }
 
@@ -445,6 +459,7 @@ impl SwarmPlan {
     pub(crate) fn describe(&self) -> String {
         format!(
             "seed={} features=resign:{} crash:{} sleeper:{} watcher:{} skew:{} \
+             forcedRecovery:{} \
              skewMode={} lease={:.3}s step={:.3}s pause={:.2}x crash={} resign={}",
             self.seed,
             on_off(self.features.resign),
@@ -452,6 +467,7 @@ impl SwarmPlan {
             on_off(self.features.sleeper),
             on_off(self.features.watcher),
             on_off(self.features.skew),
+            on_off(self.features.forced_recovery),
             self.skew_mode.as_str(),
             self.lease_secs,
             self.step_secs,
@@ -495,7 +511,7 @@ fn describe_timing(timing: &FaultTiming) -> String {
 /// Draw the feature subset
 ///
 /// The selector is fat-tailed on purpose: see the module documentation for why
-/// five coins on their own would almost never produce the subsets worth having.
+/// six coins on their own would almost never produce the subsets worth having.
 /// The order is one selector draw, then whatever the chosen shape needs.
 fn draw_features(seed: u64) -> FeatureSet {
     let mut rng = SwarmRng::lane(seed, LANE_FEATURES);
@@ -663,7 +679,14 @@ mod tests {
         // one that is almost always off is never tested at all. Both halves
         // have to be common enough that a nightly run hits them.
         let plans = sample();
-        let names = ["resign", "crash", "sleeper", "watcher", "skew"];
+        let names = [
+            "resign",
+            "crash",
+            "sleeper",
+            "watcher",
+            "skew",
+            "forcedRecovery",
+        ];
         for (index, name) in names.iter().enumerate() {
             let on = plans
                 .iter()
@@ -681,8 +704,8 @@ mod tests {
 
     #[test]
     fn extreme_subsets_are_oversampled() {
-        // The whole point of the fat-tailed selector: five fair coins would put
-        // each extreme at about three percent.
+        // The whole point of the fat-tailed selector: six fair coins would put
+        // each extreme at about one and a half percent.
         let plans = sample();
         let all = plans
             .iter()
@@ -943,6 +966,28 @@ mod tests {
     }
 
     #[test]
+    fn thresholds_demand_a_recovery_only_when_the_feature_was_drawn() {
+        let base = SwarmPlan::draw(0, RUN);
+        let with = |features: FeatureSet| SwarmPlan {
+            features,
+            lease_secs: 6.0,
+            ..base.clone()
+        };
+
+        assert_eq!(with(FeatureSet::NONE).thresholds(8).min_recoveries, 0);
+        assert_eq!(with(FeatureSet::ALL).thresholds(8).min_recoveries, 1);
+
+        let mut only = FeatureSet::NONE;
+        only.forced_recovery = true;
+        let thresholds = with(only).thresholds(8);
+        assert_eq!(thresholds.min_recoveries, 1);
+        // Forced recovery is not churn: it takes no term away from anybody, so
+        // it must not move the acquisition and identity floors.
+        assert_eq!(thresholds.min_acquisitions, 1);
+        assert_eq!(thresholds.min_observed_identities, 2);
+    }
+
+    #[test]
     fn skew_mode_follows_the_skew_feature() {
         let mut random = 0;
         let mut extreme = 0;
@@ -983,6 +1028,7 @@ mod tests {
             "sleeper:",
             "watcher:",
             "skew:",
+            "forcedRecovery:",
             "skewMode=",
             "lease=",
             "step=",

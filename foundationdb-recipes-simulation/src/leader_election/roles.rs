@@ -36,6 +36,14 @@
 //! transaction. A leader therefore never has fenced work to do before it is able
 //! to refuse its predecessor's.
 //!
+//! # Forced recovery
+//!
+//! A contender may also throw away a claim reply it did receive, wait, and then
+//! re-run the same attempt. That is the only way the recipe's unknown-commit
+//! recovery is reached under simulation, and it is a driver-level injection
+//! precisely so that the recipe and the log's own idempotency stay untouched:
+//! see [`ForcedRecoveryConfig`].
+//!
 //! Every role logs sightings of the leader record, not just the Watcher. That
 //! is the failover story under attrition: the liveness check needs somebody to
 //! have been watching, and any survivor will do.
@@ -104,6 +112,53 @@ impl Role {
     }
 }
 
+/// When the driver throws a claim reply away on purpose
+///
+/// The BUGGIFY-style injection. The recipe's recovery path is reached when a
+/// claim commits and its caller never learns that it did; under simulation that
+/// almost never happens by itself, because every logged transaction sets
+/// `AutomaticIdempotency` and the client resolves the unknown commit before the
+/// recipe is asked anything. Rather than weaken the log's idempotency to
+/// provoke it, the driver simulates the lost reply one layer up: it drops a
+/// reply it did receive, starts believing nothing, and re-runs the *same*
+/// attempt later. Everything the recipe sees is what it would have seen had the
+/// reply really been lost.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ForcedRecoveryConfig {
+    /// Whether the run may inject at all
+    pub(crate) enabled: bool,
+    /// The chance of injecting on a winning claim, after the first
+    ///
+    /// The first winning claim of every contender injects unconditionally, so
+    /// that a run which drew the feature exercises it rather than hoping to.
+    pub(crate) probability: f64,
+    /// The longest a dropped reply is left unresolved, in leases
+    pub(crate) max_delay_leases: f64,
+}
+
+impl ForcedRecoveryConfig {
+    /// The configuration of a run that never injects
+    pub(crate) fn disabled() -> Self {
+        Self {
+            enabled: false,
+            probability: 0.0,
+            max_delay_leases: 0.0,
+        }
+    }
+}
+
+/// A claim whose reply the driver threw away, and when it will be re-run
+///
+/// The attempt is the whole of the recovery state: it carries the token and the
+/// ballot its first execution issued, which is what makes the re-run take the
+/// recipe's `AlreadyWon` or `Superseded` path instead of claiming again.
+struct PendingUnknown {
+    attempt: ClaimAttempt,
+    attempt_id: u64,
+    /// When the re-probe is due, on this client's own clock
+    resume_at: Duration,
+}
+
 /// The timings and probabilities a run is configured with
 #[derive(Debug, Clone)]
 pub(crate) struct DriverConfig {
@@ -130,6 +185,8 @@ pub(crate) struct DriverConfig {
     pub(crate) sleeper_head_start: Duration,
     /// What the clocks are allowed to do
     pub(crate) skew_mode: SkewMode,
+    /// When a claim reply is thrown away on purpose
+    pub(crate) forced_recovery: ForcedRecoveryConfig,
 }
 
 impl DriverConfig {
@@ -171,6 +228,10 @@ pub(crate) struct Counters {
     pub(crate) denials: u64,
     /// Campaigns retired because a write of theirs may have committed
     pub(crate) superseded: u64,
+    /// Claim replies thrown away on purpose
+    pub(crate) injected_unknowns: u64,
+    /// Re-probes that found their own record and adopted it
+    pub(crate) recoveries_adopted: u64,
     /// Terms lost to a successor
     pub(crate) lost: u64,
     /// Simulated crashes
@@ -212,6 +273,10 @@ pub(crate) struct Driver {
     /// steal
     observation: LeaseObservation,
     attempt_id: u64,
+    /// A claim whose reply this client threw away, waiting to be re-run
+    pending_unknown: Option<PendingUnknown>,
+    /// Whether this client has already forced one recovery
+    injected_once: bool,
     /// True simulated time at which this client entered the start phase
     start_sim: Duration,
     deadline: Duration,
@@ -233,6 +298,8 @@ impl Driver {
             role,
             observation: LeaseObservation::new(),
             attempt_id: 0,
+            pending_unknown: None,
+            injected_once: false,
             start_sim: Duration::ZERO,
             deadline: Duration::ZERO,
             counters: Counters::default(),
@@ -325,10 +392,31 @@ impl Driver {
     /// anchors the lease just before the write is issued, so reusing one across
     /// a long campaign would hand back a term that had already spent most of
     /// its life waiting to be won.
+    ///
+    /// The one exception is a reply this client threw away
+    /// ([`ForcedRecoveryConfig`]). That attempt is deliberately kept and re-run
+    /// once its delay is up, which is the only way the recipe's recovery path
+    /// is reached: everything it needs to recognize its own record is in the
+    /// attempt, so a re-run under the same one takes `AlreadyWon` or
+    /// `Superseded` where a fresh one would claim a second time.
     async fn campaign(&mut self, db: &SimDatabase) -> Result<Option<Term>, FdbBindingError> {
-        let attempt = ClaimAttempt::new(self.token(), self.journal.local_now())
-            .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?;
-        self.attempt_id += 1;
+        let (attempt, attempt_id, resumed) = match self.pending_unknown.take() {
+            // Still waiting: hand the step back, the caller paces it. Nothing
+            // else may run under this client while a claim of its own is
+            // unaccounted for, which is what makes the injection the same shape
+            // as a client that stopped responding.
+            Some(pending) if self.journal.local_now() < pending.resume_at => {
+                self.pending_unknown = Some(pending);
+                return Ok(None);
+            }
+            Some(pending) => (pending.attempt, pending.attempt_id, true),
+            None => {
+                let attempt = ClaimAttempt::new(self.token(), self.journal.local_now())
+                    .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?;
+                self.attempt_id += 1;
+                (attempt, self.attempt_id, false)
+            }
+        };
 
         let (outcome, observation) = self
             .journal
@@ -336,7 +424,7 @@ impl Driver {
                 db,
                 self.config.lease,
                 &attempt,
-                self.attempt_id,
+                attempt_id,
                 self.observation,
             )
             .await?;
@@ -345,6 +433,14 @@ impl Driver {
         match outcome {
             ClaimOutcome::Won(grant) => {
                 self.counters.acquisitions += 1;
+                if resumed {
+                    // The re-probe found our own record and adopted it, which
+                    // is the whole of the recovery contract's happy path. The
+                    // grant it hands back is anchored at the *original*
+                    // attempt, so the horizon below is the one the first
+                    // execution earned and not a fresh lease.
+                    self.counters.recoveries_adopted += 1;
+                }
                 let horizon = self.horizon_of(&grant);
 
                 // A claim that took longer to commit than the lease it asked
@@ -359,6 +455,10 @@ impl Driver {
                         details!["Ballot" => grant.ballot()],
                     );
                     return Ok(None);
+                }
+
+                if !resumed && self.should_drop_reply() {
+                    return self.drop_reply(db, attempt, attempt_id, &grant).await;
                 }
 
                 self.journal.belief_begin(db, &grant, horizon).await?;
@@ -388,6 +488,113 @@ impl Driver {
                 );
                 Ok(None)
             }
+        }
+    }
+
+    /// Throw a winning claim's reply away and arrange to re-run the attempt
+    ///
+    /// Nothing else happens under this term. No belief is recorded and no
+    /// fenced work is done, because a client that never heard back does not
+    /// know it leads: what the rest of the run sees is a claim that landed and
+    /// a client that went quiet, which is the same shape a crash has. The
+    /// marker is written after the claim committed, so it exists exactly when
+    /// the claim it describes does.
+    async fn drop_reply(
+        &mut self,
+        db: &SimDatabase,
+        attempt: ClaimAttempt,
+        attempt_id: u64,
+        grant: &LeaseGrant,
+    ) -> Result<Option<Term>, FdbBindingError> {
+        let delay = self.draw_resume_delay(self.counters.injected_unknowns == 0);
+        self.counters.injected_unknowns += 1;
+        self.journal
+            .injected_unknown(db, attempt_id, &attempt, grant.ballot())
+            .await?;
+
+        let resume_at = self.journal.local_now() + delay;
+        self.trace(
+            Severity::Info,
+            "LeaderElectionReplyDropped",
+            details![
+                "Ballot" => grant.ballot(),
+                "ResumeAtSecs" => resume_at.as_secs_f64()
+            ],
+        );
+        self.pending_unknown = Some(PendingUnknown {
+            attempt,
+            attempt_id,
+            resume_at,
+        });
+        Ok(None)
+    }
+
+    /// Whether this winning claim's reply should be thrown away
+    ///
+    /// The first one of a contender is unconditional, so that a run which drew
+    /// the feature exercises it rather than hoping to. After that it is rare:
+    /// a client that spends the run recovering never gets far enough to be
+    /// stolen from, and the terms it abandons are the interesting part.
+    ///
+    /// The window check is what keeps the check phase honest rather than
+    /// flaky. An injection nobody resolved before the deadline is
+    /// indistinguishable from a recovery path that quietly stopped working, and
+    /// `RecoveryExercised` is entitled to treat it as the latter, so a reply is
+    /// only dropped while the run still has room for the longest delay this
+    /// configuration can draw and the campaign that follows it.
+    fn should_drop_reply(&mut self) -> bool {
+        let forced = self.config.forced_recovery;
+        if !forced.enabled || self.role != Role::Contender {
+            return false;
+        }
+
+        // Drawn on every winning claim of an enabled run, whatever the answer
+        // is then used for. The same discipline as [`chance`](Self::chance):
+        // the sequence a client consumes must not depend on how far into the
+        // run it is, or a run would stop replaying from the step the window
+        // closed.
+        let roll = self.chance(forced.probability);
+        if self.injected_once && !roll {
+            return false;
+        }
+
+        let longest = self
+            .config
+            .lease
+            .as_duration()
+            .mul_f64(forced.max_delay_leases + 1.0);
+        if self.elapsed_sim() + longest >= self.config.test_duration {
+            return false;
+        }
+
+        self.injected_once = true;
+        true
+    }
+
+    /// How long a dropped reply is left unresolved, on this client's own clock
+    ///
+    /// A client's first injection resumes after one jittered step, which is a
+    /// small fraction of a lease: nobody can have timed the record out in that
+    /// window, so the re-probe is certain to find its own record and take the
+    /// adoption path. Later ones spread out over a lease and a half, which is
+    /// well past the point where a contender may have stolen the term, and is
+    /// how the terminal half of the contract gets reached.
+    fn draw_resume_delay(&self, first: bool) -> Duration {
+        if first {
+            return self.jittered_step();
+        }
+        let longest = self
+            .config
+            .lease
+            .as_duration()
+            .mul_f64(self.config.forced_recovery.max_delay_leases);
+        let step = self.config.step;
+        match longest.checked_sub(step) {
+            Some(spread) if !spread.is_zero() => {
+                let unit = f64::from(self.rng().next_u32()) / f64::from(u32::MAX);
+                step + spread.mul_f64(unit)
+            }
+            _ => step,
         }
     }
 

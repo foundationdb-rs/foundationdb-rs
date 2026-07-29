@@ -1,4 +1,4 @@
-//! The ten properties a run has to satisfy.
+//! The eleven properties a run has to satisfy.
 //!
 //! Each one is a pure function of what [`replay`](super::replay) reconstructed,
 //! plus whatever external evidence it needs (the database snapshot, the
@@ -25,7 +25,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use super::log_schema::{LogEntry, OpKind};
+use super::log_schema::{LogEntry, LogRecord, OpKind};
 use super::replay::{ExpectedRecord, Replay, TransitionKind};
 
 // ============================================================================
@@ -135,6 +135,13 @@ pub struct ProgressThresholds {
     pub min_renewals: usize,
     /// Distinct leader identities the watchers saw
     pub min_observed_identities: usize,
+    /// Unknown commits the run must have resolved, one way or the other
+    ///
+    /// Zero for a configuration that cannot produce one. Anything above zero
+    /// also turns on the anti-rot half of [`recovery_exercised`]: a run that
+    /// drew the feature and never injected is a broken injector, not a lucky
+    /// run.
+    pub min_recoveries: usize,
     /// How long after a belief begins its first renewal comes due
     ///
     /// Must match what the driver uses, so that "this belief outlived its
@@ -655,12 +662,19 @@ pub fn fencing_holds(entries: &[LogEntry], replay: &Replay) -> InvariantReport {
 // 8. UUID RECOVERY NO DUP
 // ============================================================================
 
-/// One token accounts for at most one applied claim.
+/// One token accounts for at most one applied claim, and a spent token is spent.
 ///
 /// A campaign whose commit reply was lost retries, sees its own record, and
 /// must adopt it rather than write again. If it wrote again it would consume a
 /// second ballot for a term it already held, and the log would show the same
 /// token twice.
+///
+/// The other resolution is terminal. A retry that finds a *stranger* at or past
+/// the ballot it wrote cannot tell whether its own write briefly landed, so the
+/// attempt is retired: it must have written nothing, must not report itself as
+/// an adoption, and its token must never appear again under any acquisition.
+/// A token that came back after being retired would be a campaign acting on a
+/// term the log has already accounted to somebody else.
 pub fn uuid_recovery_no_dup(entries: &[LogEntry], replay: &Replay) -> InvariantReport {
     let mut violations = Vec::new();
     let mut seen: HashMap<(i32, [u8; 16]), (usize, u64)> = HashMap::new();
@@ -684,21 +698,68 @@ pub fn uuid_recovery_no_dup(entries: &[LogEntry], replay: &Replay) -> InvariantR
         }
     }
 
+    // Where each client's tokens were retired, so that anything claiming under
+    // one afterwards can be named.
+    let mut retired: HashMap<(i32, [u8; 16]), usize> = HashMap::new();
+
     for (index, entry) in entries.iter().enumerate() {
-        if !entry.record.recovery_noop {
+        let record = &entry.record;
+        let key = (entry.client_id, record.token);
+
+        if record.superseded {
+            if record.leader_record_written {
+                violations.push(Violation::at(
+                    index,
+                    "a superseded attempt wrote the leader record: a retirement is terminal, \
+                     it is not a write",
+                ));
+            }
+            if record.recovery_noop {
+                violations.push(Violation::at(
+                    index,
+                    "an attempt reports being both adopted and superseded: the two \
+                     resolutions are exclusive",
+                ));
+            }
+            if record.outcome.is_applied() {
+                violations.push(Violation::at(
+                    index,
+                    "a superseded attempt reports success: a retired attempt wins nothing",
+                ));
+            }
+            retired.entry(key).or_insert(index);
             continue;
         }
-        if entry.record.leader_record_written {
-            violations.push(Violation::at(
-                index,
-                "a recovered unknown commit wrote a second time instead of adopting its record",
-            ));
+
+        if record.recovery_noop {
+            if record.leader_record_written {
+                violations.push(Violation::at(
+                    index,
+                    "a recovered unknown commit wrote a second time instead of adopting its record",
+                ));
+            }
+            if !record.outcome.is_applied() {
+                violations.push(Violation::at(
+                    index,
+                    "a recovery no-op reports a rejection: recovery either adopts or is superseded",
+                ));
+            }
         }
-        if !entry.record.outcome.is_applied() {
-            violations.push(Violation::at(
-                index,
-                "a recovery no-op reports a rejection: recovery either adopts or is superseded",
-            ));
+
+        let acquired = (matches!(record.op, OpKind::Claim | OpKind::Steal)
+            && record.outcome.is_applied())
+            || record.recovery_noop;
+        if let Some(&first) = retired.get(&key) {
+            if acquired {
+                violations.push(Violation::spanning(
+                    vec![first, index],
+                    format!(
+                        "client {} campaigned again under a token retired at entry {first}: \
+                         a superseded attempt is spent, and a fresh campaign owes a fresh token",
+                        entry.client_id
+                    ),
+                ));
+            }
         }
     }
 
@@ -849,6 +910,90 @@ pub fn history_faithful(replay: &Replay, history: &[HistoryEntry]) -> InvariantR
 }
 
 // ============================================================================
+// 11. RECOVERY EXERCISED
+// ============================================================================
+
+/// The unknown-commit path was actually taken, and every injection ended.
+///
+/// `UuidRecoveryNoDup` holds vacuously over a run in which no commit reply was
+/// ever lost, and under simulation that is very nearly every run: each logged
+/// transaction sets `AutomaticIdempotency`, so the client resolves the unknown
+/// commit itself and the recipe's recovery is never asked anything. A run of
+/// zeroes there says the invariant was never put to the question, which is the
+/// same silence the suite this replaces mistook for success.
+///
+/// So a configuration that drew the forced-recovery feature has to show two
+/// things:
+///
+/// - that the injector still works. At least one contender won a term, so at
+///   least one reply was there to be thrown away; zero markers means the
+///   injection stopped happening, and every later run of this configuration
+///   would pass while testing nothing.
+/// - that what it injected was resolved. A resolution is either an adoption
+///   (the re-probe found its own record) or a retirement (it found a stranger
+///   at or past its ballot). Natural recoveries count too: the point is that
+///   the path ran, not who provoked it.
+///
+/// An injection still outstanding when the run ended is not a resolution, and
+/// is deliberately not excused. The driver only drops a reply while the run has
+/// room to re-probe it, so an unresolved one means the resumption path itself
+/// stopped working.
+pub fn recovery_exercised(
+    entries: &[LogEntry],
+    replay: &Replay,
+    thresholds: &ProgressThresholds,
+) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    if thresholds.min_recoveries == 0 {
+        return InvariantReport::new("RecoveryExercised", violations);
+    }
+
+    let markers = entries
+        .iter()
+        .filter(|entry| entry.record.op == OpKind::InjectedUnknown)
+        .count();
+    let resolutions = entries
+        .iter()
+        .filter(|entry| is_resolution(&entry.record))
+        .count();
+    let acquisitions = replay
+        .transitions
+        .iter()
+        .filter(|transition| transition.kind.is_acquisition())
+        .count();
+
+    if markers == 0 {
+        if acquisitions > 0 {
+            violations.push(Violation::global(format!(
+                "{acquisitions} term(s) were won and not one reply was thrown away: \
+                 this configuration drew forced recovery, so the injection is broken \
+                 rather than unlucky"
+            )));
+        }
+    } else if resolutions < thresholds.min_recoveries {
+        violations.push(Violation::global(format!(
+            "{markers} injected unknown commit(s) produced {resolutions} resolution(s), \
+             expected at least {}: an unknown commit is resolved by adopting its own \
+             record or by retiring the attempt, and one that did neither was never \
+             re-probed",
+            thresholds.min_recoveries
+        )));
+    }
+
+    InvariantReport::new("RecoveryExercised", violations)
+}
+
+/// Whether this record is one of the two ways an unknown commit ends
+///
+/// Public because the check phase reports the count alongside the invariant:
+/// a threshold nobody can see the distance to is a threshold nobody can set.
+pub fn is_resolution(record: &LogRecord) -> bool {
+    record.recovery_noop
+        || (record.superseded && matches!(record.op, OpKind::Claim | OpKind::Steal))
+}
+
+// ============================================================================
 // ALL OF THEM
 // ============================================================================
 
@@ -882,6 +1027,7 @@ pub fn check_all(inputs: &CheckInputs<'_>) -> Vec<InvariantReport> {
         uuid_recovery_no_dup(inputs.entries, inputs.replay),
         progress_made(inputs.entries, inputs.replay, &inputs.thresholds),
         history_faithful(inputs.replay, inputs.history),
+        recovery_exercised(inputs.entries, inputs.replay, &inputs.thresholds),
     ]
 }
 
@@ -897,6 +1043,18 @@ mod tests {
         min_renewals: 3,
         min_observed_identities: 4,
         renew_interval: Duration::from_nanos(LEASE / 3),
+        // The clean log predates forced recovery: it resolves an unknown commit
+        // naturally, and demanding one of it would be demanding a coincidence.
+        min_recoveries: 0,
+    };
+
+    /// What a run that drew the forced-recovery feature has to show
+    const RECOVERY_THRESHOLDS: ProgressThresholds = ProgressThresholds {
+        min_acquisitions: 4,
+        min_renewals: 2,
+        min_observed_identities: 3,
+        renew_interval: Duration::from_nanos(LEASE / 3),
+        min_recoveries: 1,
     };
 
     /// Replay a log the way the check phase does
@@ -909,6 +1067,7 @@ mod tests {
         out: &'a Replay,
         snapshot: &'a ExpectedRecord,
         history: &'a [HistoryEntry],
+        thresholds: ProgressThresholds,
     ) -> CheckInputs<'a> {
         CheckInputs {
             entries,
@@ -916,7 +1075,7 @@ mod tests {
             snapshot: Some(snapshot),
             history,
             tolerances: Tolerances::STRICT,
-            thresholds: THRESHOLDS,
+            thresholds,
         }
     }
 
@@ -960,10 +1119,34 @@ mod tests {
         let out = replayed(&entries);
         let snapshot = clean_snapshot();
         let history = clean_history();
-        for report in check_all(&inputs(&entries, &out, &snapshot, &history)) {
+        for report in check_all(&inputs(&entries, &out, &snapshot, &history, THRESHOLDS)) {
             assert!(
                 report.passed(),
                 "{} failed on the clean log: {:?}",
+                report.name,
+                report.violations
+            );
+        }
+    }
+
+    #[test]
+    fn a_run_that_forced_two_unknown_commits_satisfies_every_invariant() {
+        // Both resolutions in one log: an adoption and a retirement, each
+        // following an injected marker, with no slack spent anywhere.
+        let entries = injected_recovery_log();
+        let out = replayed(&entries);
+        let snapshot = injected_recovery_snapshot();
+        let history = injected_recovery_history();
+        for report in check_all(&inputs(
+            &entries,
+            &out,
+            &snapshot,
+            &history,
+            RECOVERY_THRESHOLDS,
+        )) {
+            assert!(
+                report.passed(),
+                "{} failed on the injected-recovery log: {:?}",
                 report.name,
                 report.violations
             );
@@ -1336,6 +1519,61 @@ mod tests {
         );
     }
 
+    #[test]
+    fn uuid_recovery_catches_a_retired_token_claiming_again() {
+        // A retirement is terminal: the attempt may have written a record
+        // somebody else now owns, so the token cannot come back. Here it comes
+        // back as an adoption, which is the shape that would silently give one
+        // client two accounts of the same term.
+        let mut entries = injected_recovery_log();
+        let adoption = find(&entries, |entry| entry.record.recovery_noop);
+        let mut again = entries[adoption].clone();
+        again.client_id = 1;
+        again.record.token = token(2);
+        again.versionstamp = [0xff; 12];
+        entries.push(again);
+
+        assert_failed(
+            &uuid_recovery_no_dup(&entries, &replayed(&entries)),
+            "under a token retired at entry",
+        );
+    }
+
+    #[test]
+    fn uuid_recovery_catches_a_superseded_entry_that_wrote() {
+        let mut entries = injected_recovery_log();
+        let retired = find(&entries, |entry| entry.record.superseded);
+        entries[retired].record.leader_record_written = true;
+        assert_failed(
+            &uuid_recovery_no_dup(&entries, &replayed(&entries)),
+            "a retirement is terminal",
+        );
+
+        // And a retirement that reports success: the attempt won nothing, and
+        // an applied outcome here is what would make replay count it as a term.
+        let mut entries = injected_recovery_log();
+        entries[retired].record.outcome = Outcome::Applied;
+        assert_failed(
+            &uuid_recovery_no_dup(&entries, &replayed(&entries)),
+            "a retired attempt wins nothing",
+        );
+    }
+
+    #[test]
+    fn uuid_recovery_catches_a_superseded_recovery_noop_contradiction() {
+        // The two resolutions are exclusive: an attempt either found its own
+        // record or found a stranger. An entry claiming both would let a run
+        // pass the resolution count while describing something impossible.
+        let mut entries = injected_recovery_log();
+        let retired = find(&entries, |entry| entry.record.superseded);
+        entries[retired].record.recovery_noop = true;
+
+        assert_failed(
+            &uuid_recovery_no_dup(&entries, &replayed(&entries)),
+            "both adopted and superseded",
+        );
+    }
+
     // ------------------------------------------------------------------
     // 9. ProgressMade
     // ------------------------------------------------------------------
@@ -1389,6 +1627,7 @@ mod tests {
             min_renewals: 3,
             min_observed_identities: 0,
             renew_interval: Duration::from_nanos(LEASE / 3),
+            min_recoveries: 0,
         };
 
         let mut log = LogBuilder::new();
@@ -1494,6 +1733,84 @@ mod tests {
             },
         );
         assert_failed(&history_faithful(&out, &history), "but only");
+    }
+
+    // ------------------------------------------------------------------
+    // 11. RecoveryExercised
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn recovery_exercised_catches_an_injection_that_never_resolved() {
+        // The markers say two replies were thrown away and nothing in the log
+        // says either attempt was ever re-probed: the resumption path stopped
+        // working, and every safety check about recovery is vacuous.
+        let entries: Vec<LogEntry> = injected_recovery_log()
+            .into_iter()
+            .filter(|entry| !is_resolution(&entry.record))
+            .collect();
+        let out = replayed(&entries);
+
+        assert_failed(
+            &recovery_exercised(&entries, &out, &RECOVERY_THRESHOLDS),
+            "was never re-probed",
+        );
+    }
+
+    #[test]
+    fn recovery_exercised_catches_an_injector_that_rotted() {
+        // The anti-rot half. The clean log wins terms and carries no marker at
+        // all, which for a configuration that drew the feature means the
+        // injection is broken rather than the run lucky. Without this the
+        // feature could stop firing and every run would still pass.
+        let entries = clean_log();
+        let out = replayed(&entries);
+
+        assert_failed(
+            &recovery_exercised(&entries, &out, &RECOVERY_THRESHOLDS),
+            "not one reply was thrown away",
+        );
+    }
+
+    #[test]
+    fn recovery_exercised_is_not_demanded_when_the_feature_was_not_drawn() {
+        // Off means the run cannot inject, so demanding a recovery of it would
+        // fail honest runs. The same log, judged by a plan that drew nothing.
+        let entries = clean_log();
+        let out = replayed(&entries);
+        assert!(recovery_exercised(&entries, &out, &THRESHOLDS).passed());
+
+        // And a run that did nothing at all is ProgressMade's business: with no
+        // term won there was no reply to throw away.
+        let empty: Vec<LogEntry> = Vec::new();
+        let out = replayed(&empty);
+        assert!(recovery_exercised(&empty, &out, &RECOVERY_THRESHOLDS).passed());
+    }
+
+    #[test]
+    fn recovery_exercised_counts_a_natural_recovery() {
+        // The point is that the path ran, not who provoked it: the clean log's
+        // own lost reply is a resolution, so a run that recovered naturally and
+        // also injected is not held to a second recovery.
+        let mut entries = injected_recovery_log();
+        let marker = find(&entries, |entry| entry.record.op == OpKind::InjectedUnknown);
+        let adoption = find(&entries, |entry| entry.record.recovery_noop);
+        entries.remove(adoption);
+        let out = replayed(&entries);
+        assert!(
+            recovery_exercised(&entries, &out, &RECOVERY_THRESHOLDS).passed(),
+            "the retirement alone resolves the run"
+        );
+
+        // Both markers still there, and the floor is the count of resolutions.
+        assert!(entries[marker].record.op == OpKind::InjectedUnknown);
+        let demanding = ProgressThresholds {
+            min_recoveries: 2,
+            ..RECOVERY_THRESHOLDS
+        };
+        assert_failed(
+            &recovery_exercised(&entries, &out, &demanding),
+            "expected at least 2",
+        );
     }
 
     // ------------------------------------------------------------------

@@ -477,6 +477,41 @@ mod tests {
     }
 
     #[test]
+    fn an_injected_unknown_marker_is_not_a_transition() {
+        // The marker says a reply was thrown away, not that anything was
+        // written: the claim it follows is the only transition of the pair, and
+        // counting the marker would put the log one acquisition ahead of the
+        // database.
+        let entries = injected_recovery_log();
+        let out = replay(&entries, leader_id);
+        assert!(out.anomalies.is_empty(), "{:?}", out.anomalies);
+        assert_eq!(
+            out.final_state.as_ref(),
+            Some(&injected_recovery_snapshot())
+        );
+
+        let markers: Vec<usize> = entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| entry.record.op == OpKind::InjectedUnknown)
+            .map(|(index, _)| index)
+            .collect();
+        assert_eq!(markers.len(), 2);
+        for index in markers {
+            assert!(out.transitions.iter().all(|t| t.index != index));
+        }
+        // Three claims and a steal: neither the adoption nor the superseded
+        // re-probe is among them.
+        assert_eq!(
+            out.transitions
+                .iter()
+                .filter(|t| t.kind.is_acquisition())
+                .count(),
+            4
+        );
+    }
+
+    #[test]
     fn rejected_operations_leave_the_state_alone() {
         let out = replay_clean();
         // The paused client's stale renewal is in the log and changed nothing.

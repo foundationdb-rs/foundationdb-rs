@@ -28,6 +28,12 @@
 //! cover every hazard (multiversion clients, transactions outliving the
 //! idempotency window), and those are exactly the cases where a retry has to
 //! recognize its own record instead of claiming a second time.
+//!
+//! It does mean the recovery path is nearly unreachable by accident: the client
+//! resolves the unknown commit itself, and the recipe's own recovery is never
+//! asked anything. That is why the driver forces it, throwing away replies it
+//! did receive and re-running the attempt later, and why
+//! [`injected_unknown`](Journal::injected_unknown) exists to say so in the log.
 
 use std::cell::Cell;
 use std::time::Duration;
@@ -249,6 +255,7 @@ impl Journal {
             record.token = *attempt.token().as_bytes();
             record.leader_record_written = won && !recovering;
             record.recovery_noop = won && recovering;
+            record.superseded = matches!(outcome, ClaimOutcome::Superseded);
             record.maybe_committed = attempt.maybe_committed();
             record.observed = previous.as_ref().map(identity_of);
             record.local_nanos = nanos(local);
@@ -269,6 +276,35 @@ impl Journal {
             }
 
             Ok(((outcome, updated), record))
+        })
+        .await
+    }
+
+    /// Record that the driver threw away the reply to a claim that committed
+    ///
+    /// A transaction of its own, issued after the claim it describes has
+    /// committed, so the marker exists if and only if that claim does. Putting
+    /// it in the claim transaction would be the opposite of what it is for: a
+    /// marker that vanished with the commit it marks could not tell the check
+    /// phase that the injection ever happened.
+    ///
+    /// The claim itself is untouched. Everything the recovery needs is in the
+    /// attempt, which the caller keeps and re-runs later.
+    pub(crate) async fn injected_unknown(
+        &self,
+        db: &SimDatabase,
+        attempt_id: u64,
+        attempt: &ClaimAttempt,
+        ballot: u64,
+    ) -> Result<(), FdbBindingError> {
+        self.run(db, |_, _| async move {
+            let mut record = LogRecord::new(OpKind::InjectedUnknown);
+            record.attempt_id = attempt_id;
+            record.token = *attempt.token().as_bytes();
+            record.ballot = ballot;
+            record.maybe_committed = attempt.maybe_committed();
+            record.local_nanos = nanos(self.local_now());
+            Ok(((), record))
         })
         .await
     }

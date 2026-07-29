@@ -60,12 +60,12 @@ use futures::TryStreamExt;
 use super::clock::{SkewMode, SkewedClock};
 use super::invariants::{
     CheckInputs, HistoryEntry, HistoryKind, InvariantReport, ProgressThresholds, Tolerances,
-    check_all,
+    check_all, is_resolution,
 };
 use super::log_schema::{LogEntry, OpKind, log_subspace};
 use super::logged_op::Journal;
 use super::replay::{ExpectedRecord, TransitionKind, replay};
-use super::roles::{Driver, DriverConfig, Role};
+use super::roles::{Driver, DriverConfig, ForcedRecoveryConfig, Role};
 use super::swarm::{FaultTiming, SwarmPlan};
 
 /// How many transition records the check phase asks the recipe for
@@ -137,6 +137,16 @@ impl SingleRustWorkload for LeaderElectionWorkload {
                         plan.step_secs,
                         plan.lease_secs,
                     ),
+                    forced_recovery: ForcedRecoveryConfig {
+                        enabled: plan.features.forced_recovery,
+                        // Rare after the first, which every contender takes
+                        // unconditionally: a client that spends the run
+                        // recovering never gets far enough to be stolen from.
+                        probability: 0.10,
+                        // Past a lease, so the late injections reach the
+                        // terminal half of the recovery contract.
+                        max_delay_leases: 1.5,
+                    },
                 };
                 let role = Role::assign(client_id, client_count, sleeper, watcher);
                 // Derived from the plan rather than configured: a run has to
@@ -190,12 +200,20 @@ impl SingleRustWorkload for LeaderElectionWorkload {
                         step_secs,
                         lease_secs,
                     ),
+                    // Not a knob. The anchor files are the configurations a
+                    // human reasoned about, and an injected unknown commit is
+                    // exactly the thing nobody can reason about the timing of;
+                    // it belongs to the seeds, not to the files.
+                    forced_recovery: ForcedRecoveryConfig::disabled(),
                 };
                 let role = Role::assign(client_id, client_count, sleeper_enabled, true);
                 let thresholds = ProgressThresholds {
                     min_acquisitions,
                     min_renewals,
                     min_observed_identities,
+                    // Nothing injects here, so demanding a recovery would fail
+                    // every anchor run for a path they cannot reach.
+                    min_recoveries: 0,
                     // Not a knob: it has to be the interval the driver actually
                     // renews on (`roles.rs`), or the check would excuse runs
                     // that did have the chance to renew.
@@ -308,6 +326,7 @@ impl RustWorkload for LeaderElectionWorkload {
                     "MinAcquisitions" => self.thresholds.min_acquisitions,
                     "MinRenewals" => self.thresholds.min_renewals,
                     "MinObservedIdentities" => self.thresholds.min_observed_identities,
+                    "MinRecoveries" => self.thresholds.min_recoveries,
                     "RenewIntervalSecs" => self.thresholds.renew_interval.as_secs_f64()
                 ],
             );
@@ -361,6 +380,9 @@ impl RustWorkload for LeaderElectionWorkload {
                 "Resigns" => counters.resigns,
                 "Denials" => counters.denials,
                 "Crashes" => counters.crashes,
+                "InjectedUnknowns" => counters.injected_unknowns,
+                "RecoveriesAdopted" => counters.recoveries_adopted,
+                "Superseded" => counters.superseded,
                 "HorizonStops" => counters.horizon_stops,
                 "FencedApplied" => counters.fenced_applied,
                 "FencedRejected" => counters.fenced_rejected,
@@ -432,9 +454,19 @@ impl RustWorkload for LeaderElectionWorkload {
         // Whether the unknown-commit path ran at all. `UuidRecoveryNoDup` holds
         // vacuously over a run that never lost a commit reply, and a run of
         // zeroes here says the invariant was never actually asked anything.
+        // Both resolutions count: an attempt that found a stranger at its own
+        // ballot exercised the recovery just as much as one that adopted.
         let recoveries = entries
             .iter()
-            .filter(|entry| entry.record.recovery_noop)
+            .filter(|entry| is_resolution(&entry.record))
+            .count();
+        let superseded = entries
+            .iter()
+            .filter(|entry| entry.record.superseded)
+            .count();
+        let injected = entries
+            .iter()
+            .filter(|entry| entry.record.op == OpKind::InjectedUnknown)
             .count();
 
         self.context.trace(
@@ -449,6 +481,8 @@ impl RustWorkload for LeaderElectionWorkload {
                 "Renewals" => renewals,
                 "ObservedIdentities" => identities.len(),
                 "Recoveries" => recoveries,
+                "InjectedUnknowns" => injected,
+                "SupersededResolutions" => superseded,
                 "Beliefs" => replayed.beliefs.len(),
                 "HistoryEntries" => history.len(),
                 "BeliefToleranceMs" => tolerances.belief_overlap.as_millis() as u64,
@@ -508,6 +542,8 @@ impl RustWorkload for LeaderElectionWorkload {
             Metric::val("resigns", counters.resigns as f64),
             Metric::val("denials", counters.denials as f64),
             Metric::val("superseded", counters.superseded as f64),
+            Metric::val("injected_unknowns", counters.injected_unknowns as f64),
+            Metric::val("recoveries_adopted", counters.recoveries_adopted as f64),
             Metric::val("lost", counters.lost as f64),
             Metric::val("crashes", counters.crashes as f64),
             Metric::val("horizon_stops", counters.horizon_stops as f64),

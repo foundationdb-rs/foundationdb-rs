@@ -19,8 +19,8 @@
 //!   leader record from those that merely reported an outcome. Only the former
 //!   drive replay, so a claim and the recovery that recognized it cannot be
 //!   counted as two applied transitions.
-//! - `recovery_noop` and `maybe_committed` mark the unknown-commit path, which
-//!   is exactly where double-counting would hide.
+//! - `recovery_noop`, `superseded` and `maybe_committed` mark the
+//!   unknown-commit path, which is exactly where double-counting would hide.
 //! - `local_nanos` (the caller's skewed clock) and `sim_nanos` (true simulated
 //!   time, sampled inside the transaction) are kept apart. The recipe only ever
 //!   sees the former; the check phase uses the latter as its oracle.
@@ -35,7 +35,7 @@ use std::fmt;
 use foundationdb::tuple::{Subspace, Versionstamp, pack, unpack};
 
 /// Version of the log record layout, bumped on any change to the value tuple
-pub const LOG_SCHEMA_VERSION: u64 = 1;
+pub const LOG_SCHEMA_VERSION: u64 = 2;
 
 /// Prefix of the subspace the log lives in
 pub const LOG_PREFIX: &str = "le_log";
@@ -82,6 +82,14 @@ pub enum OpKind {
     BeliefBegin,
     /// The driver stopped believing it leads
     BeliefEnd,
+    /// The driver threw away a claim reply it had actually received
+    ///
+    /// The BUGGIFY-style injection: the marker is written after the claim it
+    /// describes committed, so it exists if and only if that claim did. It
+    /// mutates nothing, and its only reader is the check phase, which uses it
+    /// to tell a run that exercised the recovery path from one that merely
+    /// could have.
+    InjectedUnknown,
 }
 
 impl OpKind {
@@ -96,6 +104,7 @@ impl OpKind {
             Self::Observe => "observe",
             Self::BeliefBegin => "belief_begin",
             Self::BeliefEnd => "belief_end",
+            Self::InjectedUnknown => "injected_unknown",
         }
     }
 
@@ -110,6 +119,7 @@ impl OpKind {
             "observe" => Some(Self::Observe),
             "belief_begin" => Some(Self::BeliefBegin),
             "belief_end" => Some(Self::BeliefEnd),
+            "injected_unknown" => Some(Self::InjectedUnknown),
             _ => None,
         }
     }
@@ -188,6 +198,14 @@ pub struct LogRecord {
     pub recovery_noop: bool,
     /// Whether a previous execution of this attempt may have committed
     pub maybe_committed: bool,
+    /// Whether the attempt was retired because a foreign record had reached the
+    /// ballot it wrote
+    ///
+    /// The other half of the recovery contract: an attempt whose reply was lost
+    /// either finds its own record and adopts it (`recovery_noop`) or finds a
+    /// stranger at or past its ballot and is spent. Both are resolutions, and
+    /// the check phase counts them together.
+    pub superseded: bool,
     /// The caller's own (skewed) clock, the only time the recipe ever sees
     pub local_nanos: u64,
     /// True simulated time, sampled inside the transaction after the read
@@ -214,6 +232,7 @@ impl LogRecord {
             leader_record_written: false,
             recovery_noop: false,
             maybe_committed: false,
+            superseded: false,
             local_nanos: 0,
             sim_nanos: 0,
             observation_start_nanos: None,
@@ -251,6 +270,7 @@ impl LogRecord {
                 self.leader_record_written,
                 self.recovery_noop,
                 self.maybe_committed,
+                self.superseded,
             ),
             (
                 self.local_nanos,
@@ -275,7 +295,7 @@ impl LogRecord {
             Vec<u8>,
             (u64, u64, u64, u64),
             (bool, u64, u64, bool),
-            (bool, bool, bool),
+            (bool, bool, bool, bool),
             (u64, u64, bool, u64),
         );
 
@@ -287,7 +307,7 @@ impl LogRecord {
             token,
             (ballot, generation, lease_nanos, horizon_nanos),
             (observed_present, observed_ballot, observed_generation, observed_vacant),
-            (leader_record_written, recovery_noop, maybe_committed),
+            (leader_record_written, recovery_noop, maybe_committed, superseded),
             (local_nanos, sim_nanos, observation_present, observation_start_nanos),
         ): Encoded =
             unpack(bytes).map_err(|e| SchemaError(format!("value is not a log record: {e:?}")))?;
@@ -322,6 +342,7 @@ impl LogRecord {
             leader_record_written,
             recovery_noop,
             maybe_committed,
+            superseded,
             local_nanos,
             sim_nanos,
             observation_start_nanos: observation_present.then_some(observation_start_nanos),
@@ -594,6 +615,140 @@ pub(crate) mod fixtures {
         ]
     }
 
+    /// The marker a client writes when it throws a claim reply away
+    pub(crate) fn injected_unknown(ballot: u64, tok: u8, sim: u64) -> LogRecord {
+        let mut record = LogRecord::new(OpKind::InjectedUnknown);
+        record.ballot = ballot;
+        record.token = token(tok);
+        record.attempt_id = ballot;
+        record.maybe_committed = true;
+        record.local_nanos = sim;
+        record.sim_nanos = sim;
+        record
+    }
+
+    /// A re-probe that found a stranger at or past the ballot it wrote
+    ///
+    /// The terminal half of the recovery contract: nothing was written, the
+    /// outcome is a refusal, and the token is spent from here on.
+    pub(crate) fn superseded(observed_ballot: u64, tok: u8, sim: u64) -> LogRecord {
+        let mut record = LogRecord::new(OpKind::Steal);
+        record.outcome = Outcome::Rejected;
+        record.token = token(tok);
+        record.attempt_id = u64::from(tok);
+        record.superseded = true;
+        record.maybe_committed = true;
+        record.lease_nanos = LEASE;
+        record.local_nanos = sim;
+        record.sim_nanos = sim;
+        observed(&mut record, observed_ballot, 1, false);
+        record
+    }
+
+    /// A run in which the driver forced two unknown commits.
+    ///
+    /// Both halves of the recovery contract, in one log. Client 0 claims,
+    /// throws the reply away, and its re-probe finds its own record and adopts
+    /// it. Client 1 claims the vacancy it leaves, throws that reply away too,
+    /// and is stolen from while it waits: its re-probe finds a stranger at a
+    /// higher ballot, retires the token, and the campaign that follows uses a
+    /// fresh one.
+    ///
+    /// A sibling of [`clean_log`] rather than an extension of it, because many
+    /// tests index into that fixture by position.
+    pub(crate) fn injected_recovery_log() -> Vec<LogEntry> {
+        let mut log = LogBuilder::new();
+
+        // -- client 0 claims, drops the reply, and adopts its own record ----
+        log.push(0, write(OpKind::Claim, 1, 0, 1, SEC));
+        log.push(0, injected_unknown(1, 1, SEC + SEC / 10));
+
+        let mut adopted = write(OpKind::Claim, 1, 0, 1, SEC + 5 * SEC / 10);
+        adopted.leader_record_written = false;
+        adopted.recovery_noop = true;
+        adopted.maybe_committed = true;
+        observed(&mut adopted, 1, 0, false);
+        log.push(0, adopted);
+
+        log.push(0, belief_begin(0, 1, SEC + 5 * SEC / 10, 9 * SEC));
+        log.push(2, observe(1, 0, false, 2 * SEC));
+        log.push(0, write(OpKind::Renew, 1, 1, 1, 3 * SEC));
+        log.push(2, observe(1, 1, false, 4 * SEC));
+        log.push(0, belief_end(0, 1, 5 * SEC));
+        log.push(0, resign(1, 1, 1, 5 * SEC + SEC / 10));
+
+        // -- client 1 takes the vacancy and drops that reply too ------------
+        let mut claim = write(OpKind::Claim, 2, 1, 2, 5 * SEC + 5 * SEC / 10);
+        observed(&mut claim, 1, 1, true);
+        log.push(1, claim);
+        log.push(1, injected_unknown(2, 2, 5 * SEC + 6 * SEC / 10));
+        // No belief: a client that never heard back never starts believing,
+        // which is what makes the injection the same shape as a crash.
+
+        // -- client 2 times the abandoned identity and takes it -------------
+        let mut first_sighting = observe(2, 1, false, 5 * SEC + 8 * SEC / 10);
+        first_sighting.observation_start_nanos = Some(5 * SEC + 8 * SEC / 10);
+        log.push(2, first_sighting);
+
+        let mut mid_sighting = observe(2, 1, false, 12 * SEC);
+        mid_sighting.observation_start_nanos = Some(5 * SEC + 8 * SEC / 10);
+        log.push(2, mid_sighting);
+
+        let mut steal = write(OpKind::Steal, 3, 1, 3, 16 * SEC);
+        steal.observation_start_nanos = Some(5 * SEC + 8 * SEC / 10);
+        observed(&mut steal, 2, 1, false);
+        log.push(2, steal);
+        log.push(2, belief_begin(2, 3, 16 * SEC, 25 * SEC));
+
+        // -- client 1 re-probes and finds the stranger ----------------------
+        log.push(1, superseded(3, 2, 17 * SEC));
+
+        log.push(2, write(OpKind::Renew, 3, 2, 3, 18 * SEC));
+        log.push(2, belief_end(2, 3, 20 * SEC));
+        log.push(2, resign(3, 2, 3, 20 * SEC + SEC / 10));
+
+        // -- and campaigns again under a token the retirement did not spend -
+        let mut fresh = write(OpKind::Claim, 4, 2, 4, 20 * SEC + 5 * SEC / 10);
+        observed(&mut fresh, 3, 2, true);
+        log.push(1, fresh);
+        let mut belief = belief_begin(1, 4, 20 * SEC + 5 * SEC / 10, 29 * SEC);
+        belief.token = token(4);
+        log.push(1, belief);
+
+        log.into_entries()
+    }
+
+    /// The database state [`injected_recovery_log`] replays to
+    pub(crate) fn injected_recovery_snapshot() -> crate::leader_election::replay::ExpectedRecord {
+        crate::leader_election::replay::ExpectedRecord {
+            ballot: 4,
+            generation: 2,
+            leader_id: leader_id(1),
+            token: token(4),
+            lease_nanos: LEASE,
+        }
+    }
+
+    /// The transitions [`injected_recovery_log`] should have left in the
+    /// recipe's own history subspace
+    pub(crate) fn injected_recovery_history()
+    -> Vec<crate::leader_election::invariants::HistoryEntry> {
+        use crate::leader_election::invariants::{HistoryEntry, HistoryKind};
+        let entry = |kind, ballot, client| HistoryEntry {
+            kind,
+            ballot,
+            leader_id: leader_id(client),
+        };
+        vec![
+            entry(HistoryKind::Claim, 1, 0),
+            entry(HistoryKind::Resign, 1, 0),
+            entry(HistoryKind::Claim, 2, 1),
+            entry(HistoryKind::Steal, 3, 2),
+            entry(HistoryKind::Resign, 3, 2),
+            entry(HistoryKind::Claim, 4, 1),
+        ]
+    }
+
     pub(crate) fn observe(ballot: u64, generation: u64, vacant: bool, sim: u64) -> LogRecord {
         let mut record = LogRecord::new(OpKind::Observe);
         record.local_nanos = sim;
@@ -653,6 +808,7 @@ mod tests {
         record.leader_record_written = true;
         record.recovery_noop = true;
         record.maybe_committed = true;
+        record.superseded = true;
         record.local_nanos = 123_456_789;
         record.sim_nanos = 987_654_321;
         record.observation_start_nanos = Some(555);
@@ -700,10 +856,22 @@ mod tests {
             OpKind::Observe,
             OpKind::BeliefBegin,
             OpKind::BeliefEnd,
+            OpKind::InjectedUnknown,
         ] {
             assert_eq!(OpKind::parse(op.as_str()), Some(op));
         }
         assert_eq!(OpKind::parse("nonsense"), None);
+    }
+
+    #[test]
+    fn an_injected_unknown_marker_may_not_touch_the_leader_record() {
+        // The marker is written in a transaction of its own, after the claim it
+        // describes committed. Nothing about it is a transition, and replay
+        // treats an op that says otherwise as an anomaly.
+        assert!(!OpKind::InjectedUnknown.touches_leader_record());
+        for op in [OpKind::Claim, OpKind::Steal, OpKind::Renew, OpKind::Resign] {
+            assert!(op.touches_leader_record());
+        }
     }
 
     #[test]
@@ -741,6 +909,36 @@ mod tests {
             .expect("the schema version is encoded verbatim");
         bytes[version_byte] = 9;
         assert!(LogRecord::decode(&bytes).is_err());
+    }
+
+    #[test]
+    fn the_injected_recovery_fixture_carries_both_resolutions() {
+        let entries = injected_recovery_log();
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| entry.record.op == OpKind::InjectedUnknown)
+                .count(),
+            2
+        );
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| entry.record.recovery_noop)
+                .count(),
+            1
+        );
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| entry.record.superseded)
+                .count(),
+            1
+        );
+        for entry in &entries {
+            let decoded = LogRecord::decode(&entry.record.encode()).unwrap();
+            assert_eq!(decoded, entry.record);
+        }
     }
 
     #[test]
