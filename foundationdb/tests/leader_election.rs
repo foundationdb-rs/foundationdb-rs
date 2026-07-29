@@ -25,11 +25,12 @@ mod common;
 mod leader_election_tests {
     use foundationdb::{
         Database, FdbResult,
+        env::{Clock, Environment, SeededRng},
         recipes::leader_election::{
-            ClaimAttempt, ClaimOutcome, ClaimToken, Clock, ElectorConfig, HistoryEventKind,
-            LeadOutcome, LeaderElection, LeaderElectionError, LeaderElector, LeaseDuration,
-            LeaseGrant, LeaseObservation, LeaseStatus, RefreshAttempt, RefreshOutcome,
-            ResignOutcome, Result,
+            ClaimAttempt, ClaimOutcome, ClaimToken, ElectorConfig, HistoryEventKind, LeadOutcome,
+            LeaderElection, LeaderElectionError, LeaderElector, LeaseDuration, LeaseGrant,
+            LeaseObservation, LeaseStatus, RefreshAttempt, RefreshOutcome, ResignOutcome, Result,
+            Timer,
         },
         tuple::Subspace,
     };
@@ -62,10 +63,21 @@ mod leader_election_tests {
     }
 
     impl Clock for TestClock {
-        fn now(&self) -> Duration {
+        fn monotonic(&self) -> Duration {
             self.epoch.elapsed()
         }
 
+        /// Never read by the handle layer, which only ever measures durations.
+        fn wall(&self) -> Duration {
+            unreachable!("the handle layer must never read a wall clock")
+        }
+    }
+
+    /// The waiting half, on the same timeline.
+    #[derive(Debug)]
+    struct TestTimer;
+
+    impl Timer for TestTimer {
         fn sleep(&self, duration: Duration) -> BoxFuture<'static, ()> {
             Box::pin(tokio::time::sleep(duration))
         }
@@ -117,7 +129,7 @@ mod leader_election_tests {
 
         /// One claim transaction with a fresh single-use attempt
         async fn claim(&self) -> Result<ClaimOutcome> {
-            let attempt = ClaimAttempt::new(ClaimToken::generate(), self.clock.now())?;
+            let attempt = ClaimAttempt::new(ClaimToken::generate(), self.clock.monotonic())?;
             self.claim_with(&attempt).await
         }
 
@@ -130,7 +142,7 @@ mod leader_election_tests {
                     let (outcome, updated) = self
                         .election
                         .try_claim(&txn, &self.id, self.lease, attempt, seen, || {
-                            self.clock.now()
+                            self.clock.monotonic()
                         })
                         .await?;
                     *self.observation.lock().unwrap() = updated;
@@ -140,7 +152,7 @@ mod leader_election_tests {
         }
 
         async fn refresh(&self, grant: &LeaseGrant) -> Result<RefreshOutcome> {
-            let attempt = RefreshAttempt::new(grant, self.clock.now());
+            let attempt = RefreshAttempt::new(grant, self.clock.monotonic());
             let attempt = &attempt;
             self.db
                 .run(|txn, _| async move { self.election.refresh(&txn, grant, attempt).await })
@@ -179,7 +191,14 @@ mod leader_election_tests {
             subspace.clone(),
             id,
             ElectorConfig::new(lease)?,
-            TestClock::new(),
+            // One clock per process, as in production, and a generator seeded
+            // from the id so two electors of a test never jitter in lockstep
+            // yet each run is reproducible.
+            Environment::new(
+                TestClock::new(),
+                Arc::new(SeededRng::new(id.bytes().map(u64::from).sum())),
+            ),
+            Arc::new(TestTimer),
         )
     }
 
@@ -545,7 +564,7 @@ mod leader_election_tests {
 
         // The attempt outlives the transaction on purpose: this is exactly the
         // object a `commit_unknown_result` retry would still be holding.
-        let attempt = ClaimAttempt::new(ClaimToken::generate(), leader.clock.now())?;
+        let attempt = ClaimAttempt::new(ClaimToken::generate(), leader.clock.monotonic())?;
         let first = won(leader.claim_with(&attempt).await?);
         assert_eq!(first.ballot(), 1);
         assert!(

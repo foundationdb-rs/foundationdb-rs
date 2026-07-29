@@ -48,8 +48,9 @@ fdb-7_3 = ["foundationdb-sys/fdb-7_3", "foundationdb-gen/fdb-7_3"]
 fdb-7_4 = ["foundationdb-sys/fdb-7_4", "foundationdb-gen/fdb-7_4"]
 recipes = ["recipes-leader-election", "recipes-ranked-register"]
 recipes-leader-election = []
-# The leader election handle layer is runtime-agnostic through its `Clock`
-# trait; this adds the tokio-backed implementation of it.
+# The leader election handle layer is runtime-agnostic through the `Clock` of
+# its `Environment` and its own `Timer` trait; this adds the tokio-backed
+# implementations of both.
 recipes-leader-election-tokio = ["recipes-leader-election", "dep:tokio"]
 recipes-ranked-register = []
 trace = ["tracing"]

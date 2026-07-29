@@ -16,27 +16,23 @@
 //!
 //! ```no_run
 //! use foundationdb::Database;
+//! use foundationdb::env::Environment;
 //! use foundationdb::recipes::leader_election::{
-//!     Clock, ElectorConfig, LeadOutcome, LeaderElectionError, LeaderElector, LeaseLostError,
+//!     ElectorConfig, LeadOutcome, LeaderElectionError, LeaderElector, LeaseLostError, Timer,
 //! };
 //! use foundationdb::tuple::Subspace;
 //! use futures::future::BoxFuture;
 //! use std::sync::Arc;
 //! use std::time::Duration;
 //!
-//! // The handle layer takes its time through the `Clock` trait, so it is not
-//! // tied to any runtime. This is what the `recipes-leader-election-tokio`
-//! // feature ships as `TokioClock`.
+//! // The handle layer reads time through the `Clock` of its `Environment` and
+//! // waits through the `Timer` trait, so it is not tied to any runtime. This
+//! // is what the `recipes-leader-election-tokio` feature ships as
+//! // `TokioClock` and `TokioTimer`.
 //! #[derive(Debug)]
-//! struct TokioClock {
-//!     epoch: tokio::time::Instant,
-//! }
+//! struct TokioTimer;
 //!
-//! impl Clock for TokioClock {
-//!     fn now(&self) -> Duration {
-//!         self.epoch.elapsed()
-//!     }
-//!
+//! impl Timer for TokioTimer {
 //!     fn sleep(&self, duration: Duration) -> BoxFuture<'static, ()> {
 //!         Box::pin(tokio::time::sleep(duration))
 //!     }
@@ -48,7 +44,10 @@
 //!         Subspace::all().subspace(&"my-service/election"),
 //!         "worker-7",
 //!         ElectorConfig::new(Duration::from_secs(10))?,
-//!         Arc::new(TokioClock { epoch: tokio::time::Instant::now() }),
+//!         // The machine clock and a generator seeded from entropy. A seeded
+//!         // environment instead makes the whole campaign replay.
+//!         Environment::default(),
+//!         Arc::new(TokioTimer),
 //!     )?;
 //!
 //!     let outcome = elector
@@ -429,12 +428,12 @@ mod elector;
 mod errors;
 mod types;
 
-#[cfg(feature = "recipes-leader-election-tokio")]
-pub use elector::TokioClock;
 pub use elector::{
-    Clock, DEFAULT_MAX_CLOCK_RATE_ERROR, DEFAULT_SCHEDULING_ALLOWANCE, ElectorConfig,
-    JitterSchedule, LeadOutcome, LeaderElector, LeaseHandle, LeaseStatus, TokenSource,
+    DEFAULT_MAX_CLOCK_RATE_ERROR, DEFAULT_SCHEDULING_ALLOWANCE, ElectorConfig, JitterSchedule,
+    LeadOutcome, LeaderElector, LeaseHandle, LeaseStatus, Timer, TokenSource,
 };
+#[cfg(feature = "recipes-leader-election-tokio")]
+pub use elector::{TokioClock, TokioTimer};
 pub use errors::{LeaderElectionError, LeaseLostError, Result};
 pub use types::{
     ClaimAttempt, ClaimOutcome, ClaimToken, DEFAULT_HISTORY_RETENTION,

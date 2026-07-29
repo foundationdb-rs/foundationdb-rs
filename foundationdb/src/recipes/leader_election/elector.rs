@@ -12,10 +12,20 @@
 //! won, run the caller's work while renewing the lease in the same task, and
 //! stop believing strictly before any contender could take over.
 //!
-//! Everything time-related goes through the [`Clock`] trait, so the whole layer
-//! can run on a simulated timeline. Nothing here reads a wall clock, and the
-//! only ambient randomness is in the defaults a caller can replace: the claim
-//! token source and the campaign jitter schedule.
+//! Time is read through [`Clock`] and waiting is done through [`Timer`], both
+//! handed in by the caller, so the whole layer can run on a simulated timeline.
+//! Nothing here reads an ambient clock or draws ambient randomness: the
+//! campaign jitter and the per-term claim tokens come from the [`Environment`]
+//! unless the config names its own.
+//!
+//! Only [`Clock::monotonic`] is ever read. Everything this layer measures is an
+//! elapsed duration on one instance, which is exactly what monotonic readings
+//! are for; nothing it computes is persisted or compared across processes, so
+//! [`Clock::wall`] has no use here.
+//!
+//! [`Environment::default`] is the production choice. A seeded environment
+//! ([`Environment::with_seed`]) makes a campaign replay identically: the jitter
+//! schedule and every claim token come out of that one seed.
 //!
 //! # Belief
 //!
@@ -38,6 +48,7 @@ use super::types::{
     LeaseObservation, RefreshAttempt, RefreshOutcome, ResignOutcome,
 };
 use super::{LeaderElection, MAX_LEADER_ID_LEN};
+use crate::env::{Clock, Environment, Rng};
 use crate::{Database, FdbResult, tuple::Subspace};
 use futures::future::{BoxFuture, Either};
 use std::fmt;
@@ -60,36 +71,32 @@ pub const DEFAULT_MAX_CLOCK_RATE_ERROR: f64 = 1e-3;
 pub const DEFAULT_SCHEDULING_ALLOWANCE: Duration = Duration::from_millis(50);
 
 // ============================================================================
-// CLOCK
+// TIMER
 // ============================================================================
 
-/// The passage of time, as this layer measures it
+/// Waiting, as this layer does it
 ///
-/// [`now`](Clock::now) is a monotonic reading since an arbitrary per-instance
-/// epoch, never a wall clock: values from two different clocks are never
-/// comparable, and this layer never compares them. An elector and everything it
-/// derives (attempts, grants, handles) share one instance.
+/// The counterpart of [`Clock`]: the clock says what time it is, this says how
+/// to wait for more of it. It is a separate trait because [`Environment`]
+/// deliberately supplies values only, never control over execution, so a
+/// caller running on a simulated timeline pairs the simulator's clock with a
+/// timer driving the simulator's own schedule.
 ///
-/// Implement it over a simulated timeline to run the whole handle layer
-/// deterministically; `TokioClock` (feature `recipes-leader-election-tokio`) is
-/// the production default.
-pub trait Clock: fmt::Debug + Send + Sync + 'static {
-    /// Time elapsed since this instance's epoch
-    ///
-    /// Must be monotonic. A reading that goes backwards is tolerated by the
-    /// protocol (it can only delay a steal, never enable one) but the belief
-    /// horizon assumes it does not happen.
-    fn now(&self) -> Duration;
-
+/// `TokioTimer` (feature `recipes-leader-election-tokio`) is the production
+/// implementation.
+pub trait Timer: fmt::Debug + Send + Sync {
     /// A future that completes no earlier than `duration` from now
     fn sleep(&self, duration: Duration) -> BoxFuture<'static, ()>;
 }
 
-/// A [`Clock`] backed by the tokio runtime
+/// A [`Clock`] over the tokio timeline
 ///
-/// Requires the `recipes-leader-election-tokio` feature and a runtime with the
-/// time driver enabled. Under `tokio::time::pause()` it follows the paused
-/// timeline, so tokio's own time control works on the elector unchanged.
+/// Requires the `recipes-leader-election-tokio` feature.
+/// [`monotonic`](Clock::monotonic) counts from the moment the instance was
+/// built and reads `tokio::time::Instant`, so under `tokio::time::pause()` it
+/// follows the paused timeline and tokio's own time control works on the
+/// elector unchanged. [`wall`](Clock::wall) is the machine clock, as in
+/// [`WallClock`](crate::env::WallClock), and the elector never reads it.
 #[cfg(feature = "recipes-leader-election-tokio")]
 #[derive(Debug, Clone)]
 pub struct TokioClock {
@@ -98,7 +105,8 @@ pub struct TokioClock {
 
 #[cfg(feature = "recipes-leader-election-tokio")]
 impl TokioClock {
-    /// Start a clock whose epoch is now
+    /// Start a clock whose monotonic epoch is now
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
     pub fn new() -> Self {
         Self {
             epoch: tokio::time::Instant::now(),
@@ -115,10 +123,30 @@ impl Default for TokioClock {
 
 #[cfg(feature = "recipes-leader-election-tokio")]
 impl Clock for TokioClock {
-    fn now(&self) -> Duration {
+    fn monotonic(&self) -> Duration {
         self.epoch.elapsed()
     }
 
+    fn wall(&self) -> Duration {
+        // A system clock set before 1970 is the only way this fails, and no
+        // caller can do anything useful with an error here.
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or(Duration::ZERO)
+    }
+}
+
+/// A [`Timer`] backed by the tokio runtime
+///
+/// Requires the `recipes-leader-election-tokio` feature and a runtime with the
+/// time driver enabled. Pairs with [`TokioClock`], including under
+/// `tokio::time::pause()`.
+#[cfg(feature = "recipes-leader-election-tokio")]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TokioTimer;
+
+#[cfg(feature = "recipes-leader-election-tokio")]
+impl Timer for TokioTimer {
     fn sleep(&self, duration: Duration) -> BoxFuture<'static, ()> {
         Box::pin(tokio::time::sleep(duration))
     }
@@ -130,9 +158,9 @@ impl Clock for TokioClock {
 
 /// Where a campaign gets its per-term tokens
 ///
-/// Defaults to [`ClaimToken::generate`]. A deterministic run replaces it with a
-/// source driven by its own seeded generator, which is the last piece of
-/// ambient randomness in the campaign path.
+/// An elector that is not given one draws its tokens from the [`Rng`] of its
+/// [`Environment`], so the campaign path holds no ambient randomness. Set one
+/// explicitly to take the tokens from somewhere else entirely.
 #[derive(Clone)]
 pub struct TokenSource(Arc<dyn Fn() -> ClaimToken + Send + Sync>);
 
@@ -151,12 +179,6 @@ impl TokenSource {
     }
 }
 
-impl Default for TokenSource {
-    fn default() -> Self {
-        Self::new(ClaimToken::generate)
-    }
-}
-
 impl fmt::Debug for TokenSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TokenSource").finish_non_exhaustive()
@@ -168,9 +190,9 @@ impl fmt::Debug for TokenSource {
 /// Contenders denied by the same record wake at the same moment, so the
 /// campaign adds a delay drawn from `[0, window)` before retrying. The draw is
 /// a pure function of `(seed, round)`, so a run with a fixed seed replays
-/// identically; the default seed comes from the process RNG at config
-/// construction, which is what keeps two processes with the same settings from
-/// marching in lockstep.
+/// identically; an elector that is not given a schedule draws its seed from the
+/// [`Rng`] of its [`Environment`], which is what keeps two processes with the
+/// same settings from marching in lockstep.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JitterSchedule {
     seed: u64,
@@ -221,8 +243,10 @@ pub struct ElectorConfig {
     refresh_timeout: Duration,
     jeopardy_backoff: Duration,
     resign_timeout: Duration,
-    jitter: JitterSchedule,
-    token_source: TokenSource,
+    /// `None` until an elector resolves it against its environment.
+    jitter: Option<JitterSchedule>,
+    /// `None` until an elector resolves it against its environment.
+    token_source: Option<TokenSource>,
 }
 
 impl ElectorConfig {
@@ -232,6 +256,11 @@ impl ElectorConfig {
     /// transaction is not fatal), campaign backoff capped at the lease, a
     /// renewal transaction budget of one renew interval, and the safety margin
     /// described in [`safety_margin`](Self::safety_margin).
+    ///
+    /// The campaign jitter and the source of claim tokens are left unset: an
+    /// elector resolves them against its [`Environment`] unless
+    /// [`with_jitter`](Self::with_jitter) or
+    /// [`with_token_source`](Self::with_token_source) name one.
     ///
     /// # Errors
     ///
@@ -252,8 +281,8 @@ impl ElectorConfig {
             refresh_timeout: renew_interval,
             jeopardy_backoff: renew_interval / 4,
             resign_timeout: renew_interval,
-            jitter: JitterSchedule::new(rand::random::<u64>(), renew_interval / 4),
-            token_source: TokenSource::default(),
+            jitter: None,
+            token_source: None,
         };
         config.revalidate()
     }
@@ -346,15 +375,17 @@ impl ElectorConfig {
         self.revalidate()
     }
 
-    /// Replace the campaign jitter schedule
+    /// Pin the campaign jitter schedule instead of deriving one from the
+    /// elector's [`Environment`]
     pub fn with_jitter(mut self, jitter: JitterSchedule) -> Self {
-        self.jitter = jitter;
+        self.jitter = Some(jitter);
         self
     }
 
-    /// Replace the source of per-term claim tokens
+    /// Take per-term claim tokens from `source` instead of from the elector's
+    /// [`Environment`]
     pub fn with_token_source(mut self, source: TokenSource) -> Self {
-        self.token_source = source;
+        self.token_source = Some(source);
         self
     }
 
@@ -424,14 +455,16 @@ impl ElectorConfig {
         self.resign_timeout
     }
 
-    /// The campaign jitter schedule
-    pub fn jitter(&self) -> JitterSchedule {
+    /// The pinned campaign jitter schedule, `None` when an elector should
+    /// derive one from its [`Environment`]
+    pub fn jitter(&self) -> Option<JitterSchedule> {
         self.jitter
     }
 
-    /// The source of per-term claim tokens
-    pub fn token_source(&self) -> &TokenSource {
-        &self.token_source
+    /// The pinned source of per-term claim tokens, `None` when an elector
+    /// should draw them from its [`Environment`]
+    pub fn token_source(&self) -> Option<&TokenSource> {
+        self.token_source.as_ref()
     }
 
     /// Recompute the derived margin and check that the whole schedule fits
@@ -595,7 +628,7 @@ impl LeaseState {
                 // The fallback that makes the handle honest even if the elector
                 // future was dropped, or the task driving it never runs again:
                 // nobody has to tell us the term expired, the clock does.
-                if self.clock.now() >= self.horizon() {
+                if self.clock.monotonic() >= self.horizon() {
                     self.mark_lost();
                     return LeaseStatus::Lost;
                 }
@@ -766,6 +799,12 @@ pub struct LeaderElector {
     leader_id: String,
     config: ElectorConfig,
     clock: Arc<dyn Clock>,
+    timer: Arc<dyn Timer>,
+    /// Resolved at construction, so an elector jitters the same way for as long
+    /// as it lives whether or not the config named a schedule.
+    jitter: JitterSchedule,
+    /// Resolved at construction, same reason.
+    token_source: TokenSource,
 }
 
 impl fmt::Debug for LeaderElector {
@@ -775,8 +814,28 @@ impl fmt::Debug for LeaderElector {
             .field("leader_id", &self.leader_id)
             .field("config", &self.config)
             .field("clock", &self.clock)
+            .field("timer", &self.timer)
+            .field("jitter", &self.jitter)
             .finish_non_exhaustive()
     }
+}
+
+/// Sixteen bytes of token from the environment's generator.
+///
+/// The all-zero token is the vacancy sentinel and is refused by the protocol,
+/// so a draw that lands on it is nudged off rather than redrawn: redrawing
+/// would consume a variable number of values and make the run depend on how
+/// often it happened.
+fn rng_token_source(rng: Arc<dyn Rng>) -> TokenSource {
+    TokenSource::new(move || {
+        let mut bytes = [0u8; 16];
+        bytes[..8].copy_from_slice(&rng.next_u64().to_be_bytes());
+        bytes[8..].copy_from_slice(&rng.next_u64().to_be_bytes());
+        if bytes == [0u8; 16] {
+            bytes[0] = 1;
+        }
+        ClaimToken::from_bytes(bytes)
+    })
 }
 
 impl LeaderElector {
@@ -786,6 +845,14 @@ impl LeaderElector {
     /// advertises and what an operator reads. Reusing it after a restart is
     /// harmless, because a restarted process inherits nothing (its old term
     /// carries a token it no longer has).
+    ///
+    /// `env` supplies the two effects this layer must not reach for: the clock
+    /// every attempt, grant and handle measures against, and the generator the
+    /// campaign jitter and claim tokens come from when the config does not name
+    /// its own. [`Environment::default`] is the production choice;
+    /// [`Environment::with_seed`] makes the whole campaign replay. `timer` is
+    /// how the elector waits, which [`Environment`] deliberately does not
+    /// provide.
     ///
     /// # Errors
     ///
@@ -797,7 +864,8 @@ impl LeaderElector {
         subspace: Subspace,
         leader_id: impl Into<String>,
         config: ElectorConfig,
-        clock: Arc<dyn Clock>,
+        env: Environment,
+        timer: Arc<dyn Timer>,
     ) -> Result<Self> {
         let leader_id = leader_id.into();
         if leader_id.is_empty() {
@@ -811,12 +879,22 @@ impl LeaderElector {
                 leader_id.len()
             )));
         }
+        let jitter = config.jitter.unwrap_or_else(|| {
+            JitterSchedule::new(env.rng().next_u64(), config.renew_interval() / 4)
+        });
+        let token_source = config
+            .token_source
+            .clone()
+            .unwrap_or_else(|| rng_token_source(Arc::clone(env.rng())));
         let elector = Self {
             db,
             election: LeaderElection::new(subspace),
             leader_id,
             config,
-            clock,
+            clock: Arc::clone(env.clock()),
+            timer,
+            jitter,
+            token_source,
         };
         elector.check_lease_fits()
     }
@@ -851,8 +929,22 @@ impl LeaderElector {
     }
 
     /// The clock every derived attempt, grant and handle measures against
+    ///
+    /// Only [`Clock::monotonic`] is ever read: everything this layer computes
+    /// is an elapsed duration on this one instance.
     pub fn clock(&self) -> &Arc<dyn Clock> {
         &self.clock
+    }
+
+    /// The timer this elector waits on
+    pub fn timer(&self) -> &Arc<dyn Timer> {
+        &self.timer
+    }
+
+    /// The campaign jitter schedule in force, whether it came from the config
+    /// or from the environment
+    pub fn jitter(&self) -> JitterSchedule {
+        self.jitter
     }
 
     // ========================================================================
@@ -912,7 +1004,7 @@ impl LeaderElector {
         // expired. It is a real term in the database, but not one this process
         // may ever act on: start nothing rather than start the work and cancel
         // it at the first poll.
-        if !refresh_still_applies(self.clock.now(), horizon) {
+        if !refresh_still_applies(self.clock.monotonic(), horizon) {
             #[cfg(feature = "trace")]
             tracing::warn!(
                 ballot = grant.ballot(),
@@ -1044,7 +1136,7 @@ impl LeaderElector {
         let mut round: u64 = 0;
 
         loop {
-            let attempt = ClaimAttempt::new(self.config.token_source.issue(), self.clock.now())?;
+            let attempt = ClaimAttempt::new(self.token_source.issue(), self.clock.monotonic())?;
 
             let (outcome, watch) = self
                 .db
@@ -1061,7 +1153,7 @@ impl LeaderElector {
                                 self.config.lease,
                                 attempt,
                                 seen,
-                                || self.clock.now(),
+                                || self.clock.monotonic(),
                             )
                             .await?;
                         *lock(observation) = updated;
@@ -1096,10 +1188,10 @@ impl LeaderElector {
                 }
             };
 
-            let delay = backoff.saturating_add(self.config.jitter.jitter_for(round));
+            let delay = backoff.saturating_add(self.jitter.jitter_for(round));
             round = round.wrapping_add(1);
 
-            let sleep = self.clock.sleep(delay);
+            let sleep = self.timer.sleep(delay);
             match watch {
                 // Whichever fires first, the answer is the same: read again.
                 Some(watch) => {
@@ -1126,12 +1218,12 @@ impl LeaderElector {
             let due = grant
                 .acquired_at()
                 .saturating_add(self.config.renew_interval);
-            let now = self.clock.now();
+            let now = self.clock.monotonic();
             if due > now {
-                self.clock.sleep(due - now).await;
+                self.timer.sleep(due - now).await;
             }
 
-            let now = self.clock.now();
+            let now = self.clock.monotonic();
             if now >= horizon {
                 #[cfg(feature = "trace")]
                 tracing::warn!(
@@ -1149,7 +1241,7 @@ impl LeaderElector {
             let refresh = self.refresh_once(&grant, &attempt);
             futures::pin_mut!(refresh);
 
-            let outcome = match futures::future::select(refresh, self.clock.sleep(budget)).await {
+            let outcome = match futures::future::select(refresh, self.timer.sleep(budget)).await {
                 Either::Left((outcome, _timeout)) => outcome,
                 Either::Right(((), _refresh)) => {
                     // The transaction is abandoned by dropping it. It may still
@@ -1177,7 +1269,7 @@ impl LeaderElector {
             // which is earlier than the renewed grant's own, so believing the
             // result requires having learned of it while the previous belief
             // still stood.
-            if !refresh_still_applies(self.clock.now(), horizon) {
+            if !refresh_still_applies(self.clock.monotonic(), horizon) {
                 #[cfg(feature = "trace")]
                 tracing::warn!(
                     ballot = grant.ballot(),
@@ -1214,12 +1306,12 @@ impl LeaderElector {
                         error = %_error,
                         "renewal failed, in jeopardy"
                     );
-                    let now = self.clock.now();
+                    let now = self.clock.monotonic();
                     let backoff = self
                         .config
                         .jeopardy_backoff
                         .min(horizon.saturating_sub(now));
-                    self.clock.sleep(backoff).await;
+                    self.timer.sleep(backoff).await;
                 }
             }
         }
@@ -1246,7 +1338,7 @@ impl LeaderElector {
             .run(|txn, _| async move { self.election.resign(&txn, grant).await });
         futures::pin_mut!(resign);
 
-        match futures::future::select(resign, self.clock.sleep(self.config.resign_timeout)).await {
+        match futures::future::select(resign, self.timer.sleep(self.config.resign_timeout)).await {
             Either::Left((Ok(ResignOutcome::Resigned), _)) => {
                 #[cfg(feature = "trace")]
                 tracing::info!(ballot = grant.ballot(), "term handed back");
@@ -1299,8 +1391,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 mod tests {
     use super::*;
 
-    /// A clock a test drives by hand: `now` only moves when the test says so,
-    /// and sleeping is instantaneous.
+    /// A clock a test drives by hand: it only moves when the test says so.
     #[derive(Debug, Default)]
     struct MockClock {
         nanos: AtomicU64,
@@ -1313,10 +1404,22 @@ mod tests {
     }
 
     impl Clock for MockClock {
-        fn now(&self) -> Duration {
+        fn monotonic(&self) -> Duration {
             Duration::from_nanos(self.nanos.load(Ordering::SeqCst))
         }
 
+        /// Never read by this layer, and a test that starts branching on it is
+        /// testing the wrong thing.
+        fn wall(&self) -> Duration {
+            unreachable!("the handle layer must never read a wall clock")
+        }
+    }
+
+    /// A timer that never actually waits.
+    #[derive(Debug, Default)]
+    struct MockTimer;
+
+    impl Timer for MockTimer {
         fn sleep(&self, _duration: Duration) -> BoxFuture<'static, ()> {
             Box::pin(futures::future::ready(()))
         }
@@ -1331,6 +1434,25 @@ mod tests {
     fn the_lead_future_can_be_spawned(elector: &LeaderElector) {
         fn assert_send<T: Send>(_: &T) {}
         assert_send(&elector.lead(|handle| async move { handle.ballot() }));
+    }
+
+    /// Every effect an elector needs comes in through the constructor. Never
+    /// called either: building one needs a database, and the signature is what
+    /// this pins down.
+    #[allow(dead_code)]
+    fn an_elector_takes_its_effects_as_dependencies(db: Arc<Database>) -> Result<LeaderElector> {
+        let env = Environment::new(
+            Arc::new(MockClock::default()),
+            Arc::new(crate::env::SeededRng::new(7)),
+        );
+        LeaderElector::new(
+            db,
+            Subspace::all(),
+            "worker-1",
+            ElectorConfig::new(Duration::from_secs(10))?,
+            env,
+            Arc::new(MockTimer),
+        )
     }
 
     fn handle_at(ballot: u64, horizon: Duration, clock: Arc<dyn Clock>) -> LeaseHandle {
@@ -1472,6 +1594,54 @@ mod tests {
             JitterSchedule::new(7, Duration::ZERO).jitter_for(3),
             Duration::ZERO
         );
+    }
+
+    #[test]
+    fn a_fresh_config_leaves_both_hooks_to_the_environment() {
+        let config = ElectorConfig::new(Duration::from_secs(9)).unwrap();
+
+        assert!(config.jitter().is_none());
+        assert!(config.token_source().is_none());
+
+        let pinned = JitterSchedule::new(1, Duration::from_millis(10));
+        let config = config.with_jitter(pinned);
+        assert_eq!(config.jitter(), Some(pinned));
+    }
+
+    // ---- tokens ----------------------------------------------------------
+
+    #[test]
+    fn tokens_from_the_environment_replay_and_advance() {
+        let source = rng_token_source(Arc::new(crate::env::SeededRng::new(11)));
+        let replay = rng_token_source(Arc::new(crate::env::SeededRng::new(11)));
+
+        let issued: Vec<_> = (0..8).map(|_| source.issue()).collect();
+        let again: Vec<_> = (0..8).map(|_| replay.issue()).collect();
+
+        assert_eq!(issued, again, "the same seed must replay the same tokens");
+        assert!(
+            issued.windows(2).all(|pair| pair[0] != pair[1]),
+            "a term must not reuse the token of the one before: {issued:?}"
+        );
+        assert!(issued.iter().all(|token| !token.is_zero()));
+    }
+
+    #[test]
+    fn a_token_drawn_all_zero_is_nudged_off_the_sentinel() {
+        /// The one draw the vacancy sentinel forbids.
+        #[derive(Debug)]
+        struct ZeroRng;
+
+        impl crate::env::Rng for ZeroRng {
+            fn next_u64(&self) -> u64 {
+                0
+            }
+        }
+
+        let token = rng_token_source(Arc::new(ZeroRng)).issue();
+
+        assert!(!token.is_zero(), "the sentinel is not a claim");
+        assert_eq!(token.as_bytes()[0], 1);
     }
 
     // ---- horizon ---------------------------------------------------------
