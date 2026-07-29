@@ -36,6 +36,7 @@
 //! [`injected_unknown`](Journal::injected_unknown) exists to say so in the log.
 
 use std::cell::Cell;
+use std::sync::Arc;
 use std::time::Duration;
 
 use foundationdb::env::{Clock, Environment};
@@ -51,9 +52,7 @@ use foundationdb_simulation::SimDatabase;
 use futures::future::BoxFuture;
 
 use super::clock::SkewedClock;
-use super::log_schema::{
-    LogRecord, ObservedIdentity, OpKind, Outcome, incomplete_log_key, log_subspace,
-};
+use super::log_schema::{LogRecord, ObservedIdentity, OpKind, Outcome, incomplete_log_key};
 
 /// Wrap a recipe error so the retry loop can still find the `FdbError` inside
 ///
@@ -81,7 +80,10 @@ pub(crate) type ClaimResult = (ClaimOutcome, LeaseObservation);
 pub(crate) struct Journal {
     /// The simulator's time and randomness, undistorted
     env: Environment,
-    clock: SkewedClock,
+    /// Shared rather than owned: the elector role hands the very same clock to
+    /// the recipe's [`Environment`], so that the margin the recipe derives from
+    /// its configured rate error covers the skew this client actually has.
+    clock: Arc<SkewedClock>,
     election: LeaderElection,
     register: RankedRegister,
     log_subspace: Subspace,
@@ -92,11 +94,17 @@ pub(crate) struct Journal {
 
 impl Journal {
     /// Set a client up to drive and record the recipe
+    ///
+    /// `log_subspace` is where this journal's records land. The driver writes to
+    /// [`log_subspace`](super::log_schema::log_subspace) and the elector role to
+    /// [`elector_log_subspace`](super::log_schema::elector_log_subspace): two
+    /// runs against two elections, judged separately.
     pub(crate) fn new(
         env: Environment,
-        clock: SkewedClock,
+        clock: Arc<SkewedClock>,
         election: LeaderElection,
         register: RankedRegister,
+        log_subspace: Subspace,
         client_id: i32,
     ) -> Self {
         Self {
@@ -104,7 +112,7 @@ impl Journal {
             clock,
             election,
             register,
-            log_subspace: log_subspace(),
+            log_subspace,
             client_id,
             // The identifier replay reconstructs from a client id; the two must
             // agree or every record looks like it came from a stranger.
@@ -121,6 +129,17 @@ impl Journal {
     /// This client's clock
     pub(crate) fn clock(&self) -> &SkewedClock {
         &self.clock
+    }
+
+    /// This client's clock, shareable with another journal or an
+    /// [`Environment`]
+    pub(crate) fn clock_handle(&self) -> &Arc<SkewedClock> {
+        &self.clock
+    }
+
+    /// The client this journal belongs to
+    pub(crate) fn client_id(&self) -> i32 {
+        self.client_id
     }
 
     /// The simulator's time and randomness, undistorted
@@ -435,6 +454,30 @@ impl Journal {
         .await
     }
 
+    /// Install the fence of a term: read the register at `rank`
+    ///
+    /// The activation step the fencing composition requires. The driver never
+    /// calls it, because [`claim`](Self::claim) installs the fence in the claim
+    /// transaction itself; the real [`LeaderElector`] does not, so a leader it
+    /// elects owes this before any fenced work.
+    ///
+    /// Deliberately unlogged: a read of the register is not an operation of the
+    /// election protocol, and what the check phase judges is which writes the
+    /// fence went on to refuse rather than when it was installed.
+    ///
+    /// [`LeaderElector`]: foundationdb::recipes::leader_election::LeaderElector
+    pub(crate) async fn install_fence(
+        &self,
+        db: &SimDatabase,
+        rank: Rank,
+    ) -> Result<(), FdbBindingError> {
+        db.run(|trx, _| async move {
+            self.register.read(&trx, rank).await.map_err(custom)?;
+            Ok(())
+        })
+        .await
+    }
+
     /// Who last wrote the ranked register, if anybody
     ///
     /// Deliberately unlogged. The Sleeper's barrier waits on this, but waiting
@@ -531,13 +574,73 @@ impl Journal {
         grant: &LeaseGrant,
         horizon: Duration,
     ) -> Result<(), FdbBindingError> {
+        self.belief_record(
+            db,
+            op,
+            grant.ballot(),
+            *grant.token().as_bytes(),
+            horizon,
+            grant.lease().as_nanos(),
+        )
+        .await
+    }
+
+    /// Record a belief without holding the grant that justifies it
+    ///
+    /// The elector role has a [`LeaseHandle`] rather than a [`LeaseGrant`]: the
+    /// recipe keeps the grant to itself and hands out the ballot, the horizon
+    /// and nothing else. So the token is written all-zero, which costs nothing,
+    /// because replay pairs a begin with its end by `(client_id, ballot)` and
+    /// reads the token of a belief record for no purpose at all.
+    ///
+    /// [`LeaseHandle`]: foundationdb::recipes::leader_election::LeaseHandle
+    pub(crate) async fn belief_begin_at(
+        &self,
+        db: &SimDatabase,
+        ballot: u64,
+        horizon: Duration,
+        lease: LeaseDuration,
+    ) -> Result<(), FdbBindingError> {
+        self.belief_record(
+            db,
+            OpKind::BeliefBegin,
+            ballot,
+            [0u8; 16],
+            horizon,
+            lease.as_nanos(),
+        )
+        .await
+    }
+
+    /// Record the end of a belief without holding the grant
+    ///
+    /// The grant-free counterpart of [`belief_end`](Self::belief_end), with the
+    /// same ordering rule: it is written before whatever hands the term back.
+    pub(crate) async fn belief_end_at(
+        &self,
+        db: &SimDatabase,
+        ballot: u64,
+    ) -> Result<(), FdbBindingError> {
+        self.belief_record(db, OpKind::BeliefEnd, ballot, [0u8; 16], Duration::ZERO, 0)
+            .await
+    }
+
+    async fn belief_record(
+        &self,
+        db: &SimDatabase,
+        op: OpKind,
+        ballot: u64,
+        token: [u8; 16],
+        horizon: Duration,
+        lease_nanos: u64,
+    ) -> Result<(), FdbBindingError> {
         self.run(db, |_, _| async move {
             let mut record = LogRecord::new(op);
-            record.ballot = grant.ballot();
-            record.token = *grant.token().as_bytes();
+            record.ballot = ballot;
+            record.token = token;
             record.local_nanos = nanos(self.local_now());
             record.horizon_nanos = nanos(horizon);
-            record.lease_nanos = grant.lease().as_nanos();
+            record.lease_nanos = lease_nanos;
             Ok(((), record))
         })
         .await

@@ -22,17 +22,18 @@
 //! and they are what a reader looks at to understand what the workload does.
 //! Swarm runs are what finds the case the reader did not think of.
 //!
-//! # Why the feature subset is not six coin flips
+//! # Why the feature subset is not seven coin flips
 //!
-//! Six independent fair coins is the naive way to draw a subset, and it is a
+//! Seven independent fair coins is the naive way to draw a subset, and it is a
 //! bad one: the number of enabled features is binomial, so it concentrates
-//! around three. Everything enabled and nothing enabled each happen one run in
-//! sixty-four, and a subset with exactly one feature enabled, which is the
-//! configuration that isolates that feature's code path best, happens about
-//! one run in eleven spread over six different features. The extremes are
-//! exactly the configurations worth oversampling, so [`SwarmPlan::draw`] picks
-//! the *shape* of the subset first from a fat-tailed selector, and only falls
-//! back to coins in the remaining half of the probability mass.
+//! around three or four. Everything enabled and nothing enabled each happen one
+//! run in a hundred and twenty-eight, and a subset with exactly one feature
+//! enabled, which is the configuration that isolates that feature's code path
+//! best, happens about one run in eighteen spread over seven different
+//! features. The extremes are exactly the configurations worth oversampling, so
+//! [`SwarmPlan::draw`] picks the *shape* of the subset first from a fat-tailed
+//! selector, and only falls back to coins in the remaining half of the
+//! probability mass.
 //!
 //! # Why faults come in storms
 //!
@@ -148,13 +149,13 @@ fn mix(value: u64) -> u64 {
 // ============================================================================
 
 /// How many features the subset is drawn over
-const FEATURE_COUNT: usize = 6;
+const FEATURE_COUNT: usize = 7;
 
 /// Which behaviours a run is allowed to exercise
 ///
 /// A feature being off means the run cannot produce that behaviour at all, not
 /// that it is unlikely to: that is what makes a run with one feature enabled a
-/// deeper test of that feature's code path than a run with all six.
+/// deeper test of that feature's code path than a run with all seven.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FeatureSet {
     /// Leaders may hand their term back voluntarily
@@ -172,6 +173,15 @@ pub(crate) struct FeatureSet {
     /// The only way the recipe's unknown-commit recovery is reached: see
     /// [`ForcedRecoveryConfig`](super::roles::ForcedRecoveryConfig).
     pub(crate) forced_recovery: bool,
+    /// Two clients run the recipe's own `LeaderElector` instead of the driver
+    ///
+    /// The driver emulates the async handle layer on simulated time, which is
+    /// what lets it log belief transitions; this feature runs the real thing,
+    /// against an election of its own, judged by
+    /// [`elector_invariants`](super::elector_invariants). Whether the field can
+    /// spare the two clients is decided by
+    /// [`elector_clients`](super::roles::elector_clients), not here.
+    pub(crate) real_elector: bool,
 }
 
 impl FeatureSet {
@@ -183,6 +193,7 @@ impl FeatureSet {
         watcher: true,
         skew: true,
         forced_recovery: true,
+        real_elector: true,
     };
 
     /// The subset with nothing enabled
@@ -193,6 +204,7 @@ impl FeatureSet {
         watcher: false,
         skew: false,
         forced_recovery: false,
+        real_elector: false,
     };
 
     /// Rebuild a subset from the bit order the draw uses
@@ -204,6 +216,7 @@ impl FeatureSet {
             watcher: bits[3],
             skew: bits[4],
             forced_recovery: bits[5],
+            real_elector: bits[6],
         }
     }
 
@@ -216,6 +229,7 @@ impl FeatureSet {
             self.watcher,
             self.skew,
             self.forced_recovery,
+            self.real_elector,
         ]
     }
 
@@ -459,7 +473,7 @@ impl SwarmPlan {
     pub(crate) fn describe(&self) -> String {
         format!(
             "seed={} features=resign:{} crash:{} sleeper:{} watcher:{} skew:{} \
-             forcedRecovery:{} \
+             forcedRecovery:{} realElector:{} \
              skewMode={} lease={:.3}s step={:.3}s pause={:.2}x crash={} resign={}",
             self.seed,
             on_off(self.features.resign),
@@ -468,6 +482,7 @@ impl SwarmPlan {
             on_off(self.features.watcher),
             on_off(self.features.skew),
             on_off(self.features.forced_recovery),
+            on_off(self.features.real_elector),
             self.skew_mode.as_str(),
             self.lease_secs,
             self.step_secs,
@@ -511,7 +526,8 @@ fn describe_timing(timing: &FaultTiming) -> String {
 /// Draw the feature subset
 ///
 /// The selector is fat-tailed on purpose: see the module documentation for why
-/// six coins on their own would almost never produce the subsets worth having.
+/// seven coins on their own would almost never produce the subsets worth
+/// having.
 /// The order is one selector draw, then whatever the chosen shape needs.
 fn draw_features(seed: u64) -> FeatureSet {
     let mut rng = SwarmRng::lane(seed, LANE_FEATURES);
@@ -686,6 +702,7 @@ mod tests {
             "watcher",
             "skew",
             "forcedRecovery",
+            "realElector",
         ];
         for (index, name) in names.iter().enumerate() {
             let on = plans
@@ -704,8 +721,8 @@ mod tests {
 
     #[test]
     fn extreme_subsets_are_oversampled() {
-        // The whole point of the fat-tailed selector: six fair coins would put
-        // each extreme at about one and a half percent.
+        // The whole point of the fat-tailed selector: seven fair coins would
+        // put each extreme at under one percent.
         let plans = sample();
         let all = plans
             .iter()
@@ -1029,6 +1046,7 @@ mod tests {
             "watcher:",
             "skew:",
             "forcedRecovery:",
+            "realElector:",
             "skewMode=",
             "lease=",
             "step=",

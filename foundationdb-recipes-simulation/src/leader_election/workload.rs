@@ -50,7 +50,7 @@ use foundationdb::recipes::leader_election::{
 };
 use foundationdb::recipes::ranked_register::RankedRegister;
 use foundationdb::tuple::{Subspace, pack};
-use foundationdb::{FdbBindingError, RangeOption};
+use foundationdb::{FdbBindingError, RangeOption, RetryableTransaction};
 use foundationdb_simulation::{
     Metric, Metrics, RustWorkload, Severity, SimDatabase, SingleRustWorkload, WorkloadContext,
     details,
@@ -58,14 +58,19 @@ use foundationdb_simulation::{
 use futures::TryStreamExt;
 
 use super::clock::{SkewMode, SkewedClock};
+use super::elector_invariants::{
+    ELECTOR_INVARIANTS, ElectorEvidence, ElectorSnapshot, ElectorThresholds, StampedTransition,
+    check_elector, first_judgeable_ballot, merge, writes_outside_the_window,
+};
+use super::elector_role;
 use super::invariants::{
     CheckInputs, HistoryEntry, HistoryKind, InvariantReport, ProgressThresholds, Tolerances,
     check_all, is_resolution,
 };
-use super::log_schema::{LogEntry, OpKind, log_subspace};
+use super::log_schema::{LogEntry, OpKind, elector_log_subspace, log_subspace};
 use super::logged_op::Journal;
 use super::replay::{ExpectedRecord, TransitionKind, replay};
-use super::roles::{Driver, DriverConfig, ForcedRecoveryConfig, Role};
+use super::roles::{Driver, DriverConfig, ForcedRecoveryConfig, Role, elector_clients};
 use super::swarm::{FaultTiming, SwarmPlan};
 
 /// How many transition records the check phase asks the recipe for
@@ -85,9 +90,17 @@ pub struct LeaderElectionWorkload {
     client_id: i32,
     client_count: i32,
     election: LeaderElection,
+    /// The election the elector role campaigns in, for the check phase
+    elector_election: LeaderElection,
     config: DriverConfig,
     thresholds: ProgressThresholds,
     role: Role,
+    /// Which clients ran the recipe's own elector
+    ///
+    /// A pure function of the plan and the field size, computed identically on
+    /// every client. Empty means the elector half of the check phase has
+    /// nothing to judge, and says so rather than passing silently.
+    electors: Vec<i32>,
     driver: Driver,
     /// The plan the seed drew, when this is a swarm run
     ///
@@ -124,6 +137,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             Some(plan) => {
                 let sleeper = plan.features.sleeper;
                 let watcher = plan.features.watcher;
+                let real_elector = plan.features.real_elector;
                 let config = DriverConfig {
                     lease: lease_or_default("the drawn lease", plan.lease_secs, &mut config_error),
                     step: plan.step(),
@@ -133,7 +147,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
                     pause_factor: plan.pause_factor,
                     skew_mode: plan.skew_mode,
                     sleeper_head_start: head_start(
-                        Role::assign(1, client_count, sleeper, watcher),
+                        Role::assign(1, client_count, sleeper, watcher, real_elector),
                         plan.step_secs,
                         plan.lease_secs,
                     ),
@@ -148,7 +162,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
                         max_delay_leases: 1.5,
                     },
                 };
-                let role = Role::assign(client_id, client_count, sleeper, watcher);
+                let role = Role::assign(client_id, client_count, sleeper, watcher, real_elector);
                 // Derived from the plan rather than configured: a run has to
                 // prove exactly as much as the churn it drew makes possible.
                 (config, role, plan.thresholds(client_count))
@@ -196,7 +210,10 @@ impl SingleRustWorkload for LeaderElectionWorkload {
                     // field of pure contenders simply says so with its client
                     // count.
                     sleeper_head_start: head_start(
-                        Role::assign(1, client_count, sleeper_enabled, true),
+                        // No elector: the anchor files are the configurations a
+                        // human reasoned about, and running two elections at
+                        // once is not one of them.
+                        Role::assign(1, client_count, sleeper_enabled, true, false),
                         step_secs,
                         lease_secs,
                     ),
@@ -206,7 +223,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
                     // it belongs to the seeds, not to the files.
                     forced_recovery: ForcedRecoveryConfig::disabled(),
                 };
-                let role = Role::assign(client_id, client_count, sleeper_enabled, true);
+                let role = Role::assign(client_id, client_count, sleeper_enabled, true, false);
                 let thresholds = ProgressThresholds {
                     min_acquisitions,
                     min_renewals,
@@ -233,20 +250,32 @@ impl SingleRustWorkload for LeaderElectionWorkload {
         let election = LeaderElection::new(Subspace::all().subspace(&("leader_election",)));
         let journal = Journal::new(
             env,
-            clock,
+            Arc::new(clock),
             election.clone(),
             RankedRegister::new(Subspace::all().subspace(&("le_register",))),
+            log_subspace(),
             client_id,
         );
+        let electors = match &plan {
+            Some(plan) => elector_clients(
+                client_count,
+                plan.features.sleeper,
+                plan.features.watcher,
+                plan.features.real_elector,
+            ),
+            None => Vec::new(),
+        };
         Self {
             driver: Driver::new(context.clone(), journal, config.clone(), role),
             context,
             client_id,
             client_count,
             election,
+            elector_election: elector_role::election(),
             config,
             thresholds,
             role,
+            electors,
             plan,
             config_error,
         }
@@ -279,6 +308,54 @@ fn head_start(sleeper: Role, step_secs: f64, lease_secs: f64) -> Duration {
             .max(Duration::from_secs_f64(lease_secs.max(0.0) / 2.0)),
         _ => Duration::ZERO,
     }
+}
+
+/// Everything the check phase judges from, read at one instant
+struct Evidence {
+    /// The driver's log, in commit order
+    entries: Vec<LogEntry>,
+    /// The leader record the driver's election holds
+    snapshot: Option<LeaderRecord>,
+    /// The driver election's own history, newest first
+    history: Vec<HistoryEvent>,
+    /// The elector role's log, in commit order
+    elector_entries: Vec<LogEntry>,
+    /// The leader record the elector's election holds
+    elector_snapshot: Option<LeaderRecord>,
+    /// The elector election's own history, newest first
+    elector_history: Vec<HistoryEvent>,
+}
+
+/// Read one versionstamped log subspace whole, in commit order
+async fn read_log(
+    trx: &RetryableTransaction,
+    subspace: &Subspace,
+) -> Result<Vec<LogEntry>, FdbBindingError> {
+    let (begin, end) = subspace.range();
+    let options = RangeOption {
+        mode: StreamingMode::WantAll,
+        ..RangeOption::from((begin, end))
+    };
+
+    let mut entries = Vec::new();
+    let mut stream = trx.get_ranges_keyvalues(options, true);
+    while let Some(kv) = stream.try_next().await? {
+        entries.push(LogEntry::decode(subspace, kv.key(), kv.value()).map_err(decoded)?);
+    }
+    Ok(entries)
+}
+
+/// Wrap a decoding failure, keeping the `source()` chain the retry loop reads
+fn decoded<E>(error: E) -> FdbBindingError
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    FdbBindingError::CustomError(Box::new(error))
+}
+
+/// The identifier a client claims under, as its journal derives it
+fn leader_id_of(client_id: i32) -> String {
+    format!("process_{client_id}")
 }
 
 impl RustWorkload for LeaderElectionWorkload {
@@ -323,6 +400,11 @@ impl RustWorkload for LeaderElectionWorkload {
                     "Seed" => plan.seed,
                     "Plan" => plan.describe(),
                     "FeaturesEnabled" => plan.features.enabled(),
+                    // Which clients were converted, on every client: the draw is
+                    // a pure function of the plan and the field size, so a trace
+                    // where two clients disagree is a run that reached for state
+                    // the assignment is not allowed to depend on.
+                    "Electors" => format!("{:?}", self.electors),
                     "MinAcquisitions" => self.thresholds.min_acquisitions,
                     "MinRenewals" => self.thresholds.min_renewals,
                     "MinObservedIdentities" => self.thresholds.min_observed_identities,
@@ -395,7 +477,14 @@ impl RustWorkload for LeaderElectionWorkload {
 
     async fn check(&mut self, db: SimDatabase) {
         let evidence = self.read_evidence(&db).await;
-        let (entries, snapshot, history) = match evidence {
+        let Evidence {
+            entries,
+            snapshot,
+            history,
+            elector_entries,
+            elector_snapshot,
+            elector_history,
+        } = match evidence {
             Ok(evidence) => evidence,
             Err(error) => {
                 // A check phase that cannot read the log cannot pass: silence
@@ -412,7 +501,7 @@ impl RustWorkload for LeaderElectionWorkload {
             }
         };
 
-        let replayed = replay(&entries, |client_id| format!("process_{client_id}"));
+        let replayed = replay(&entries, leader_id_of);
         let expected = snapshot.as_ref().map(expected_record);
         let history: Vec<HistoryEntry> = history.iter().rev().map(history_entry).collect();
 
@@ -520,6 +609,16 @@ impl RustWorkload for LeaderElectionWorkload {
             self.report_violations(report);
         }
 
+        // Judged separately, and its failures do not steer the dump below:
+        // the indices an elector violation names are positions in the merged
+        // order of two streams, not offsets into the driver's log.
+        self.check_electors(
+            &elector_entries,
+            elector_snapshot.as_ref(),
+            &elector_history,
+            tolerances,
+        );
+
         match first_violation {
             Some(index) => self.dump_around(&entries, index),
             // A violation about the run as a whole (ProgressMade) names no
@@ -552,6 +651,17 @@ impl RustWorkload for LeaderElectionWorkload {
             Metric::val("work_abandoned", counters.work_abandoned as f64),
             Metric::val("sightings", counters.sightings as f64),
             Metric::val("errors", counters.errors as f64),
+            Metric::val("elector_acquisitions", counters.elector_acquisitions as f64),
+            Metric::val(
+                "elector_fenced_applied",
+                counters.elector_fenced_applied as f64,
+            ),
+            Metric::val(
+                "elector_fenced_rejected",
+                counters.elector_fenced_rejected as f64,
+            ),
+            Metric::val("elector_lease_losses", counters.elector_lease_losses as f64),
+            Metric::val("elector_resigns", counters.elector_resigns as f64),
             Metric::val("ops_logged", self.driver.journal().ops_logged() as f64),
             Metric::val(
                 "max_observed_skew_secs",
@@ -576,44 +686,133 @@ impl LeaderElectionWorkload {
     ///
     /// A snapshot read: nothing is writing any more, and taking conflict ranges
     /// over the whole log would only make the read fight itself on a retry.
-    async fn read_evidence(
-        &self,
-        db: &SimDatabase,
-    ) -> Result<(Vec<LogEntry>, Option<LeaderRecord>, Vec<HistoryEvent>), FdbBindingError> {
+    async fn read_evidence(&self, db: &SimDatabase) -> Result<Evidence, FdbBindingError> {
         let subspace = log_subspace();
+        let elector_subspace = elector_log_subspace();
         db.run(|trx, _| {
             let subspace = &subspace;
+            let elector_subspace = &elector_subspace;
             async move {
-                let (begin, end) = subspace.range();
-                let options = RangeOption {
-                    mode: StreamingMode::WantAll,
-                    ..RangeOption::from((begin, end))
-                };
-
-                let mut entries = Vec::new();
-                let mut stream = trx.get_ranges_keyvalues(options, true);
-                while let Some(kv) = stream.try_next().await? {
-                    entries.push(
-                        LogEntry::decode(subspace, kv.key(), kv.value())
-                            .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?,
-                    );
-                }
-
-                let snapshot = self
-                    .election
-                    .leader(&trx)
-                    .await
-                    .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?;
+                let entries = read_log(&trx, subspace).await?;
+                let snapshot = self.election.leader(&trx).await.map_err(decoded)?;
                 let history = self
                     .election
                     .history(&trx, HISTORY_LIMIT)
                     .await
-                    .map_err(|error| FdbBindingError::CustomError(Box::new(error)))?;
+                    .map_err(decoded)?;
 
-                Ok((entries, snapshot, history))
+                // The same transaction, so the two elections are read at one
+                // instant: an elector's log that was read after its record
+                // could hold a belief the record no longer explains.
+                let elector_entries = read_log(&trx, elector_subspace).await?;
+                let elector_snapshot = self.elector_election.leader(&trx).await.map_err(decoded)?;
+                let elector_history = self
+                    .elector_election
+                    .history(&trx, HISTORY_LIMIT)
+                    .await
+                    .map_err(decoded)?;
+
+                Ok(Evidence {
+                    entries,
+                    snapshot,
+                    history,
+                    elector_entries,
+                    elector_snapshot,
+                    elector_history,
+                })
             }
         })
         .await
+    }
+
+    /// Judge the elector half of the run, or say why it was not judged
+    ///
+    /// A skipped invariant is named with its reason. Silence is what the suite
+    /// this replaces mistook for success, and an elector check that quietly
+    /// stopped running would be indistinguishable from one that had nothing to
+    /// complain about.
+    fn check_electors(
+        &self,
+        entries: &[LogEntry],
+        snapshot: Option<&LeaderRecord>,
+        history: &[HistoryEvent],
+        tolerances: Tolerances,
+    ) {
+        if self.electors.is_empty() {
+            for name in ELECTOR_INVARIANTS {
+                self.context.trace(
+                    Severity::Info,
+                    "LeaderElectionInvariantSkipped",
+                    details![
+                        "Invariant" => name,
+                        "Reason" => self.no_elector_reason()
+                    ],
+                );
+            }
+            return;
+        }
+
+        let history: Vec<StampedTransition> =
+            history.iter().rev().map(stamped_transition).collect();
+        let snapshot = snapshot.map(elector_snapshot);
+        let replayed = replay(entries, leader_id_of);
+
+        // Retention trims the trail from the front, so part of a long run is
+        // simply not evidence. Both numbers say how much: a history that keeps
+        // arriving truncated, or a climbing count of writes nobody could judge,
+        // means the retention bound is too small for the churn this plan draws.
+        let merged = merge(&history, entries);
+        self.context.trace(
+            Severity::Info,
+            "LeaderElectionElectorCheckStart",
+            details![
+                "Client" => self.client_id,
+                "Electors" => format!("{:?}", self.electors),
+                "LogEntries" => entries.len(),
+                "HistoryEntries" => history.len(),
+                "Beliefs" => replayed.beliefs.len(),
+                "FirstJudgeableBallot" => format!("{:?}", first_judgeable_ballot(&merged)),
+                "WritesOutsideTheWindow" => writes_outside_the_window(&merged)
+            ],
+        );
+
+        let reports = check_elector(
+            &ElectorEvidence {
+                history: &history,
+                log: entries,
+                replay: &replayed,
+                snapshot: snapshot.as_ref(),
+                tolerances,
+                thresholds: ElectorThresholds::ACTIVE,
+            },
+            leader_id_of,
+        );
+
+        for report in &reports {
+            if report.passed() {
+                self.context.trace(
+                    Severity::Info,
+                    "LeaderElectionInvariantHeld",
+                    details!["Invariant" => report.name],
+                );
+            } else {
+                self.report_violations(report);
+            }
+        }
+    }
+
+    /// Why this run has no elector half to judge
+    fn no_elector_reason(&self) -> &'static str {
+        match &self.plan {
+            None => "an anchor configuration runs no elector",
+            Some(plan) if !plan.features.real_elector => {
+                "the plan did not draw the realElector feature"
+            }
+            Some(_) => {
+                "the plan drew realElector, but converting two clients would have left \
+                 the driver election with fewer than two contenders"
+            }
+        }
     }
 
     /// Spell out what broke an invariant
@@ -695,12 +894,43 @@ fn expected_record(record: &LeaderRecord) -> ExpectedRecord {
 /// One entry of the recipe's own audit trail
 fn history_entry(event: &HistoryEvent) -> HistoryEntry {
     HistoryEntry {
-        kind: match event.kind() {
-            HistoryEventKind::Claim => HistoryKind::Claim,
-            HistoryEventKind::Steal => HistoryKind::Steal,
-            HistoryEventKind::Resign => HistoryKind::Resign,
-        },
+        kind: history_kind(event.kind()),
         ballot: event.ballot(),
         leader_id: event.leader_id().to_string(),
+    }
+}
+
+/// The same entry, with the commit version that orders it against the elector
+/// role's log
+///
+/// Only the ten-byte commit version is comparable across transactions; the two
+/// bytes of user version order writes inside one transaction, and the recipe's
+/// history and the role's log never share one.
+fn stamped_transition(event: &HistoryEvent) -> StampedTransition {
+    let mut stamp = [0u8; 10];
+    stamp.copy_from_slice(&event.versionstamp()[..10]);
+    StampedTransition {
+        stamp,
+        kind: history_kind(event.kind()),
+        ballot: event.ballot(),
+        leader_id: event.leader_id().to_string(),
+    }
+}
+
+/// The leader record as the elector invariants describe it
+fn elector_snapshot(record: &LeaderRecord) -> ElectorSnapshot {
+    ElectorSnapshot {
+        ballot: record.ballot(),
+        leader_id: record.leader_id().unwrap_or_default().to_string(),
+        vacant: record.is_vacant(),
+    }
+}
+
+/// How the recipe's own event kinds map onto the ones the checks use
+fn history_kind(kind: HistoryEventKind) -> HistoryKind {
+    match kind {
+        HistoryEventKind::Claim => HistoryKind::Claim,
+        HistoryEventKind::Steal => HistoryKind::Steal,
+        HistoryEventKind::Resign => HistoryKind::Resign,
     }
 }

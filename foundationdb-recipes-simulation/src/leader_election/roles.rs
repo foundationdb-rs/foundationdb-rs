@@ -36,6 +36,16 @@
 //! transaction. A leader therefore never has fenced work to do before it is able
 //! to refuse its predecessor's.
 //!
+//! A drawn run may also convert the two highest contenders into Electors, which
+//! do none of the above. They hand the whole loop to the recipe's own
+//! [`LeaderElector`] against an election of their own, install their fence
+//! themselves (the recipe does not do it for them), and are judged on the
+//! effects they left behind rather than on a log of their steps. See
+//! [`elector_role`](super::elector_role) for the role and [`elector_clients`]
+//! for when the field can spare them.
+//!
+//! [`LeaderElector`]: foundationdb::recipes::leader_election::LeaderElector
+//!
 //! # Forced recovery
 //!
 //! A contender may also throw away a claim reply it did receive, wait, and then
@@ -61,6 +71,7 @@ use foundationdb_simulation::{Severity, SimDatabase, WorkloadContext, details};
 use futures::future::Either;
 
 use super::clock::SkewMode;
+use super::elector_role::{self, ElectorSetup};
 use super::logged_op::Journal;
 use super::swarm::FaultTiming;
 
@@ -73,33 +84,106 @@ pub(crate) enum Role {
     Sleeper,
     /// Follows leadership through the term key
     Watcher,
+    /// Runs the recipe's own `LeaderElector` against an election of its own
+    ///
+    /// See [`elector_role`](super::elector_role): the other three roles emulate
+    /// the async handle layer, this one is it.
+    Elector,
+}
+
+/// How many clients run the real elector when the feature is drawn
+///
+/// Two, and never one. A lone elector wins the opening campaign uncontested and
+/// keeps the term for the rest of the run: the renewal loop is exercised, the
+/// campaign loop once, and the takeover path never. Two of them contend with
+/// each other, which is what the elector invariants are written about.
+const ELECTOR_COUNT: usize = 2;
+
+/// How many contenders the driver's own election must keep
+///
+/// The two elections run side by side over one field of clients, so converting
+/// clients to electors takes them away from the driver. Below two the driver's
+/// election stops being a contended one, and every invariant written about
+/// contention would hold for the wrong reason.
+const MIN_REMAINING_CONTENDERS: usize = 2;
+
+/// Which clients run the real elector
+///
+/// A pure function of the plan and the field size. Both phases ask it rather
+/// than agreeing on an answer through the database: the start phase to know
+/// what to run, the check phase to know what it is entitled to demand.
+///
+/// Empty means the feature is off for this run, either because it was not drawn
+/// or because the field cannot spare the clients. The conversion takes the
+/// *highest* ids that would otherwise contend, and only if
+/// [`MIN_REMAINING_CONTENDERS`] are left behind. Highest on purpose: the
+/// Sleeper and the Watcher sit at the low ids, so converting from the top
+/// leaves them where a reader of [`Role::assign`] expects them, and a trace
+/// naming the client count says exactly which clients ran electors.
+pub(crate) fn elector_clients(
+    client_count: i32,
+    sleeper_enabled: bool,
+    watcher_enabled: bool,
+    real_elector: bool,
+) -> Vec<i32> {
+    if !real_elector {
+        return Vec::new();
+    }
+    let contenders: Vec<i32> = (0..client_count)
+        .filter(|id| {
+            driver_role(*id, client_count, sleeper_enabled, watcher_enabled) == Role::Contender
+        })
+        .collect();
+    if contenders.len() < ELECTOR_COUNT + MIN_REMAINING_CONTENDERS {
+        return Vec::new();
+    }
+    contenders[contenders.len() - ELECTOR_COUNT..].to_vec()
+}
+
+/// The role a client takes among the driver's own three
+///
+/// Roles degrade gracefully: a run with one or two clients is all contenders,
+/// since a Sleeper with nobody to take over from it and a Watcher with nothing
+/// to watch only remove contention.
+///
+/// Both special roles are gated on their feature as well as on the field size,
+/// because a run that draws neither of them wants the client back as a
+/// contender rather than idle: a Watcher never campaigns, so leaving one in
+/// place would quietly shrink the field a feature-free run contends with.
+fn driver_role(
+    client_id: i32,
+    client_count: i32,
+    sleeper_enabled: bool,
+    watcher_enabled: bool,
+) -> Role {
+    if sleeper_enabled && client_count >= 3 && client_id == 1 {
+        Role::Sleeper
+    } else if watcher_enabled && client_count >= 4 && client_id == 2 {
+        Role::Watcher
+    } else {
+        Role::Contender
+    }
 }
 
 impl Role {
     /// Assign a role from the client's position in the run
     ///
-    /// Roles degrade gracefully: a run with one or two clients is all
-    /// contenders, since a Sleeper with nobody to take over from it and a
-    /// Watcher with nothing to watch only remove contention.
-    ///
-    /// Both special roles are gated on their feature as well as on the field
-    /// size, because a run that draws neither of them wants the client back as
-    /// a contender rather than idle: a Watcher never campaigns, so leaving one
-    /// in place would quietly shrink the field a feature-free run contends
-    /// with.
+    /// The elector conversion is decided first and reads only
+    /// [`elector_clients`]; everything it does not take keeps the assignment
+    /// the driver's own roles have always had.
     pub(crate) fn assign(
         client_id: i32,
         client_count: i32,
         sleeper_enabled: bool,
         watcher_enabled: bool,
+        real_elector: bool,
     ) -> Self {
-        if sleeper_enabled && client_count >= 3 && client_id == 1 {
-            Self::Sleeper
-        } else if watcher_enabled && client_count >= 4 && client_id == 2 {
-            Self::Watcher
-        } else {
-            Self::Contender
+        if elector_clients(client_count, sleeper_enabled, watcher_enabled, real_elector)
+            .contains(&client_id)
+        {
+            return Self::Elector;
         }
+        driver_role(client_id, client_count, sleeper_enabled, watcher_enabled)
     }
 
     /// The name this role appears under in the trace
@@ -108,6 +192,7 @@ impl Role {
             Self::Contender => "contender",
             Self::Sleeper => "sleeper",
             Self::Watcher => "watcher",
+            Self::Elector => "elector",
         }
     }
 }
@@ -248,6 +333,16 @@ pub(crate) struct Counters {
     pub(crate) work_abandoned: u64,
     /// Operations that failed with something other than a protocol refusal
     pub(crate) errors: u64,
+    /// Terms the real elector won, on the clients that ran one
+    pub(crate) elector_acquisitions: u64,
+    /// Ranked-register writes the real elector's leader committed
+    pub(crate) elector_fenced_applied: u64,
+    /// Ranked-register writes the real elector's fence refused
+    pub(crate) elector_fenced_rejected: u64,
+    /// Terms the real elector was told it had lost
+    pub(crate) elector_lease_losses: u64,
+    /// Terms the real elector handed back cleanly
+    pub(crate) elector_resigns: u64,
 }
 
 /// One leadership interval, as the driver tracks it
@@ -334,6 +429,7 @@ impl Driver {
             Role::Watcher => self.watch(db).await,
             Role::Sleeper => self.pause_and_be_fenced(db).await,
             Role::Contender => self.contend(db).await,
+            Role::Elector => self.lead_terms(db).await,
         };
 
         if let Err(error) = outcome {
@@ -347,6 +443,45 @@ impl Driver {
                 ],
             );
         }
+    }
+
+    // ========================================================================
+    // ELECTOR
+    // ========================================================================
+
+    /// Hand the run over to the recipe's own elector
+    ///
+    /// Everything the role needs is borrowed from this client: the same skewed
+    /// clock, the same environment, the same simulator handle. Nothing is
+    /// stored, and in particular the [`LeaderElector`] itself is built and
+    /// dropped inside [`elector_role::run`], because it holds a reference to
+    /// the database and the simulator checks at the end of every phase that
+    /// none survived it.
+    ///
+    /// [`LeaderElector`]: foundationdb::recipes::leader_election::LeaderElector
+    async fn lead_terms(&mut self, db: &SimDatabase) -> Result<(), FdbBindingError> {
+        let counted = elector_role::run(
+            &ElectorSetup {
+                context: &self.context,
+                env: self.journal.env(),
+                clock: self.journal.clock_handle(),
+                client_id: self.journal.client_id(),
+                lease: self.config.lease,
+                skew_mode: self.config.skew_mode,
+                step: self.config.step,
+                deadline: self.deadline,
+            },
+            db,
+        )
+        .await;
+
+        self.counters.elector_acquisitions += counted.acquisitions;
+        self.counters.elector_fenced_applied += counted.fenced_applied;
+        self.counters.elector_fenced_rejected += counted.fenced_rejected;
+        self.counters.elector_lease_losses += counted.lease_losses;
+        self.counters.elector_resigns += counted.resigns;
+        self.counters.errors += counted.errors;
+        Ok(())
     }
 
     // ========================================================================
@@ -984,33 +1119,97 @@ mod tests {
     fn watcher_gate_turns_client_two_into_a_contender() {
         // A run that did not draw the watcher feature must get client two back
         // as a contender rather than as an idle observer.
-        assert_eq!(Role::assign(2, 8, true, false), Role::Contender);
-        assert_eq!(Role::assign(2, 8, true, true), Role::Watcher);
-        assert_eq!(Role::assign(2, 8, false, false), Role::Contender);
+        assert_eq!(Role::assign(2, 8, true, false, false), Role::Contender);
+        assert_eq!(Role::assign(2, 8, true, true, false), Role::Watcher);
+        assert_eq!(Role::assign(2, 8, false, false, false), Role::Contender);
 
         // The degradation guards are untouched by the gate: a Sleeper needs
         // three clients and a Watcher four, however the features fell.
         for client_count in 1..=2 {
             assert_eq!(
-                Role::assign(1, client_count, true, true),
+                Role::assign(1, client_count, true, true, false),
                 Role::Contender,
                 "a sleeper needs somebody to take over from it"
             );
         }
-        assert_eq!(Role::assign(1, 3, true, true), Role::Sleeper);
-        assert_eq!(Role::assign(1, 3, false, true), Role::Contender);
-        assert_eq!(Role::assign(2, 3, true, true), Role::Contender);
-        assert_eq!(Role::assign(2, 4, true, true), Role::Watcher);
+        assert_eq!(Role::assign(1, 3, true, true, false), Role::Sleeper);
+        assert_eq!(Role::assign(1, 3, false, true, false), Role::Contender);
+        assert_eq!(Role::assign(2, 3, true, true, false), Role::Contender);
+        assert_eq!(Role::assign(2, 4, true, true, false), Role::Watcher);
 
         // Every other client contends whatever the features say.
         for client_id in [0, 3, 7] {
             for sleeper in [false, true] {
                 for watcher in [false, true] {
                     assert_eq!(
-                        Role::assign(client_id, 8, sleeper, watcher),
+                        Role::assign(client_id, 8, sleeper, watcher, false),
                         Role::Contender
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn the_elector_takes_the_two_highest_contenders() {
+        // A full field: the Sleeper keeps id 1, the Watcher id 2, and the
+        // conversion comes off the top so a reader of a trace can name the
+        // elector clients from the client count alone.
+        assert_eq!(elector_clients(8, true, true, true), vec![6, 7]);
+        assert_eq!(Role::assign(7, 8, true, true, true), Role::Elector);
+        assert_eq!(Role::assign(6, 8, true, true, true), Role::Elector);
+        assert_eq!(Role::assign(5, 8, true, true, true), Role::Contender);
+        assert_eq!(Role::assign(1, 8, true, true, true), Role::Sleeper);
+        assert_eq!(Role::assign(2, 8, true, true, true), Role::Watcher);
+
+        // The special roles are skipped, not overwritten: with no Sleeper and
+        // no Watcher every id is a contender and the top two still go.
+        assert_eq!(elector_clients(4, false, false, true), vec![2, 3]);
+        assert_eq!(Role::assign(2, 4, false, false, true), Role::Elector);
+    }
+
+    #[test]
+    fn the_feature_degrades_off_rather_than_starving_the_field() {
+        // Four clients with both special roles leaves two contenders (0 and 3);
+        // converting them would leave the driver's election with none.
+        assert!(elector_clients(4, true, true, true).is_empty());
+        assert_eq!(Role::assign(3, 4, true, true, true), Role::Contender);
+
+        // And below the threshold the answer is the same at every size: two
+        // electors plus two contenders is four contenders, so anything that
+        // cannot muster four keeps the feature off.
+        for client_count in 0..=3 {
+            assert!(
+                elector_clients(client_count, false, false, true).is_empty(),
+                "{client_count} clients produced electors"
+            );
+        }
+        assert_eq!(elector_clients(4, false, false, true).len(), ELECTOR_COUNT);
+
+        // Never one: a lone elector has no elector-side contention at all.
+        for client_count in 0..=16 {
+            for sleeper in [false, true] {
+                for watcher in [false, true] {
+                    let electors = elector_clients(client_count, sleeper, watcher, true);
+                    assert!(
+                        electors.is_empty() || electors.len() == ELECTOR_COUNT,
+                        "{client_count} clients drew {electors:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_run_that_did_not_draw_the_feature_has_no_elector() {
+        // Off must mean unreachable, not unlikely, at every field size.
+        for client_count in 0..=16 {
+            assert!(elector_clients(client_count, true, true, false).is_empty());
+            for client_id in 0..client_count {
+                assert_ne!(
+                    Role::assign(client_id, client_count, true, true, false),
+                    Role::Elector
+                );
             }
         }
     }

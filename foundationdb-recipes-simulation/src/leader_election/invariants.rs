@@ -42,21 +42,21 @@ pub struct Violation {
 }
 
 impl Violation {
-    fn at(index: usize, detail: impl Into<String>) -> Self {
+    pub(crate) fn at(index: usize, detail: impl Into<String>) -> Self {
         Self {
             indices: vec![index],
             detail: detail.into(),
         }
     }
 
-    fn spanning(indices: Vec<usize>, detail: impl Into<String>) -> Self {
+    pub(crate) fn spanning(indices: Vec<usize>, detail: impl Into<String>) -> Self {
         Self {
             indices,
             detail: detail.into(),
         }
     }
 
-    fn global(detail: impl Into<String>) -> Self {
+    pub(crate) fn global(detail: impl Into<String>) -> Self {
         Self {
             indices: Vec::new(),
             detail: detail.into(),
@@ -74,7 +74,7 @@ pub struct InvariantReport {
 }
 
 impl InvariantReport {
-    fn new(name: &'static str, violations: Vec<Violation>) -> Self {
+    pub(crate) fn new(name: &'static str, violations: Vec<Violation>) -> Self {
         Self { name, violations }
     }
 

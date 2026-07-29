@@ -694,6 +694,20 @@ impl LeaseHandle {
         }
     }
 
+    /// How long this handle may believe, on the elector's clock
+    ///
+    /// The belief horizon in force right now: the [`Clock::monotonic`] reading
+    /// at which [`status`](Self::status) turns [`LeaseStatus::Lost`] unless a
+    /// renewal moves it further out first.
+    ///
+    /// Observational. It is here so a caller can report or plot how much of a
+    /// term is left; nothing is entitled to act on the term because this says
+    /// there is time on it. Only [`check`](Self::check) answers that, and it
+    /// resamples the clock to do so.
+    pub fn believed_until(&self) -> Duration {
+        self.state.horizon()
+    }
+
     /// The next fencing rank of this term
     ///
     /// Ranks are minted from one counter shared by every clone, so no two
@@ -1752,6 +1766,25 @@ mod tests {
         handle.state.set_horizon(Duration::from_secs(1_000));
 
         assert_eq!(handle.status(), LeaseStatus::Lost);
+    }
+
+    #[test]
+    fn the_belief_horizon_is_readable_and_follows_the_renewals() {
+        let clock = Arc::new(MockClock::default());
+        let handle = handle_at(5, Duration::from_secs(10), clock.clone());
+        let clone = handle.clone();
+
+        assert_eq!(handle.believed_until(), Duration::from_secs(10));
+
+        // A renewal moves it out, for every clone at once.
+        handle.state.set_horizon(Duration::from_secs(13));
+        assert_eq!(clone.believed_until(), Duration::from_secs(13));
+
+        // Reading it is not acting on it: the horizon still says thirteen
+        // seconds once the term is gone, and `check` is what refuses.
+        clock.advance(Duration::from_secs(13));
+        assert_eq!(handle.believed_until(), Duration::from_secs(13));
+        assert!(handle.check().is_err());
     }
 
     // ---- fencing ---------------------------------------------------------

@@ -40,9 +40,24 @@ pub const LOG_SCHEMA_VERSION: u64 = 2;
 /// Prefix of the subspace the log lives in
 pub const LOG_PREFIX: &str = "le_log";
 
+/// Prefix of the subspace the elector role's log lives in
+///
+/// The real [`LeaderElector`] runs against an election of its own
+/// ([`elector_role`](super::elector_role)), so what its clients record has to
+/// land somewhere the driver's replay never sees: the two runs share a
+/// database, not a history.
+///
+/// [`LeaderElector`]: foundationdb::recipes::leader_election::LeaderElector
+pub const ELECTOR_LOG_PREFIX: &str = "le_elector_log";
+
 /// The subspace the operation log is written to
 pub fn log_subspace() -> Subspace {
     Subspace::all().subspace(&(LOG_PREFIX,))
+}
+
+/// The subspace the elector role's log is written to
+pub fn elector_log_subspace() -> Subspace {
+    Subspace::all().subspace(&(ELECTOR_LOG_PREFIX,))
 }
 
 /// A malformed log key or value
