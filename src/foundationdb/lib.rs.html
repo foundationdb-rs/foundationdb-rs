@@ -146,7 +146,10 @@
 <a href="#145" id="145">145</a>
 <a href="#146" id="146">146</a>
 <a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -167,6 +170,8 @@
 }
 <span class="kw">mod </span>database;
 <span class="kw">pub mod </span>directory;
+<span class="attr">#[deny(missing_docs)]
+</span><span class="kw">pub mod </span>env;
 <span class="kw">mod </span>error;
 <span class="macro">if_cfg_api_versions!</span> {min = <span class="number">700 </span>=&gt;
     <span class="attr">#[deny(missing_docs)]
@@ -211,6 +216,7 @@
 
 <span class="kw">pub use </span><span class="kw">crate</span>::budget::{AttemptUsage, BudgetExceeded, BudgetKind, ClientBudget, UsageSnapshot};
 <span class="kw">pub use </span><span class="kw">crate</span>::database::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::env::{Clock, Environment, Rng, SeededRng, WallClock};
 <span class="kw">pub use </span><span class="kw">crate</span>::error::{FdbBindingError, RetryDecision, RetryableError};
 <span class="kw">pub use </span><span class="kw">crate</span>::error::{FdbError, FdbResult};
 <span class="kw">pub use </span><span class="kw">crate</span>::keyselector::<span class="kw-2">*</span>;

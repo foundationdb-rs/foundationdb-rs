@@ -564,7 +564,123 @@
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -600,14 +716,28 @@
 //! configured limits survive and apply to the new attempt. A retried
 //! transaction therefore gets a fresh time and byte allowance, exactly like it
 //! gets a fresh read version.
+//!
+//! # Determinism and simulation
+//!
+//! The byte and call counters are deterministic: they depend only on the
+//! operations your code issues. [`ClientBudget::time_limit`] is not, unless you
+//! say where time comes from: give the budget a [`Clock`] with
+//! [`ClientBudget::with_clock`] and every elapsed time of the attempt is
+//! measured with it. Under FoundationDB's deterministic simulator, pass a clock
+//! backed by simulated time so that a run replays identically.
+//!
+//! Without one the [`WallClock`] is used, which is the right default outside
+//! simulation but makes time budgets non-reproducible: do not rely on them in a
+//! simulated workload. See [`crate::env`] for the whole picture.
 
 </span><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::sync::Mutex;
 <span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
-<span class="kw">use </span>std::time::{Duration, Instant};
+<span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span><span class="kw">crate</span>::env::{Clock, WallClock};
 <span class="kw">use </span><span class="kw">crate</span>::metrics::MetricKey;
 
 <span class="doccomment">/// Client-side limits applied to a single transaction attempt.
@@ -636,17 +766,35 @@
 /// ```
 </span><span class="attr">#[derive(Debug, Clone, Default)]
 </span><span class="kw">pub struct </span>ClientBudget {
-    <span class="doccomment">/// Maximum wall-clock time an attempt may spend, measured from the start of
-    /// the attempt.
+    <span class="doccomment">/// Maximum time an attempt may spend, measured from the start of the attempt
+    /// with the [`clock`](Self::clock) of this budget.
     </span><span class="kw">pub </span>time_limit: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     <span class="doccomment">/// Maximum number of bytes read by an attempt, keys and values summed.
     </span><span class="kw">pub </span>max_bytes_read: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="doccomment">/// Maximum number of bytes written by an attempt, keys, values and mutation
     /// parameters summed.
     </span><span class="kw">pub </span>max_bytes_written: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="doccomment">/// Where [`time_limit`](Self::time_limit) reads time from, `None` meaning
+    /// the [`WallClock`].
+    ///
+    /// Set it with [`with_clock`](Self::with_clock) to keep time budgets
+    /// deterministic, see the [module documentation](self).
+    </span><span class="kw">pub </span>clock: <span class="prelude-ty">Option</span>&lt;Arc&lt;<span class="kw">dyn </span>Clock&gt;&gt;,
 }
 
 <span class="kw">impl </span>ClientBudget {
+    <span class="doccomment">/// Measures the attempts with `clock` instead of the [`WallClock`].
+    </span><span class="attr">#[cfg_attr(
+        feature = <span class="string">"trace"</span>,
+        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, clock))
+    )]
+    </span><span class="kw">pub fn </span>with_clock(<span class="self">self</span>, clock: <span class="kw">impl </span>Clock + <span class="lifetime">'static</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            clock: <span class="prelude-val">Some</span>(Arc::new(clock)),
+            ..<span class="self">self
+        </span>}
+    }
+
     <span class="doccomment">/// Checks `usage` against these limits, returning the first exceeded one.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, usage: <span class="kw-2">&amp;</span>AttemptUsage) -&gt; <span class="prelude-ty">Result</span>&lt;(), BudgetExceeded&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.time_limit {
@@ -757,7 +905,10 @@
 /// simply dropped with the generation.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>AttemptUsage {
-    started_at: Instant,
+    <span class="doccomment">/// Where the elapsed time of this attempt is measured.
+    </span>clock: Arc&lt;<span class="kw">dyn </span>Clock&gt;,
+    <span class="doccomment">/// The monotonic reading taken when the attempt started.
+    </span>started_at: Duration,
     bytes_read: AtomicU64,
     bytes_written: AtomicU64,
     keys_values_fetched: AtomicU64,
@@ -778,10 +929,19 @@
 }
 
 <span class="kw">impl </span>AttemptUsage {
-    <span class="doccomment">/// Starts a new, empty accounting generation.
+    <span class="doccomment">/// Starts a new, empty accounting generation, measured with the
+    /// [`WallClock`].
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::with_clock(<span class="prelude-val">None</span>)
+    }
+
+    <span class="doccomment">/// Starts a new, empty accounting generation measured with `clock`, or with
+    /// the [`WallClock`] when it is `None`.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_clock(clock: <span class="prelude-ty">Option</span>&lt;Arc&lt;<span class="kw">dyn </span>Clock&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>clock = clock.unwrap_or_else(|| Arc::new(WallClock::new()));
         <span class="self">Self </span>{
-            started_at: Instant::now(),
+            started_at: clock.monotonic(),
+            clock,
             bytes_read: AtomicU64::new(<span class="number">0</span>),
             bytes_written: AtomicU64::new(<span class="number">0</span>),
             keys_values_fetched: AtomicU64::new(<span class="number">0</span>),
@@ -795,9 +955,12 @@
         }
     }
 
-    <span class="doccomment">/// Time elapsed since the attempt started.
+    <span class="doccomment">/// Time elapsed since the attempt started, measured with the clock the
+    /// attempt was stamped with.
+    ///
+    /// A clock that goes backwards yields zero rather than panicking.
     </span><span class="kw">pub fn </span>elapsed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        <span class="self">self</span>.started_at.elapsed()
+        <span class="self">self</span>.clock.monotonic().saturating_sub(<span class="self">self</span>.started_at)
     }
 
     <span class="doccomment">/// Bytes read so far, keys and values summed.
@@ -957,20 +1120,41 @@
             .clone()
     }
 
-    <span class="doccomment">/// Starts a fresh generation, leaving the previous one to the in-flight
-    /// operations still holding it.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>begin(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+    <span class="doccomment">/// Starts a fresh generation measured with `clock` (the [`WallClock`] when
+    /// `None`), leaving the previous one to the in-flight operations still
+    /// holding it.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>begin(<span class="kw-2">&amp;</span><span class="self">self</span>, clock: <span class="prelude-ty">Option</span>&lt;Arc&lt;<span class="kw">dyn </span>Clock&gt;&gt;) {
         <span class="kw">let </span><span class="kw-2">mut </span>slot = <span class="self">self
             </span>.<span class="number">0
             </span>.lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        <span class="kw-2">*</span>slot = Arc::new(AttemptUsage::new());
+        <span class="kw-2">*</span>slot = Arc::new(AttemptUsage::with_clock(clock));
     }
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="doccomment">/// A clock the test moves by hand, in milliseconds.
+    </span><span class="attr">#[derive(Debug, Clone, Default)]
+    </span><span class="kw">struct </span>FakeClock(Arc&lt;AtomicU64&gt;);
+
+    <span class="kw">impl </span>FakeClock {
+        <span class="kw">fn </span>set_millis(<span class="kw-2">&amp;</span><span class="self">self</span>, millis: u64) {
+            <span class="self">self</span>.<span class="number">0</span>.store(millis, Ordering::Relaxed);
+        }
+    }
+
+    <span class="kw">impl </span>Clock <span class="kw">for </span>FakeClock {
+        <span class="kw">fn </span>monotonic(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+            Duration::from_millis(<span class="self">self</span>.<span class="number">0</span>.load(Ordering::Relaxed))
+        }
+
+        <span class="kw">fn </span>wall(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+            <span class="self">self</span>.monotonic()
+        }
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>budget_without_limits_never_fails() {
@@ -1037,19 +1221,67 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>budget_reports_exceeded_time() {
-        <span class="kw">let </span>budget = ClientBudget {
-            time_limit: <span class="prelude-val">Some</span>(Duration::ZERO),
-            ..ClientBudget::default()
-        };
+        <span class="kw">let </span>clock = FakeClock::default();
+        clock.set_millis(<span class="number">1_000</span>);
 
-        <span class="kw">let </span>usage = AttemptUsage::new();
-        std::thread::sleep(Duration::from_millis(<span class="number">2</span>));
+        <span class="kw">let </span>budget = ClientBudget {
+            time_limit: <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">20</span>)),
+            ..ClientBudget::default()
+        }
+        .with_clock(clock.clone());
+
+        <span class="kw">let </span>usage = AttemptUsage::with_clock(budget.clock.clone());
+        clock.set_millis(<span class="number">1_020</span>);
+        <span class="macro">assert!</span>(budget.check(<span class="kw-2">&amp;</span>usage).is_ok(), <span class="string">"the limit itself is allowed"</span>);
+
+        clock.set_millis(<span class="number">1_035</span>);
 
         <span class="kw">let </span>err = budget.check(<span class="kw-2">&amp;</span>usage).unwrap_err();
         <span class="macro">assert_eq!</span>(err.kind, BudgetKind::Time);
-        <span class="macro">assert!</span>(err.used &gt;= <span class="number">1</span>, <span class="string">"used {} ms"</span>, err.used);
-        <span class="macro">assert_eq!</span>(err.limit, <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(err.used, <span class="number">35</span>);
+        <span class="macro">assert_eq!</span>(err.limit, <span class="number">20</span>);
         <span class="macro">assert!</span>(err.to_string().contains(<span class="string">"client-side estimate"</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>elapsed_follows_a_custom_clock() {
+        <span class="kw">let </span>clock = FakeClock::default();
+        clock.set_millis(<span class="number">500</span>);
+
+        <span class="kw">let </span>usage = AttemptUsage::with_clock(<span class="prelude-val">Some</span>(Arc::new(clock.clone())));
+        <span class="macro">assert_eq!</span>(usage.elapsed(), Duration::ZERO);
+
+        clock.set_millis(<span class="number">700</span>);
+        <span class="macro">assert_eq!</span>(usage.elapsed(), Duration::from_millis(<span class="number">200</span>));
+        <span class="macro">assert_eq!</span>(usage.snapshot().elapsed, Duration::from_millis(<span class="number">200</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>a_clock_going_backwards_saturates_to_zero() {
+        <span class="kw">let </span>clock = FakeClock::default();
+        clock.set_millis(<span class="number">1_000</span>);
+
+        <span class="kw">let </span>usage = AttemptUsage::with_clock(<span class="prelude-val">Some</span>(Arc::new(clock.clone())));
+        clock.set_millis(<span class="number">10</span>);
+
+        <span class="macro">assert_eq!</span>(usage.elapsed(), Duration::ZERO);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>a_new_generation_is_stamped_with_the_given_clock() {
+        <span class="kw">let </span>clock = FakeClock::default();
+        clock.set_millis(<span class="number">100</span>);
+
+        <span class="kw">let </span>slot = UsageSlot::default();
+        <span class="kw">let </span>previous = slot.current();
+
+        slot.begin(<span class="prelude-val">Some</span>(Arc::new(clock.clone())));
+        <span class="kw">let </span>current = slot.current();
+        clock.set_millis(<span class="number">160</span>);
+
+        <span class="macro">assert_eq!</span>(current.elapsed(), Duration::from_millis(<span class="number">60</span>));
+        <span class="comment">// The previous generation keeps the wall clock it was stamped with.
+        </span><span class="macro">assert!</span>(previous.elapsed() &lt; Duration::from_millis(<span class="number">60</span>));
     }
 
     <span class="attr">#[test]
@@ -1086,7 +1318,7 @@
         <span class="macro">assert_eq!</span>(slot.current().custom_metrics().get(<span class="kw-2">&amp;</span>key), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">5</span>));
 
         <span class="kw">let </span>previous = slot.current();
-        slot.begin();
+        slot.begin(<span class="prelude-val">None</span>);
 
         <span class="macro">assert!</span>(slot.current().custom_metrics().is_empty());
         <span class="macro">assert_eq!</span>(previous.custom_metrics().get(<span class="kw-2">&amp;</span>key), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">5</span>));
@@ -1098,7 +1330,7 @@
         slot.current().record_set(<span class="number">42</span>);
         <span class="macro">assert_eq!</span>(slot.current().snapshot().bytes_written, <span class="number">42</span>);
 
-        slot.begin();
+        slot.begin(<span class="prelude-val">None</span>);
 
         <span class="kw">let </span>snapshot = slot.current().snapshot();
         <span class="macro">assert_eq!</span>(
@@ -1117,7 +1349,7 @@
         <span class="comment">// An operation issued during the first attempt, still in flight.
         </span><span class="kw">let </span>in_flight = slot.current();
 
-        slot.begin();
+        slot.begin(<span class="prelude-val">None</span>);
         slot.current().record_get(<span class="number">10</span>, <span class="number">1</span>);
 
         <span class="comment">// The stale operation completes and records into its own generation.

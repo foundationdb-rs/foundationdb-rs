@@ -288,7 +288,9 @@
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a></pre></div><pre class="rust"><code><span class="attr">#![warn(missing_docs)]
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a></pre></div><pre class="rust"><code><span class="attr">#![warn(missing_docs)]
 #![doc = <span class="macro">include_str!</span>(<span class="string">"../README.md"</span>)]
 
 </span><span class="kw">use </span>std::{ptr::NonNull, sync::Arc};
@@ -297,6 +299,7 @@
 <span class="kw">use </span>foundationdb_sys::FDBDatabase <span class="kw">as </span>FDBDatabaseAlias;
 
 <span class="kw">mod </span>bindings;
+<span class="kw">pub mod </span>env;
 <span class="kw">mod </span>fdb_rt;
 
 <span class="kw">use </span>bindings::{
@@ -304,6 +307,7 @@
     OpaqueWorkload, Promise,
 };
 <span class="kw">pub use </span>bindings::{Metric, Metrics, Severity, WorkloadContext};
+<span class="kw">pub use </span>env::{SimClock, SimRng};
 <span class="kw">use </span>fdb_rt::fdb_spawn;
 
 <span class="comment">// -----------------------------------------------------------------------------
