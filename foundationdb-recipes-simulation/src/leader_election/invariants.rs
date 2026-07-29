@@ -1,4 +1,4 @@
-//! The twelve properties a run has to satisfy.
+//! The thirteen properties a run has to satisfy.
 //!
 //! Each one is a pure function of what [`replay`](super::replay) reconstructed,
 //! plus whatever external evidence it needs (the database snapshot, the
@@ -71,14 +71,40 @@ pub struct InvariantReport {
     pub name: &'static str,
     /// Everything that broke it; empty means it held
     pub violations: Vec<Violation>,
+    /// Why the run was not judged against this invariant, when it was not
+    ///
+    /// A check whose evidence a run could not have produced has three things it
+    /// could do, and only one of them is honest. Failing the run blames the
+    /// recipe for a shape the configuration chose; passing it silently is the
+    /// vacuous success this whole module exists to refuse; saying so is this.
+    /// The check phase traces the reason, so a check that quietly stopped being
+    /// judgeable shows up as a run of skips rather than as a run of passes.
+    pub skipped: Option<String>,
 }
 
 impl InvariantReport {
     pub(crate) fn new(name: &'static str, violations: Vec<Violation>) -> Self {
-        Self { name, violations }
+        Self {
+            name,
+            violations,
+            skipped: None,
+        }
+    }
+
+    /// A check that refused to judge this run, and why
+    pub(crate) fn not_judged(name: &'static str, reason: impl Into<String>) -> Self {
+        Self {
+            name,
+            violations: Vec::new(),
+            skipped: Some(reason.into()),
+        }
     }
 
     /// Whether the invariant held
+    ///
+    /// A skipped report has no violations, so it passes here. The difference
+    /// between "held" and "was not judged" is [`skipped`](Self::skipped), and it
+    /// is the check phase that has to keep the two apart in what it reports.
     pub fn passed(&self) -> bool {
         self.violations.is_empty()
     }
@@ -211,6 +237,91 @@ pub struct ProgressThresholds {
     /// Must match what the driver uses, so that "this belief outlived its
     /// renewal deadline" here means the same thing it meant to the leader.
     pub renew_interval: Duration,
+}
+
+/// The stretch of a run that the faults have already left alone
+///
+/// Every configuration in this suite stops injecting faults some fixed fraction
+/// of the way through the run and lets the rest of it run clean: the drawn
+/// configurations because the swarm plan schedules no storm past that point, the
+/// anchor configurations because their chaos workloads are given a shorter
+/// `testDuration` than the workload itself. What is left is the quiet tail, and
+/// it is the only window in which "the system eventually makes progress again"
+/// is a claim about the recipe rather than about the faults.
+///
+/// Times are true simulated time in nanoseconds, the same clock the log's
+/// `sim_nanos` is stamped from, so a window and a log entry are directly
+/// comparable. See [`of_run`](Self::of_run) for where the boundaries come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuietTail {
+    /// True simulated time the window opens at
+    pub start_nanos: u64,
+    /// True simulated time the run ends at
+    pub end_nanos: u64,
+    /// The shortest window that may be judged at all
+    pub min_nanos: u64,
+}
+
+impl QuietTail {
+    /// The quiet tail of a run that began at `run_start`
+    ///
+    /// `active_fraction` is the fraction of the run faults are injected in, and
+    /// the boundary is not the start of the window: a fault landing just inside
+    /// it is still being recovered from just outside it. An attrition reboot,
+    /// and the FoundationDB recovery that follows it, straddle the boundary
+    /// freely, so the window opens a further two leases in. Two because that is
+    /// the recipe's own worst case for a takeover: a full lease of watching a
+    /// record stand still before a steal is authorized, and a lease for the term
+    /// that steal wins to be worth renewing.
+    ///
+    /// The same two leases are the shortest window worth judging, for the same
+    /// reason: a tail with less than a takeover's worth of time in it can be
+    /// silent without anything being wrong. A run whose lease is long enough
+    /// relative to its duration produces exactly that, and
+    /// [`tail_progress`] says so rather than judging it.
+    pub fn of_run(
+        run_start: Duration,
+        test_duration: Duration,
+        active_fraction: f64,
+        lease: Duration,
+    ) -> Self {
+        let recovery = lease * 2;
+        Self {
+            start_nanos: nanos(run_start + test_duration.mul_f64(active_fraction) + recovery),
+            end_nanos: nanos(run_start + test_duration),
+            min_nanos: nanos(recovery),
+        }
+    }
+
+    /// How long the window is; zero when the margin swallowed it whole
+    pub fn length_nanos(&self) -> u64 {
+        self.end_nanos.saturating_sub(self.start_nanos)
+    }
+
+    /// Whether this run left a window long enough to be judged on
+    pub fn is_judgeable(&self) -> bool {
+        self.length_nanos() >= self.min_nanos
+    }
+
+    /// Whether a true-time stamp falls inside the window
+    pub fn contains(&self, sim_nanos: u64) -> bool {
+        sim_nanos >= self.start_nanos && sim_nanos <= self.end_nanos
+    }
+
+    /// What a check says when it refuses to judge this window
+    pub(crate) fn too_short_reason(&self) -> String {
+        format!(
+            "the fault-free tail of this run is {} ns long, less than the {} ns \
+             (two leases) a takeover needs: a window that short can be silent \
+             without anything being wrong, so the run is not judged on it",
+            self.length_nanos(),
+            self.min_nanos
+        )
+    }
+}
+
+fn nanos(duration: Duration) -> u64 {
+    duration.as_nanos() as u64
 }
 
 /// One entry of the recipe's own history subspace, oldest first
@@ -1143,6 +1254,85 @@ pub fn is_resolution(record: &LogRecord) -> bool {
 }
 
 // ============================================================================
+// 13. TAIL PROGRESS
+// ============================================================================
+
+/// How many transitions the quiet tail has to contain
+///
+/// One, and deliberately not a number that scales with the length of the window
+/// or the churn the plan drew. This is an aliveness bit, not a throughput floor:
+/// what it distinguishes is a run that came back from its faults from one that
+/// did not, and a single applied transition after the last fault settles that.
+/// A larger floor would be a claim about rate, which the simulator's clogging
+/// and recovery timings make no promise about, so it would fail honest runs and
+/// teach whoever hits it to lower the number rather than read the trace.
+const MIN_TAIL_EVENTS: usize = 1;
+
+/// Once the faults stop, the election starts working again.
+///
+/// Every other progress check in this module counts what a run achieved
+/// overall, which a run can satisfy entirely in its first third and then spend
+/// the rest of its time wedged. That is the shape of a real leader election bug
+/// (a deadlock between a stolen term and a campaign that never retries, a leader
+/// that renews itself into a state nobody can take over), and none of the checks
+/// above can see it: they were all satisfied before the run broke.
+///
+/// So this is the eventually-after-faults-stop half. In the window
+/// [`QuietTail`] describes, where nothing is being crashed, clogged or rebooted
+/// any more, the log must contain at least [`MIN_TAIL_EVENTS`] applied
+/// acquisition *or* renewal.
+///
+/// # Why the disjunction is load-bearing
+///
+/// A run that ends with one healthy leader renewing to the deadline produces
+/// zero acquisitions in its tail, and that is the best outcome the protocol has:
+/// demanding an acquisition would demand churn, which is the opposite of what
+/// recovery looks like. Demanding only renewals fails the symmetric run, where a
+/// leader dies just before the boundary and its successor spends the tail
+/// campaigning. Either one is the election working.
+///
+/// # What it refuses to demand
+///
+/// A window shorter than the takeover it would be judging is not judged at all,
+/// and says so: see [`QuietTail::of_run`]. Proving the check was owed before
+/// applying it is the same discipline [`sleeper_was_fenced`] follows, and for
+/// the same reason: a check that is quietly unjudgeable is indistinguishable
+/// from one that quietly stopped running.
+pub fn tail_progress(entries: &[LogEntry], replay: &Replay, tail: &QuietTail) -> InvariantReport {
+    if !tail.is_judgeable() {
+        return InvariantReport::not_judged("TailProgress", tail.too_short_reason());
+    }
+
+    let alive = replay
+        .transitions
+        .iter()
+        .filter(|transition| {
+            transition.kind.is_acquisition() || transition.kind == TransitionKind::Renew
+        })
+        .filter(|transition| {
+            entries
+                .get(transition.index)
+                .is_some_and(|entry| tail.contains(entry.record.sim_nanos))
+        })
+        .count();
+
+    if alive >= MIN_TAIL_EVENTS {
+        return InvariantReport::new("TailProgress", Vec::new());
+    }
+
+    InvariantReport::new(
+        "TailProgress",
+        vec![Violation::global(format!(
+            "no term was acquired or renewed between {} ns and {} ns, the \
+             fault-free tail of the run: the last fault was injected long \
+             before it, so an election that is still silent here failed to \
+             recover rather than failing to catch a break",
+            tail.start_nanos, tail.end_nanos
+        ))],
+    )
+}
+
+// ============================================================================
 // ALL OF THEM
 // ============================================================================
 
@@ -1161,6 +1351,13 @@ pub struct CheckInputs<'a> {
     pub tolerances: Tolerances,
     /// What the configuration expects the run to have achieved
     pub thresholds: ProgressThresholds,
+    /// The stretch of the run no fault was injected in
+    ///
+    /// Here rather than in [`ProgressThresholds`] because it is not a floor: it
+    /// is a window the configuration's own fault schedule defines, and the only
+    /// number in it that could be tuned ([`MIN_TAIL_EVENTS`]) is deliberately
+    /// not tunable.
+    pub tail: QuietTail,
 }
 
 /// Run every invariant, in the order they appear in this module
@@ -1178,6 +1375,7 @@ pub fn check_all(inputs: &CheckInputs<'_>) -> Vec<InvariantReport> {
         progress_made(inputs.entries, inputs.replay, &inputs.thresholds),
         history_faithful(inputs.replay, inputs.history),
         recovery_exercised(inputs.entries, inputs.replay, &inputs.thresholds),
+        tail_progress(inputs.entries, inputs.replay, &inputs.tail),
     ]
 }
 
@@ -1207,6 +1405,20 @@ mod tests {
         min_recoveries: 1,
     };
 
+    /// The quiet tail the fixtures are judged against
+    ///
+    /// Both fixtures are runs of about twenty seconds whose last transitions
+    /// land between sixteen and twenty. Treating that as the fault-free tail of
+    /// a twenty-one second run is what makes the window non-vacuous: the
+    /// fixtures' own ten-second lease would put the margin past the end of the
+    /// log and skip the check, which is the state the counterexamples below
+    /// exist to tell apart from a pass.
+    const TAIL: QuietTail = QuietTail {
+        start_nanos: 16 * SEC,
+        end_nanos: 21 * SEC,
+        min_nanos: 2 * SEC,
+    };
+
     /// Replay a log the way the check phase does
     fn replayed(entries: &[LogEntry]) -> Replay {
         replay(entries, leader_id)
@@ -1226,6 +1438,7 @@ mod tests {
             history,
             tolerances: Tolerances::STRICT,
             thresholds,
+            tail: TAIL,
         }
     }
 
@@ -2122,6 +2335,128 @@ mod tests {
             &recovery_exercised(&entries, &out, &demanding),
             "expected at least 2",
         );
+    }
+
+    // ------------------------------------------------------------------
+    // 13. TailProgress
+    // ------------------------------------------------------------------
+
+    /// A run of `client 0` alone: it claims once and renews on `renewals`
+    ///
+    /// Nothing else is in it, so the only thing that decides the tail check is
+    /// where those renewals fall.
+    fn one_leader(renewals: &[u64]) -> Vec<LogEntry> {
+        let mut log = LogBuilder::new();
+        log.push(0, write(OpKind::Claim, 1, 0, 1, SEC));
+        log.push(0, belief_begin(0, 1, SEC, 9 * SEC));
+        for (index, at) in renewals.iter().enumerate() {
+            log.push(0, write(OpKind::Renew, 1, index as u64 + 1, 1, *at));
+        }
+        log.into_entries()
+    }
+
+    #[test]
+    fn tail_progress_catches_a_run_that_went_silent_once_the_faults_stopped() {
+        // Alive for the whole active window and then nothing: every other
+        // progress check in this module is satisfied by the first half of this
+        // log, which is exactly the shape this one exists to catch.
+        let entries = one_leader(&[2 * SEC, 6 * SEC, 10 * SEC, 14 * SEC]);
+        let out = replayed(&entries);
+        assert_failed(
+            &tail_progress(&entries, &out, &TAIL),
+            "no term was acquired or renewed",
+        );
+    }
+
+    #[test]
+    fn one_leader_renewing_through_the_tail_is_progress() {
+        // The disjunction. This run has no acquisition in its tail at all, and
+        // it is the best outcome the protocol has: a demand for churn here
+        // would be a demand that the election keep failing over.
+        let entries = one_leader(&[2 * SEC, 10 * SEC, 17 * SEC]);
+        let out = replayed(&entries);
+        let report = tail_progress(&entries, &out, &TAIL);
+        assert!(report.passed(), "{:?}", report.violations);
+        assert!(report.skipped.is_none(), "the window was long enough");
+    }
+
+    #[test]
+    fn an_acquisition_in_the_tail_is_progress_on_its_own() {
+        // And the symmetric run: the leader died before the boundary and its
+        // successor spent the tail campaigning, so there is no renewal to find.
+        let mut log = LogBuilder::new();
+        log.push(0, write(OpKind::Claim, 1, 0, 1, SEC));
+        log.push(1, write(OpKind::Steal, 2, 0, 2, 18 * SEC));
+        let entries = log.into_entries();
+        let out = replayed(&entries);
+        assert!(tail_progress(&entries, &out, &TAIL).passed());
+    }
+
+    #[test]
+    fn a_tail_shorter_than_a_takeover_is_not_judged_at_all() {
+        // The SleeperWasFenced discipline: prove the check was owed before
+        // applying it. A silent log is the input, so a check that judged this
+        // window would fail it, and passing it silently would be the vacuous
+        // success this module exists to refuse. Neither is what happens.
+        let entries = one_leader(&[2 * SEC]);
+        let out = replayed(&entries);
+        let short = QuietTail {
+            start_nanos: 19 * SEC,
+            end_nanos: 20 * SEC,
+            min_nanos: 2 * SEC,
+        };
+        let report = tail_progress(&entries, &out, &short);
+        let reason = report
+            .skipped
+            .as_ref()
+            .expect("a window shorter than two leases is not judgeable");
+        assert!(reason.contains("less than the"), "{reason}");
+        assert!(report.violations.is_empty(), "a skip accuses nobody");
+    }
+
+    #[test]
+    fn a_resign_is_not_evidence_that_the_election_recovered() {
+        // Giving a term up is what a leader does on its way out; a run whose
+        // tail holds nothing else never found a successor.
+        let mut log = LogBuilder::new();
+        log.push(0, write(OpKind::Claim, 1, 0, 1, SEC));
+        log.push(0, resign(1, 0, 1, 18 * SEC));
+        let entries = log.into_entries();
+        let out = replayed(&entries);
+        assert_failed(
+            &tail_progress(&entries, &out, &TAIL),
+            "no term was acquired or renewed",
+        );
+    }
+
+    #[test]
+    fn the_tail_window_starts_a_takeover_after_the_last_fault() {
+        // The margin, in the shape the check phase builds it: a hundred and
+        // twenty second run whose faults stop two thirds of the way through,
+        // on a four second lease.
+        let tail = QuietTail::of_run(
+            Duration::from_secs(5),
+            Duration::from_secs(120),
+            2.0 / 3.0,
+            Duration::from_secs(4),
+        );
+        assert_eq!(tail.start_nanos, 93 * SEC, "5s start + 80s active + 8s");
+        assert_eq!(tail.end_nanos, 125 * SEC);
+        assert_eq!(tail.min_nanos, 8 * SEC);
+        assert!(tail.is_judgeable(), "32s of tail against an 8s takeover");
+        assert!(tail.contains(93 * SEC) && tail.contains(125 * SEC));
+        assert!(!tail.contains(93 * SEC - 1) && !tail.contains(125 * SEC + 1));
+
+        // And the lease that makes the same run unjudgeable: two thirds of it
+        // is eighty seconds, so a sixteen second lease leaves eight seconds of
+        // window against a thirty-two second takeover.
+        let long_lease = QuietTail::of_run(
+            Duration::ZERO,
+            Duration::from_secs(120),
+            2.0 / 3.0,
+            Duration::from_secs(16),
+        );
+        assert!(!long_lease.is_judgeable());
     }
 
     // ------------------------------------------------------------------

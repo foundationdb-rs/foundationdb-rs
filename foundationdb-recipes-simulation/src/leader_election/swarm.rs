@@ -343,8 +343,11 @@ const STORM_INTENSITY_PALETTE: [f64; 3] = [0.25, 0.6, 1.0];
 ///
 /// The remaining third is the recovery tail: no fault starts in it, so a run
 /// that fails a progress invariant failed to recover rather than failing to
-/// catch a break.
-const ACTIVE_FRACTION: f64 = 2.0 / 3.0;
+/// catch a break. The check phase reads the same number to build the window
+/// [`tail_progress`](super::invariants::tail_progress) judges, and the anchor
+/// configurations honour it by giving their chaos workloads a `testDuration`
+/// this far into the run and no further.
+pub(crate) const ACTIVE_FRACTION: f64 = 2.0 / 3.0;
 /// The fraction of the run a sleeper's pause is allowed to occupy
 const PAUSE_BUDGET_FRACTION: f64 = 1.0 / 3.0;
 

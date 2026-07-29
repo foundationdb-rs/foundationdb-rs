@@ -1,4 +1,4 @@
-//! The six properties a run of the real elector has to satisfy.
+//! The seven properties a run of the real elector has to satisfy.
 //!
 //! The driver's election is judged from a log that wraps every protocol step,
 //! so [`invariants`](super::invariants) can reason about what each transaction
@@ -23,7 +23,7 @@
 
 use std::collections::HashMap;
 
-use super::invariants::{HistoryKind, InvariantReport, Tolerances, Violation};
+use super::invariants::{HistoryKind, InvariantReport, QuietTail, Tolerances, Violation};
 use super::log_schema::{LogEntry, OpKind};
 use super::replay::Replay;
 
@@ -105,6 +105,11 @@ pub struct ElectorEvidence<'a> {
     pub tolerances: Tolerances,
     /// What the configuration expects the electors to have achieved
     pub thresholds: ElectorThresholds,
+    /// The stretch of the run no fault was injected in
+    ///
+    /// The same window the driver half is judged on: one run, one fault
+    /// schedule, one clock.
+    pub tail: QuietTail,
 }
 
 // ============================================================================
@@ -652,6 +657,64 @@ pub fn elector_progress_made(
 }
 
 // ============================================================================
+// 7. TAIL PROGRESS
+// ============================================================================
+
+/// Once the faults stop, the electors start leading again.
+///
+/// The elector's half of [`tail_progress`](super::invariants::tail_progress),
+/// judged on the same window and owed under the same rule: a tail shorter than
+/// the takeover it would be judging is not judged, and says why.
+///
+/// # What counts as evidence, and why it is not the history
+///
+/// The driver half reads its evidence out of the replay, because every
+/// transition it judges is a log entry with a true-time stamp on it. Nothing on
+/// this side has that: the recipe's history subspace is ordered by commit
+/// versionstamp and carries no clock reading at all, so a transition in it
+/// cannot be placed inside a window. Demanding one anywhere in the history
+/// would be demanding what [`elector_progress_made`] already demands, over the
+/// whole run rather than over the tail, which is no check at all.
+///
+/// So the evidence is what the role logged, which is stamped:
+///
+/// - a belief-begin, which the role writes when it wins a term *and* whenever a
+///   renewal moves the horizon out. That is exactly the driver half's
+///   "acquisition or renewal", in the vocabulary this side has;
+/// - an applied fenced write, which is a term being used rather than merely
+///   held.
+///
+/// Either one is an elector that came back.
+pub fn elector_tail_progress(log: &[LogEntry], tail: &QuietTail) -> InvariantReport {
+    if !tail.is_judgeable() {
+        return InvariantReport::not_judged("ElectorTailProgress", tail.too_short_reason());
+    }
+
+    let alive = log
+        .iter()
+        .filter(|entry| tail.contains(entry.record.sim_nanos))
+        .any(|entry| match entry.record.op {
+            OpKind::BeliefBegin => true,
+            OpKind::FencedWrite => entry.record.outcome.is_applied(),
+            _ => false,
+        });
+
+    if alive {
+        return InvariantReport::new("ElectorTailProgress", Vec::new());
+    }
+
+    InvariantReport::new(
+        "ElectorTailProgress",
+        vec![Violation::global(format!(
+            "no elector began a belief or wrote under one between {} ns and \
+             {} ns, the fault-free tail of the run: an election that is still \
+             silent here failed to recover rather than failing to catch a break",
+            tail.start_nanos, tail.end_nanos
+        ))],
+    )
+}
+
+// ============================================================================
 // ALL OF THEM
 // ============================================================================
 
@@ -660,13 +723,14 @@ pub fn elector_progress_made(
 /// Named here so the check phase can report the ones it *skipped*, which it
 /// does whenever a run had no elector: an invariant nobody can see the absence
 /// of is one that can quietly stop running.
-pub const ELECTOR_INVARIANTS: [&str; 6] = [
+pub const ELECTOR_INVARIANTS: [&str; 7] = [
     "ElectorTermsFromHistory",
     "ElectorFencingHolds",
     "ElectorNoBeliefOverlap",
     "ElectorBeliefHonest",
     "ElectorSnapshotAgrees",
     "ElectorProgressMade",
+    "ElectorTailProgress",
 ];
 
 /// Run every elector invariant, in the order they appear in this module
@@ -682,6 +746,7 @@ pub fn check_elector(
         elector_belief_honest(&merged, &leader_id),
         elector_snapshot_agrees(evidence.history, evidence.snapshot),
         elector_progress_made(evidence.history, evidence.log, &evidence.thresholds),
+        elector_tail_progress(evidence.log, &evidence.tail),
     ]
 }
 
@@ -787,11 +852,24 @@ mod tests {
                     snapshot: Some(snapshot),
                     tolerances: Tolerances::STRICT,
                     thresholds: ElectorThresholds::ACTIVE,
+                    tail: TAIL,
                 },
                 leader_id,
             )
         }
     }
+
+    /// The quiet tail the fixtures are judged against
+    ///
+    /// The clean run below is eight seconds of two electors handing a term over,
+    /// so its last third is where the tail belongs. The fixtures' own ten-second
+    /// lease would put the margin past the end of the log and skip the check,
+    /// which is the state the counterexamples exist to tell apart from a pass.
+    const TAIL: QuietTail = QuietTail {
+        start_nanos: 6 * SEC,
+        end_nanos: 9 * SEC,
+        min_nanos: 2 * SEC,
+    };
 
     /// The canonical well-behaved run of two electors.
     ///
@@ -1187,6 +1265,70 @@ mod tests {
             &elector_progress_made(&run.history, &run.log, &ElectorThresholds::ACTIVE),
             "proves nothing about fencing",
         );
+    }
+
+    // ---- 7. tail progress -------------------------------------------------
+
+    #[test]
+    fn elector_tail_progress_catches_electors_that_went_silent() {
+        // Busy for the whole active window and then nothing. Every other check
+        // in this module is satisfied by what came before the tail, which is
+        // what makes this one worth having.
+        let mut run = Fixture::default();
+        run.transition(HistoryKind::Claim, 1, 6);
+        run.belief_begin(6, 1, SEC, 9 * SEC);
+        run.fenced_write(6, 1, Outcome::Applied, 2 * SEC);
+        assert_failed(
+            &elector_tail_progress(&run.log, &TAIL),
+            "no elector began a belief or wrote under one",
+        );
+    }
+
+    #[test]
+    fn a_renewal_that_moved_the_horizon_out_is_progress() {
+        // One elector leading through the tail, renewing rather than failing
+        // over: no term is won in the window at all, and that is the outcome
+        // the protocol is aiming for.
+        let mut run = Fixture::default();
+        run.transition(HistoryKind::Claim, 1, 6);
+        run.belief_begin(6, 1, SEC, 9 * SEC);
+        run.belief_begin(6, 1, 7 * SEC, 15 * SEC);
+        let report = elector_tail_progress(&run.log, &TAIL);
+        assert!(report.passed(), "{:?}", report.violations);
+        assert!(report.skipped.is_none(), "the window was long enough");
+    }
+
+    #[test]
+    fn a_write_the_fence_refused_is_not_progress() {
+        // A rejected write is the fence working, not the election recovering:
+        // the client that made it had already lost the term.
+        let mut run = Fixture::default();
+        run.transition(HistoryKind::Claim, 1, 6);
+        run.belief_begin(6, 1, SEC, 9 * SEC);
+        run.fenced_write(6, 1, Outcome::Rejected, 7 * SEC);
+        assert_failed(
+            &elector_tail_progress(&run.log, &TAIL),
+            "no elector began a belief or wrote under one",
+        );
+    }
+
+    #[test]
+    fn an_elector_tail_shorter_than_a_takeover_is_not_judged_at_all() {
+        let mut run = Fixture::default();
+        run.transition(HistoryKind::Claim, 1, 6);
+        run.belief_begin(6, 1, SEC, 9 * SEC);
+        let short = QuietTail {
+            start_nanos: 8 * SEC,
+            end_nanos: 9 * SEC,
+            min_nanos: 2 * SEC,
+        };
+        let report = elector_tail_progress(&run.log, &short);
+        let reason = report
+            .skipped
+            .as_ref()
+            .expect("a window shorter than two leases is not judgeable");
+        assert!(reason.contains("less than the"), "{reason}");
+        assert!(report.violations.is_empty(), "a skip accuses nobody");
     }
 
     #[test]

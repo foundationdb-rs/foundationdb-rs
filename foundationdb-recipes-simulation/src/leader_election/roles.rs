@@ -426,6 +426,15 @@ impl Driver {
         self.counters
     }
 
+    /// True simulated time at which this client entered the start phase
+    ///
+    /// Zero until [`run`](Self::run) has been entered. The check phase reads it
+    /// to place the run's own fault schedule, which every role measures from
+    /// here, on the same clock the log is stamped with.
+    pub(crate) fn start_sim(&self) -> Duration {
+        self.start_sim
+    }
+
     /// Play the role until the run's simulated deadline
     ///
     /// An infrastructure error ends this client's participation and is traced,

@@ -3,7 +3,7 @@
 Deterministic-simulation workloads for the recipes shipped with `foundationdb`.
 Today that means one workload, `LeaderElectionWorkload`, which drives the leader
 election recipe inside FoundationDB's own simulator and then judges the run
-against twelve invariants.
+against thirteen invariants.
 
 ## What it tests, and what it does not
 
@@ -321,11 +321,24 @@ a check earns its place here only with a counterexample.
 | 10 | `ProgressMade` | A run in which nothing happened, which every safety check passes vacuously |
 | 11 | `HistoryFaithful` | A history entry escaping the transaction of the transition it describes |
 | 12 | `RecoveryExercised` | An injected unknown commit nobody resolved, or an injector that stopped firing and left `UuidRecoveryNoDup` vacuous |
+| 13 | `TailProgress` | A run that satisfied every check above in its first third and then stayed wedged: no term acquired or renewed once the faults stopped |
+
+Every fault this suite injects is scheduled into the first two thirds of a run,
+so the last third is the window in which "the system eventually recovers" is a
+claim about the recipe rather than about the faults. `TailProgress` is that
+window, and its elector counterpart `ElectorTailProgress` is the same window
+judged from the elector role's log. Both refuse to judge a run whose lease is
+long enough relative to its duration that the window is shorter than a takeover:
+they report themselves as skipped, with the reason, rather than passing
+vacuously.
 
 A violation is traced at `Severity::Error`, which is the only thing that fails a
-FoundationDB simulation run, and the log is dumped around the first one. The
-check phase runs on **every** client: attrition kills clients, and a run whose
-only judge was killed used to pass by default.
+FoundationDB simulation run, and the log is dumped around the first one. An
+invariant that was not judged is traced as `LeaderElectionInvariantSkipped` with
+what stopped it being judgeable, so a check that quietly stops running looks
+different from one with nothing to complain about. The check phase runs on
+**every** client: attrition kills clients, and a run whose only judge was killed
+used to pass by default.
 
 ## Running
 

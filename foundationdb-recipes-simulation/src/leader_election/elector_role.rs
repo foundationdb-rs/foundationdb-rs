@@ -39,6 +39,18 @@
 //!    horizon it logged. Past it there is nothing to say: the horizon already
 //!    ended the belief, and a record written afterwards would claim the client
 //!    believed longer than it was entitled to.
+//!
+//! # Why the term is served by several futures
+//!
+//! [`LeaseHandle`] is documented as cloneable into every task the work spawns,
+//! and a handle that is only ever used by the future it was handed to tests none
+//! of what that promise implies: one shared rank counter, one status the clones
+//! read independently, and a `lose` or an `extend` landing between any two of
+//! their await points. So the work here runs [`WORKERS`] clones concurrently,
+//! each writing under ranks it mints itself, while the belief bookkeeping stays
+//! with the parent. Nothing new is asserted about the result; the run is judged
+//! by the invariants it already had, which is the point of widening the input
+//! rather than adding a check.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -78,6 +90,17 @@ pub(crate) fn register() -> RankedRegister {
 // PURE RULES
 // ============================================================================
 
+/// How many clones of the term's handle work at once
+///
+/// Three, which is the smallest number that produces the interleaving worth
+/// having: two clones can only alternate, three can have one suspended across
+/// the whole of another's transaction. Rank exhaustion is not a concern at this
+/// width. A rank's sequence is a `u32` and the clones share the counter, so a
+/// term draws three per step: a run of a thousand steps spends three thousand
+/// of four billion, and [`LeaseHandle::next_rank`] refuses rather than wraps if
+/// anything ever gets close.
+const WORKERS: usize = 3;
+
 /// Whether a horizon reading is worth another belief-begin
 ///
 /// Replay merges the begins of one `(client, ballot)` by taking the largest
@@ -85,6 +108,16 @@ pub(crate) fn register() -> RankedRegister {
 /// not already in the log.
 pub(crate) fn should_log_extension(logged: Option<Duration>, horizon: Duration) -> bool {
     logged.is_none_or(|logged| horizon > logged)
+}
+
+/// Where one worker's pacing cursor starts, relative to its siblings'
+///
+/// Spread across a single step, so the clones of a term act at different
+/// instants rather than all at once. Three cursors a third of a step apart give
+/// the scheduler somewhere to interleave them; three cursors on top of each
+/// other would run the same round three times over and test one ordering.
+pub(crate) fn stagger(step: Duration, slot: usize) -> Duration {
+    step * slot as u32 / WORKERS as u32
 }
 
 /// Whether a belief may still be closed with a record
@@ -342,7 +375,8 @@ impl ElectorRole {
 
         // (2) The activation fence, first action of the term. Winning a ballot
         // fences nothing by itself, and unlike the driver's claim transaction
-        // the recipe does not install one.
+        // the recipe does not install one. Sequence zero, before any clone
+        // exists, so every rank the term goes on to mint dominates it.
         let rank = match handle.next_rank() {
             Ok(rank) => rank,
             Err(_) => return,
@@ -352,7 +386,32 @@ impl ElectorRole {
             return;
         }
 
-        // (3) Work, until the run ends or the term does.
+        // (3) Work, until the run ends or the term does. The beliefs are the
+        // parent's and the writes are the clones', and the term ends when
+        // either side stops: a parent that can no longer log has nothing left
+        // to authorize the writes, and clones that have all stopped leave a
+        // term nobody is using.
+        let beliefs = self.track_beliefs(db, handle, book);
+        let workers = futures::future::join_all(
+            (0..WORKERS).map(|slot| self.fenced_worker(db, handle.clone(), slot)),
+        );
+        futures::pin_mut!(beliefs);
+        futures::pin_mut!(workers);
+        let _ = futures::future::select(beliefs, workers).await;
+    }
+
+    /// Keep the logged belief interval up to date for as long as the term lasts
+    ///
+    /// The bookkeeping stays here, with the one future that owns it, rather than
+    /// being shared with the clones below: a belief is what this *client*
+    /// believes, and three tasks logging their own would invent three intervals
+    /// where the term has one. The clones do work, not beliefs.
+    async fn track_beliefs(
+        &self,
+        db: &SimDatabase,
+        handle: &LeaseHandle,
+        book: &RefCell<BeliefBookkeeping>,
+    ) {
         let mut guard = LivenessGuard::new();
         // Paced on an absolute cursor rather than a step per round: the cursor
         // moves before the wait, so a wait that returned instantly still leaves
@@ -360,7 +419,7 @@ impl ElectorRole {
         let mut next = self.journal.local_now();
         while self.journal.sim_now() < self.deadline {
             if !guard.tick(self.journal.sim_now()) {
-                self.stalled("elector work");
+                self.stalled("elector beliefs");
                 return;
             }
             // The term is gone: either the horizon passed, which already ended
@@ -373,7 +432,44 @@ impl ElectorRole {
             if !self.begin_belief(db, handle, book).await {
                 return;
             }
-            if !self.fenced_step(db, handle).await {
+            let (cursor, wait) = next_tick(next, self.step, self.journal.local_now());
+            next = cursor;
+            if !wait.is_zero() && !self.delay(wait).await {
+                return;
+            }
+        }
+    }
+
+    /// One of the term's concurrent workers, on its own clone of the handle
+    ///
+    /// `slot` staggers the pacing cursor across the step so the clones
+    /// interleave instead of marching in lockstep, which is the point: what this
+    /// exercises is the orderings the await points admit. A clone can be
+    /// suspended between `check` saying the term is live and the write that
+    /// acts on it, while a sibling mints a higher rank, while the elector's own
+    /// renewal moves the horizon or gives the term up. The existing invariants
+    /// judge the result and nothing new is asked of the run:
+    /// `ElectorFencingHolds` catches a write that landed under a rank the term
+    /// did not authorize, `ElectorBeliefHonest` catches a horizon widened past
+    /// what was logged, and the ranked register refuses a stale rank on its own.
+    ///
+    /// What it cannot exercise is a data race. The simulator runs every workload
+    /// callback on one thread, so these futures interleave at await points and
+    /// never overlap; the atomics in [`LeaseHandle`] are being tested for the
+    /// orderings a single-threaded scheduler can produce, not for the ones a
+    /// second core could.
+    async fn fenced_worker(&self, db: &SimDatabase, handle: LeaseHandle, slot: usize) {
+        let mut guard = LivenessGuard::new();
+        let mut next = self.journal.local_now() + stagger(self.step, slot);
+        while self.journal.sim_now() < self.deadline {
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("elector work");
+                return;
+            }
+            if handle.check().is_err() {
+                return;
+            }
+            if !self.fenced_step(db, &handle).await {
                 return;
             }
             let (cursor, wait) = next_tick(next, self.step, self.journal.local_now());
@@ -639,6 +735,22 @@ mod tests {
         // and a successor may have started counting.
         assert!(!may_log_end(2 * SEC, 2 * SEC));
         assert!(!may_log_end(3 * SEC, 2 * SEC));
+    }
+
+    #[test]
+    fn the_workers_of_a_term_are_spread_across_one_step() {
+        let step = 3 * SEC;
+        let offsets: Vec<Duration> = (0..WORKERS).map(|slot| stagger(step, slot)).collect();
+        assert_eq!(offsets, vec![Duration::ZERO, SEC, 2 * SEC]);
+
+        // Distinct, and all strictly inside one step: an offset of a whole step
+        // would put two workers back on the same instant one round later.
+        for slot in 0..WORKERS {
+            assert!(stagger(step, slot) < step);
+        }
+        // A step too short to divide still leaves the first worker on the
+        // cursor it would have had, which is the only one that has to be exact.
+        assert_eq!(stagger(Duration::from_nanos(1), 0), Duration::ZERO);
     }
 
     #[test]

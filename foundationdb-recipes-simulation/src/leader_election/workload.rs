@@ -65,14 +65,14 @@ use super::elector_invariants::{
 };
 use super::elector_role;
 use super::invariants::{
-    CheckInputs, HistoryEntry, HistoryKind, InvariantReport, ProgressThresholds, Tolerances,
-    check_all, is_resolution,
+    CheckInputs, HistoryEntry, HistoryKind, InvariantReport, ProgressThresholds, QuietTail,
+    Tolerances, check_all, is_resolution,
 };
 use super::log_schema::{LogEntry, OpKind, elector_log_subspace, log_subspace};
 use super::logged_op::{Journal, op_ceiling};
 use super::replay::{ExpectedRecord, TransitionKind, replay};
 use super::roles::{Driver, DriverConfig, ForcedRecoveryConfig, Role, elector_clients};
-use super::swarm::{FaultTiming, SwarmPlan};
+use super::swarm::{ACTIVE_FRACTION, FaultTiming, SwarmPlan};
 
 /// How many transition records the check phase asks the recipe for
 ///
@@ -697,11 +697,16 @@ impl RustWorkload for LeaderElectionWorkload {
             .filter(|entry| entry.record.op == OpKind::InjectedUnknown)
             .count();
 
+        let tail = self.quiet_tail();
+
         self.context.trace(
             Severity::Info,
             "LeaderElectionCheckStart",
             details![
                 "Client" => self.client_id,
+                "TailStartNanos" => tail.start_nanos,
+                "TailEndNanos" => tail.end_nanos,
+                "TailJudgeable" => tail.is_judgeable(),
                 "LogEntries" => entries.len(),
                 "Transitions" => replayed.transitions.len(),
                 "Acquisitions" => acquisitions,
@@ -725,11 +730,16 @@ impl RustWorkload for LeaderElectionWorkload {
             history: &history,
             tolerances,
             thresholds: self.thresholds,
+            tail,
         });
 
         let mut first_violation = None;
         let mut any_failed = false;
         for report in &reports {
+            if let Some(reason) = &report.skipped {
+                self.report_skipped(report.name, reason);
+                continue;
+            }
             if report.passed() {
                 self.context.trace(
                     Severity::Info,
@@ -756,6 +766,7 @@ impl RustWorkload for LeaderElectionWorkload {
             elector_snapshot.as_ref(),
             &elector_history,
             tolerances,
+            tail,
         );
 
         match first_violation {
@@ -914,17 +925,11 @@ impl LeaderElectionWorkload {
         snapshot: Option<&LeaderRecord>,
         history: &[HistoryEvent],
         tolerances: Tolerances,
+        tail: QuietTail,
     ) {
         if self.electors.is_empty() {
             for name in ELECTOR_INVARIANTS {
-                self.context.trace(
-                    Severity::Info,
-                    "LeaderElectionInvariantSkipped",
-                    details![
-                        "Invariant" => name,
-                        "Reason" => self.no_elector_reason()
-                    ],
-                );
+                self.report_skipped(name, self.no_elector_reason());
             }
             return;
         }
@@ -961,12 +966,15 @@ impl LeaderElectionWorkload {
                 snapshot: snapshot.as_ref(),
                 tolerances,
                 thresholds: ElectorThresholds::ACTIVE,
+                tail,
             },
             leader_id_of,
         );
 
         for report in &reports {
-            if report.passed() {
+            if let Some(reason) = &report.skipped {
+                self.report_skipped(report.name, reason);
+            } else if report.passed() {
                 self.context.trace(
                     Severity::Info,
                     "LeaderElectionInvariantHeld",
@@ -976,6 +984,44 @@ impl LeaderElectionWorkload {
                 self.report_violations(report);
             }
         }
+    }
+
+    /// The stretch of this run that no fault was injected in
+    ///
+    /// Anchored on this client's own entry into the start phase, which is the
+    /// instant every role measures its fault schedule from, and expressed on the
+    /// simulator's undistorted clock so it can be compared against the log's
+    /// `sim_nanos` directly. Clients enter the phase within a step of each
+    /// other, which is orders of magnitude inside the recovery margin
+    /// [`QuietTail::of_run`] adds, so one client's anchor stands for the run.
+    ///
+    /// Every configuration gets one, including the anchors: their chaos
+    /// workloads are configured to stop at the same fraction of the run, and one
+    /// with no chaos at all has a tail that is trivially quiet.
+    fn quiet_tail(&self) -> QuietTail {
+        QuietTail::of_run(
+            self.driver.start_sim(),
+            self.config.test_duration,
+            ACTIVE_FRACTION,
+            self.config.lease.as_duration(),
+        )
+    }
+
+    /// Say that an invariant was not judged, and why
+    ///
+    /// The alternative is a trace in which a check that stopped being applicable
+    /// looks exactly like one that had nothing to complain about, which is the
+    /// silence this suite exists to refuse.
+    fn report_skipped(&self, name: &str, reason: &str) {
+        self.context.trace(
+            Severity::Info,
+            "LeaderElectionInvariantSkipped",
+            details![
+                "Client" => self.client_id,
+                "Invariant" => name,
+                "Reason" => reason
+            ],
+        );
     }
 
     /// Why this run has no elector half to judge
