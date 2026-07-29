@@ -22,6 +22,7 @@
 //! counterexample, and every counterexample is a test.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use super::invariants::{HistoryKind, InvariantReport, QuietTail, Tolerances, Violation};
 use super::log_schema::{LogEntry, OpKind};
@@ -72,22 +73,44 @@ pub struct ElectorThresholds {
     pub min_acquisitions: usize,
     /// Fenced writes that must have been applied under those terms
     pub min_fenced_writes: usize,
+    /// How long a term has to last before "nobody wrote under it" is a
+    /// statement about the recipe
+    pub min_useful_term: Duration,
 }
 
 impl ElectorThresholds {
     /// What is demanded of a run whose plan drew the feature and whose field
     /// could spare the clients
     ///
-    /// One of each, and no more. Two electors on a short lease produce dozens
-    /// of both, but a run whose cluster spent its window in recovery may manage
-    /// exactly one term, and failing that run would report the cluster's
-    /// behaviour as a defect of the recipe. What the floor rules out is the run
-    /// that produced none at all, which is the only outcome that makes the
-    /// safety checks vacuous.
-    pub const ACTIVE: Self = Self {
-        min_acquisitions: 1,
-        min_fenced_writes: 1,
-    };
+    /// One acquisition and one fenced write, and no more. Two electors on a
+    /// short lease produce dozens of both, but a run whose cluster spent its
+    /// window in recovery may manage exactly one term, and failing that run
+    /// would report the cluster's behaviour as a defect of the recipe. What the
+    /// floor rules out is the run that produced none at all, which is the only
+    /// outcome that makes the safety checks vacuous.
+    ///
+    /// # How long a term has to last to be worth judging
+    ///
+    /// `max(2 * step, lease / 4)`, from the two things that decide whether a
+    /// term had any room to write in it:
+    ///
+    /// - the role's workers act on a cursor one `step` apart, staggered inside a
+    ///   single step, so a term shorter than two steps need not contain one full
+    ///   round of anybody's work;
+    /// - a term whose belief covered less than a quarter of its lease was over
+    ///   before the recipe's own schedule (renewal interval plus safety margin)
+    ///   had a chance to act on it, whatever the pacing.
+    ///
+    /// The larger of the two, so neither reason is argued away by the other. It
+    /// is a judgeability boundary and not a tolerance: a term above it is held
+    /// to the full floor, and one below it is not weighed at all.
+    pub fn active(step: Duration, lease: Duration) -> Self {
+        Self {
+            min_acquisitions: 1,
+            min_fenced_writes: 1,
+            min_useful_term: (2 * step).max(lease / 4),
+        }
+    }
 }
 
 /// Everything the elector half of the check phase judges from
@@ -623,29 +646,88 @@ pub fn elector_snapshot_agrees(
 /// field could spare the clients; the caller decides that with
 /// [`elector_clients`](super::roles::elector_clients) and skips this entirely
 /// otherwise.
+///
+/// # Both floors are conditional on opportunity
+///
+/// Same discipline as the driver's
+/// [`progress_made`](super::invariants::progress_made): a floor is a statement
+/// about the recipe only when the run gave the recipe the chance to meet it.
+/// The motivating case is real. Seed 855555568 drew two electors on a
+/// two-second lease, the bottom of the palette, against four driver contenders
+/// and a crash storm; both electors campaigned for the whole run and neither
+/// ever won a term, in a run whose own driver logged eleven claims that outlived
+/// their lease. Nothing about that is a defect of the elector, and the
+/// unconditional fenced-write floor failed it.
+///
+/// So each floor names the evidence that makes it applicable:
+///
+/// - **acquisitions.** Demanded as before, with one exception: zero terms won
+///   *and* at least one [`ElectorCampaigned`] marker means the electors ran the
+///   whole run and were out-competed, which is contention rather than silence.
+///   Zero terms and no marker stays a violation, and that is the anti-rot half:
+///   a role that never started leaves exactly no marker.
+/// - **fenced writes.** Demanded only if some elector's belief interval lasted
+///   [`min_useful_term`], which is how long a term has to last before "nobody
+///   wrote under it" is a statement about the recipe rather than about how
+///   little of the term was left. Below it there is nothing to be right or
+///   wrong about, and the run says so.
+///
+/// A report that both accuses and abstains would be traced by the check phase
+/// as a skip, and the accusation would go unread, so the reasons are attached
+/// only to a report that found nothing else to say. A violation is the louder
+/// statement and it is the one that survives.
+///
+/// [`ElectorCampaigned`]: OpKind::ElectorCampaigned
+/// [`min_useful_term`]: ElectorThresholds::min_useful_term
 pub fn elector_progress_made(
     history: &[StampedTransition],
     log: &[LogEntry],
+    replay: &Replay,
     thresholds: &ElectorThresholds,
 ) -> InvariantReport {
     let mut violations = Vec::new();
+    let mut unjudged: Vec<String> = Vec::new();
 
     let acquisitions = history
         .iter()
         .filter(|entry| matches!(entry.kind, HistoryKind::Claim | HistoryKind::Steal))
         .count();
+    let campaigned = log
+        .iter()
+        .filter(|entry| entry.record.op == OpKind::ElectorCampaigned)
+        .count();
     if acquisitions < thresholds.min_acquisitions {
-        violations.push(Violation::global(format!(
-            "the electors won {acquisitions} term(s), expected at least {}",
-            thresholds.min_acquisitions
-        )));
+        if acquisitions == 0 && campaigned > 0 {
+            unjudged.push(format!(
+                "the acquisition floor was not applied: {campaigned} elector(s) campaigned to \
+                 the end of the run and won nothing, so they were out-competed rather than \
+                 idle; contention is not a defect"
+            ));
+        } else {
+            violations.push(Violation::global(format!(
+                "the electors won {acquisitions} term(s), expected at least {}",
+                thresholds.min_acquisitions
+            )));
+        }
     }
 
+    let min_useful = thresholds.min_useful_term.as_nanos() as u64;
+    let judgeable = replay.beliefs.iter().any(|belief| {
+        belief
+            .effective_end_sim_nanos()
+            .saturating_sub(belief.begin_sim_nanos)
+            >= min_useful
+    });
     let writes = log
         .iter()
         .filter(|entry| entry.record.op == OpKind::FencedWrite && entry.record.outcome.is_applied())
         .count();
-    if writes < thresholds.min_fenced_writes {
+    if !judgeable {
+        unjudged.push(format!(
+            "the fenced-write floor was not applied: no elector believed it led for {min_useful} \
+             ns, which is the shortest term long enough to plausibly commit a write"
+        ));
+    } else if writes < thresholds.min_fenced_writes {
         violations.push(Violation::global(format!(
             "{writes} fenced write(s) were applied under those terms, expected at least {}: \
              a term nobody wrote under proves nothing about fencing",
@@ -653,6 +735,9 @@ pub fn elector_progress_made(
         )));
     }
 
+    if violations.is_empty() && !unjudged.is_empty() {
+        return InvariantReport::not_judged("ElectorProgressMade", unjudged.join("; "));
+    }
     InvariantReport::new("ElectorProgressMade", violations)
 }
 
@@ -745,7 +830,12 @@ pub fn check_elector(
         elector_no_belief_overlap(evidence.replay, &evidence.tolerances),
         elector_belief_honest(&merged, &leader_id),
         elector_snapshot_agrees(evidence.history, evidence.snapshot),
-        elector_progress_made(evidence.history, evidence.log, &evidence.thresholds),
+        elector_progress_made(
+            evidence.history,
+            evidence.log,
+            evidence.replay,
+            &evidence.thresholds,
+        ),
         elector_tail_progress(evidence.log, &evidence.tail),
     ]
 }
@@ -764,6 +854,18 @@ mod tests {
     const SEC: u64 = 1_000_000_000;
     /// The lease every fixture advertises
     const LEASE: u64 = 10 * SEC;
+    /// The step the fixtures are paced on, as the plan would draw it
+    const STEP: Duration = Duration::from_secs(1);
+
+    /// The thresholds the fixtures are judged against
+    ///
+    /// A one-second step against the ten-second lease, so the shortest term
+    /// worth judging is two and a half seconds. The clean run's first term
+    /// outlives that fourfold, and the counterexamples below sit deliberately on
+    /// either side of it.
+    fn thresholds() -> ElectorThresholds {
+        ElectorThresholds::active(STEP, Duration::from_nanos(LEASE))
+    }
 
     fn leader_id(client_id: i32) -> String {
         format!("process_{client_id}")
@@ -838,8 +940,24 @@ mod tests {
             self.push(client_id, record);
         }
 
+        /// The marker an elector writes when it led nothing all run
+        fn campaigned(&mut self, client_id: i32, at: u64) {
+            let mut record = LogRecord::new(OpKind::ElectorCampaigned);
+            record.local_nanos = at;
+            record.sim_nanos = at;
+            self.push(client_id, record);
+        }
+
         fn merged(&self) -> Vec<MergedEvent> {
             merge(&self.history, &self.log)
+        }
+
+        fn replayed(&self) -> Replay {
+            replay(&self.log, leader_id)
+        }
+
+        fn progress(&self) -> InvariantReport {
+            elector_progress_made(&self.history, &self.log, &self.replayed(), &thresholds())
         }
 
         fn reports(&self, snapshot: &ElectorSnapshot) -> Vec<InvariantReport> {
@@ -851,7 +969,7 @@ mod tests {
                     replay: &replayed,
                     snapshot: Some(snapshot),
                     tolerances: Tolerances::STRICT,
-                    thresholds: ElectorThresholds::ACTIVE,
+                    thresholds: thresholds(),
                     tail: TAIL,
                 },
                 leader_id,
@@ -930,6 +1048,15 @@ mod tests {
                 "{} failed on the clean run: {:?}",
                 report.name,
                 report.violations
+            );
+            // And satisfies it rather than escaping it: every conditional floor
+            // in this module has a run that meets its condition, and the clean
+            // run is that run. A skip here is a check that stopped applying.
+            assert!(
+                report.skipped.is_none(),
+                "{} was not judged on the clean run: {:?}",
+                report.name,
+                report.skipped
             );
         }
     }
@@ -1250,21 +1377,81 @@ mod tests {
 
     #[test]
     fn a_run_where_no_elector_led_is_caught() {
+        // Nothing in the log at all, and no marker either: this is the role that
+        // never ran, and it is the reason the acquisition floor cannot simply be
+        // dropped. The fenced-write floor has nothing to judge here, but the
+        // accusation is what the report carries.
         let empty = Fixture::default();
-        let report = elector_progress_made(&empty.history, &empty.log, &ElectorThresholds::ACTIVE);
+        let report = empty.progress();
         assert_failed(&report, "won 0 term(s)");
-        assert_failed(&report, "fenced write(s) were applied");
+        assert!(
+            report.skipped.is_none(),
+            "a report that accuses must not be reported as a skip: {:?}",
+            report.skipped
+        );
+    }
+
+    #[test]
+    fn electors_that_campaigned_and_lost_are_not_a_defect() {
+        // Seed 855555568: two electors on a two-second lease against four
+        // driver contenders and a crash storm. Both campaigned for the whole
+        // run, neither ever won a term, and the run was honest. The marker is
+        // the difference between that run and the one above.
+        let mut run = Fixture::default();
+        run.campaigned(6, 8 * SEC);
+        run.campaigned(7, 8 * SEC);
+
+        let report = run.progress();
+        assert!(report.passed(), "{:?}", report.violations);
+        let reason = report
+            .skipped
+            .as_ref()
+            .expect("electors that were out-competed are not judged against the floors");
+        assert!(reason.contains("out-competed"), "{reason}");
+        assert!(reason.contains("2 elector(s) campaigned"), "{reason}");
+    }
+
+    #[test]
+    fn a_marker_does_not_excuse_a_run_that_led_and_stopped() {
+        // The marker says "won nothing", and a run in which somebody won
+        // something is judged in full whatever else is in the log. One elector
+        // took a term and held it long enough to write under it, and did not.
+        let mut run = Fixture::default();
+        run.transition(HistoryKind::Claim, 1, 6);
+        run.belief_begin(6, 1, SEC, 9 * SEC);
+        run.campaigned(7, 8 * SEC);
+        assert_failed(&run.progress(), "proves nothing about fencing");
     }
 
     #[test]
     fn a_term_nobody_wrote_under_proves_nothing() {
+        // Eight seconds of belief, against a floor of two and a half: long
+        // enough that the absence of a fenced write is the recipe's to answer
+        // for.
         let mut run = Fixture::default();
         run.transition(HistoryKind::Claim, 1, 6);
         run.belief_begin(6, 1, SEC, 9 * SEC);
-        assert_failed(
-            &elector_progress_made(&run.history, &run.log, &ElectorThresholds::ACTIVE),
-            "proves nothing about fencing",
-        );
+        assert_failed(&run.progress(), "proves nothing about fencing");
+    }
+
+    #[test]
+    fn a_term_too_short_to_write_under_is_not_judged() {
+        // Half a second of belief, which is a term the leader lost before its
+        // first round of work came due. Demanding a fenced write of it would be
+        // demanding one of the cluster.
+        let mut run = Fixture::default();
+        run.transition(HistoryKind::Claim, 1, 6);
+        run.belief_begin(6, 1, SEC, 9 * SEC);
+        run.belief_end(6, 1, SEC + SEC / 2);
+
+        let report = run.progress();
+        assert!(report.passed(), "{:?}", report.violations);
+        let reason = report
+            .skipped
+            .as_ref()
+            .expect("a term shorter than the floor is not judgeable");
+        assert!(reason.contains("fenced-write floor"), "{reason}");
+        assert!(report.violations.is_empty(), "a skip accuses nobody");
     }
 
     // ---- 7. tail progress -------------------------------------------------
@@ -1310,6 +1497,46 @@ mod tests {
             &elector_tail_progress(&run.log, &TAIL),
             "no elector began a belief or wrote under one",
         );
+    }
+
+    #[test]
+    fn a_skipped_progress_floor_does_not_silence_the_tail() {
+        // The two checks read different evidence and are reported separately,
+        // and this is what stops the softening above from becoming a way out of
+        // the suite: an elector excused for winning nothing is still owed a
+        // belief or a write once the faults have stopped. The marker itself
+        // lands inside the tail window here and is not counted as life, because
+        // saying "I led nothing" is not leading.
+        let mut run = Fixture::default();
+        run.campaigned(6, 8 * SEC);
+
+        let replayed = run.replayed();
+        let reports = check_elector(
+            &ElectorEvidence {
+                history: &run.history,
+                log: &run.log,
+                replay: &replayed,
+                snapshot: None,
+                tolerances: Tolerances::STRICT,
+                thresholds: thresholds(),
+                tail: TAIL,
+            },
+            leader_id,
+        );
+        let find = |name: &str| {
+            reports
+                .iter()
+                .find(|report| report.name == name)
+                .unwrap_or_else(|| panic!("{name} is one of the reports"))
+        };
+
+        assert!(
+            find("ElectorProgressMade").skipped.is_some(),
+            "the out-competed run is not judged against the floors"
+        );
+        let tail = find("ElectorTailProgress");
+        assert!(tail.skipped.is_none(), "the tail was long enough to judge");
+        assert_failed(tail, "no elector began a belief or wrote under one");
     }
 
     #[test]

@@ -458,6 +458,24 @@ impl Journal {
         .await
     }
 
+    /// Record that this client's elector never won a term
+    ///
+    /// A marker like [`sleeper_woke`](Self::sleeper_woke), for the other thing a
+    /// log cannot say by itself: an elector that campaigned to the deadline and
+    /// lost every race writes nothing, and so does an elector that never ran.
+    /// Written once per client, on the role's way out, so the check phase can
+    /// tell contention apart from a role that quietly stopped running.
+    ///
+    /// It carries no ballot: there is no term to name, which is the whole point.
+    pub(crate) async fn elector_campaigned(&self, db: &SimDatabase) -> Result<(), FdbBindingError> {
+        self.run(db, |_, _| async move {
+            let mut record = LogRecord::new(OpKind::ElectorCampaigned);
+            record.local_nanos = nanos(self.local_now());
+            Ok(((), record))
+        })
+        .await
+    }
+
     /// Extend a term by one generation
     pub(crate) async fn refresh(
         &self,

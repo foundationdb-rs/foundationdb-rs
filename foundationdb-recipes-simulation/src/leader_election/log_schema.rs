@@ -116,6 +116,15 @@ pub enum OpKind {
     /// [`sleeper_was_fenced`](super::invariants::sleeper_was_fenced) can demand
     /// them of exactly the clients that reached this point and of no others.
     SleeperWoke,
+    /// An elector ran to the end of the run and never won a term
+    ///
+    /// The third marker, and the same reasoning: an elector that campaigned all
+    /// the way to the deadline and lost every race leaves a log that is
+    /// byte-for-byte the log of an elector that never started, and
+    /// [`elector_progress_made`](super::elector_invariants::elector_progress_made)
+    /// has to tell the two apart. The role writes it on its way out, once per
+    /// client, and only when it reached the run's deadline with nothing won.
+    ElectorCampaigned,
 }
 
 impl OpKind {
@@ -132,6 +141,7 @@ impl OpKind {
             Self::BeliefEnd => "belief_end",
             Self::InjectedUnknown => "injected_unknown",
             Self::SleeperWoke => "sleeper_woke",
+            Self::ElectorCampaigned => "elector_campaigned",
         }
     }
 
@@ -148,6 +158,7 @@ impl OpKind {
             "belief_end" => Some(Self::BeliefEnd),
             "injected_unknown" => Some(Self::InjectedUnknown),
             "sleeper_woke" => Some(Self::SleeperWoke),
+            "elector_campaigned" => Some(Self::ElectorCampaigned),
             _ => None,
         }
     }
@@ -903,6 +914,7 @@ mod tests {
             OpKind::BeliefBegin,
             OpKind::BeliefEnd,
             OpKind::InjectedUnknown,
+            OpKind::ElectorCampaigned,
         ] {
             assert_eq!(OpKind::parse(op.as_str()), Some(op));
         }
@@ -918,6 +930,15 @@ mod tests {
         for op in [OpKind::Claim, OpKind::Steal, OpKind::Renew, OpKind::Resign] {
             assert!(op.touches_leader_record());
         }
+    }
+
+    #[test]
+    fn an_elector_campaigned_marker_may_not_touch_the_leader_record() {
+        // The elector's own transactions are the recipe's, and this marker is
+        // none of them: it is written by the role after the run's deadline, says
+        // only that the client never led, and replay must treat a record of it
+        // claiming otherwise as an anomaly like any other.
+        assert!(!OpKind::ElectorCampaigned.touches_leader_record());
     }
 
     #[test]

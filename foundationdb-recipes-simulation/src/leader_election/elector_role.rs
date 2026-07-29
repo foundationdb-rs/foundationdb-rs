@@ -266,6 +266,7 @@ pub(crate) async fn run(setup: &ElectorSetup<'_>, db: &SimDatabase) -> ElectorCo
     };
 
     role.lead_until_deadline(db, &elector).await;
+    role.mark_shut_out(db).await;
     // The elector, and the database reference inside it, are dropped with this
     // frame: `check_database_ref` fails the run if any survives the phase.
     role.counters.get()
@@ -331,6 +332,37 @@ impl ElectorRole {
                     return;
                 }
             }
+        }
+    }
+
+    /// Say so in the log when this client campaigned all run and never led
+    ///
+    /// The one thing the elector's log cannot show by itself. Every record it
+    /// holds is written under a term, so a client that won none writes nothing
+    /// at all, which is exactly what a role that failed to start would leave
+    /// behind. [`elector_progress_made`] excuses the first and refuses the
+    /// second, and this marker is the only evidence that tells them apart.
+    ///
+    /// Two conditions, and both are what makes the marker honest:
+    ///
+    /// - nothing won, so a client that led even once never writes it;
+    /// - the run's deadline reached, so the give-up paths that fire early (a
+    ///   delay that failed, a role torn down mid-run, an error that ended the
+    ///   client) claim no campaign they did not run. Those already trace at
+    ///   [`Severity::WarnAlways`], and the check phase is entitled to hold the
+    ///   run to the floor when a client stopped short of the deadline.
+    ///
+    /// One record per client, written here rather than per campaign round: what
+    /// the check reads is whether the marker exists, and a round-by-round
+    /// version would spend the log budget saying the same thing.
+    ///
+    /// [`elector_progress_made`]: super::elector_invariants::elector_progress_made
+    async fn mark_shut_out(&self, db: &SimDatabase) {
+        if self.counters.get().acquisitions > 0 || self.journal.sim_now() < self.deadline {
+            return;
+        }
+        if let Err(error) = self.journal.elector_campaigned(db).await {
+            self.failed("LeaderElectionElectorMarkerFailed", &error);
         }
     }
 

@@ -965,7 +965,10 @@ impl LeaderElectionWorkload {
                 replay: &replayed,
                 snapshot: snapshot.as_ref(),
                 tolerances,
-                thresholds: ElectorThresholds::ACTIVE,
+                thresholds: ElectorThresholds::active(
+                    self.config.step,
+                    self.config.lease.as_duration(),
+                ),
                 tail,
             },
             leader_id_of,
