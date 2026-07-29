@@ -119,6 +119,10 @@ impl fmt::Display for LeaseDuration {
 /// matching the full ownership tuple (leader id *and* token). Identity for
 /// observation purposes is `(ballot, generation)`, not the token.
 ///
+/// It is a recovery key, deliberately not a reentrancy key: a process that
+/// presents a matching token is recognized as the writer of that record, never
+/// as entitled to re-enter a term it is no longer holding.
+///
 /// The all-zero token is the vacancy sentinel and is never a valid claim.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ClaimToken([u8; 16]);

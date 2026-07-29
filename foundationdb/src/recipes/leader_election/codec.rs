@@ -25,8 +25,8 @@
 //!
 //! Decoding is strict. A truncated value, an unknown schema version, or a
 //! combination of fields that is neither fully occupied nor fully vacant is a
-//! [`LeaderElectionError::CorruptRecord`], never a silent misread. Records
-//! written by the previous version of this recipe fail here by design.
+//! [`LeaderElectionError::CorruptRecord`], never a silent misread. Anything at
+//! this key that does not decode as the current schema is corrupt, full stop.
 
 use super::errors::{LeaderElectionError, Result};
 use super::types::*;

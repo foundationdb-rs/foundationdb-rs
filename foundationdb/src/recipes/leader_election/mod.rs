@@ -346,6 +346,15 @@
 //! electing a leader that is falling behind. Track leader-side capacity
 //! alongside leadership itself, and shard when the leader saturates.
 //!
+//! What the recipe contributes to that is one number it gets for free: how long
+//! its own renewals take, smoothed over the term. Under the `trace` feature
+//! every applied renewal is logged with that cost and the headroom left in its
+//! budget, and crossing over half the budget warns once. It is the leader
+//! saying it is running out of room to renew, which usually arrives before the
+//! application's own metrics do. The renewal cadence itself never adapts: it is
+//! fixed by [`ElectorConfig::renew_interval`] for the elector's lifetime, so
+//! the signal stays legible.
+//!
 //! **Read the history.** [`LeaderElection::history`] returns the transition
 //! trail, newest first, written in the same transactions as the transitions
 //! themselves and ordered by commit versionstamp. Renewals are not recorded, so
@@ -356,36 +365,6 @@
 //! successor one lease of downtime, and renewals cost two transactions per
 //! lease per leader. Shorter is more responsive and more expensive, and pushes
 //! the safety margin closer to the scheduling noise floor.
-//!
-//! # Migrating from the registry-based recipe
-//!
-//! The storage format is a breaking change, and by design a loud one: records
-//! written by the previous version of this recipe fail the schema-version check
-//! and surface as [`LeaderElectionError::CorruptRecord`] rather than being
-//! silently misread. Rolling mixed-version operation is not supported. The
-//! upgrade is: drain and stop the old leaders, wait out one old lease, clear
-//! the election subspace, deploy the new build.
-//!
-//! | Removed | Replacement |
-//! |---|---|
-//! | the candidate registry (`register_candidate`, `heartbeat_candidate`, `unregister_candidate`, `get_candidate`, `list_candidates`, `evict_dead_candidates`) | nothing to register: identity is the per-term [`ClaimToken`], liveness is the observation window, discovery is [`LeaderElection::leader`] plus [`LeaderElection::watch_term`] |
-//! | stored configuration (`initialize`, `initialize_with_config`, `read_config`, `write_config`, `ElectionConfig`) | no configuration keys at all: the lease travels in the record, and [`ElectorConfig`] is client-side |
-//! | `election_enabled` | stop running electors |
-//! | priorities and `allow_preemption` | nothing: a term is taken only when its lease lapses or its holder resigns |
-//! | `run_election_cycle`, `ElectionResult` | [`LeaderElector::lead`], or the primitives directly |
-//! | `try_claim_leadership` | [`LeaderElection::try_claim`], with a [`ClaimAttempt`] and a [`LeaseObservation`] |
-//! | `refresh_lease` | [`LeaderElection::refresh`] |
-//! | `resign_leadership` | [`LeaderElection::resign`] |
-//! | `is_leader` | [`LeaseHandle::check`] for the holder, [`LeaderElector::current_record`] for observers |
-//! | `get_leader`, `get_leader_raw`, `LeaderState` | [`LeaderElection::leader`] returning a [`LeaderRecord`] |
-//! | `ElectionDisabled`, `NotInitialized`, `ProcessNotFound`, `UnregisteredCandidate`, `InvalidState` | [`LeaderElectionError::CorruptRecord`], [`BallotExhausted`](LeaderElectionError::BallotExhausted), [`RankExhausted`](LeaderElectionError::RankExhausted), [`LeaseLost`](LeaderElectionError::LeaseLost), [`InvalidConfig`](LeaderElectionError::InvalidConfig), [`InvalidArgument`](LeaderElectionError::InvalidArgument) |
-//!
-//! Two behavioural changes deserve calling out. The ballot no longer resets
-//! when leadership is released, so it is now usable as a fencing token, which
-//! it was not before. And a restarted process inherits nothing from its
-//! previous life: its old term carries a token it no longer has, so reusing a
-//! `leader_id` after a restart is harmless rather than a way to bypass the
-//! lease.
 //!
 //! # Lineage
 //!
@@ -420,7 +399,28 @@
 //! sequencers, jeopardy and the release-versus-timeout asymmetry; Kleppmann,
 //! *How to do distributed locking* (2016) for why fencing tokens are not
 //! optional; and the AWS Builders' Library article on leader election in
-//! distributed systems for the operational guidance above.
+//! distributed systems for the operational guidance above. The clock-free
+//! lease-stealing pattern itself is the amazon-dynamodb-lock-client's.
+//!
+//! Two techniques of those sources are deliberately not carried over.
+//!
+//! The lock client's *reentrant acquire*, where a caller holding a lock is
+//! recognized by its stored identity and let back in, has no equivalent here.
+//! What replaces it is [`LeaseHandle`], which clones share one term's status,
+//! horizon and fencing sequence, so a term is shared by handing out handles
+//! rather than by re-acquiring it. Ownership recovery instead matches the whole
+//! `(leader_id, token)` tuple precisely, so that reusing an identity can never
+//! re-enter a term: recognizing a holder by its identifier alone would let a
+//! process that restarted under its old `leader_id` walk straight back into a
+//! term it no longer holds, bypassing the lease its successor is waiting out.
+//! The token is per-term and a restarted process no longer has it, which is
+//! what closes that door.
+//!
+//! The DAIS paper's *adaptive heartbeat period* is not carried over either.
+//! Renewals here are contention-free writes to a single key, so their cadence
+//! buys liveness and never safety, and a leader that quietly renewed faster as
+//! it slowed down would be hiding exactly the saturation an operator needs to
+//! see. The elector warns instead, as described under "Operating one".
 //!
 //! Further reading:
 //!

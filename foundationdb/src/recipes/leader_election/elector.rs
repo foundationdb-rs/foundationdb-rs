@@ -289,6 +289,12 @@ impl ElectorConfig {
 
     /// How often the lease is renewed
     ///
+    /// Fixed for the lifetime of the elector by design: the cadence is not
+    /// adapted to how long renewals are taking. A leader that quietly renewed
+    /// more often as it slowed down would hide the one signal an operator has
+    /// that it is saturating, so the elector reports the pressure instead (see
+    /// the module documentation, "Operating one").
+    ///
     /// # Errors
     ///
     /// [`LeaderElectionError::InvalidConfig`] if it is zero, longer than half
@@ -395,6 +401,10 @@ impl ElectorConfig {
     }
 
     /// How often the lease is renewed
+    ///
+    /// Fixed for the elector's lifetime: renewals keep their cadence whatever
+    /// they cost, and a leader that cannot keep up is reported rather than
+    /// silently sped up. See [`with_renew_interval`](Self::with_renew_interval).
     pub fn renew_interval(&self) -> Duration {
         self.renew_interval
     }
@@ -541,6 +551,39 @@ pub(crate) fn belief_horizon(acquired_at: Duration, lease: Duration, margin: Dur
 /// exclusive, so a result landing exactly at the horizon is too late.
 pub(crate) fn refresh_still_applies(now: Duration, horizon: Duration) -> bool {
     now < horizon
+}
+
+// ============================================================================
+// PURE RENEWAL PRESSURE
+// ============================================================================
+
+/// Fold one renewal round trip into a smoothed average of them.
+///
+/// A quarter-weight exponential moving average: the first sample is the
+/// average, and every later one moves it a quarter of the way. Computed in
+/// integer nanoseconds rather than floats, so the answer does not depend on the
+/// platform, and saturating throughout, so absurd samples give an absurd
+/// average rather than a panic.
+///
+/// Observational only: nothing the elector does is decided by this value.
+pub(crate) fn note_refresh_rtt(ewma: Option<Duration>, sample: Duration) -> Duration {
+    match ewma {
+        None => sample,
+        Some(ewma) => ewma.saturating_sub(ewma / 4).saturating_add(sample / 4),
+    }
+}
+
+/// Whether renewals are eating an alarming share of the time they have.
+///
+/// True once the smoothed round trip is over half of `budget`, the window one
+/// renewal is allowed to spend. Exactly half is not pressure: the boundary is
+/// pinned on the safe side so a leader renewing in precisely half its budget
+/// does not flap in and out of the warning.
+///
+/// Observational only: the elector does not renew any differently because of
+/// this. It is what an operator is told, not what the recipe does.
+pub(crate) fn renewal_pressure(ewma: Duration, budget: Duration) -> bool {
+    ewma.saturating_mul(2) > budget
 }
 
 // ============================================================================
@@ -991,6 +1034,23 @@ impl LeaderElector {
     /// progress durable before announcing it, so a successor can redrive
     /// whatever was left half-done.
     ///
+    /// # Calling `lead` again
+    ///
+    /// This is not reentrant, and deliberately so. A second concurrent `lead`
+    /// on this elector, or on any elector sharing its subspace and its
+    /// `leader_id`, is just another contender: it is denied for as long as the
+    /// current term is renewed, because every renewal changes the record's
+    /// identity and restarts its observation window, and it wins `ballot + 1`
+    /// only after a resign or after waiting out a crash. Calling `lead` from
+    /// *inside* the work deadlocks by construction: the inner campaign waits
+    /// for the outer term to end, which waits for the work to return.
+    ///
+    /// Reentrancy, where it is wanted, is [`LeaseHandle::clone`]: every clone
+    /// shares one term's status, horizon and fencing sequence, which is what
+    /// makes it safe to hand to several tasks at once. A second `lead` is still
+    /// a useful shape, just a different one: an in-process hot standby, ready
+    /// to pick the term back up the moment the first one lets go of it.
+    ///
     /// # Errors
     ///
     /// Any [`LeaderElectionError`] the campaign hits, including
@@ -1223,6 +1283,16 @@ impl LeaderElector {
     /// handle before returning so the work sees it at its next check even
     /// though it is about to be dropped.
     async fn drive_lease(&self, state: &LeaseState, held: &Mutex<LeaseGrant>) {
+        // How long renewals have been taking, smoothed over this term. Nothing
+        // is decided by it: it is the material for the saturation warning
+        // below, which is the only thing this recipe has to say about a leader
+        // that cannot keep up with its own lease.
+        let mut refresh_ewma: Option<Duration> = None;
+        // Whether the warning has already been issued, so a saturating leader
+        // is told once rather than twice a lease.
+        #[cfg(feature = "trace")]
+        let mut was_pressured = false;
+
         loop {
             let grant = self.held_grant(held);
             let horizon = self.horizon_of(&grant);
@@ -1283,7 +1353,8 @@ impl LeaderElector {
             // which is earlier than the renewed grant's own, so believing the
             // result requires having learned of it while the previous belief
             // still stood.
-            if !refresh_still_applies(self.clock.monotonic(), horizon) {
+            let landed_at = self.clock.monotonic();
+            if !refresh_still_applies(landed_at, horizon) {
                 #[cfg(feature = "trace")]
                 tracing::warn!(
                     ballot = grant.ballot(),
@@ -1298,6 +1369,43 @@ impl LeaderElector {
                     state.set_horizon(self.horizon_of(&renewed));
                     state.set_status(STATUS_LEADING);
                     *held.lock().unwrap_or_else(PoisonError::into_inner) = renewed;
+
+                    // Measured from the same clock reading that just decided the
+                    // renewal was still in time: how long a renewal takes is the
+                    // one thing a leader learns about its own capacity for free.
+                    let rtt = landed_at.saturating_sub(attempt.issued_at());
+                    let ewma = note_refresh_rtt(refresh_ewma, rtt);
+                    refresh_ewma = Some(ewma);
+                    let pressured = renewal_pressure(ewma, budget);
+
+                    #[cfg(feature = "trace")]
+                    {
+                        tracing::debug!(
+                            ballot = grant.ballot(),
+                            rtt_ms = rtt.as_millis() as u64,
+                            ewma_ms = ewma.as_millis() as u64,
+                            headroom_ms = budget.saturating_sub(ewma).as_millis() as u64,
+                            "renewal applied"
+                        );
+                        if pressured && !was_pressured {
+                            tracing::warn!(
+                                ballot = grant.ballot(),
+                                ewma_ms = ewma.as_millis() as u64,
+                                budget_ms = budget.as_millis() as u64,
+                                "renewals are consuming over half their budget; the leader is \
+                                 saturating or the cluster is slow: consider a longer lease or \
+                                 sharding the election"
+                            );
+                        } else if was_pressured && !pressured {
+                            tracing::debug!(
+                                ballot = grant.ballot(),
+                                ewma_ms = ewma.as_millis() as u64,
+                                "renewals are back inside half their budget"
+                            );
+                        }
+                        was_pressured = pressured;
+                    }
+                    let _ = pressured;
                 }
                 Ok(RefreshOutcome::Lost { observed }) => {
                     #[cfg(feature = "trace")]
@@ -1718,6 +1826,70 @@ mod tests {
             anchor + Duration::from_secs(3),
             horizon
         ));
+    }
+
+    // ---- renewal pressure ------------------------------------------------
+
+    #[test]
+    fn the_first_renewal_is_the_average() {
+        // Nothing to smooth against: one sample is all there is to know.
+        assert_eq!(
+            note_refresh_rtt(None, Duration::from_millis(40)),
+            Duration::from_millis(40)
+        );
+    }
+
+    #[test]
+    fn the_average_walks_towards_a_stable_cost() {
+        let sample = Duration::from_millis(100);
+        let mut ewma = note_refresh_rtt(None, Duration::from_millis(20));
+
+        // Every step moves a quarter of the way, so the approach is monotone
+        // and never overshoots the sample it is converging on.
+        for _ in 0..32 {
+            let next = note_refresh_rtt(Some(ewma), sample);
+            assert!(next > ewma, "{next:?} did not advance on {ewma:?}");
+            assert!(next <= sample, "{next:?} overshot {sample:?}");
+            ewma = next;
+        }
+        assert!(
+            sample - ewma < Duration::from_millis(1),
+            "32 samples should have converged, still {:?} short",
+            sample - ewma
+        );
+
+        // And back down again when renewals get cheap.
+        let cheap = Duration::from_millis(5);
+        let next = note_refresh_rtt(Some(ewma), cheap);
+        assert!(next < ewma && next > cheap);
+    }
+
+    #[test]
+    fn an_absurd_renewal_cost_does_not_panic() {
+        let huge = Duration::MAX;
+
+        assert_eq!(note_refresh_rtt(None, huge), huge);
+        // Saturating throughout: the answer is nonsense, which is what the
+        // input was, and it is still an answer.
+        let _ = note_refresh_rtt(Some(huge), huge);
+        let _ = note_refresh_rtt(Some(huge), Duration::ZERO);
+        // Doubling saturates rather than wrapping, so an absurd average still
+        // compares as pressure against any budget a config can hold.
+        assert!(renewal_pressure(huge, Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn spending_exactly_half_the_budget_is_not_pressure() {
+        let budget = Duration::from_millis(1_000);
+
+        assert!(!renewal_pressure(Duration::from_millis(500), budget));
+        assert!(renewal_pressure(
+            Duration::from_millis(500) + Duration::from_nanos(1),
+            budget
+        ));
+        assert!(!renewal_pressure(Duration::ZERO, budget));
+        // A budget of nothing is pressure the moment a renewal costs anything.
+        assert!(renewal_pressure(Duration::from_nanos(1), Duration::ZERO));
     }
 
     // ---- handle ----------------------------------------------------------

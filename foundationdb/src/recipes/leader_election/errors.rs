@@ -29,10 +29,9 @@ pub enum LeaderElectionError {
     /// The stored record could not be decoded as a leader record
     ///
     /// Raised on a truncated value, an unknown schema version, or a record
-    /// whose fields contradict each other. Records written by a previous
-    /// version of this recipe decode to this error rather than being silently
-    /// misread: see the migration section of the [module
-    /// documentation](super).
+    /// whose fields contradict each other. Whatever wrote those bytes, they
+    /// are not a record this build understands, and decoding fails loudly
+    /// rather than guessing at what they might have meant.
     CorruptRecord(String),
     /// The ballot space is exhausted
     ///

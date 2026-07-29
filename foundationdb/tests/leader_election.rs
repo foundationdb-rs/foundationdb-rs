@@ -761,6 +761,93 @@ mod leader_election_tests {
         Ok(())
     }
 
+    /// Leading is not reentrant. A second `lead` on the same elector, with the
+    /// same id in the same subspace, is a contender like any other: it queues
+    /// behind the running term and takes the next ballot once that term is
+    /// handed back. Sharing a term is what cloning the handle is for.
+    #[tokio::test]
+    async fn concurrent_lead_queues_as_successor() -> Result<()> {
+        const LEASE: Duration = Duration::from_secs(3);
+
+        let (db, subspace) = setup("le_concurrent_lead_queues_as_successor").await?;
+        let elector = elector_for(&db, &subspace, "leader-a", LEASE)?;
+
+        let (leading_tx, leading_rx) = tokio::sync::oneshot::channel();
+        let (finish_tx, finish_rx) = tokio::sync::oneshot::channel::<()>();
+
+        // Everything an application would have to share for this to look like
+        // re-entering its own term: one elector, one id, one subspace.
+        let holding = elector.lead(|handle| async move {
+            leading_tx
+                .send(handle.ballot())
+                .expect("the test went away");
+            let _ = finish_rx.await;
+        });
+        let queued = elector.lead(|handle| async move { handle.ballot() });
+        futures::pin_mut!(holding);
+        futures::pin_mut!(queued);
+
+        let ballot_a = tokio::select! {
+            outcome = &mut holding => panic!("the term ended before the work did: {outcome:?}"),
+            ballot = leading_rx => ballot.expect("the first call never led"),
+        };
+        assert_eq!(ballot_a, 1, "the first term of a subspace is ballot 1");
+
+        // One-sided: while the first call holds the term and keeps renewing it,
+        // the second cannot get in. Both are polled, so the first really is
+        // renewing rather than merely parked.
+        let raced = tokio::time::timeout(Duration::from_millis(500), async {
+            tokio::select! {
+                outcome = &mut holding => panic!("the term ended before the work did: {outcome:?}"),
+                outcome = &mut queued => outcome,
+            }
+        })
+        .await;
+        assert!(
+            raced.is_err(),
+            "a second lead must queue behind the running term, got {raced:?}"
+        );
+
+        finish_tx.send(()).expect("the leader went away");
+        assert!(matches!(
+            (&mut holding).await?,
+            LeadOutcome::Completed { released: true, .. }
+        ));
+
+        let ballot_b = match tokio::time::timeout(Duration::from_secs(30), queued)
+            .await
+            .expect("the queued campaign never won the term")?
+        {
+            LeadOutcome::Completed { value, .. } => value,
+            LeadOutcome::LeaseLost => panic!("the successor lost a term it had just taken"),
+        };
+        assert!(
+            ballot_b > ballot_a,
+            "the second call must run under a later term, got {ballot_b} after {ballot_a}"
+        );
+
+        let election = elector.election();
+        let history = db
+            .run(|txn, _| async move { election.history(&txn, 10).await })
+            .await?;
+        let trail: Vec<_> = history
+            .iter()
+            .rev()
+            .map(|event| (event.kind(), event.ballot()))
+            .collect();
+        assert_eq!(
+            trail[..3],
+            [
+                (HistoryEventKind::Claim, ballot_a),
+                (HistoryEventKind::Resign, ballot_a),
+                (HistoryEventKind::Claim, ballot_b),
+            ],
+            "the second call is recorded as a successor, not as a re-entry: {trail:?}"
+        );
+
+        Ok(())
+    }
+
     // ========================================================================
     // FENCING COMPOSITION
     // ========================================================================

@@ -704,8 +704,10 @@ mod tests {
             ("empty value", Vec::new()),
             ("not a tuple", b"\xff\xff not a tuple".to_vec()),
             (
-                "old recipe layout",
-                pack(&(1u64, "leader-a", 0i64, 0u64, &[0u8; 12][..])),
+                // A well-formed tuple carrying the right schema version and
+                // nothing else this protocol recognizes.
+                "a tuple of another shape",
+                pack(&(1u64, "not-a-ballot", 0i64, &[0u8; 12][..])),
             ),
             (
                 "unknown schema version",
