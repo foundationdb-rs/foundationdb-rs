@@ -463,6 +463,7 @@ pub use types::{
 use crate::options::{MutationType, StreamingMode};
 use crate::{RangeOption, Transaction, tuple::Subspace};
 use decision::{ClaimDecision, ClaimIdentity, RefreshDecision, ResignDecision};
+use futures::TryStreamExt;
 use futures::future::BoxFuture;
 use std::ops::Deref;
 use std::time::Duration;
@@ -584,6 +585,11 @@ impl LeaderElection {
     /// The events are written in the same transactions as the transitions they
     /// describe, and keyed by commit versionstamp, so their order is exactly
     /// the commit order. Renewals are not recorded.
+    ///
+    /// At most `limit` events, and fewer than that only when the trail really
+    /// is shorter: retention ([`with_history_retention`](Self::with_history_retention))
+    /// trims the oldest entries, so a trail longer than the bound comes back as
+    /// a suffix of the run rather than the whole of it.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip_all, fields(limit), err)
@@ -601,10 +607,19 @@ impl LeaderElection {
             mode: StreamingMode::WantAll,
             ..RangeOption::from(codec::history_subspace(&self.subspace).range())
         };
-        let kvs = txn.get_range(&opt, 1, true).await?;
-        kvs.iter()
-            .map(|kv| codec::decode_history(&self.subspace, kv.key(), kv.value()))
-            .collect()
+
+        // Paged to exhaustion, not read as one batch. `get_range` returns
+        // whatever the first batch happened to hold, and for a reverse scan
+        // that is a suffix of unpredictable length: two callers reading the
+        // same trail in the same transaction can get different answers, and
+        // neither is told it saw a partial one. A caller reasoning about an
+        // audit trail cannot do anything useful with an arbitrary piece of it.
+        let mut events = Vec::new();
+        let mut stream = txn.get_ranges_keyvalues(opt, true);
+        while let Some(kv) = stream.try_next().await? {
+            events.push(codec::decode_history(&self.subspace, kv.key(), kv.value())?);
+        }
+        Ok(events)
     }
 
     /// Arm a watch on the term key
