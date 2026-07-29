@@ -150,6 +150,11 @@ impl Rng for SimRng {
         let low = self.context.0.rnd();
         (u64::from(high) << 32) | u64::from(low)
     }
+
+    /// One draw of the simulator's sequence, taken directly from the generator.
+    fn next_u32(&self) -> u32 {
+        self.context.0.rnd()
+    }
 }
 
 impl WorkloadContext {
