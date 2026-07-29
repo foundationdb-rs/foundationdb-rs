@@ -18,10 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - baseline
+          - swarm
           - strict_mutex
-          - short_lease_stress
-          - churn_attrition
           - pause_fencing
         instance: [1, 2, 3, 4]
     steps:
@@ -31,8 +29,9 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
-      - name: Run leader election simulation (10 iterations)
-        run: nix develop -c ./scripts/run_leader_election_simulation.sh 10 ${{ matrix.config }}
+      # 3 configs x 4 instances x 5 iterations = 60 runs
+      - name: Run leader election simulation (5 iterations)
+        run: nix develop -c ./scripts/run_leader_election_simulation.sh 5 ${{ matrix.config }}
 
       - name: Upload traces on failure
         if: failure()

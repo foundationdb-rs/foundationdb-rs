@@ -421,6 +421,24 @@
 //! *How to do distributed locking* (2016) for why fencing tokens are not
 //! optional; and the AWS Builders' Library article on leader election in
 //! distributed systems for the operational guidance above.
+//!
+//! Further reading:
+//!
+//! - Marc Brooker, "Leader election in distributed systems" (AWS Builders'
+//!   Library), <https://aws.amazon.com/builders-library/leader-election-in-distributed-systems/>
+//! - Martin Kleppmann, "How to do distributed locking" (2016),
+//!   <https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html>
+//! - Burrows, "The Chubby lock service for loosely-coupled distributed
+//!   systems" (OSDI 2006)
+//! - Chockler and Malkhi, "Active Disk Paxos with infinitely many processes"
+//!   (PODC 2002)
+//! - Niazi, Ismail, Berthou, Dowling, "Leader Election Using NewSQL Database
+//!   Systems" (DAIS 2015, LNCS 9038)
+//! - awslabs/amazon-dynamodb-lock-client,
+//!   <https://github.com/awslabs/amazon-dynamodb-lock-client>, for the
+//!   clock-free lease-stealing pattern
+//! - ZooKeeper recipes, including the leader election recipe and its GUID
+//!   note, <https://zookeeper.apache.org/doc/r3.5.5/recipes.html>
 
 mod codec;
 mod decision;

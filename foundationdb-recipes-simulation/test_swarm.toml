@@ -1,0 +1,87 @@
+# Leader Election Swarm
+#
+# Purpose: find the combination nobody wrote a configuration for. Every other
+# file in this directory is a human's guess at what is worth testing; this one
+# lets the seed decide instead. Swarm testing (Groce, Zhang, Eide, Chen, Regehr,
+# ISSTA 2012) draws a random per-seed subset of features, hard on or hard off,
+# rather than turning a fixed set on at a fixed probability. Hard off defeats
+# both ways a bug can hide: active suppression, a feature that masks a bug
+# class while it is on, and passive suppression, the mixed-operation random
+# walk that never runs the streak a bug needs long enough to show it. Neither
+# is defeated by lowering a probability; both need the feature *absent*, which
+# only a hard-off run gives you.
+#
+# Scenario:
+# - `swarmEnabled = true` hands the whole run to `SwarmPlan::draw`, seeded from
+#   the shared random number every client agrees on without coordinating: which
+#   features are on, the clock skew mode, the lease and step and pause
+#   palettes, the crash and resign storm schedules, all of it drawn, none of it
+#   in this file
+# - The subset size comes from a fat-tailed selector, not five independent
+#   coins, so all-on and all-off and the single-feature isolate each get
+#   oversampled instead of concentrating around "about half"
+# - Faults arrive in a handful of storms, each with its own intensity, instead
+#   of one coin per client per step: that is the only way a run ever gets a
+#   burst dense enough to crash a replacement leader mid-claim, or a quiet tail
+#   long enough to prove the system actually recovers
+# - Knob values are drawn from small palettes that include their own
+#   boundaries (zero, the tightest lease, the largest pause factor), because a
+#   boundary is a low-Kolmogorov-complexity input and disproportionately where
+#   off-by-ones live
+# - The plan derives its own progress floor from what it drew, never vacuously
+#   (`min_acquisitions >= 1` always), so a quiet plan is still held to proving
+#   *something* happened
+#
+# Bug classes this configuration catches:
+# - Whatever the anchor configurations did not think to combine: this file
+#   does not name them, because naming them would be writing another anchor
+#
+# On knobs:
+# `swarmEnabled` and `testDurationSecs` are the only two knobs read when
+# swarm mode is on; every other option is consumed by drawing from the seed,
+# not by reading it from this file. `get_option` consumes, and fdbserver fails
+# a run that leaves an option unconsumed, so any other knob added here would
+# fail the run rather than being silently ignored. That is by design: it is
+# what keeps a swarm file from quietly acquiring a value nothing reads.
+#
+# On the chaos envelope below:
+# This is the moderate envelope from the baseline configuration, not the
+# harsh one from churn/attrition. Constant harsh attrition would passively
+# suppress exactly the quiet, low-churn subsets swarm testing exists to
+# oversample, so the harsh-death bug class still arrives here, just through
+# a drawn crash storm at intensity 1.0 rather than a fixed high kill rate.
+# The chaos workloads stop at 78 seconds, which is 78/120, under two thirds of
+# the run, so every plan (drawn or fixed) gets the same fault-free recovery
+# tail the progress invariants are checking.
+#
+# On reproducing a failure:
+# The plan is a pure function of the seed the run printed, so a failing seed
+# reproduces the same plan: rerun the script's printed command and the setup
+# phase traces the drawn configuration as `LeaderElectionSwarmPlan` on every
+# client, which is what to read first.
+
+[[test]]
+testTitle = 'LeaderElectionSwarm'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    swarmEnabled = true
+    testDurationSecs = 120.0
+
+  [[test.workload]]
+    # Network delays, so renewals sometimes lose the race with their horizon
+    testName = 'RandomClogging'
+    testDuration = 78.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Leaders that die without ever saying so
+    testName = 'Attrition'
+    machinesToKill = 4
+    machinesToLeave = 4
+    reboot = true
+    testDuration = 78.0

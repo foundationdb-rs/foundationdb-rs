@@ -104,11 +104,14 @@ for the check phase, which uses it as an oracle.
 
 Every knob is read exactly once, in the workload's constructor. `getOption`
 consumes, and fdbserver fails a run that leaves options unconsumed, so a
-misspelled knob is a failed run rather than a silently ignored setting. That is
-also why all five configurations carry the same knobs even where a value does
-nothing.
+misspelled knob is a failed run rather than a silently ignored setting. A run
+belongs to exactly one of two knob families: `swarmEnabled` and
+`testDurationSecs` are read first and always, and when `swarmEnabled` is set
+nothing else is read at all, because everything the run does is drawn from
+the seed instead. Otherwise the anchor knobs below are read, and an anchor
+file spells out all eleven even where a value does nothing.
 
-| Knob | Meaning |
+| Anchor knob | Meaning |
 |------|---------|
 | `leaseDurationSecs` | The lease every claim advertises |
 | `stepIntervalSecs` | How long a client waits between actions (jittered) |
@@ -122,20 +125,81 @@ nothing.
 | `minRenewals` | Applied renewals the run must have achieved |
 | `minObservedIdentities` | Distinct leader identities the sightings must cover |
 
+| Swarm knob | Meaning |
+|------|---------|
+| `swarmEnabled` | Hands the whole run to `SwarmPlan::draw`; every other option above is drawn from the seed instead of read from the file |
+| `testDurationSecs` | How long the start phase runs, in simulated time (the one anchor knob a swarm file still carries) |
+
 | Configuration | Purpose |
 |---------------|---------|
-| `test_baseline.toml` | The ordinary path, all three roles, moderate clogging and attrition |
+| `test_swarm.toml` | Per-seed drawn configuration: a random feature subset, storm schedules, boundary-value palettes |
 | `test_strict_mutex.toml` | Identical clocks, no faults: the check runs with **zero** tolerance |
-| `test_short_lease_stress.toml` | Three second leases, so every margin is the only thing left |
-| `test_churn_attrition.toml` | Harshest faults, extreme skew, highest progress thresholds |
 | `test_pause_fencing.toml` | The Kleppmann pause, barriered, with no attrition to interrupt it |
 
-In the three configurations that inject faults, the chaos workloads stop at
-about two thirds of the run and the workload keeps going to
-`testDurationSecs`. `ProgressMade` asks whether the run recovered and made
-progress, and a run whose faults never stop has no window to recover *into*:
-whether it clears the floor then depends on how the kills happened to land
-rather than on the protocol.
+In the configurations that inject faults, the chaos workloads stop at about
+two thirds of the run and the workload keeps going to `testDurationSecs`.
+`ProgressMade` asks whether the run recovered and made progress, and a run
+whose faults never stop has no window to recover *into*: whether it clears
+the floor then depends on how the kills happened to land rather than on the
+protocol.
+
+## Swarm testing
+
+`test_swarm.toml` does not describe a scenario, it describes a seed. When
+`swarmEnabled` is set, `SwarmPlan::draw` turns the run's shared random number
+into a full configuration: which features are hard on or hard off, the clock
+skew mode, the lease and step and pause palettes, and the crash and resign
+storm schedules. Everything the anchor configurations spell out by hand, a
+swarm run decides for itself, and it decides differently on every seed.
+
+**Why hard on or off, not a probability.** A bug can hide from a fixed-rate
+knob in two ways. Active suppression is a feature that, while on, masks a bug
+class in another feature; lowering its probability only makes the mask rarer,
+it never removes it. Passive suppression is subtler: with several features
+each firing at their own low rate, the mix of operations is a random walk that
+almost never runs the streak of same-kind operations a bug needs to surface
+(a Hoeffding-style concentration result). Neither is defeated by turning a
+dial down. Both need the feature *absent* for some runs, which is what a hard
+off gives you and a probability never does.
+
+**Why the subset size is fat-tailed.** Five independent coins make the number
+of enabled features binomial, concentrated around half of them: all-on,
+all-off, and the single-feature isolate that best exposes one feature's code
+path all become rare. `SwarmPlan::draw` picks the shape of the subset from a
+fat-tailed selector first, so those extremes get oversampled instead of
+starved.
+
+**Why faults come in storms, not per-step coins.** A coin rolled every step
+spreads faults uniformly, which is the one arrival pattern real outages never
+have, and it makes two things nearly unreachable: a burst dense enough to
+crash a replacement leader mid-claim, and a quiet tail long enough to prove
+the system actually recovers. A drawn plan instead places a handful of storms,
+each with its own intensity, which is bursty in the way a Hurst exponent above
+0.5 describes.
+
+**Why knob values are boundary-heavy.** The palettes a plan draws from include
+their own edges: zero, the tightest lease, the largest pause factor. A
+boundary value has low Kolmogorov complexity and is disproportionately where
+off-by-ones live, so it is worth oversampling the same way the feature subset
+is.
+
+**The progress floor is never vacuous.** A drawn plan derives its own progress
+thresholds from what it drew, and `min_acquisitions >= 1` always holds no
+matter how quiet the plan is: even the emptiest drawable configuration is
+still required to prove something happened.
+
+**Reproducing a run.** The plan is a pure function of the seed, so a failing
+seed reproduces the same plan. The script prints the seed before every
+iteration and the exact replay command on failure; the setup phase also
+traces the drawn configuration as `LeaderElectionSwarmPlan` on every client,
+which is the first thing to read when a swarm run fails.
+
+References:
+
+- Groce, Zhang, Eide, Chen, Regehr, "Swarm Testing" (ISSTA 2012)
+- Will Wilson's swarm-testing talk (Antithesis)
+- Pierre Zemb, "Writing Rust FDB workloads that find bugs",
+  https://pierrezemb.fr/posts/writing-rust-fdb-workloads-that-find-bugs/
 
 ## Invariants
 
@@ -186,7 +250,7 @@ To run one configuration by hand:
 ```bash
 cargo build -p foundationdb-recipes-simulation --release
 nix develop -c fdbserver -r simulation \
-    -f foundationdb-recipes-simulation/test_baseline.toml \
+    -f foundationdb-recipes-simulation/test_swarm.toml \
     -b on --trace-format json -L ./target/traces --logsize 1GiB -s <SEED>
 ```
 

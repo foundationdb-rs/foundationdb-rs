@@ -6,7 +6,7 @@
 #
 #   ITERATIONS  how many times to run each configuration (default 1, 0 = forever)
 #   CONFIG      a single configuration to run, by name (e.g. pause_fencing) or
-#               by path; all five run when it is omitted
+#               by path; all three run when it is omitted
 #
 # Every iteration runs with an explicit seed, printed before the run starts: a
 # failure is only useful if it can be replayed, and the command to replay it is
@@ -17,10 +17,8 @@ MAX_ITERATIONS=${1:-1}
 ONLY=${2:-}
 
 CONFIGS=(
-    "foundationdb-recipes-simulation/test_baseline.toml"
+    "foundationdb-recipes-simulation/test_swarm.toml"
     "foundationdb-recipes-simulation/test_strict_mutex.toml"
-    "foundationdb-recipes-simulation/test_short_lease_stress.toml"
-    "foundationdb-recipes-simulation/test_churn_attrition.toml"
     "foundationdb-recipes-simulation/test_pause_fencing.toml"
 )
 
