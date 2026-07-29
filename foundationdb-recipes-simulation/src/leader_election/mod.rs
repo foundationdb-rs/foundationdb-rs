@@ -4,11 +4,13 @@
 //! operation in a versionstamped log, and judges the run in the check phase.
 //! The split between the two halves is deliberate:
 //!
-//! - [`log_schema`], [`replay`] and [`invariants`] are pure. They know nothing
-//!   about FoundationDB beyond the tuple layer, they take their inputs as
-//!   values, and they are unit-tested against hand-mutated logs without a
-//!   simulator anywhere in sight. Every invariant has a counterexample test
-//!   that proves it can fail.
+//! - [`log_schema`], [`replay`], [`invariants`] and [`swarm`] are pure. They
+//!   know nothing about FoundationDB beyond the tuple layer, they take their
+//!   inputs as values, and they are unit-tested against hand-mutated logs
+//!   without a simulator anywhere in sight. Every invariant has a
+//!   counterexample test that proves it can fail, and every property the
+//!   configuration draw is supposed to have is asserted over ten thousand
+//!   seeds.
 //! - [`clock`], [`logged_op`], [`roles`] and [`workload`] are the machinery
 //!   that produces those inputs from a real run.
 //!
@@ -33,6 +35,7 @@ pub mod log_schema;
 mod logged_op;
 pub mod replay;
 mod roles;
+mod swarm;
 mod workload;
 
 pub use workload::LeaderElectionWorkload;
