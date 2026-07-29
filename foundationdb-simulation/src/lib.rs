@@ -7,6 +7,7 @@ use foundationdb::Database;
 use foundationdb_sys::FDBDatabase as FDBDatabaseAlias;
 
 mod bindings;
+pub mod env;
 mod fdb_rt;
 
 use bindings::{
@@ -14,6 +15,7 @@ use bindings::{
     OpaqueWorkload, Promise,
 };
 pub use bindings::{Metric, Metrics, Severity, WorkloadContext};
+pub use env::{SimClock, SimRng};
 use fdb_rt::fdb_spawn;
 
 // -----------------------------------------------------------------------------

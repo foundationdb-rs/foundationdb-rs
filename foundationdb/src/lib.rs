@@ -19,6 +19,8 @@ if_cfg_api_versions! {min = 510, max = 600 =>
 }
 mod database;
 pub mod directory;
+#[deny(missing_docs)]
+pub mod env;
 mod error;
 if_cfg_api_versions! {min = 700 =>
     #[deny(missing_docs)]
@@ -63,6 +65,7 @@ if_cfg_api_versions! {min = 510, max = 600 =>
 
 pub use crate::budget::{AttemptUsage, BudgetExceeded, BudgetKind, ClientBudget, UsageSnapshot};
 pub use crate::database::*;
+pub use crate::env::{Clock, Environment, Rng, SeededRng, WallClock};
 pub use crate::error::{FdbBindingError, RetryDecision, RetryableError};
 pub use crate::error::{FdbError, FdbResult};
 pub use crate::keyselector::*;

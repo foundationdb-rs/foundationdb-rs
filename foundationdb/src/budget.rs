@@ -34,14 +34,28 @@
 //! configured limits survive and apply to the new attempt. A retried
 //! transaction therefore gets a fresh time and byte allowance, exactly like it
 //! gets a fresh read version.
+//!
+//! # Determinism and simulation
+//!
+//! The byte and call counters are deterministic: they depend only on the
+//! operations your code issues. [`ClientBudget::time_limit`] is not, unless you
+//! say where time comes from: give the budget a [`Clock`] with
+//! [`ClientBudget::with_clock`] and every elapsed time of the attempt is
+//! measured with it. Under FoundationDB's deterministic simulator, pass a clock
+//! backed by simulated time so that a run replays identically.
+//!
+//! Without one the [`WallClock`] is used, which is the right default outside
+//! simulation but makes time budgets non-reproducible: do not rely on them in a
+//! simulated workload. See [`crate::env`] for the whole picture.
 
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use crate::env::{Clock, WallClock};
 use crate::metrics::MetricKey;
 
 /// Client-side limits applied to a single transaction attempt.
@@ -70,17 +84,35 @@ use crate::metrics::MetricKey;
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct ClientBudget {
-    /// Maximum wall-clock time an attempt may spend, measured from the start of
-    /// the attempt.
+    /// Maximum time an attempt may spend, measured from the start of the attempt
+    /// with the [`clock`](Self::clock) of this budget.
     pub time_limit: Option<Duration>,
     /// Maximum number of bytes read by an attempt, keys and values summed.
     pub max_bytes_read: Option<u64>,
     /// Maximum number of bytes written by an attempt, keys, values and mutation
     /// parameters summed.
     pub max_bytes_written: Option<u64>,
+    /// Where [`time_limit`](Self::time_limit) reads time from, `None` meaning
+    /// the [`WallClock`].
+    ///
+    /// Set it with [`with_clock`](Self::with_clock) to keep time budgets
+    /// deterministic, see the [module documentation](self).
+    pub clock: Option<Arc<dyn Clock>>,
 }
 
 impl ClientBudget {
+    /// Measures the attempts with `clock` instead of the [`WallClock`].
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, clock))
+    )]
+    pub fn with_clock(self, clock: impl Clock + 'static) -> Self {
+        Self {
+            clock: Some(Arc::new(clock)),
+            ..self
+        }
+    }
+
     /// Checks `usage` against these limits, returning the first exceeded one.
     pub(crate) fn check(&self, usage: &AttemptUsage) -> Result<(), BudgetExceeded> {
         if let Some(limit) = self.time_limit {
@@ -191,7 +223,10 @@ impl std::error::Error for BudgetExceeded {}
 /// simply dropped with the generation.
 #[derive(Debug)]
 pub struct AttemptUsage {
-    started_at: Instant,
+    /// Where the elapsed time of this attempt is measured.
+    clock: Arc<dyn Clock>,
+    /// The monotonic reading taken when the attempt started.
+    started_at: Duration,
     bytes_read: AtomicU64,
     bytes_written: AtomicU64,
     keys_values_fetched: AtomicU64,
@@ -212,10 +247,19 @@ impl Default for AttemptUsage {
 }
 
 impl AttemptUsage {
-    /// Starts a new, empty accounting generation.
+    /// Starts a new, empty accounting generation, measured with the
+    /// [`WallClock`].
     pub fn new() -> Self {
+        Self::with_clock(None)
+    }
+
+    /// Starts a new, empty accounting generation measured with `clock`, or with
+    /// the [`WallClock`] when it is `None`.
+    pub(crate) fn with_clock(clock: Option<Arc<dyn Clock>>) -> Self {
+        let clock = clock.unwrap_or_else(|| Arc::new(WallClock::new()));
         Self {
-            started_at: Instant::now(),
+            started_at: clock.monotonic(),
+            clock,
             bytes_read: AtomicU64::new(0),
             bytes_written: AtomicU64::new(0),
             keys_values_fetched: AtomicU64::new(0),
@@ -229,9 +273,12 @@ impl AttemptUsage {
         }
     }
 
-    /// Time elapsed since the attempt started.
+    /// Time elapsed since the attempt started, measured with the clock the
+    /// attempt was stamped with.
+    ///
+    /// A clock that goes backwards yields zero rather than panicking.
     pub fn elapsed(&self) -> Duration {
-        self.started_at.elapsed()
+        self.clock.monotonic().saturating_sub(self.started_at)
     }
 
     /// Bytes read so far, keys and values summed.
@@ -391,20 +438,41 @@ impl UsageSlot {
             .clone()
     }
 
-    /// Starts a fresh generation, leaving the previous one to the in-flight
-    /// operations still holding it.
-    pub(crate) fn begin(&self) {
+    /// Starts a fresh generation measured with `clock` (the [`WallClock`] when
+    /// `None`), leaving the previous one to the in-flight operations still
+    /// holding it.
+    pub(crate) fn begin(&self, clock: Option<Arc<dyn Clock>>) {
         let mut slot = self
             .0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *slot = Arc::new(AttemptUsage::new());
+        *slot = Arc::new(AttemptUsage::with_clock(clock));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A clock the test moves by hand, in milliseconds.
+    #[derive(Debug, Clone, Default)]
+    struct FakeClock(Arc<AtomicU64>);
+
+    impl FakeClock {
+        fn set_millis(&self, millis: u64) {
+            self.0.store(millis, Ordering::Relaxed);
+        }
+    }
+
+    impl Clock for FakeClock {
+        fn monotonic(&self) -> Duration {
+            Duration::from_millis(self.0.load(Ordering::Relaxed))
+        }
+
+        fn wall(&self) -> Duration {
+            self.monotonic()
+        }
+    }
 
     #[test]
     fn budget_without_limits_never_fails() {
@@ -471,19 +539,67 @@ mod tests {
 
     #[test]
     fn budget_reports_exceeded_time() {
-        let budget = ClientBudget {
-            time_limit: Some(Duration::ZERO),
-            ..ClientBudget::default()
-        };
+        let clock = FakeClock::default();
+        clock.set_millis(1_000);
 
-        let usage = AttemptUsage::new();
-        std::thread::sleep(Duration::from_millis(2));
+        let budget = ClientBudget {
+            time_limit: Some(Duration::from_millis(20)),
+            ..ClientBudget::default()
+        }
+        .with_clock(clock.clone());
+
+        let usage = AttemptUsage::with_clock(budget.clock.clone());
+        clock.set_millis(1_020);
+        assert!(budget.check(&usage).is_ok(), "the limit itself is allowed");
+
+        clock.set_millis(1_035);
 
         let err = budget.check(&usage).unwrap_err();
         assert_eq!(err.kind, BudgetKind::Time);
-        assert!(err.used >= 1, "used {} ms", err.used);
-        assert_eq!(err.limit, 0);
+        assert_eq!(err.used, 35);
+        assert_eq!(err.limit, 20);
         assert!(err.to_string().contains("client-side estimate"));
+    }
+
+    #[test]
+    fn elapsed_follows_a_custom_clock() {
+        let clock = FakeClock::default();
+        clock.set_millis(500);
+
+        let usage = AttemptUsage::with_clock(Some(Arc::new(clock.clone())));
+        assert_eq!(usage.elapsed(), Duration::ZERO);
+
+        clock.set_millis(700);
+        assert_eq!(usage.elapsed(), Duration::from_millis(200));
+        assert_eq!(usage.snapshot().elapsed, Duration::from_millis(200));
+    }
+
+    #[test]
+    fn a_clock_going_backwards_saturates_to_zero() {
+        let clock = FakeClock::default();
+        clock.set_millis(1_000);
+
+        let usage = AttemptUsage::with_clock(Some(Arc::new(clock.clone())));
+        clock.set_millis(10);
+
+        assert_eq!(usage.elapsed(), Duration::ZERO);
+    }
+
+    #[test]
+    fn a_new_generation_is_stamped_with_the_given_clock() {
+        let clock = FakeClock::default();
+        clock.set_millis(100);
+
+        let slot = UsageSlot::default();
+        let previous = slot.current();
+
+        slot.begin(Some(Arc::new(clock.clone())));
+        let current = slot.current();
+        clock.set_millis(160);
+
+        assert_eq!(current.elapsed(), Duration::from_millis(60));
+        // The previous generation keeps the wall clock it was stamped with.
+        assert!(previous.elapsed() < Duration::from_millis(60));
     }
 
     #[test]
@@ -520,7 +636,7 @@ mod tests {
         assert_eq!(slot.current().custom_metrics().get(&key), Some(&5));
 
         let previous = slot.current();
-        slot.begin();
+        slot.begin(None);
 
         assert!(slot.current().custom_metrics().is_empty());
         assert_eq!(previous.custom_metrics().get(&key), Some(&5));
@@ -532,7 +648,7 @@ mod tests {
         slot.current().record_set(42);
         assert_eq!(slot.current().snapshot().bytes_written, 42);
 
-        slot.begin();
+        slot.begin(None);
 
         let snapshot = slot.current().snapshot();
         assert_eq!(
@@ -551,7 +667,7 @@ mod tests {
         // An operation issued during the first attempt, still in flight.
         let in_flight = slot.current();
 
-        slot.begin();
+        slot.begin(None);
         slot.current().record_get(10, 1);
 
         // The stale operation completes and records into its own generation.
