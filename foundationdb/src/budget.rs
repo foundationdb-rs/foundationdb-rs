@@ -102,6 +102,10 @@ pub struct ClientBudget {
 
 impl ClientBudget {
     /// Measures the attempts with `clock` instead of the [`WallClock`].
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, clock))
+    )]
     pub fn with_clock(self, clock: impl Clock + 'static) -> Self {
         Self {
             clock: Some(Arc::new(clock)),

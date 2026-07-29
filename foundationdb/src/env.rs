@@ -141,6 +141,7 @@ pub struct WallClock {
 
 impl WallClock {
     /// Builds a clock whose monotonic epoch is now.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
     pub fn new() -> Self {
         Self {
             anchor: Instant::now(),
@@ -191,6 +192,7 @@ const SPLITMIX_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
 
 impl SeededRng {
     /// Builds a generator producing the sequence of `seed`, reproducibly.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
     pub fn new(seed: u64) -> Self {
         Self {
             state: AtomicU64::new(seed),
@@ -241,11 +243,16 @@ pub struct Environment {
 
 impl Environment {
     /// Bundles a clock and a generator.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(clock, rng))
+    )]
     pub fn new(clock: Arc<dyn Clock>, rng: Arc<dyn Rng>) -> Self {
         Self { clock, rng }
     }
 
     /// The machine clock, with a generator replaying the sequence of `seed`.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
     pub fn with_seed(seed: u64) -> Self {
         Self::new(Arc::new(WallClock::new()), Arc::new(SeededRng::new(seed)))
     }
