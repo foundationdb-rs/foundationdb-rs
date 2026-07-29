@@ -32,6 +32,7 @@
 use std::cell::Cell;
 use std::time::Duration;
 
+use foundationdb::env::{Clock, Environment};
 use foundationdb::options::{MutationType, TransactionOption};
 use foundationdb::recipes::leader_election::{
     ClaimAttempt, ClaimOutcome, LeaderElection, LeaderRecord, LeaseDuration, LeaseGrant,
@@ -40,7 +41,7 @@ use foundationdb::recipes::leader_election::{
 use foundationdb::recipes::ranked_register::{Rank, RankedRegister, WriteResult};
 use foundationdb::tuple::{Subspace, pack, unpack};
 use foundationdb::{FdbBindingError, FdbResult, RetryableTransaction};
-use foundationdb_simulation::{SimDatabase, WorkloadContext};
+use foundationdb_simulation::SimDatabase;
 use futures::future::BoxFuture;
 
 use super::clock::SkewedClock;
@@ -69,10 +70,11 @@ pub(crate) type ClaimResult = (ClaimOutcome, LeaseObservation);
 
 /// One client's instrumented view of the recipe
 ///
-/// Owns the client's clock, its operation counter and the two recipe objects it
-/// drives. Every method here is one logged transaction.
+/// Owns the client's environment and clock, its operation counter and the two
+/// recipe objects it drives. Every method here is one logged transaction.
 pub(crate) struct Journal {
-    context: WorkloadContext,
+    /// The simulator's time and randomness, undistorted
+    env: Environment,
     clock: SkewedClock,
     election: LeaderElection,
     register: RankedRegister,
@@ -85,14 +87,14 @@ pub(crate) struct Journal {
 impl Journal {
     /// Set a client up to drive and record the recipe
     pub(crate) fn new(
-        context: WorkloadContext,
+        env: Environment,
         clock: SkewedClock,
         election: LeaderElection,
         register: RankedRegister,
         client_id: i32,
     ) -> Self {
         Self {
-            context,
+            env,
             clock,
             election,
             register,
@@ -115,17 +117,25 @@ impl Journal {
         &self.clock
     }
 
+    /// The simulator's time and randomness, undistorted
+    pub(crate) fn env(&self) -> &Environment {
+        &self.env
+    }
+
     /// True simulated time
     ///
     /// Only the check phase and the log's `sim_nanos` field may use this; the
     /// recipe is never handed anything but [`local_now`](Self::local_now).
     pub(crate) fn sim_now(&self) -> Duration {
-        Duration::from_secs_f64(self.context.now().max(0.0))
+        self.env.clock().monotonic()
     }
 
     /// This client's own reading of the current time
+    ///
+    /// The same clock the recipe would be handed: this client's skewed view of
+    /// the one above.
     pub(crate) fn local_now(&self) -> Duration {
-        self.clock.now(self.sim_now())
+        self.clock.monotonic()
     }
 
     /// How many operations this client has logged

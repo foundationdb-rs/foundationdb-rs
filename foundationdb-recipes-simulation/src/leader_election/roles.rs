@@ -43,6 +43,7 @@
 use std::time::Duration;
 
 use foundationdb::FdbBindingError;
+use foundationdb::env::Rng;
 use foundationdb::recipes::leader_election::{
     ClaimAttempt, ClaimOutcome, ClaimToken, LeaseDuration, LeaseGrant, LeaseObservation,
     RefreshAttempt, RefreshOutcome, ResignOutcome,
@@ -53,6 +54,7 @@ use futures::future::Either;
 
 use super::clock::SkewMode;
 use super::logged_op::Journal;
+use super::swarm::FaultTiming;
 
 /// What a client does for the length of the run
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,10 +73,21 @@ impl Role {
     /// Roles degrade gracefully: a run with one or two clients is all
     /// contenders, since a Sleeper with nobody to take over from it and a
     /// Watcher with nothing to watch only remove contention.
-    pub(crate) fn assign(client_id: i32, client_count: i32, sleeper_enabled: bool) -> Self {
+    ///
+    /// Both special roles are gated on their feature as well as on the field
+    /// size, because a run that draws neither of them wants the client back as
+    /// a contender rather than idle: a Watcher never campaigns, so leaving one
+    /// in place would quietly shrink the field a feature-free run contends
+    /// with.
+    pub(crate) fn assign(
+        client_id: i32,
+        client_count: i32,
+        sleeper_enabled: bool,
+        watcher_enabled: bool,
+    ) -> Self {
         if sleeper_enabled && client_count >= 3 && client_id == 1 {
             Self::Sleeper
-        } else if client_count >= 4 && client_id == 2 {
+        } else if watcher_enabled && client_count >= 4 && client_id == 2 {
             Self::Watcher
         } else {
             Self::Contender
@@ -92,7 +105,7 @@ impl Role {
 }
 
 /// The timings and probabilities a run is configured with
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct DriverConfig {
     /// The lease every claim advertises
     pub(crate) lease: LeaseDuration,
@@ -100,10 +113,10 @@ pub(crate) struct DriverConfig {
     pub(crate) step: Duration,
     /// How long the start phase runs, in simulated time
     pub(crate) test_duration: Duration,
-    /// Chance per step that a leader hands its term back
-    pub(crate) resign_probability: f64,
-    /// Chance per step that a leader stops responding for longer than its lease
-    pub(crate) crash_probability: f64,
+    /// When a leader hands its term back
+    pub(crate) resign: FaultTiming,
+    /// When a leader stops responding for longer than its lease
+    pub(crate) crash: FaultTiming,
     /// How many leases the Sleeper pauses for
     pub(crate) pause_factor: f64,
     /// How long the other roles hold back so the Sleeper can take the first
@@ -199,6 +212,8 @@ pub(crate) struct Driver {
     /// steal
     observation: LeaseObservation,
     attempt_id: u64,
+    /// True simulated time at which this client entered the start phase
+    start_sim: Duration,
     deadline: Duration,
     counters: Counters,
 }
@@ -218,6 +233,7 @@ impl Driver {
             role,
             observation: LeaseObservation::new(),
             attempt_id: 0,
+            start_sim: Duration::ZERO,
             deadline: Duration::ZERO,
             counters: Counters::default(),
         }
@@ -240,7 +256,8 @@ impl Driver {
     /// in the check phase as missing progress, which is a judgement the whole
     /// log gets to make rather than one client's error handling.
     pub(crate) async fn run(&mut self, db: &SimDatabase) {
-        self.deadline = self.journal.sim_now() + self.config.test_duration;
+        self.start_sim = self.journal.sim_now();
+        self.deadline = self.start_sim + self.config.test_duration;
 
         if self.role != Role::Sleeper && !self.config.sleeper_head_start.is_zero() {
             self.delay(self.config.sleeper_head_start).await;
@@ -425,7 +442,7 @@ impl Driver {
             }
         }
 
-        if self.chance(self.config.crash_probability) {
+        if self.chance(self.config.crash.probability_at(self.elapsed_sim())) {
             self.counters.crashes += 1;
             self.trace(
                 Severity::Info,
@@ -439,7 +456,7 @@ impl Driver {
             return Ok(None);
         }
 
-        if self.chance(self.config.resign_probability) {
+        if self.chance(self.config.resign.probability_at(self.elapsed_sim())) {
             self.step_down(db, term).await?;
             return Ok(None);
         }
@@ -670,11 +687,28 @@ impl Driver {
             .saturating_sub(self.config.safety_margin())
     }
 
+    /// How long this client has been in the start phase, in true simulated time
+    ///
+    /// The fault windows are drawn against the run's own timeline, so this is
+    /// measured on the undistorted clock: a storm has to mean the same span to
+    /// every client, whatever their own clock thinks the time is.
+    fn elapsed_sim(&self) -> Duration {
+        self.journal.sim_now().saturating_sub(self.start_sim)
+    }
+
+    /// The generator every per-client draw comes from
+    ///
+    /// The environment's, which under simulation is the simulator's own, so the
+    /// draws are part of the run's reproducible state.
+    fn rng(&self) -> &dyn Rng {
+        self.journal.env().rng().as_ref()
+    }
+
     /// A per-term token from the simulator's own generator, so a run replays
     fn token(&self) -> ClaimToken {
         let mut bytes = [0u8; 16];
         for chunk in bytes.chunks_mut(4) {
-            chunk.copy_from_slice(&self.context.rnd().to_be_bytes());
+            chunk.copy_from_slice(&self.rng().next_u32().to_be_bytes());
         }
         if bytes == [0u8; 16] {
             // The all-zero token is the vacancy sentinel and is refused.
@@ -683,8 +717,13 @@ impl Driver {
         ClaimToken::from_bytes(bytes)
     }
 
+    /// Roll against `probability`
+    ///
+    /// The draw happens whatever the probability is, including zero: the
+    /// sequence a run consumes must not depend on which fault windows happen to
+    /// be open, or a run would replay differently from the step a storm ended.
     fn chance(&self, probability: f64) -> bool {
-        f64::from(self.context.rnd()) / f64::from(u32::MAX) < probability
+        f64::from(self.rng().next_u32()) / f64::from(u32::MAX) < probability
     }
 
     async fn delay(&self, duration: Duration) {
@@ -717,7 +756,7 @@ impl Driver {
     }
 
     fn jittered_step(&self) -> Duration {
-        let spread = 0.5 + f64::from(self.context.rnd()) / f64::from(u32::MAX);
+        let spread = 0.5 + f64::from(self.rng().next_u32()) / f64::from(u32::MAX);
         self.config.step.mul_f64(spread)
     }
 
@@ -727,5 +766,45 @@ impl Driver {
         S3: AsRef<str>,
     {
         self.context.trace(severity, name, details);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn watcher_gate_turns_client_two_into_a_contender() {
+        // A run that did not draw the watcher feature must get client two back
+        // as a contender rather than as an idle observer.
+        assert_eq!(Role::assign(2, 8, true, false), Role::Contender);
+        assert_eq!(Role::assign(2, 8, true, true), Role::Watcher);
+        assert_eq!(Role::assign(2, 8, false, false), Role::Contender);
+
+        // The degradation guards are untouched by the gate: a Sleeper needs
+        // three clients and a Watcher four, however the features fell.
+        for client_count in 1..=2 {
+            assert_eq!(
+                Role::assign(1, client_count, true, true),
+                Role::Contender,
+                "a sleeper needs somebody to take over from it"
+            );
+        }
+        assert_eq!(Role::assign(1, 3, true, true), Role::Sleeper);
+        assert_eq!(Role::assign(1, 3, false, true), Role::Contender);
+        assert_eq!(Role::assign(2, 3, true, true), Role::Contender);
+        assert_eq!(Role::assign(2, 4, true, true), Role::Watcher);
+
+        // Every other client contends whatever the features say.
+        for client_id in [0, 3, 7] {
+            for sleeper in [false, true] {
+                for watcher in [false, true] {
+                    assert_eq!(
+                        Role::assign(client_id, 8, sleeper, watcher),
+                        Role::Contender
+                    );
+                }
+            }
+        }
     }
 }

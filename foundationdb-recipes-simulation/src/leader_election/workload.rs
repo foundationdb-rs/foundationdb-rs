@@ -24,10 +24,24 @@
 //! Every knob is read exactly once, in [`new`](LeaderElectionWorkload::new).
 //! `get_option` consumes, and fdbserver fails a run that leaves options
 //! unconsumed, so a misspelled knob is a failed run rather than a silently
-//! ignored setting. That is also why all five configurations carry the same
-//! knobs even where a value does nothing: an unread knob would fail the run it
-//! is irrelevant to.
+//! ignored setting. That is also why the anchor configurations all carry the
+//! same knobs even where a value does nothing: an unread knob would fail the
+//! run it is irrelevant to.
+//!
+//! There are two families of knobs, and a run belongs to exactly one of them.
+//! `swarmEnabled` and `testDurationSecs` are read first and always. When
+//! `swarmEnabled` is set nothing else is read at all: everything the run does
+//! is drawn from the seed the simulator shares with every client, so a swarm
+//! file carries those two knobs and no others. Otherwise the ten remaining
+//! knobs are read: an anchor file spells out all eleven, and the run is exactly
+//! what its file says it is.
+//!
+//! That asymmetry is not a convenience. A swarm file that also carried, say, a
+//! lease would be a file whose lease is silently ignored, which is the failure
+//! mode the consume-once discipline exists to prevent; and the plan has to come
+//! from the seed alone for a failing seed to reproduce.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use foundationdb::options::StreamingMode;
@@ -52,6 +66,7 @@ use super::log_schema::{LogEntry, OpKind, log_subspace};
 use super::logged_op::Journal;
 use super::replay::{ExpectedRecord, TransitionKind, replay};
 use super::roles::{Driver, DriverConfig, Role};
+use super::swarm::{FaultTiming, SwarmPlan};
 
 /// How many transition records the check phase asks the recipe for
 ///
@@ -74,6 +89,12 @@ pub struct LeaderElectionWorkload {
     thresholds: ProgressThresholds,
     role: Role,
     driver: Driver,
+    /// The plan the seed drew, when this is a swarm run
+    ///
+    /// Everything it decided is already folded into `config`, `role` and
+    /// `thresholds`; it is kept whole so that `setup` can publish it, which is
+    /// what makes a failing seed reproducible.
+    plan: Option<SwarmPlan>,
     /// A configuration this build cannot honour, reported in `setup` where
     /// there is a trace sink to report it to
     config_error: Option<String>,
@@ -83,91 +104,162 @@ impl SingleRustWorkload for LeaderElectionWorkload {
     fn new(_name: String, context: WorkloadContext) -> Self {
         let client_id = context.client_id();
         let client_count = context.client_count();
+        let env = context.environment();
 
         // ------------------------------------------------------------------
-        // Every knob of every configuration, read exactly once.
+        // The two knobs every configuration carries, read first because the
+        // first of them decides which family the rest of the run belongs to.
         // ------------------------------------------------------------------
-        let lease_secs: f64 = context.get_option("leaseDurationSecs").unwrap_or(10.0);
-        let step_secs: f64 = context.get_option("stepIntervalSecs").unwrap_or(1.0);
+        let swarm_enabled: bool = context.get_option("swarmEnabled").unwrap_or(false);
         let test_duration_secs: f64 = context.get_option("testDurationSecs").unwrap_or(60.0);
-        let resign_probability: f64 = context.get_option("resignProbability").unwrap_or(0.1);
-        let crash_probability: f64 = context.get_option("crashProbability").unwrap_or(0.0);
-        let clock_skew_mode: String = context
-            .get_option("clockSkewMode")
-            .unwrap_or_else(|| "none".to_string());
-        let pause_factor: f64 = context.get_option("pauseFactor").unwrap_or(2.0);
-        let sleeper_enabled: bool = context.get_option("sleeperEnabled").unwrap_or(false);
-        let min_acquisitions: usize = context.get_option("minLeadershipClaims").unwrap_or(2);
-        let min_renewals: usize = context.get_option("minRenewals").unwrap_or(2);
-        let min_observed_identities: usize =
-            context.get_option("minObservedIdentities").unwrap_or(2);
+        let test_duration = Duration::from_secs_f64(test_duration_secs.max(0.0));
 
         let mut config_error = None;
-        let skew_mode = SkewMode::parse(&clock_skew_mode).unwrap_or_else(|| {
-            config_error = Some(format!(
-                "clockSkewMode {clock_skew_mode:?} is not one of none, random, extreme"
-            ));
-            SkewMode::None
-        });
-        let lease =
-            LeaseDuration::new(Duration::from_secs_f64(lease_secs)).unwrap_or_else(|error| {
-                config_error = Some(format!(
-                    "leaseDurationSecs {lease_secs} is unusable: {error}"
-                ));
-                LeaseDuration::new(Duration::from_secs(10)).expect("ten seconds is a valid lease")
-            });
+        // The shared number, not a draw: it is the one value every client of a
+        // run agrees on, so all of them plan identically without coordinating.
+        let plan = swarm_enabled
+            .then(|| SwarmPlan::draw(context.shared_random_number() as u64, test_duration));
 
-        let role = Role::assign(client_id, client_count, sleeper_enabled);
-        let config = DriverConfig {
-            lease,
-            step: Duration::from_secs_f64(step_secs.max(0.0)),
-            test_duration: Duration::from_secs_f64(test_duration_secs.max(0.0)),
-            resign_probability,
-            crash_probability,
-            pause_factor,
-            skew_mode,
-            // Only when a Sleeper was actually assigned: the head start is
-            // dead time in every other configuration.
-            sleeper_head_start: match Role::assign(1, client_count, sleeper_enabled) {
-                // Long enough to cover one slow first commit: under contention
-                // an opening claim can take a good fraction of a lease to land,
-                // and a head start shorter than that decides nothing.
-                Role::Sleeper => Duration::from_secs_f64(step_secs.max(0.0) * 5.0)
-                    .max(Duration::from_secs_f64(lease_secs.max(0.0) / 2.0)),
-                _ => Duration::ZERO,
-            },
+        let (config, role, thresholds) = match &plan {
+            Some(plan) => {
+                let sleeper = plan.features.sleeper;
+                let watcher = plan.features.watcher;
+                let config = DriverConfig {
+                    lease: lease_or_default("the drawn lease", plan.lease_secs, &mut config_error),
+                    step: plan.step(),
+                    test_duration,
+                    resign: plan.resign.clone(),
+                    crash: plan.crash.clone(),
+                    pause_factor: plan.pause_factor,
+                    skew_mode: plan.skew_mode,
+                    sleeper_head_start: head_start(
+                        Role::assign(1, client_count, sleeper, watcher),
+                        plan.step_secs,
+                        plan.lease_secs,
+                    ),
+                };
+                let role = Role::assign(client_id, client_count, sleeper, watcher);
+                // Derived from the plan rather than configured: a run has to
+                // prove exactly as much as the churn it drew makes possible.
+                (config, role, plan.thresholds(client_count))
+            }
+            None => {
+                // ----------------------------------------------------------
+                // Every knob of every anchor configuration, read exactly once.
+                // ----------------------------------------------------------
+                let lease_secs: f64 = context.get_option("leaseDurationSecs").unwrap_or(10.0);
+                let step_secs: f64 = context.get_option("stepIntervalSecs").unwrap_or(1.0);
+                let resign_probability: f64 =
+                    context.get_option("resignProbability").unwrap_or(0.1);
+                let crash_probability: f64 = context.get_option("crashProbability").unwrap_or(0.0);
+                let clock_skew_mode: String = context
+                    .get_option("clockSkewMode")
+                    .unwrap_or_else(|| "none".to_string());
+                let pause_factor: f64 = context.get_option("pauseFactor").unwrap_or(2.0);
+                let sleeper_enabled: bool = context.get_option("sleeperEnabled").unwrap_or(false);
+                let min_acquisitions: usize =
+                    context.get_option("minLeadershipClaims").unwrap_or(2);
+                let min_renewals: usize = context.get_option("minRenewals").unwrap_or(2);
+                let min_observed_identities: usize =
+                    context.get_option("minObservedIdentities").unwrap_or(2);
+
+                let skew_mode = SkewMode::parse(&clock_skew_mode).unwrap_or_else(|| {
+                    config_error = Some(format!(
+                        "clockSkewMode {clock_skew_mode:?} is not one of none, random, extreme"
+                    ));
+                    SkewMode::None
+                });
+                let lease = lease_or_default("leaseDurationSecs", lease_secs, &mut config_error);
+
+                let config = DriverConfig {
+                    lease,
+                    step: Duration::from_secs_f64(step_secs.max(0.0)),
+                    test_duration,
+                    // A flat per-step probability, which is what these files
+                    // were written against and what `Constant` reproduces.
+                    resign: FaultTiming::Constant(resign_probability),
+                    crash: FaultTiming::Constant(crash_probability),
+                    pause_factor,
+                    skew_mode,
+                    // An anchor run always assigns the Watcher: unlike a swarm
+                    // run it has no feature to draw, and the file that wants a
+                    // field of pure contenders simply says so with its client
+                    // count.
+                    sleeper_head_start: head_start(
+                        Role::assign(1, client_count, sleeper_enabled, true),
+                        step_secs,
+                        lease_secs,
+                    ),
+                };
+                let role = Role::assign(client_id, client_count, sleeper_enabled, true);
+                let thresholds = ProgressThresholds {
+                    min_acquisitions,
+                    min_renewals,
+                    min_observed_identities,
+                    // Not a knob: it has to be the interval the driver actually
+                    // renews on (`roles.rs`), or the check would excuse runs
+                    // that did have the chance to renew.
+                    renew_interval: lease.as_duration() / 3,
+                };
+                (config, role, thresholds)
+            }
         };
 
-        let clock = SkewedClock::new(skew_mode, lease.as_duration(), config.test_duration, || {
-            context.rnd()
-        });
+        let clock = SkewedClock::new(
+            Arc::clone(env.clock()),
+            config.skew_mode,
+            config.lease.as_duration(),
+            config.test_duration,
+            || env.rng().next_u32(),
+        );
         let election = LeaderElection::new(Subspace::all().subspace(&("leader_election",)));
         let journal = Journal::new(
-            context.clone(),
+            env,
             clock,
             election.clone(),
             RankedRegister::new(Subspace::all().subspace(&("le_register",))),
             client_id,
         );
         Self {
-            driver: Driver::new(context.clone(), journal, config, role),
+            driver: Driver::new(context.clone(), journal, config.clone(), role),
             context,
             client_id,
             client_count,
             election,
             config,
-            thresholds: ProgressThresholds {
-                min_acquisitions,
-                min_renewals,
-                min_observed_identities,
-                // Not a knob: it has to be the interval the driver actually
-                // renews on (`roles.rs`), or the check would excuse runs that
-                // did have the chance to renew.
-                renew_interval: lease.as_duration() / 3,
-            },
+            thresholds,
             role,
+            plan,
             config_error,
         }
+    }
+}
+
+/// The lease `secs` configures, or ten seconds and a complaint
+///
+/// `new` has no trace sink, so a configuration this build cannot honour has to
+/// survive as a message until `setup` can report it. `source` names where the
+/// value came from, which is the difference between a typo in a file and a plan
+/// this build drew and then could not use.
+fn lease_or_default(source: &str, secs: f64, error: &mut Option<String>) -> LeaseDuration {
+    LeaseDuration::new(Duration::from_secs_f64(secs)).unwrap_or_else(|problem| {
+        *error = Some(format!("{source} {secs} is unusable: {problem}"));
+        LeaseDuration::new(Duration::from_secs(10)).expect("ten seconds is a valid lease")
+    })
+}
+
+/// How long the other roles hold back so the Sleeper can take the first term
+///
+/// Only when a Sleeper was actually assigned: the head start is dead time in
+/// every other configuration.
+fn head_start(sleeper: Role, step_secs: f64, lease_secs: f64) -> Duration {
+    match sleeper {
+        // Long enough to cover one slow first commit: under contention an
+        // opening claim can take a good fraction of a lease to land, and a head
+        // start shorter than that decides nothing.
+        Role::Sleeper => Duration::from_secs_f64(step_secs.max(0.0) * 5.0)
+            .max(Duration::from_secs_f64(lease_secs.max(0.0) / 2.0)),
+        _ => Duration::ZERO,
     }
 }
 
@@ -199,6 +291,27 @@ impl RustWorkload for LeaderElectionWorkload {
                 "SharedRandom" => self.context.shared_random_number()
             ],
         );
+
+        // On every client, and deliberately identical on all of them: the draw
+        // is a pure function of the shared seed, so a trace where two clients
+        // disagree is a run where something reached for state the plan is not
+        // allowed to depend on. It is also the reproduction recipe, which is
+        // why it is emitted before anything can fail rather than in `check`.
+        if let Some(plan) = &self.plan {
+            self.context.trace(
+                Severity::Info,
+                "LeaderElectionSwarmPlan",
+                details![
+                    "Seed" => plan.seed,
+                    "Plan" => plan.describe(),
+                    "FeaturesEnabled" => plan.features.enabled(),
+                    "MinAcquisitions" => self.thresholds.min_acquisitions,
+                    "MinRenewals" => self.thresholds.min_renewals,
+                    "MinObservedIdentities" => self.thresholds.min_observed_identities,
+                    "RenewIntervalSecs" => self.thresholds.renew_interval.as_secs_f64()
+                ],
+            );
+        }
 
         if self.client_id == 0 {
             let key = Subspace::all().subspace(&("le_meta",)).pack(&("config",));

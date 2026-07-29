@@ -59,10 +59,6 @@
 //! fixed and documented, and branches are written to consume the same number of
 //! values on both sides wherever that is cheap.
 
-// The plan is consumed by the workload, which lands separately; until then the
-// only callers are this module's tests.
-#![allow(dead_code)]
-
 use std::time::Duration;
 
 use super::clock::SkewMode;
@@ -286,7 +282,12 @@ impl FaultTiming {
         }
     }
 
-    /// The windows, for a trace of the plan; empty for a constant rate
+    /// The windows; empty for a constant rate
+    ///
+    /// A test accessor: what a run is told about its own timing is
+    /// [`probability_at`](Self::probability_at), and the trace of the plan gets
+    /// the windows through [`SwarmPlan::describe`].
+    #[cfg(test)]
     fn storms(&self) -> &[Storm] {
         match self {
             Self::Constant(_) => &[],
