@@ -672,27 +672,22 @@ mod tests {
     }
 
     #[test]
-    fn a_resign_changes_the_term_marker_even_though_it_keeps_the_identity() {
-        // Watches park on the term key; if a resign did not move its value, no
-        // contender would ever wake up for it.
+    fn every_applied_write_moves_what_a_poller_reads() {
+        // Discovery is polling, so the whole of a follower's evidence is the
+        // stored value changing between two reads. A resign preserves both
+        // ballot and generation, and would be invisible if occupancy were not
+        // part of the record; a renewal moves the generation.
         let held_record = held(5, 2, "a", 1);
         let vacated = codec::vacant_record(5, 2);
         assert_ne!(
-            codec::encode_term(&held_record),
-            codec::encode_term(&vacated)
-        );
-    }
-
-    #[test]
-    fn a_renewal_is_invisible_to_the_term_marker() {
-        // The opposite requirement: renewals must not wake every contender.
-        assert_eq!(
-            codec::encode_term(&held(5, 2, "a", 1)),
-            codec::encode_term(&held(5, 2, "a", 1))
+            codec::encode_record(&held_record),
+            codec::encode_record(&vacated),
+            "a resign must be visible to a follower re-reading the leader key"
         );
         assert_ne!(
-            codec::encode_term(&held(5, 2, "a", 1)),
-            codec::encode_term(&held(5, 3, "a", 1))
+            codec::encode_record(&held(5, 2, "a", 1)),
+            codec::encode_record(&held(5, 3, "a", 1)),
+            "a renewal must be visible: it is what keeps an observation window alive"
         );
     }
 

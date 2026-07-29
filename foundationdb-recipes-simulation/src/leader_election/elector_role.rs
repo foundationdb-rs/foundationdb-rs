@@ -56,6 +56,7 @@ use foundationdb_simulation::{Severity, SimDatabase, WorkloadContext, details};
 use futures::future::Either;
 
 use super::clock::{SkewMode, SkewedClock};
+use super::liveness::{LivenessGuard, next_tick};
 use super::log_schema::elector_log_subspace;
 use super::logged_op::Journal;
 use super::timer::SimTimer;
@@ -122,6 +123,11 @@ pub(crate) struct ElectorSetup<'a> {
     pub(crate) step: Duration,
     /// True simulated time at which the run ends
     pub(crate) deadline: Duration,
+    /// How many operations this role's journal may log
+    ///
+    /// Its own budget, not a share of the hosting client's: the elector writes
+    /// to its own log subspace and is judged on its own.
+    pub(crate) op_ceiling: u64,
 }
 
 /// What one client's elector achieved
@@ -186,6 +192,7 @@ pub(crate) async fn run(setup: &ElectorSetup<'_>, db: &SimDatabase) -> ElectorCo
             register(),
             elector_log_subspace(),
             setup.client_id,
+            setup.op_ceiling,
         ),
         lease: setup.lease,
         step: setup.step,
@@ -245,7 +252,12 @@ fn elector_config(lease: LeaseDuration, skew_mode: SkewMode) -> ElectorResult<El
 impl ElectorRole {
     /// Win terms, serve them, and campaign again until the run ends
     async fn lead_until_deadline(&self, db: &SimDatabase, elector: &LeaderElector) {
+        let mut guard = LivenessGuard::new();
         while self.journal.sim_now() < self.deadline {
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("elector terms");
+                return;
+            }
             let remaining = self.deadline.saturating_sub(self.journal.sim_now());
             let book = Rc::new(RefCell::new(BeliefBookkeeping::default()));
 
@@ -261,13 +273,9 @@ impl ElectorRole {
                     Either::Left((outcome, _)) => outcome,
                     // The campaign has no timeout of its own: an elector that
                     // never wins waits forever, and dropping the future is the
-                    // documented way to give up. The run is over anyway.
-                    Either::Right(_) => {
-                        self.trace(
-                            Severity::Info,
-                            "LeaderElectionElectorGaveUp",
-                            details!["Client" => self.journal.client_id()],
-                        );
+                    // documented way to give up.
+                    Either::Right((result, _)) => {
+                        self.gave_up(result.is_err());
                         return;
                     }
                 }
@@ -345,7 +353,16 @@ impl ElectorRole {
         }
 
         // (3) Work, until the run ends or the term does.
+        let mut guard = LivenessGuard::new();
+        // Paced on an absolute cursor rather than a step per round: the cursor
+        // moves before the wait, so a wait that returned instantly still leaves
+        // the next round asking for a real one. See `Driver::pace_from`.
+        let mut next = self.journal.local_now();
         while self.journal.sim_now() < self.deadline {
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("elector work");
+                return;
+            }
             // The term is gone: either the horizon passed, which already ended
             // the belief, or a successor took over having waited out a whole
             // lease. Either way there is no end left to write, which is what the
@@ -359,7 +376,11 @@ impl ElectorRole {
             if !self.fenced_step(db, handle).await {
                 return;
             }
-            self.delay(self.step).await;
+            let (cursor, wait) = next_tick(next, self.step, self.journal.local_now());
+            next = cursor;
+            if !wait.is_zero() && !self.delay(wait).await {
+                return;
+            }
         }
     }
 
@@ -459,7 +480,14 @@ impl ElectorRole {
                 Either::Left((outcome, _)) => Some(outcome),
                 // Dropped with this frame. It may still land, which is exactly
                 // why the fence, and not the horizon, is what makes it safe.
-                Either::Right(_) => None,
+                Either::Right((Ok(()), _)) => None,
+                // A failed delay is not a horizon that arrived: the simulator is
+                // tearing this client down, so the role stops rather than
+                // treating an unpaced loop as work given up on time.
+                Either::Right((Err(error), _)) => {
+                    self.failed("LeaderElectionElectorDelayFailed", &error);
+                    return false;
+                }
             }
         };
 
@@ -506,8 +534,73 @@ impl ElectorRole {
         );
     }
 
-    async fn delay(&self, duration: Duration) {
-        let _ = self.context.delay(duration).await;
+    /// Report a loop that went round without simulated time moving
+    ///
+    /// The backstop for a wait that stopped waiting. Loud, and terminal for
+    /// this role: everything the client did after the clock stood still was
+    /// unpaced, and the check phase judges what the log holds either way.
+    fn stalled(&self, loop_name: &str) {
+        self.bump(|counters| counters.errors += 1);
+        self.trace(
+            Severity::WarnAlways,
+            "LeaderElectionElectorStalled",
+            details![
+                "Client" => self.journal.client_id(),
+                "Loop" => loop_name,
+                "Iterations" => LivenessGuard::STALL_LIMIT,
+                "SimNanos" => self.journal.sim_now().as_nanos() as u64
+            ],
+        );
+    }
+
+    /// Report the role ending because its give-up delay resolved
+    ///
+    /// Ordinary at the deadline: an elector that never won waits forever, and
+    /// dropping the future is how it gives up. Any other way of getting here is
+    /// the delay having failed rather than fired, either reported directly by
+    /// `delay_failed` or inferred from the clock not having reached the
+    /// deadline, and that is the same class of defect
+    /// [`stalled`](Self::stalled) exists for and gets the same volume.
+    ///
+    /// This is also the only thing that notices a `SimTimer` sleep parking
+    /// forever: the recipe's own loops have no way to report a timer that never
+    /// completes, so the race outside them is where it surfaces.
+    fn gave_up(&self, delay_failed: bool) {
+        let now = self.journal.sim_now();
+        if delay_failed || now < self.deadline {
+            self.bump(|counters| counters.errors += 1);
+            self.trace(
+                Severity::WarnAlways,
+                "LeaderElectionElectorGaveUpEarly",
+                details![
+                    "Client" => self.journal.client_id(),
+                    "DelayFailed" => delay_failed,
+                    "SimNanos" => now.as_nanos() as u64,
+                    "DeadlineNanos" => self.deadline.as_nanos() as u64
+                ],
+            );
+            return;
+        }
+        self.trace(
+            Severity::Info,
+            "LeaderElectionElectorGaveUp",
+            details!["Client" => self.journal.client_id()],
+        );
+    }
+
+    /// Wait, and say whether the wait happened
+    ///
+    /// `false` means the delay failed, which is not a wait that finished early:
+    /// it is this client being torn down, and the caller ends the role rather
+    /// than going round an unpaced loop.
+    async fn delay(&self, duration: Duration) -> bool {
+        match self.context.delay(duration).await {
+            Ok(()) => true,
+            Err(error) => {
+                self.failed("LeaderElectionElectorDelayFailed", &error);
+                false
+            }
+        }
     }
 
     fn trace<S2, S3>(&self, severity: Severity, name: &str, details: &[(S2, S3)])

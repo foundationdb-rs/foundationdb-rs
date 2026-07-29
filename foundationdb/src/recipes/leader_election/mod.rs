@@ -96,14 +96,14 @@
 //!
 //! # Two API layers
 //!
-//! [`LeaderElection`] is the protocol, one step per transaction: read the
-//! record, [`try_claim`](LeaderElection::try_claim),
-//! [`refresh`](LeaderElection::refresh), [`resign`](LeaderElection::resign),
-//! [`watch_term`](LeaderElection::watch_term). Every step is a pure function of
-//! the record it read, the caller's observation state and a caller-supplied
-//! instant, so `db.run` may re-execute it and a deterministic simulator may
-//! drive it. Callers at this layer own their own timing, including the decision
-//! about when to stop believing they lead.
+//! [`LeaderElection`] is the protocol, one step per transaction:
+//! [`leader`](LeaderElection::leader), [`try_claim`](LeaderElection::try_claim),
+//! [`refresh`](LeaderElection::refresh), [`resign`](LeaderElection::resign).
+//! Every step is a pure function of the record it read, the caller's
+//! observation state and a caller-supplied instant, so `db.run` may re-execute
+//! it and a deterministic simulator may drive it. Callers at this layer own
+//! their own timing, including the decision about when to stop believing they
+//! lead.
 //!
 //! [`LeaderElector`] is the loop around it: campaign, hold the term while the
 //! caller's work runs, renew in the same task, stop believing strictly before
@@ -203,6 +203,68 @@
 //! unbounded time. Every participant must be configured with the same ceiling:
 //! a contender with a lower one will steal from a leader that still believes it
 //! leads.
+//!
+//! # Discovery is polling, and there are no watches
+//!
+//! This recipe has no notification primitive at all. A follower learns who
+//! leads by re-reading the record, and a contender learns that a term is
+//! stealable by re-reading it long enough. Those are the same loop: the
+//! observation window a steal has to complete *is* the poll loop, so re-reading
+//! more often than the lease buys discovery latency and costs one transaction
+//! per round on a key that is not otherwise contended.
+//!
+//! That is the DAIS 2015 protocol this recipe descends from (see "Lineage"),
+//! which has no notification primitive either: its `periodicHeartbeatTask` is
+//! one transaction per round followed by a sleep, failure detection is missed
+//! heartbeats counted across polled rounds, and discovery is a locally cached
+//! leader refreshed each round. Watches appear in that paper only as
+//! ZooKeeper's mechanism, in the evaluation of the approach it replaces.
+//!
+//! FoundationDB does offer watches, and this recipe deliberately does not use
+//! them:
+//!
+//! - **A watch is not a wait that always succeeds.** It resolves with an error
+//!   under exactly the conditions an election exists for: `too_many_watches`
+//!   when a cluster is loaded, `cancelled` when a transaction or database goes
+//!   away, and the various recovery errors. Code that treats "the watch
+//!   resolved" as "the key changed" then spins at wall-clock speed, committing
+//!   a transaction per spin. That failure was observed here under fault
+//!   injection, and it exhausted the server's memory in seconds.
+//! - **A missed wake-up is not detectable.** Watches coalesce, and a term that
+//!   flaps back to its previous holder can produce no wake-up at all, so a
+//!   correct watcher has to re-read and re-arm on every result anyway. The
+//!   watch saves a read it cannot remove the need for.
+//! - **The safety argument never wanted one.** Nothing a contender is allowed
+//!   to do depends on being told promptly; it depends on having watched the
+//!   record hold still for a lease on its own clock. A notification cannot
+//!   shorten that, and a lost one cannot lengthen it.
+//!
+//! ## What it costs
+//!
+//! Discovery latency, and only in the case where nothing could have helped.
+//!
+//! A **resigned** term is found within one poll interval: the record is vacant
+//! and the next reader takes it immediately. [`LeaderElector`] caps its campaign
+//! park at the renewal interval for exactly this reason, so an orderly handover
+//! stays cheap, which is the whole point of the resign asymmetry.
+//!
+//! A **crashed** leader costs a lease plus one poll interval, measured from the
+//! crash. The lease is the protocol's price, not the loop's: no contender may
+//! take a live-looking record before watching it hold still for the lease it
+//! advertises. The poll interval on top is the loop's, because a contender that
+//! reads just before the last renewal lands starts its window from that
+//! renewal. A watch would not shorten either term. A crashed process sends no
+//! notification, and the lease is a safety requirement rather than a delay in
+//! finding out.
+//!
+//! So the worst case is `lease + poll_interval + jitter` for a crash, and
+//! `poll_interval + jitter` for a resign.
+//!
+//! A caller that wants push-style discovery can still put a watch on
+//! [`leader_key`](LeaderElection::leader_key) in a transaction of its own. It
+//! then owns the two rules this recipe declines to take on: treat every
+//! resolution, error included, as nothing more than a hint to re-read, and put
+//! a floor under how often the loop may go round.
 //!
 //! # Resigning is not crashing
 //!
@@ -341,7 +403,7 @@
 //! for everything. It bounds the blast radius of a bad leader and of a slow
 //! handover, and it spreads the load. The cost is more elections to observe.
 //!
-//! **Watch the leader's headroom.** How much work the current leader can absorb
+//! **Track the leader's headroom.** How much work the current leader can absorb
 //! is the application's metric, not this recipe's: an election is happy to keep
 //! electing a leader that is falling behind. Track leader-side capacity
 //! alongside leadership itself, and shard when the leader saturates.
@@ -464,7 +526,6 @@ use crate::options::{MutationType, StreamingMode};
 use crate::{RangeOption, Transaction, tuple::Subspace};
 use decision::{ClaimDecision, ClaimIdentity, RefreshDecision, ResignDecision};
 use futures::TryStreamExt;
-use futures::future::BoxFuture;
 use std::ops::Deref;
 use std::time::Duration;
 
@@ -545,16 +606,10 @@ impl LeaderElection {
 
     /// The key holding the contested record
     ///
-    /// Exposed for composition. Watching this key wakes on every renewal;
-    /// [`watch_term`](Self::watch_term) is almost always what you want
-    /// instead.
+    /// Exposed for composition: a caller reading it in a transaction of its own
+    /// sees exactly what [`leader`](Self::leader) would have decoded.
     pub fn leader_key(&self) -> Vec<u8> {
         codec::leader_key(&self.subspace)
-    }
-
-    /// The key that moves only when leadership itself changes
-    pub fn term_key(&self) -> Vec<u8> {
-        codec::term_key(&self.subspace)
     }
 
     // ========================================================================
@@ -620,23 +675,6 @@ impl LeaderElection {
             events.push(codec::decode_history(&self.subspace, kv.key(), kv.value())?);
         }
         Ok(events)
-    }
-
-    /// Arm a watch on the term key
-    ///
-    /// The watch must be created in the same transaction as the read it is
-    /// anchored to, and awaited only after that transaction has committed.
-    /// Every result, including an error, is no more than a hint to re-read and
-    /// re-arm: watches can coalesce, and a term that flaps back to its
-    /// previous holder may produce no wake-up at all.
-    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip_all))]
-    pub fn watch_term<T>(&self, txn: &T) -> BoxFuture<'static, crate::FdbResult<()>>
-    where
-        T: Deref<Target = Transaction>,
-    {
-        #[cfg(feature = "trace")]
-        tracing::debug!("watch armed on the term key");
-        Box::pin(txn.watch(&self.term_key()))
     }
 
     // ========================================================================
@@ -985,9 +1023,8 @@ impl LeaderElection {
         }
     }
 
-    /// Write a leadership change: the record, the term marker watches park on,
-    /// and the history entry, all in the caller's transaction so they commit
-    /// together or not at all.
+    /// Write a leadership change: the record and the history entry, both in the
+    /// caller's transaction so they commit together or not at all.
     async fn write_transition<T>(
         &self,
         txn: &T,
@@ -999,7 +1036,6 @@ impl LeaderElection {
         T: Deref<Target = Transaction>,
     {
         txn.set(&self.leader_key(), &codec::encode_record(record));
-        txn.set(&self.term_key(), &codec::encode_term(record));
 
         if self.history_retention > 0 {
             // Trim before appending: a key written with an incomplete

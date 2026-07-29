@@ -49,7 +49,7 @@ use super::types::{
 };
 use super::{LeaderElection, MAX_LEADER_ID_LEN};
 use crate::env::{Clock, Environment, Rng};
-use crate::{Database, FdbResult, tuple::Subspace};
+use crate::{Database, tuple::Subspace};
 use futures::future::{BoxFuture, Either};
 use std::fmt;
 use std::future::Future;
@@ -69,6 +69,21 @@ pub const DEFAULT_MAX_CLOCK_RATE_ERROR: f64 = 1e-3;
 /// Default allowance added to the derived safety margin to cover scheduling
 /// delays: timer slop, a garbage collection pause, a busy executor.
 pub const DEFAULT_SCHEDULING_ALLOWANCE: Duration = Duration::from_millis(50);
+
+/// The shortest a campaign round may ever park, whatever the configuration
+/// derives.
+///
+/// A campaign is a poll loop and every poll costs a transaction, so the floor is
+/// what keeps a lease of a few microseconds, or a denial reporting a retry of
+/// nothing, from turning the loop into a busy one. It binds only where the
+/// derived floor (a quarter of the renewal interval) rounds down below it.
+///
+/// Ten milliseconds is FoundationDB's own number for this. Upstream carries a
+/// `PREVENT_FAST_SPIN_DELAY` knob, set to 0.01s, and applies it on every
+/// error-and-retry path in the server for exactly this reason. Matching it means
+/// a contender that somehow ends up in a tight campaign loop costs the cluster
+/// what an upstream retry loop costs it, and no more.
+const MIN_POLL_FLOOR: Duration = Duration::from_millis(10);
 
 // ============================================================================
 // TIMER
@@ -433,9 +448,25 @@ impl ElectorConfig {
     ///   committed, and needs a full lease on its own fast clock, so it steals
     ///   no earlier than `lease / (1 + e)` of real time after that.
     ///
-    /// Since `(1 - e)(1 + e) = 1 - e² <= 1`, the leader always stops first, with
-    /// `e² * lease` to spare. The scheduling allowance is on top of that, for
-    /// the part of the delay that is not clock error at all.
+    /// Since `(1 - e)(1 + e) = 1 - e² <= 1`, the leader stops no later than the
+    /// earliest a contender can steal. Note "no later than", not "before": the
+    /// rate term alone buys
+    ///
+    /// ```text
+    /// lease / (1 + e)  -  lease * (1 - e)  =  lease * e² / (1 + e)
+    /// ```
+    ///
+    /// which is second order in `e` and vanishes entirely at `e = 0`, where the
+    /// two instants coincide exactly. At the default bound it is worth
+    /// microseconds on a ten second lease. Treat the rate term as achieving
+    /// equality at the worst case rather than as breathing room.
+    ///
+    /// The [scheduling allowance](Self::scheduling_allowance) is what turns that
+    /// into a margin you can actually spend, and it is separate because what it
+    /// covers is not clock error at all: timer slop, a collection pause, a busy
+    /// executor. Setting it to zero is legal and leaves the horizon sound, but
+    /// it leaves it sound by a hair, and a leader whose wake-up is late by
+    /// anything at all has already overrun.
     pub fn safety_margin(&self) -> Duration {
         self.safety_margin
     }
@@ -968,9 +999,8 @@ impl LeaderElector {
         self.check_lease_fits()
     }
 
-    /// The primitives this elector drives, for composition: reading the
-    /// history, watching the keys, or running a step in a caller's own
-    /// transaction.
+    /// The primitives this elector drives, for composition: reading the record
+    /// or the history, or running a step in a caller's own transaction.
     pub fn election(&self) -> &LeaderElection {
         &self.election
     }
@@ -1151,24 +1181,6 @@ impl LeaderElector {
             .await
     }
 
-    /// Wait for leadership itself to change
-    ///
-    /// Parks on the term key, which moves only on a claim, a steal or a resign,
-    /// so renewals do not wake followers. The wake-up is a hint: watches
-    /// coalesce, and a term that flaps back to its previous holder may not
-    /// produce one at all. Always re-read.
-    ///
-    /// # Errors
-    ///
-    /// Any error hit while arming the watch. Errors from the watch itself are
-    /// treated as wake-ups, since re-reading is the answer either way.
-    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip_all, err))]
-    pub async fn wait_for_term_change(&self) -> Result<()> {
-        let watch = self.arm_term_watch().await?;
-        let _ = watch.await;
-        Ok(())
-    }
-
     // ========================================================================
     // INTERNALS
     // ========================================================================
@@ -1202,6 +1214,42 @@ impl LeaderElector {
     /// anchored before the write is issued and so a retry after an unknown
     /// commit can recognize its own record. A superseded attempt is spent: the
     /// next round starts a fresh one with a fresh token.
+    ///
+    /// # A poll loop, and nothing else
+    ///
+    /// A denied round parks and reads again. It is not woken by anything, and
+    /// nothing here waits on a notification: see "Discovery is polling" in the
+    /// [module documentation](super) for why. The park is what the protocol
+    /// asked for (how long until the record could be stale), held between
+    /// [`poll_floor`](Self::poll_floor) and [`poll_cap`](Self::poll_cap), plus
+    /// this elector's jitter for the round. Every round is bounded below, so no
+    /// outcome, and no error classified as an outcome, can turn this loop into a
+    /// busy one; and every round is bounded above by the renewal interval, so no
+    /// transition goes unnoticed for longer than that.
+    ///
+    /// Re-reading more often than the lease costs a transaction on an
+    /// uncontended key and buys discovery latency. It is also not wasted on the
+    /// contender's own behalf: the observation window that authorizes a steal is
+    /// exactly this loop, so the polls between one sighting and the steal it
+    /// earns are what keep the window alive.
+    ///
+    /// # What a poll loop costs in discovery latency
+    ///
+    /// Two cases, and they are very different.
+    ///
+    /// A **resigned** term is discovered within one park: the record is vacant,
+    /// the next poll takes it at `ballot + 1` with no observation wait at all.
+    /// Worst case `poll_cap + jitter`, which is why the cap is the renewal
+    /// interval and not a lease.
+    ///
+    /// A **crashed** leader costs a lease, and one poll interval on top. The
+    /// lease is the protocol's, not this loop's: a steal is authorized only
+    /// after the record has been observed unchanged for the lease it advertises.
+    /// The extra interval is the loop's, and it is the price of not being told:
+    /// a contender that polls just before the last renewal lands starts its
+    /// window from that renewal, so the worst case is
+    /// `lease + poll_interval + jitter` measured from the crash. A watch would
+    /// not improve this, because a crashed leader sends no notification either.
     async fn campaign(&self) -> Result<LeaseGrant> {
         // Threaded across transactions, and across `db.run` retries within
         // one: how long this process has watched the record hold still is the
@@ -1212,7 +1260,7 @@ impl LeaderElector {
         loop {
             let attempt = ClaimAttempt::new(self.token_source.issue(), self.clock.monotonic())?;
 
-            let (outcome, watch) = self
+            let outcome = self
                 .db
                 .run(|txn, _| {
                     let attempt = &attempt;
@@ -1231,15 +1279,7 @@ impl LeaderElector {
                             )
                             .await?;
                         *lock(observation) = updated;
-
-                        // Armed in the transaction that read the record, so
-                        // nothing can slip between the read and the watch. It
-                        // is awaited only once `run` has committed.
-                        let watch = match outcome {
-                            ClaimOutcome::Denied { .. } => Some(self.election.watch_term(&txn)),
-                            _ => None,
-                        };
-                        Ok::<_, LeaderElectionError>((outcome, watch))
+                        Ok::<_, LeaderElectionError>(outcome)
                     }
                 })
                 .await?;
@@ -1253,27 +1293,49 @@ impl LeaderElector {
                         retry_after_ms = retry_after.as_millis() as u64,
                         "denied, parking until the record could be stale"
                     );
-                    retry_after.min(self.config.backoff_cap)
+                    retry_after
                 }
                 ClaimOutcome::Superseded => {
                     #[cfg(feature = "trace")]
                     tracing::warn!(round, "attempt superseded, campaigning with a fresh token");
-                    Duration::ZERO
+                    // Not zero. The attempt is spent and a fresh token has to be
+                    // issued, but a superseded round that parked for no time at
+                    // all would be a loop bounded only by how fast the database
+                    // can answer.
+                    self.poll_floor()
                 }
             };
 
-            let delay = backoff.saturating_add(self.jitter.jitter_for(round));
+            let delay = poll_delay(backoff, self.poll_floor(), self.poll_cap())
+                .saturating_add(self.jitter.jitter_for(round));
             round = round.wrapping_add(1);
 
-            let sleep = self.timer.sleep(delay);
-            match watch {
-                // Whichever fires first, the answer is the same: read again.
-                Some(watch) => {
-                    let _ = futures::future::select(sleep, watch).await;
-                }
-                None => sleep.await,
-            }
+            self.timer.sleep(delay).await;
         }
+    }
+
+    /// The shortest a campaign round may park
+    ///
+    /// A quarter of the renewal interval, which is also the default jitter
+    /// window: short enough that a contender notices a vacancy well inside one
+    /// renewal, long enough that the campaign is a poll loop rather than a busy
+    /// one. [`MIN_POLL_FLOOR`] is the backstop for a configuration whose derived
+    /// value rounds down to nothing.
+    fn poll_floor(&self) -> Duration {
+        (self.config.renew_interval / 4).max(MIN_POLL_FLOOR)
+    }
+
+    /// The longest a campaign round may park
+    ///
+    /// The renewal interval, or [`ElectorConfig::backoff_cap`] where a caller
+    /// set a shorter one. Capping at the full backoff cap (a whole lease by
+    /// default) was the wrong bound once the watch went: a contender that parked
+    /// a lease would discover a resigned term a lease late, and the resign
+    /// asymmetry, whose entire point is that an orderly handover costs nothing,
+    /// would cost the same as a crash. The renewal interval keeps the miss
+    /// bounded by a third of a lease without turning the campaign into a herd.
+    fn poll_cap(&self) -> Duration {
+        self.config.backoff_cap.min(self.config.renew_interval)
     }
 
     /// Renew until the term ends.
@@ -1338,6 +1400,15 @@ impl LeaderElector {
                         budget_ms = budget.as_millis() as u64,
                         "renewal timed out, in jeopardy"
                     );
+                    // Backed off before trying again, exactly as the failed
+                    // renewal below is. Without this the loop goes straight
+                    // round: the renewal was already overdue by the time the
+                    // budget ran out, so the wait at the top is skipped and the
+                    // next attempt is issued immediately. A leader whose
+                    // renewals are all timing out is a leader under load, and
+                    // answering that by abandoning transactions as fast as the
+                    // budget allows is the wrong direction.
+                    self.park_in_jeopardy(horizon).await;
                     continue;
                 }
             };
@@ -1428,15 +1499,27 @@ impl LeaderElector {
                         error = %_error,
                         "renewal failed, in jeopardy"
                     );
-                    let now = self.clock.monotonic();
-                    let backoff = self
-                        .config
-                        .jeopardy_backoff
-                        .min(horizon.saturating_sub(now));
-                    self.timer.sleep(backoff).await;
+                    self.park_in_jeopardy(horizon).await;
                 }
             }
         }
+    }
+
+    /// Wait before renewing again, without ever waiting past the horizon
+    ///
+    /// Both ways a renewal can fail to land end here: one that errored and one
+    /// that ran out of budget. Neither means the term is lost, so the leader
+    /// keeps believing and keeps trying, and the backoff is what keeps "keeps
+    /// trying" from meaning "as fast as it can". Capped at the time left before
+    /// the horizon so that a leader with moments to live spends them attempting
+    /// a renewal rather than sleeping through its own deadline.
+    async fn park_in_jeopardy(&self, horizon: Duration) {
+        let now = self.clock.monotonic();
+        let backoff = self
+            .config
+            .jeopardy_backoff
+            .min(horizon.saturating_sub(now));
+        self.timer.sleep(backoff).await;
     }
 
     async fn refresh_once(
@@ -1493,16 +1576,27 @@ impl LeaderElector {
             }
         }
     }
-
-    async fn arm_term_watch(&self) -> Result<BoxFuture<'static, FdbResult<()>>> {
-        self.db
-            .run(|txn, _| async move { Ok(self.election.watch_term(&txn)) })
-            .await
-    }
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// How long a campaign round parks, given what the protocol asked for
+///
+/// The floor is the hardening: a round that parks for no time at all is a loop
+/// bounded only by how fast the database answers, which is the shape every
+/// hot-loop failure in this recipe's history has had. So the floor wins when the
+/// two disagree, and a cap below it raises the park rather than lowering it.
+///
+/// Written out rather than [`Duration::clamp`] on purpose: `clamp` panics when
+/// the bounds cross, and they can. The floor is derived from the renewal
+/// interval while the cap is [`ElectorConfig::backoff_cap`], and both are
+/// settable independently, so `floor > cap` is a configuration a caller can
+/// reach without doing anything unreasonable. A panic inside a campaign loop is
+/// not an acceptable answer to that.
+fn poll_delay(retry_after: Duration, floor: Duration, cap: Duration) -> Duration {
+    retry_after.max(floor).min(cap.max(floor))
 }
 
 // ============================================================================
@@ -1581,6 +1675,93 @@ mod tests {
         LeaseHandle {
             state: Arc::new(LeaseState::new(ballot, horizon, clock)),
         }
+    }
+
+    // ---- campaign cadence ------------------------------------------------
+
+    #[test]
+    fn a_campaign_round_never_parks_for_no_time() {
+        const FLOOR: Duration = Duration::from_millis(250);
+        const CAP: Duration = Duration::from_secs(10);
+
+        // The whole point: an outcome that asks for nothing still parks. Every
+        // hot loop this recipe has produced was a round with a zero-length wait
+        // in it.
+        assert_eq!(poll_delay(Duration::ZERO, FLOOR, CAP), FLOOR);
+        assert_eq!(poll_delay(Duration::from_millis(1), FLOOR, CAP), FLOOR);
+
+        // In between, what the protocol asked for is what it gets.
+        assert_eq!(
+            poll_delay(Duration::from_secs(3), FLOOR, CAP),
+            Duration::from_secs(3)
+        );
+        assert_eq!(poll_delay(Duration::from_secs(30), FLOOR, CAP), CAP);
+    }
+
+    #[test]
+    fn a_cap_below_the_floor_raises_the_park_rather_than_panicking() {
+        // The floor is derived from the renewal interval and the cap is set
+        // directly, so a caller can cross them without doing anything
+        // unreasonable. `Duration::clamp` would panic on this; the floor wins
+        // instead, because the floor is the thing keeping the loop from
+        // spinning and a small cap must not be able to defeat it.
+        let floor = Duration::from_secs(1);
+        let cap = Duration::from_millis(10);
+        assert_eq!(poll_delay(Duration::ZERO, floor, cap), floor);
+        assert_eq!(poll_delay(Duration::from_secs(5), floor, cap), floor);
+    }
+
+    #[test]
+    fn the_poll_cap_keeps_a_resigned_term_cheap_to_discover() {
+        // The cap used to be the backoff cap, a whole lease by default, which
+        // meant a contender could park a lease and find a resigned term a lease
+        // late: the resign asymmetry, whose point is that an orderly handover
+        // costs nothing, would have cost the same as a crash.
+        let config = ElectorConfig::new(Duration::from_secs(30)).unwrap();
+        assert_eq!(config.backoff_cap(), Duration::from_secs(30));
+        assert_eq!(
+            config.backoff_cap().min(config.renew_interval()),
+            Duration::from_secs(10),
+            "a denial parks for at most a renewal interval, not a lease"
+        );
+
+        // A caller that asked for a shorter cap still gets it: the minimum is
+        // taken, not the renewal interval outright.
+        let tight = ElectorConfig::new(Duration::from_secs(30))
+            .unwrap()
+            .with_backoff_cap(Duration::from_secs(2))
+            .unwrap();
+        assert_eq!(
+            tight.backoff_cap().min(tight.renew_interval()),
+            Duration::from_secs(2)
+        );
+    }
+
+    #[test]
+    fn the_poll_floor_holds_for_every_lease_a_config_admits() {
+        for secs in [1u64, 3, 10, 60, 3600] {
+            let config = ElectorConfig::new(Duration::from_secs(secs)).unwrap();
+            let floor = (config.renew_interval() / 4).max(MIN_POLL_FLOOR);
+            assert!(floor >= MIN_POLL_FLOOR);
+            assert!(
+                floor < config.lease().as_duration(),
+                "a {secs}s lease derived a floor of {floor:?}"
+            );
+        }
+
+        // A renewal cadence short enough that the derived floor rounds to
+        // nothing still parks. `new` cannot produce one (the scheduling
+        // allowance alone puts tens of milliseconds under every lease it
+        // admits), but a caller naming its own interval can.
+        let eager = ElectorConfig::new(Duration::from_secs(10))
+            .unwrap()
+            .with_renew_interval(Duration::from_micros(1))
+            .unwrap();
+        assert!(eager.renew_interval() / 4 < MIN_POLL_FLOOR);
+        assert_eq!(
+            (eager.renew_interval() / 4).max(MIN_POLL_FLOOR),
+            MIN_POLL_FLOOR
+        );
     }
 
     // ---- config ----------------------------------------------------------

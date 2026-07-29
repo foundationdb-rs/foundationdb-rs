@@ -1,4 +1,4 @@
-//! The eleven properties a run has to satisfy.
+//! The twelve properties a run has to satisfy.
 //!
 //! Each one is a pure function of what [`replay`](super::replay) reconstructed,
 //! plus whatever external evidence it needs (the database snapshot, the
@@ -81,6 +81,70 @@ impl InvariantReport {
     /// Whether the invariant held
     pub fn passed(&self) -> bool {
         self.violations.is_empty()
+    }
+}
+
+/// How many violations of one invariant are kept
+///
+/// The checks that pair every belief with every other, or every steal with
+/// everything inside its window, are quadratic in the log. A run in which
+/// something went badly wrong produces violations by the same square, and
+/// keeping them all means the check phase that was supposed to report the
+/// failure dies of memory instead.
+///
+/// Sixty-four is far more than anybody reads (the workload spells out five and
+/// summarises the rest) and small enough to be free. Nothing about the judgement
+/// changes: a report is failed by having any violation at all, so a capped
+/// report fails exactly as hard as an uncapped one, and the count of what was
+/// dropped is reported alongside.
+const MAX_VIOLATIONS_KEPT: usize = 64;
+
+/// How many log indices one violation may name
+///
+/// The same reasoning one level down: a steal whose observation window was
+/// interrupted names every interfering write, and a runaway run interferes with
+/// itself thousands of times over.
+const MAX_INDICES_KEPT: usize = 64;
+
+/// A bounded collector for the checks that can produce a violation per pair
+///
+/// Push freely; what comes out is at most [`MAX_VIOLATIONS_KEPT`] violations
+/// plus, when there were more, one final entry counting the rest. That last
+/// entry is a violation like any other, so a capped report still fails the run.
+#[derive(Debug, Default)]
+pub(crate) struct Violations {
+    kept: Vec<Violation>,
+    total: usize,
+}
+
+impl Violations {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn push(&mut self, violation: Violation) {
+        self.total += 1;
+        if self.kept.len() < MAX_VIOLATIONS_KEPT {
+            self.kept.push(violation);
+        }
+    }
+
+    /// The indices of one violation, bounded the same way
+    pub(crate) fn indices(mut indices: Vec<usize>) -> Vec<usize> {
+        indices.truncate(MAX_INDICES_KEPT);
+        indices
+    }
+
+    pub(crate) fn into_report(mut self, name: &'static str) -> InvariantReport {
+        let dropped = self.total.saturating_sub(self.kept.len());
+        if dropped > 0 {
+            self.kept.push(Violation::global(format!(
+                "and {dropped} further violation(s), not spelled out: \
+                 {} were found in total",
+                self.total
+            )));
+        }
+        InvariantReport::new(name, self.kept)
     }
 }
 
@@ -381,7 +445,10 @@ pub fn one_claim_per_ballot(replay: &Replay) -> InvariantReport {
 /// the horizon it had computed for itself, which is the same bound its own
 /// hard-stop would have enforced had it lived.
 pub fn no_belief_overlap(replay: &Replay, tolerances: &Tolerances) -> InvariantReport {
-    let mut violations = Vec::new();
+    // Every belief against every later one, so a run that produced a lot of
+    // them can produce a lot of violations: bounded, and see [`Violations`] for
+    // why bounding costs the judgement nothing.
+    let mut violations = Violations::new();
     let epsilon = tolerances.belief_overlap.as_nanos() as u64;
 
     for (i, first) in replay.beliefs.iter().enumerate() {
@@ -413,7 +480,7 @@ pub fn no_belief_overlap(replay: &Replay, tolerances: &Tolerances) -> InvariantR
         }
     }
 
-    InvariantReport::new("NoBeliefOverlap", violations)
+    violations.into_report("NoBeliefOverlap")
 }
 
 // ============================================================================
@@ -432,7 +499,9 @@ pub fn steal_observation_discipline(
     replay: &Replay,
     tolerances: &Tolerances,
 ) -> InvariantReport {
-    let mut violations = Vec::new();
+    // Bounded: one violation per steal, and each of them can name every write
+    // that landed inside the window it took. Both counts grow with the log.
+    let mut violations = Violations::new();
     let slack = tolerances.observation_slack.as_nanos() as u64;
 
     for transition in &replay.transitions {
@@ -503,7 +572,10 @@ pub fn steal_observation_discipline(
                     indices.extend(interference.iter().copied());
                     indices.push(index);
                     violations.push(Violation::spanning(
-                        indices,
+                        // The count in the message is the whole of it; the
+                        // indices are the first few, which is what a reader
+                        // needs to find the window in the log.
+                        Violations::indices(indices),
                         format!(
                             "{} applied write(s) changed the leader record inside the \
                              observation window",
@@ -515,7 +587,7 @@ pub fn steal_observation_discipline(
         }
     }
 
-    InvariantReport::new("StealObservationDiscipline", violations)
+    violations.into_report("StealObservationDiscipline")
 }
 
 // ============================================================================
@@ -659,7 +731,84 @@ pub fn fencing_holds(entries: &[LogEntry], replay: &Replay) -> InvariantReport {
 }
 
 // ============================================================================
-// 8. UUID RECOVERY NO DUP
+// 8. SLEEPER WAS FENCED
+// ============================================================================
+
+/// The Kleppmann scenario actually ran, and both stale operations were refused.
+///
+/// [`fencing_holds`] is the safety property, and it holds vacuously over a run
+/// in which the paused leader never tried anything: no applied write at a stale
+/// ballot exists because no write at a stale ballot exists at all. That is the
+/// difference between "the fence refused the stale writes" and "there were no
+/// stale writes to refuse", and only the first is evidence.
+///
+/// So this is the liveness half, and it is deliberately narrow. The Sleeper
+/// writes an [`OpKind::SleeperWoke`] marker once its barrier is met, which is
+/// the moment the two stale operations become owed: a successor holds the term
+/// and has already committed a write under a higher rank. Every marker in the
+/// log must therefore be followed, by the same client and at the same ballot,
+/// by a rejected fenced write and a rejected renewal.
+///
+/// # What it refuses to demand
+///
+/// A run with no Sleeper, or one whose Sleeper was killed before its barrier,
+/// writes no marker and is judged on nothing: attrition is a scenario that did
+/// not happen, not one that failed. Only the window between the marker and the
+/// two operations is held against a client, which is one transaction wide.
+pub fn sleeper_was_fenced(entries: &[LogEntry]) -> InvariantReport {
+    let mut violations = Vec::new();
+
+    for (index, entry) in entries.iter().enumerate() {
+        if entry.record.op != OpKind::SleeperWoke {
+            continue;
+        }
+        let client_id = entry.client_id;
+        let ballot = entry.record.ballot;
+
+        // Only what this client did afterwards counts: the stale operations
+        // follow the marker, and an earlier write at the same ballot belongs to
+        // the term while it was still live.
+        let after = entries
+            .iter()
+            .skip(index + 1)
+            .filter(|later| later.client_id == client_id && later.record.ballot == ballot);
+        let mut stale_write = None;
+        let mut stale_renewal = None;
+        for later in after {
+            match later.record.op {
+                OpKind::FencedWrite => stale_write = stale_write.or(Some(later.record.outcome)),
+                OpKind::Renew => stale_renewal = stale_renewal.or(Some(later.record.outcome)),
+                _ => {}
+            }
+        }
+
+        for (what, outcome) in [("fenced write", stale_write), ("renewal", stale_renewal)] {
+            match outcome {
+                None => violations.push(Violation::at(
+                    index,
+                    format!(
+                        "client {client_id} passed its pause barrier at ballot {ballot} \
+                         but never attempted the stale {what}: the scenario proves nothing \
+                         if the paused leader never acts"
+                    ),
+                )),
+                Some(outcome) if outcome.is_applied() => violations.push(Violation::at(
+                    index,
+                    format!(
+                        "client {client_id} paused past its lease and its stale {what} \
+                         at ballot {ballot} was applied rather than refused"
+                    ),
+                )),
+                Some(_) => {}
+            }
+        }
+    }
+
+    InvariantReport::new("SleeperWasFenced", violations)
+}
+
+// ============================================================================
+// 9. UUID RECOVERY NO DUP
 // ============================================================================
 
 /// One token accounts for at most one applied claim, and a spent token is spent.
@@ -1024,6 +1173,7 @@ pub fn check_all(inputs: &CheckInputs<'_>) -> Vec<InvariantReport> {
         steal_observation_discipline(inputs.entries, inputs.replay, &inputs.tolerances),
         vacant_reclaim(inputs.replay),
         fencing_holds(inputs.entries, inputs.replay),
+        sleeper_was_fenced(inputs.entries),
         uuid_recovery_no_dup(inputs.entries, inputs.replay),
         progress_made(inputs.entries, inputs.replay, &inputs.thresholds),
         history_faithful(inputs.replay, inputs.history),
@@ -1285,6 +1435,53 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
+    // Bounded reporting
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn a_capped_report_still_fails_and_says_what_it_dropped() {
+        let mut violations = Violations::new();
+        for index in 0..(MAX_VIOLATIONS_KEPT * 3) {
+            violations.push(Violation::at(index, "broke it"));
+        }
+        let report = violations.into_report("Bounded");
+
+        assert!(!report.passed(), "a capped report must still fail the run");
+        assert_eq!(
+            report.violations.len(),
+            MAX_VIOLATIONS_KEPT + 1,
+            "everything kept, plus the one line counting the rest"
+        );
+        let last = report.violations.last().expect("the remainder line");
+        assert!(
+            last.detail
+                .contains(&format!("{} were found", MAX_VIOLATIONS_KEPT * 3)),
+            "the remainder must name the real total, got {:?}",
+            last.detail
+        );
+        assert!(last.indices.is_empty(), "the remainder names no entry");
+    }
+
+    #[test]
+    fn a_report_under_the_cap_is_untouched() {
+        let mut violations = Violations::new();
+        violations.push(Violation::at(7, "broke it"));
+        let report = violations.into_report("Bounded");
+        assert_eq!(report.violations, vec![Violation::at(7, "broke it")]);
+
+        // And an invariant that held reports nothing at all, remainder line
+        // included: the cap must not turn a pass into a failure.
+        assert!(Violations::new().into_report("Bounded").passed());
+    }
+
+    #[test]
+    fn one_violation_cannot_name_an_unbounded_number_of_entries() {
+        let indices = Violations::indices((0..10_000).collect());
+        assert_eq!(indices.len(), MAX_INDICES_KEPT);
+        assert_eq!(indices[0], 0, "the first are the ones a reader needs");
+    }
+
+    // ------------------------------------------------------------------
     // 4. NoBeliefOverlap
     // ------------------------------------------------------------------
 
@@ -1488,7 +1685,121 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // 8. UuidRecoveryNoDup
+    // 8. SleeperWasFenced
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn sleeper_was_fenced_catches_a_scenario_that_never_ran() {
+        let entries = clean_log();
+        assert!(sleeper_was_fenced(&entries).passed());
+
+        // The defect this exists for, and the one `FencingHolds` cannot see:
+        // the Sleeper passes its barrier and then never touches its stale term,
+        // so there is no applied write at a stale ballot for the fencing check
+        // to object to, and the run passes having proved nothing.
+        let mut entries = clean_log();
+        entries.retain(|entry| {
+            !(entry.client_id == 1
+                && entry.record.ballot == 2
+                && matches!(entry.record.op, OpKind::FencedWrite | OpKind::Renew)
+                && entry.record.outcome == Outcome::Rejected)
+        });
+        assert!(
+            fencing_holds(&entries, &replayed(&entries)).passed(),
+            "the safety half is exactly what stays silent here"
+        );
+        assert_failed(&sleeper_was_fenced(&entries), "never attempted the stale");
+    }
+
+    #[test]
+    fn sleeper_was_fenced_catches_each_missing_operation_on_its_own() {
+        // Only the write goes missing.
+        let mut entries = clean_log();
+        entries.retain(|entry| {
+            !(entry.client_id == 1
+                && entry.record.op == OpKind::FencedWrite
+                && entry.record.outcome == Outcome::Rejected)
+        });
+        assert_failed(
+            &sleeper_was_fenced(&entries),
+            "never attempted the stale fenced write",
+        );
+
+        // Only the renewal goes missing.
+        let mut entries = clean_log();
+        entries.retain(|entry| {
+            !(entry.client_id == 1
+                && entry.record.op == OpKind::Renew
+                && entry.record.outcome == Outcome::Rejected)
+        });
+        assert_failed(
+            &sleeper_was_fenced(&entries),
+            "never attempted the stale renewal",
+        );
+    }
+
+    #[test]
+    fn sleeper_was_fenced_catches_a_stale_operation_that_was_not_refused() {
+        let mut entries = clean_log();
+        let stale = find(&entries, |entry| {
+            entry.client_id == 1
+                && entry.record.op == OpKind::FencedWrite
+                && entry.record.outcome == Outcome::Rejected
+        });
+        entries[stale].record.outcome = Outcome::Applied;
+
+        assert_failed(&sleeper_was_fenced(&entries), "was applied rather than");
+    }
+
+    #[test]
+    fn sleeper_was_fenced_demands_nothing_of_a_run_without_one() {
+        // No marker, no demand. A run that drew no Sleeper, and one whose
+        // Sleeper was killed before its barrier, both look like this, and
+        // neither is a failure: attrition is a scenario that did not happen.
+        let mut entries = clean_log();
+        entries.retain(|entry| entry.record.op != OpKind::SleeperWoke);
+        assert!(sleeper_was_fenced(&entries).passed());
+
+        assert!(sleeper_was_fenced(&[]).passed());
+    }
+
+    #[test]
+    fn sleeper_was_fenced_ignores_what_the_term_did_while_it_was_live() {
+        // The stale operations follow the marker. A fenced write the Sleeper
+        // made at the same ballot *before* pausing is the term acting while it
+        // still held, and counting it would let a run pass on evidence from
+        // before the pause.
+        let mut entries = clean_log();
+        let marker = find(&entries, |entry| entry.record.op == OpKind::SleeperWoke);
+        let live_write = {
+            let mut record = fenced_write(2, Outcome::Applied, 7 * SEC);
+            record.local_nanos = 7 * SEC;
+            record
+        };
+        entries.insert(
+            marker,
+            LogEntry {
+                client_id: 1,
+                op_num: 0,
+                versionstamp: [0u8; 12],
+                record: live_write,
+            },
+        );
+        // Now remove the genuinely stale write: only the pre-pause one is left.
+        entries.retain(|entry| {
+            !(entry.client_id == 1
+                && entry.record.op == OpKind::FencedWrite
+                && entry.record.outcome == Outcome::Rejected)
+        });
+
+        assert_failed(
+            &sleeper_was_fenced(&entries),
+            "never attempted the stale fenced write",
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 9. UuidRecoveryNoDup
     // ------------------------------------------------------------------
 
     #[test]

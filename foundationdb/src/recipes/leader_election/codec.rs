@@ -11,13 +11,14 @@
 //!
 //! ```text
 //! <subspace>/leader                 - the contested record (reads, CAS writes)
-//! <subspace>/term                   - bumped only on claim/steal/resign; watches park here
 //! <subspace>/history/<versionstamp> - audit trail of transitions, bounded retention
 //! ```
 //!
-//! Splitting the term key out of the leader key is what keeps a renewal from
-//! waking every contender: renewals rewrite the leader record only, so a watch
-//! on the term key fires on real leadership changes and nothing else.
+//! Two keys, and no notification key. Discovery is polling: a reader re-reads
+//! the leader key on its own cadence and compares the `(ballot, generation)`
+//! identity it finds with the one it saw last. There is nothing here for a
+//! watch to park on, by design, and the reasoning is in the
+//! [module documentation](super).
 //!
 //! # Record value
 //!
@@ -34,7 +35,6 @@ use crate::tuple::{Subspace, Versionstamp, pack, unpack};
 
 /// Key prefixes within the election subspace
 pub(crate) const LEADER_PREFIX: &str = "leader";
-pub(crate) const TERM_PREFIX: &str = "term";
 pub(crate) const HISTORY_PREFIX: &str = "history";
 
 // ============================================================================
@@ -44,11 +44,6 @@ pub(crate) const HISTORY_PREFIX: &str = "history";
 /// The contested leader record key
 pub(crate) fn leader_key(subspace: &Subspace) -> Vec<u8> {
     subspace.pack(&(LEADER_PREFIX,))
-}
-
-/// The key watches park on
-pub(crate) fn term_key(subspace: &Subspace) -> Vec<u8> {
-    subspace.pack(&(TERM_PREFIX,))
 }
 
 /// The subspace holding the transition audit trail
@@ -164,18 +159,6 @@ pub(crate) fn vacant_record(ballot: u64, generation: u64) -> LeaderRecord {
         token: ClaimToken::ZERO,
         lease_nanos: 0,
     }
-}
-
-// ============================================================================
-// TERM MARKER
-// ============================================================================
-
-/// Encode the term marker
-///
-/// Includes the occupancy flag so that a resign, which preserves both ballot
-/// and generation, still changes the value and therefore still fires watches.
-pub(crate) fn encode_term(record: &LeaderRecord) -> Vec<u8> {
-    pack(&(record.ballot, record.generation, !record.is_vacant()))
 }
 
 // ============================================================================

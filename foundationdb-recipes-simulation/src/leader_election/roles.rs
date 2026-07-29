@@ -28,8 +28,10 @@
 //! Contenders campaign, renew and resign. One Sleeper reproduces the Kleppmann
 //! pause: it takes a term, stops responding for longer than its lease, and only
 //! once a successor has demonstrably taken over *and* written under a higher
-//! rank does it try to use its stale term. One Watcher discovers leadership
-//! through the term key rather than by polling.
+//! rank does it try to use its stale term. One Watcher does nothing but
+//! discover leadership, which in this recipe means polling: read the record,
+//! park, read it again. It keeps its name and watches nothing, because there is
+//! nothing to watch.
 //!
 //! Every term arrives with its fence already installed, because
 //! [`Journal::claim`](super::logged_op::Journal::claim) installs it in the claim
@@ -56,7 +58,19 @@
 //!
 //! Every role logs sightings of the leader record, not just the Watcher. That
 //! is the failover story under attrition: the liveness check needs somebody to
-//! have been watching, and any survivor will do.
+//! have been looking, and any survivor will do.
+//!
+//! # Every loop is bounded
+//!
+//! A role is a loop that ends when simulated time reaches the deadline, so
+//! every iteration has to cost simulated time. Two things enforce that here.
+//! Waits report their failures ([`Driver::delay`] and the two paces built on
+//! it) rather than reading an error as a wait that finished, which is how a
+//! paced loop becomes one that runs at wall-clock speed. And every loop carries
+//! a [`LivenessGuard`]: three iterations in a row at the same simulated instant
+//! end the role loudly, whatever the cause. The third bound is the journal's
+//! own operation ceiling, which is what turns any loop these two miss into a
+//! fast failure instead of an out-of-memory death.
 
 use std::time::Duration;
 
@@ -72,7 +86,8 @@ use futures::future::Either;
 
 use super::clock::SkewMode;
 use super::elector_role::{self, ElectorSetup};
-use super::logged_op::Journal;
+use super::liveness::{LivenessGuard, next_tick};
+use super::logged_op::{Journal, op_ceiling};
 use super::swarm::FaultTiming;
 
 /// What a client does for the length of the run
@@ -82,7 +97,7 @@ pub(crate) enum Role {
     Contender,
     /// Takes a term, pauses past its lease, then must be fenced out
     Sleeper,
-    /// Follows leadership through the term key
+    /// Discovers leadership by polling the record, and never campaigns
     Watcher,
     /// Runs the recipe's own `LeaderElector` against an election of its own
     ///
@@ -421,15 +436,14 @@ impl Driver {
         self.start_sim = self.journal.sim_now();
         self.deadline = self.start_sim + self.config.test_duration;
 
-        if self.role != Role::Sleeper && !self.config.sleeper_head_start.is_zero() {
-            self.delay(self.config.sleeper_head_start).await;
-        }
-
-        let outcome = match self.role {
-            Role::Watcher => self.watch(db).await,
-            Role::Sleeper => self.pause_and_be_fenced(db).await,
-            Role::Contender => self.contend(db).await,
-            Role::Elector => self.lead_terms(db).await,
+        let outcome = match self.head_start().await {
+            Err(error) => Err(error),
+            Ok(()) => match self.role {
+                Role::Watcher => self.poll_leadership(db).await,
+                Role::Sleeper => self.pause_and_be_fenced(db).await,
+                Role::Contender => self.contend(db).await,
+                Role::Elector => self.lead_terms(db).await,
+            },
         };
 
         if let Err(error) = outcome {
@@ -443,6 +457,14 @@ impl Driver {
                 ],
             );
         }
+    }
+
+    /// Hold back so the Sleeper can take the first term
+    async fn head_start(&self) -> Result<(), FdbBindingError> {
+        if self.role == Role::Sleeper || self.config.sleeper_head_start.is_zero() {
+            return Ok(());
+        }
+        self.delay(self.config.sleeper_head_start).await
     }
 
     // ========================================================================
@@ -470,6 +492,7 @@ impl Driver {
                 skew_mode: self.config.skew_mode,
                 step: self.config.step,
                 deadline: self.deadline,
+                op_ceiling: op_ceiling(self.config.test_duration, self.config.step),
             },
             db,
         )
@@ -491,27 +514,41 @@ impl Driver {
     async fn contend(&mut self, db: &SimDatabase) -> Result<(), FdbBindingError> {
         let mut term: Option<Term> = None;
         let mut step = 0u64;
+        let mut guard = LivenessGuard::new();
+        // The campaign's pacing cursor. A leader paces on its renewal deadline
+        // instead, which is why this is reset when a term ends rather than
+        // being allowed to fall a whole term behind.
+        let mut next = self.journal.local_now();
 
         while self.journal.sim_now() < self.deadline {
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("contend");
+                return Ok(());
+            }
             term = match term {
                 None => self.campaign(db).await?,
                 Some(held) => self.serve(db, held).await?,
             };
-            // Every role watches, so that killing the Watcher cannot make the
-            // run look like nobody was ever elected. Every other step is
-            // enough for that, and a transaction not issued is a transaction
+            // Every role polls the record, so that killing the Watcher cannot
+            // make the run look like nobody was ever elected. Every other step
+            // is enough for that, and a transaction not issued is a transaction
             // not competing with the ones that matter.
             if step % 2 == 0 {
-                self.sight(db, false).await?;
+                self.sight(db).await?;
             }
             step += 1;
             match &term {
                 // A leader waits until its renewal is due rather than a whole
                 // step past it. With a short lease a step is a large fraction
                 // of the term, and overshooting the deadline is how a leader
-                // ends up at its horizon having never renewed.
-                Some(held) => self.pace_until(held.renew_due).await,
-                None => self.pace().await,
+                // ends up at its horizon having never renewed. Its own deadline
+                // is the cursor here, so the campaign cursor is resynchronised
+                // rather than left behind for the next campaign to catch up on.
+                Some(held) => {
+                    self.pace_until(held.renew_due).await?;
+                    next = self.journal.local_now();
+                }
+                None => self.pace_from(&mut next).await?,
             }
         }
 
@@ -794,7 +831,7 @@ impl Driver {
             // One long delay past the lease: no renewals, no belief end, and a
             // record left standing still for a successor to time out.
             self.delay(self.config.lease.as_duration().mul_f64(1.5))
-                .await;
+                .await?;
             return Ok(None);
         }
 
@@ -830,6 +867,8 @@ impl Driver {
     /// refused because no fence had been installed yet, or because the term had
     /// not actually moved.
     async fn pause_and_be_fenced(&mut self, db: &SimDatabase) -> Result<(), FdbBindingError> {
+        let mut guard = LivenessGuard::new();
+        let mut next = self.journal.local_now();
         let term = loop {
             if self.journal.sim_now() >= self.deadline {
                 self.trace(
@@ -839,9 +878,13 @@ impl Driver {
                 );
                 return Ok(());
             }
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("sleeper campaign");
+                return Ok(());
+            }
             match self.campaign(db).await? {
                 Some(term) => break term,
-                None => self.pace().await,
+                None => self.pace_from(&mut next).await?,
             }
         };
 
@@ -858,7 +901,7 @@ impl Driver {
                 "PauseSecs" => pause.as_secs_f64()
             ],
         );
-        self.delay(pause).await;
+        self.delay(pause).await?;
 
         if !self.wait_for_successor(db, &term).await? {
             self.trace(
@@ -868,6 +911,15 @@ impl Driver {
             );
             return self.contend(db).await;
         }
+
+        // Written before the stale operations and after the barrier they
+        // depend on, so its presence in the log means those two operations were
+        // owed. Without it a Sleeper that never reached this point and one whose
+        // stale attempts silently stopped happening look identical, and
+        // `SleeperWasFenced` would hold for the wrong reason.
+        self.journal
+            .sleeper_woke(db, term.grant.ballot(), *term.grant.token().as_bytes())
+            .await?;
 
         // The stale term, used as if nothing had happened. Both operations must
         // be refused; a violation is caught in the check phase rather than
@@ -906,9 +958,15 @@ impl Driver {
         db: &SimDatabase,
         term: &Term,
     ) -> Result<bool, FdbBindingError> {
+        let mut guard = LivenessGuard::new();
+        let mut next = self.journal.local_now();
         while self.journal.sim_now() < self.deadline {
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("sleeper barrier");
+                return Ok(false);
+            }
             let stolen = self
-                .sight(db, false)
+                .sight(db)
                 .await?
                 .is_some_and(|ballot| ballot > term.grant.ballot());
             let fenced = self
@@ -919,7 +977,7 @@ impl Driver {
             if stolen && fenced {
                 return Ok(true);
             }
-            self.pace().await;
+            self.pace_from(&mut next).await?;
         }
         Ok(false)
     }
@@ -928,23 +986,28 @@ impl Driver {
     // WATCHER
     // ========================================================================
 
-    /// Follow leadership through the term key
+    /// Discover leadership the only way this recipe offers: by polling
     ///
-    /// The watch is a hint and nothing more: it can coalesce, and a term that
-    /// flaps back to its previous holder may produce no wake-up at all. Every
-    /// pass re-reads and logs what it saw, whether or not anything changed.
-    async fn watch(&mut self, db: &SimDatabase) -> Result<(), FdbBindingError> {
+    /// Read, log what was there, park, read again. There is no notification to
+    /// wait on and deliberately so (see the recipe's "Discovery is polling"),
+    /// which makes this role the plainest possible reader: one transaction per
+    /// round, one park per round, no branch that can skip either.
+    ///
+    /// The park is unconditional. This loop used to arm a watch and park on
+    /// whichever of the watch and a timeout resolved first, and a watch that
+    /// resolves with an error resolves immediately: that is the loop that ran at
+    /// wall-clock speed and exhausted the server's memory. A round that decides
+    /// for itself whether to wait is one round away from being that loop again.
+    async fn poll_leadership(&mut self, db: &SimDatabase) -> Result<(), FdbBindingError> {
+        let mut guard = LivenessGuard::new();
+        let mut next = self.journal.local_now();
         while self.journal.sim_now() < self.deadline {
-            let (_, watch) = self.journal.observe(db, true).await?;
-            self.counters.sightings += 1;
-
-            match watch {
-                Some(watch) => {
-                    let timeout = Box::pin(self.context.delay(self.config.step * 4));
-                    let _ = futures::future::select(watch, timeout).await;
-                }
-                None => self.pace().await,
+            if !guard.tick(self.journal.sim_now()) {
+                self.stalled("watcher poll");
+                return Ok(());
             }
+            self.sight(db).await?;
+            self.pace_from(&mut next).await?;
         }
         Ok(())
     }
@@ -954,14 +1017,31 @@ impl Driver {
     // ========================================================================
 
     /// Read and log the current leader record, returning its ballot
-    async fn sight(
-        &mut self,
-        db: &SimDatabase,
-        arm_watch: bool,
-    ) -> Result<Option<u64>, FdbBindingError> {
-        let (current, _) = self.journal.observe(db, arm_watch).await?;
+    async fn sight(&mut self, db: &SimDatabase) -> Result<Option<u64>, FdbBindingError> {
+        let current = self.journal.observe(db).await?;
         self.counters.sightings += 1;
         Ok(current.map(|record| record.ballot()))
+    }
+
+    /// Report a loop that went round without simulated time moving
+    ///
+    /// Loud, because it means a wait somewhere stopped waiting and everything
+    /// this client did afterwards was unpaced. The role ends: the check phase
+    /// judges the whole log, and what this client failed to do shows up there
+    /// as missing progress.
+    fn stalled(&mut self, loop_name: &str) {
+        self.counters.errors += 1;
+        self.trace(
+            Severity::WarnAlways,
+            "LeaderElectionRoleStalled",
+            details![
+                "Client" => self.journal.client_id(),
+                "Role" => self.role.as_str(),
+                "Loop" => loop_name,
+                "Iterations" => LivenessGuard::STALL_LIMIT,
+                "SimNanos" => self.journal.sim_now().as_nanos() as u64
+            ],
+        );
     }
 
     /// Do one piece of fenced work, and give it up at the horizon
@@ -996,7 +1076,12 @@ impl Driver {
                 // The transaction is dropped with this frame. It may still land
                 // (nothing can un-issue a commit), which is exactly why the
                 // fence, and not the horizon, is what makes the write safe.
-                Either::Right(_) => None,
+                Either::Right((Ok(()), _)) => None,
+                // A delay that failed is not a horizon that arrived. Counting it
+                // as abandoned work would report this client as having given up
+                // on its own deadline when in fact the simulator is tearing it
+                // down, and would leave the loop above unpaced.
+                Either::Right((Err(error), _)) => return Err(error.into()),
             }
         };
         match outcome {
@@ -1068,19 +1153,96 @@ impl Driver {
         f64::from(self.rng().next_u32()) / f64::from(u32::MAX) < probability
     }
 
-    async fn delay(&self, duration: Duration) {
-        let _ = self.context.delay(duration).await;
+    /// Wait, and report it if the wait did not happen
+    ///
+    /// A delay yields an `FdbResult`, and discarding it is how a paced loop
+    /// turns into a hot one: an error reads as "the wait is over" and the loop
+    /// goes round at whatever speed the process can manage. A wait that failed
+    /// is not a wait that succeeded, so the failure travels up as an error and
+    /// ends this client's role.
+    ///
+    /// # What the error actually means
+    ///
+    /// Upstream's `delay()` cannot fail. The two errors that reach here,
+    /// `operation_cancelled` (1101) and `broken_promise` (1100), are produced by
+    /// the ExternalWorkload bridge's blanket catch and mean the flow-side actor
+    /// behind this delay is gone, which is the simulator tearing this client
+    /// down. The C++ equivalent is the coroutine frame being destroyed: the code
+    /// after the wait never runs, and every upstream workload rethrows
+    /// `actor_cancelled` rather than carrying on. Ending the role is that same
+    /// behaviour.
+    ///
+    /// # Why this ends the role rather than failing the run
+    ///
+    /// It is traced at `WarnAlways` and stops there, deliberately.
+    /// `Severity::Error` fails a simulation run, and a client whose delays stop
+    /// working is a client the simulator is removing, which is the same class of
+    /// event as an attrition kill: an honest run with a machine failure in it
+    /// would start failing. Upstream takes the same view and suppresses
+    /// error-level logging for cancellation outright. What this client did not
+    /// get to do is not silently forgiven either, because it shows up in the
+    /// check phase as missing progress, and the unconditional `ProgressMade`
+    /// floors are what refuse a run where too many clients ended early to have
+    /// proved anything.
+    ///
+    /// # What the simulator does with the number
+    ///
+    /// `Sim2::delay` asserts its argument is not negative (below `-0.0001`) and
+    /// aborts the simulated process if it is. Nothing here can trip that:
+    /// `Duration` is unsigned, and every deadline this file turns into a wait
+    /// goes through `saturating_sub`, so an already-passed deadline becomes zero
+    /// rather than going negative. Keep it that way. Computing a wait as `f64`
+    /// seconds, which is the obvious-looking refactor, reintroduces exactly the
+    /// case the assert exists for.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the simulator's delay reported.
+    async fn delay(&self, duration: Duration) -> Result<(), FdbBindingError> {
+        self.context
+            .delay(duration)
+            .await
+            .map_err(FdbBindingError::from)
     }
 
-    /// Wait out a step, jittered
+    /// Wait until the next tick, having already moved the cursor onto it
     ///
-    /// Clients that campaign in lockstep spend the run losing conflicts to each
-    /// other: every one of them reads the leader key, one writes it, and the
-    /// rest retire their attempts and start over. Spreading the steps is the
-    /// standard herd avoidance, and it is what lets a run of seven contenders
-    /// produce leadership changes rather than contention.
-    async fn pace(&self) {
-        self.delay(self.jittered_step()).await;
+    /// Every loop in this file paces through here. There is deliberately no
+    /// "just wait a step" counterpart any more: a relative wait in a loop is
+    /// the shape that spins when the wait stops working, and leaving one
+    /// available is leaving it to be reused.
+    ///
+    /// The step is jittered because clients that campaign in lockstep spend the
+    /// run losing conflicts to each other: every one of them reads the leader
+    /// key, one writes it, and the rest retire their attempts and start over.
+    /// Spreading the steps is the standard herd avoidance, and it is what lets a
+    /// run of seven contenders produce leadership changes rather than contention.
+    ///
+    /// FoundationDB's own pacing idiom (`poisson`, `delayUntil`): the caller
+    /// owns a deadline cursor, this advances it by one jittered step *before*
+    /// awaiting, and then waits until it. Two properties fall out, and both
+    /// matter here.
+    ///
+    /// It cannot spin. A wait that returns instantly, for whatever reason,
+    /// leaves the cursor already a step further on, so the next iteration asks
+    /// for a real wait rather than another instant one. That is structural: it
+    /// holds without anybody checking a clock, which is what makes it worth
+    /// having on top of [`LivenessGuard`], whose job is to catch the loops this
+    /// does not cover.
+    ///
+    /// And it does not drift. A round whose work took time is followed by a
+    /// shorter wait rather than a full step on top, so a poll loop keeps its
+    /// average cadence instead of slipping by however long each round took. When
+    /// the work overran the step entirely the wait is zero and the loop catches
+    /// up over the following rounds; that burst is bounded, because catching up
+    /// only happens after simulated time really did pass.
+    async fn pace_from(&self, next: &mut Duration) -> Result<(), FdbBindingError> {
+        let (cursor, wait) = next_tick(*next, self.jittered_step(), self.journal.local_now());
+        *next = cursor;
+        if wait.is_zero() {
+            return Ok(());
+        }
+        self.delay(wait).await
     }
 
     /// Wait out a step, or up to `due`, whichever comes first
@@ -1088,13 +1250,17 @@ impl Driver {
     /// The renewal driver of the handle layer sleeps exactly until the renewal
     /// is due. This is that, with the step as a ceiling so a leader with a long
     /// lease still takes its other actions in between.
-    async fn pace_until(&self, due: Duration) {
+    async fn pace_until(&self, due: Duration) -> Result<(), FdbBindingError> {
         let wait = due
             .saturating_sub(self.journal.local_now())
             .min(self.jittered_step());
-        if !wait.is_zero() {
-            self.delay(wait).await;
+        if wait.is_zero() {
+            // A deadline already behind us: the caller goes straight round
+            // again, and the liveness guard on its loop is what notices if that
+            // keeps happening without the clock moving.
+            return Ok(());
         }
+        self.delay(wait).await
     }
 
     fn jittered_step(&self) -> Duration {

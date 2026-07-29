@@ -34,6 +34,22 @@
 //! asked anything. That is why the driver forces it, throwing away replies it
 //! did receive and re-running the attempt later, and why
 //! [`injected_unknown`](Journal::injected_unknown) exists to say so in the log.
+//!
+//! # The ceiling
+//!
+//! Every operation writes a log entry, and the check phase reads all of them
+//! back. That makes the log the amplifier for any loop that stops being paced
+//! by simulated time: a role spinning at wall-clock speed writes entries as
+//! fast as the cluster will take them, and a run that used to fail on an
+//! invariant instead dies of memory exhaustion with nothing to show for it.
+//!
+//! So each journal carries a ceiling, derived from how many rounds the run's
+//! duration and step allow and generous by a wide margin
+//! ([`op_ceiling`]). Past it every operation is refused with
+//! [`OpCeilingReached`], which the roles treat like any other failure: the role
+//! traces it and ends. Bounding the log is not a judgement about the run, it is
+//! what keeps the run judgeable at all, and a client that hit its ceiling has
+//! stopped contributing evidence rather than started producing bad evidence.
 
 use std::cell::Cell;
 use std::sync::Arc;
@@ -47,9 +63,8 @@ use foundationdb::recipes::leader_election::{
 };
 use foundationdb::recipes::ranked_register::{Rank, RankedRegister, WriteResult};
 use foundationdb::tuple::{Subspace, pack, unpack};
-use foundationdb::{FdbBindingError, FdbResult, RetryableTransaction};
+use foundationdb::{FdbBindingError, RetryableTransaction};
 use foundationdb_simulation::SimDatabase;
-use futures::future::BoxFuture;
 
 use super::clock::SkewedClock;
 use super::log_schema::{LogRecord, ObservedIdentity, OpKind, Outcome, incomplete_log_key};
@@ -69,6 +84,67 @@ where
 fn nanos(duration: Duration) -> u64 {
     duration.as_nanos() as u64
 }
+
+// ============================================================================
+// THE OPERATION CEILING
+// ============================================================================
+
+/// The most logged operations one round of any role can produce
+///
+/// The busiest round a role has is a leader's: a renewal, a belief record and
+/// one fenced write, plus a sighting, which is four. Fifty leaves an order of
+/// magnitude of headroom, so the ceiling can only be reached by a loop that has
+/// stopped waiting altogether, never by a run that was merely busy.
+const OPS_PER_ROUND_BOUND: u64 = 50;
+
+/// The smallest ceiling any configuration gets
+///
+/// A run whose step is zero or longer than the whole run derives no rounds at
+/// all, and a ceiling of zero would refuse the first operation of a run that
+/// was configured oddly rather than looping.
+const MIN_OP_CEILING: u64 = 1024;
+
+/// How many operations one client may log before the journal refuses
+///
+/// Derived rather than configured: the bound has to follow the run's own shape,
+/// and a knob would be one more thing a swarm file could get wrong. See the
+/// [module documentation](self) for why it exists.
+pub(crate) fn op_ceiling(test_duration: Duration, step: Duration) -> u64 {
+    let rounds = if step.is_zero() {
+        0
+    } else {
+        u64::try_from(test_duration.as_nanos() / step.as_nanos()).unwrap_or(u64::MAX)
+    };
+    rounds
+        .saturating_mul(OPS_PER_ROUND_BOUND)
+        .max(MIN_OP_CEILING)
+}
+
+/// A client that has written as much as its run's shape can explain
+///
+/// Not an infrastructure error and not an invariant violation: it is this
+/// workload refusing to let one client's runaway loop take the whole run's
+/// evidence down with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OpCeilingReached {
+    /// The client that hit it
+    pub(crate) client_id: i32,
+    /// The ceiling it hit
+    pub(crate) ceiling: u64,
+}
+
+impl std::fmt::Display for OpCeilingReached {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "client {} logged {} operations, its ceiling for this run: \
+             a loop stopped waiting",
+            self.client_id, self.ceiling
+        )
+    }
+}
+
+impl std::error::Error for OpCeilingReached {}
 
 /// What a claim transaction produced, plus the observation to thread onwards
 pub(crate) type ClaimResult = (ClaimOutcome, LeaseObservation);
@@ -90,6 +166,8 @@ pub(crate) struct Journal {
     client_id: i32,
     leader_id: String,
     next_op_num: Cell<u64>,
+    /// How many operations this client may log before the journal refuses
+    op_ceiling: u64,
 }
 
 impl Journal {
@@ -99,6 +177,9 @@ impl Journal {
     /// [`log_subspace`](super::log_schema::log_subspace) and the elector role to
     /// [`elector_log_subspace`](super::log_schema::elector_log_subspace): two
     /// runs against two elections, judged separately.
+    ///
+    /// `op_ceiling` comes from [`op_ceiling`](self::op_ceiling), computed from
+    /// the run's duration and step by whoever built the configuration.
     pub(crate) fn new(
         env: Environment,
         clock: Arc<SkewedClock>,
@@ -106,6 +187,7 @@ impl Journal {
         register: RankedRegister,
         log_subspace: Subspace,
         client_id: i32,
+        op_ceiling: u64,
     ) -> Self {
         Self {
             env,
@@ -118,6 +200,7 @@ impl Journal {
             // agree or every record looks like it came from a stranger.
             leader_id: format!("process_{client_id}"),
             next_op_num: Cell::new(0),
+            op_ceiling,
         }
     }
 
@@ -168,6 +251,11 @@ impl Journal {
         self.next_op_num.get()
     }
 
+    /// How many this client may log in total
+    pub(crate) fn op_ceiling(&self) -> u64 {
+        self.op_ceiling
+    }
+
     // ========================================================================
     // THE WRAPPER
     // ========================================================================
@@ -176,14 +264,27 @@ impl Journal {
     ///
     /// `op` reads, decides and returns both its result and the record
     /// describing what it did; this method owns the parts that are the same for
-    /// every operation: the idempotency option, the true-time stamp taken after
-    /// the operation's reads, and the versionstamped append.
+    /// every operation: the ceiling, the idempotency option, the true-time stamp
+    /// taken after the operation's reads, and the versionstamped append.
+    ///
+    /// # Errors
+    ///
+    /// [`OpCeilingReached`], wrapped, once this client has logged more than its
+    /// run's shape can explain. The counter is advanced before the transaction
+    /// runs, so a refusal is permanent for this client rather than something a
+    /// caller can retry its way past.
     async fn run<T, F, Fut>(&self, db: &SimDatabase, op: F) -> Result<T, FdbBindingError>
     where
         F: Fn(RetryableTransaction, bool) -> Fut,
         Fut: Future<Output = Result<(T, LogRecord), FdbBindingError>>,
     {
         let op_num = self.next_op_num.get();
+        if op_num >= self.op_ceiling {
+            return Err(custom(OpCeilingReached {
+                client_id: self.client_id,
+                ceiling: self.op_ceiling,
+            }));
+        }
         self.next_op_num.set(op_num + 1);
 
         db.run(|trx, maybe_committed| {
@@ -322,6 +423,35 @@ impl Journal {
             record.token = *attempt.token().as_bytes();
             record.ballot = ballot;
             record.maybe_committed = attempt.maybe_committed();
+            record.local_nanos = nanos(self.local_now());
+            Ok(((), record))
+        })
+        .await
+    }
+
+    /// Record that the Sleeper's barrier was met, before it acts on its stale
+    /// term
+    ///
+    /// A transaction of its own, written as late as it can be: everything the
+    /// scenario needs (a successor holding the term, and a fenced write of the
+    /// successor's already committed) has happened, and the two stale
+    /// operations follow immediately. That ordering is what makes the marker
+    /// mean "the stale attempts are owed", which is the whole of what
+    /// [`sleeper_was_fenced`](super::invariants::sleeper_was_fenced) reads it
+    /// for.
+    ///
+    /// `ballot` is the stale term's, so the check can pair the marker with the
+    /// attempts it demands rather than with whatever else the client did later.
+    pub(crate) async fn sleeper_woke(
+        &self,
+        db: &SimDatabase,
+        ballot: u64,
+        token: [u8; 16],
+    ) -> Result<(), FdbBindingError> {
+        self.run(db, |_, _| async move {
+            let mut record = LogRecord::new(OpKind::SleeperWoke);
+            record.ballot = ballot;
+            record.token = token;
             record.local_nanos = nanos(self.local_now());
             Ok(((), record))
         })
@@ -500,26 +630,19 @@ impl Journal {
     // DISCOVERY
     // ========================================================================
 
-    /// Read the leader record, optionally arming a watch on the term key
+    /// Read the leader record and log the sighting
     ///
-    /// The watch is created in the same transaction as the read it is anchored
-    /// to and returned to be awaited after the commit, which is the only order
-    /// that cannot miss a change between the two.
+    /// One poll of a discovery loop. The recipe has no notification primitive
+    /// and neither does this: what a client knows about leadership is what its
+    /// last read said, and the record it writes here is what lets the check
+    /// phase know somebody was looking.
     pub(crate) async fn observe(
         &self,
         db: &SimDatabase,
-        arm_watch: bool,
-    ) -> Result<
-        (
-            Option<LeaderRecord>,
-            Option<BoxFuture<'static, FdbResult<()>>>,
-        ),
-        FdbBindingError,
-    > {
+    ) -> Result<Option<LeaderRecord>, FdbBindingError> {
         self.run(db, |trx, _| async move {
             let current = self.election.leader(&trx).await.map_err(custom)?;
             let local = self.local_now();
-            let watch = arm_watch.then(|| self.election.watch_term(&trx));
 
             let mut record = LogRecord::new(OpKind::Observe);
             record.observed = current.as_ref().map(identity_of);
@@ -529,7 +652,7 @@ impl Journal {
                 .and_then(LeaderRecord::lease)
                 .map_or(0, LeaseDuration::as_nanos);
 
-            Ok(((current, watch), record))
+            Ok((current, record))
         })
         .await
     }
@@ -653,5 +776,66 @@ fn identity_of(record: &LeaderRecord) -> ObservedIdentity {
         ballot: record.ballot(),
         generation: record.generation(),
         vacant: record.is_vacant(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_ceiling_leaves_a_busy_run_an_order_of_magnitude_of_room() {
+        // The shape the anchor files run: sixty seconds of one-second steps.
+        // The busiest role logs about four operations a round, so the run needs
+        // roughly 240 and gets 3000.
+        let ceiling = op_ceiling(Duration::from_secs(60), Duration::from_secs(1));
+        assert_eq!(ceiling, 3_000);
+        assert!(ceiling > 60 * 4 * 10);
+    }
+
+    #[test]
+    fn the_ceiling_follows_the_shape_of_the_run() {
+        // Twice the run, twice the room; half the step, twice the rounds.
+        assert_eq!(
+            op_ceiling(Duration::from_secs(120), Duration::from_secs(1)),
+            2 * op_ceiling(Duration::from_secs(60), Duration::from_secs(1))
+        );
+        assert_eq!(
+            op_ceiling(Duration::from_secs(60), Duration::from_millis(500)),
+            2 * op_ceiling(Duration::from_secs(60), Duration::from_secs(1))
+        );
+    }
+
+    #[test]
+    fn a_degenerate_configuration_still_gets_to_do_something() {
+        // A zero step is a configuration nobody should write, and the liveness
+        // guard is what catches the loop it produces. The ceiling must not be
+        // the thing that fails such a run at its first operation, or the trace
+        // would name the wrong problem.
+        assert_eq!(
+            op_ceiling(Duration::from_secs(60), Duration::ZERO),
+            MIN_OP_CEILING
+        );
+        // A step longer than the whole run derives no rounds either.
+        assert_eq!(
+            op_ceiling(Duration::from_secs(1), Duration::from_secs(60)),
+            MIN_OP_CEILING
+        );
+        assert_eq!(
+            op_ceiling(Duration::ZERO, Duration::from_secs(1)),
+            MIN_OP_CEILING
+        );
+    }
+
+    #[test]
+    fn the_ceiling_never_overflows_into_no_ceiling_at_all() {
+        // A one-nanosecond step against a very long run multiplies out past
+        // `u64`, and saturating there is the safe direction: the run gets a
+        // ceiling it will never reach rather than one that wrapped to nothing.
+        let ceiling = op_ceiling(
+            Duration::from_secs(u32::MAX.into()),
+            Duration::from_nanos(1),
+        );
+        assert_eq!(ceiling, u64::MAX);
     }
 }

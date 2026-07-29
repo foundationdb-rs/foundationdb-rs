@@ -20,6 +20,27 @@
 //! nothing in the build would have told anyone. A pure checker with mutation
 //! tests cannot rot that way silently.
 //!
+//! # Every loop is bounded
+//!
+//! Nothing here waits on a notification. Every role polls: it acts, it parks on
+//! a delay, it goes round again, and the run ends when simulated time reaches
+//! the deadline. That only terminates if the parks really happen, so a failed
+//! wait is never treated as a wait that succeeded. Four layers say so, in
+//! decreasing order of how structural they are:
+//!
+//! - loops pace on an absolute cursor that moves *before* the wait
+//!   ([`liveness::next_tick`]), so a wait that returns instantly still leaves
+//!   the next round asking for a real one. It is FoundationDB's own
+//!   `delayUntil` idiom and it holds without anybody checking anything;
+//! - a delay that errors ends the role that asked for it, which is what the
+//!   simulator means by that error;
+//! - [`liveness`] stops a loop that has gone round three times without
+//!   simulated time moving, whatever the cause;
+//! - [`logged_op`] refuses to write past a per-client ceiling on operations.
+//!
+//! Together they turn a hot loop, which used to be an out-of-memory death, into
+//! a loud and fast failure.
+//!
 //! # Two elections, not one
 //!
 //! A drawn run may also convert two clients into [`elector_role`] clients, which
@@ -45,6 +66,7 @@ mod clock;
 pub mod elector_invariants;
 mod elector_role;
 pub mod invariants;
+mod liveness;
 pub mod log_schema;
 mod logged_op;
 pub mod replay;

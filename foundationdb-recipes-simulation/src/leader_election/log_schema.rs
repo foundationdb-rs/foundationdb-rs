@@ -105,6 +105,17 @@ pub enum OpKind {
     /// to tell a run that exercised the recovery path from one that merely
     /// could have.
     InjectedUnknown,
+    /// The Sleeper's barrier was met and it is about to use its stale term
+    ///
+    /// Another marker that mutates nothing. The Kleppmann scenario only proves
+    /// something if the stale operations were actually attempted, and a run
+    /// where the Sleeper never got that far is indistinguishable, from the log
+    /// alone, from one where the code path quietly stopped running. This record
+    /// is written immediately before the two stale operations, carrying the
+    /// stale ballot, so
+    /// [`sleeper_was_fenced`](super::invariants::sleeper_was_fenced) can demand
+    /// them of exactly the clients that reached this point and of no others.
+    SleeperWoke,
 }
 
 impl OpKind {
@@ -120,6 +131,7 @@ impl OpKind {
             Self::BeliefBegin => "belief_begin",
             Self::BeliefEnd => "belief_end",
             Self::InjectedUnknown => "injected_unknown",
+            Self::SleeperWoke => "sleeper_woke",
         }
     }
 
@@ -135,6 +147,7 @@ impl OpKind {
             "belief_begin" => Some(Self::BeliefBegin),
             "belief_end" => Some(Self::BeliefEnd),
             "injected_unknown" => Some(Self::InjectedUnknown),
+            "sleeper_woke" => Some(Self::SleeperWoke),
             _ => None,
         }
     }
@@ -582,6 +595,11 @@ pub(crate) mod fixtures {
         log.push(2, fenced_write(3, Outcome::Applied, 19 * SEC));
 
         // -- the paused client 1 wakes up and is fenced out ----------------
+        // The barrier is met (client 2 holds the term and has written under it),
+        // so the two stale operations below are owed. `SleeperWasFenced` reads
+        // this marker to tell a run where they happened from one where the
+        // scenario silently stopped running.
+        log.push(1, sleeper_woke(2, 2, 19 * SEC + 5 * SEC / 10));
         log.push(1, fenced_write(2, Outcome::Rejected, 20 * SEC));
         let mut stale_renew = write(OpKind::Renew, 2, 4, 2, 20 * SEC + SEC / 10);
         stale_renew.leader_record_written = false;
@@ -628,6 +646,19 @@ pub(crate) mod fixtures {
                 leader_id: leader_id(2),
             },
         ]
+    }
+
+    /// The marker the Sleeper writes once its pause barrier is met
+    ///
+    /// Written immediately before the stale operations it makes owed, and
+    /// carrying the stale term's ballot so the check can pair the two.
+    pub(crate) fn sleeper_woke(ballot: u64, tok: u8, sim: u64) -> LogRecord {
+        let mut record = LogRecord::new(OpKind::SleeperWoke);
+        record.ballot = ballot;
+        record.token = token(tok);
+        record.local_nanos = sim;
+        record.sim_nanos = sim;
+        record
     }
 
     /// The marker a client writes when it throws a claim reply away

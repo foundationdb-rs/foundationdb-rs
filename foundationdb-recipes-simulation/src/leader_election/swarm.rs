@@ -164,7 +164,7 @@ pub(crate) struct FeatureSet {
     pub(crate) crash: bool,
     /// One client may pause across a lease boundary
     pub(crate) sleeper: bool,
-    /// Some clients only watch, never campaign
+    /// Some clients only poll for the leader, never campaign
     pub(crate) watcher: bool,
     /// Clients' clocks may disagree
     pub(crate) skew: bool,

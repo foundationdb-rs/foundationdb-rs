@@ -44,9 +44,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use foundationdb::options::StreamingMode;
+use foundationdb::options::{StreamingMode, TransactionOption};
 use foundationdb::recipes::leader_election::{
-    HistoryEvent, HistoryEventKind, LeaderElection, LeaderRecord, LeaseDuration,
+    DEFAULT_HISTORY_RETENTION, HistoryEvent, HistoryEventKind, LeaderElection, LeaderRecord,
+    LeaseDuration,
 };
 use foundationdb::recipes::ranked_register::RankedRegister;
 use foundationdb::tuple::{Subspace, pack};
@@ -68,16 +69,22 @@ use super::invariants::{
     check_all, is_resolution,
 };
 use super::log_schema::{LogEntry, OpKind, elector_log_subspace, log_subspace};
-use super::logged_op::Journal;
+use super::logged_op::{Journal, op_ceiling};
 use super::replay::{ExpectedRecord, TransitionKind, replay};
 use super::roles::{Driver, DriverConfig, ForcedRecoveryConfig, Role, elector_clients};
 use super::swarm::{FaultTiming, SwarmPlan};
 
 /// How many transition records the check phase asks the recipe for
 ///
-/// Larger than any run produces, so the trail is compared whole unless the
-/// recipe's own retention trimmed it, which the invariant allows for.
-const HISTORY_LIMIT: usize = 4096;
+/// Twice the recipe's retention bound, which is what actually limits the trail:
+/// both elections run on [`DEFAULT_HISTORY_RETENTION`], so a run of any length
+/// hands back a suffix of about that many entries and never the whole trail.
+/// The doubling is for the trimming being lazy, so the stored count overshoots
+/// the bound at the margin; asking for thousands, as this used to, only
+/// suggested the trail might arrive whole. It never does, and
+/// [`history_faithful`](super::invariants::history_faithful) is written to
+/// compare a suffix.
+const HISTORY_LIMIT: usize = DEFAULT_HISTORY_RETENTION * 2;
 /// How many violations of one invariant are spelled out before the rest are
 /// summarised
 const MAX_VIOLATIONS_TRACED: usize = 5;
@@ -125,9 +132,14 @@ impl SingleRustWorkload for LeaderElectionWorkload {
         // ------------------------------------------------------------------
         let swarm_enabled: bool = context.get_option("swarmEnabled").unwrap_or(false);
         let test_duration_secs: f64 = context.get_option("testDurationSecs").unwrap_or(60.0);
-        let test_duration = Duration::from_secs_f64(test_duration_secs.max(0.0));
 
         let mut config_error = None;
+        let test_duration = secs_or_default(
+            "testDurationSecs",
+            test_duration_secs,
+            DEFAULT_TEST_DURATION_SECS,
+            &mut config_error,
+        );
         // The shared number, not a draw: it is the one value every client of a
         // run agrees on, so all of them plan identically without coordinating.
         let plan = swarm_enabled
@@ -197,7 +209,15 @@ impl SingleRustWorkload for LeaderElectionWorkload {
 
                 let config = DriverConfig {
                     lease,
-                    step: Duration::from_secs_f64(step_secs.max(0.0)),
+                    // Validated before anything is derived from it. A zero step
+                    // is an unpaced role loop, and the ceiling and the liveness
+                    // guard are both computed from it.
+                    step: secs_or_default(
+                        "stepIntervalSecs",
+                        step_secs,
+                        DEFAULT_STEP_SECS,
+                        &mut config_error,
+                    ),
                     test_duration,
                     // A flat per-step probability, which is what these files
                     // were written against and what `Constant` reproduces.
@@ -255,6 +275,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             RankedRegister::new(Subspace::all().subspace(&("le_register",))),
             log_subspace(),
             client_id,
+            op_ceiling(config.test_duration, config.step),
         );
         let electors = match &plan {
             Some(plan) => elector_clients(
@@ -282,6 +303,44 @@ impl SingleRustWorkload for LeaderElectionWorkload {
     }
 }
 
+/// The longest a configured duration may be
+///
+/// A day. Nothing in this suite runs for one, and the point of an upper bound is
+/// that `Duration::from_secs_f64` panics rather than saturates on a number too
+/// large to represent.
+const MAX_CONFIGURABLE_SECS: f64 = 86_400.0;
+
+/// The run length a configuration that did not say gets
+const DEFAULT_TEST_DURATION_SECS: f64 = 60.0;
+
+/// The step a configuration that did not say gets
+const DEFAULT_STEP_SECS: f64 = 1.0;
+
+/// A duration from a configured number of seconds, or the default and a
+/// complaint
+///
+/// Every `f64` knob goes through here, and it is deliberately strict.
+/// `Duration::from_secs_f64` **panics** on an infinite or oversized value, and a
+/// workload that panics in `new` takes the simulation down with a message about
+/// floats instead of one about the file that asked for it. Zero is refused too:
+/// a zero step is a role loop that never waits, which is the hot loop this
+/// suite is hardened against, and it is also the denominator of the journal's
+/// operation ceiling.
+///
+/// The substituted default keeps the rest of `new` working on sane numbers. It
+/// does not rescue the run: `config_error` becomes a `Severity::Error` in
+/// `setup`, which fails it.
+fn secs_or_default(source: &str, secs: f64, default: f64, error: &mut Option<String>) -> Duration {
+    if secs.is_finite() && secs > 0.0 && secs <= MAX_CONFIGURABLE_SECS {
+        return Duration::from_secs_f64(secs);
+    }
+    *error = Some(format!(
+        "{source} {secs} is not a usable number of seconds: \
+         it must be finite, above zero and at most {MAX_CONFIGURABLE_SECS}"
+    ));
+    Duration::from_secs_f64(default)
+}
+
 /// The lease `secs` configures, or ten seconds and a complaint
 ///
 /// `new` has no trace sink, so a configuration this build cannot honour has to
@@ -289,7 +348,10 @@ impl SingleRustWorkload for LeaderElectionWorkload {
 /// value came from, which is the difference between a typo in a file and a plan
 /// this build drew and then could not use.
 fn lease_or_default(source: &str, secs: f64, error: &mut Option<String>) -> LeaseDuration {
-    LeaseDuration::new(Duration::from_secs_f64(secs)).unwrap_or_else(|problem| {
+    // Through the same validation first: `LeaseDuration::new` takes a
+    // `Duration`, so an infinite `secs` would have panicked on the way in.
+    let duration = secs_or_default(source, secs, 10.0, error);
+    LeaseDuration::new(duration).unwrap_or_else(|problem| {
         *error = Some(format!("{source} {secs} is unusable: {problem}"));
         LeaseDuration::new(Duration::from_secs(10)).expect("ten seconds is a valid lease")
     })
@@ -310,29 +372,77 @@ fn head_start(sleeper: Role, step_secs: f64, lease_secs: f64) -> Duration {
     }
 }
 
-/// Everything the check phase judges from, read at one instant
+/// Everything the check phase judges from
 struct Evidence {
     /// The driver's log, in commit order
     entries: Vec<LogEntry>,
+    /// Whether the driver's log was longer than the cap and got cut short
+    overflowed: bool,
     /// The leader record the driver's election holds
     snapshot: Option<LeaderRecord>,
     /// The driver election's own history, newest first
     history: Vec<HistoryEvent>,
     /// The elector role's log, in commit order
     elector_entries: Vec<LogEntry>,
+    /// Whether the elector's log was longer than the cap and got cut short
+    elector_overflowed: bool,
     /// The leader record the elector's election holds
     elector_snapshot: Option<LeaderRecord>,
     /// The elector election's own history, newest first
     elector_history: Vec<HistoryEvent>,
 }
 
-/// Read one versionstamped log subspace whole, in commit order
+/// How many times any check-phase transaction may retry
+///
+/// The check phase runs on a budget ([`get_check_timeout`]), and the default
+/// retry loop has no limit at all: a read that cannot succeed spends the whole
+/// budget failing at it and then reports nothing, which looks exactly like a run
+/// with nothing to report. A bounded read that gives up says so instead, as an
+/// error, and the run fails on it.
+///
+/// [`get_check_timeout`]: RustWorkload::get_check_timeout
+const CHECK_RETRY_LIMIT: i32 = 100;
+
+/// The most log entries the check phase will read from one subspace
+///
+/// Every client's journal refuses to write past its own ceiling, so the field's
+/// worth of ceilings is every entry a run can legitimately have produced.
+/// Reading more than that means the bound the journal is supposed to enforce did
+/// not hold, and the read stops rather than trying to hold the whole thing in
+/// memory: a run that hot-looped has to fail loudly and quickly, not die of
+/// exhaustion with nothing said.
+fn log_entry_cap(test_duration: Duration, step: Duration, client_count: i32) -> usize {
+    let clients = u64::try_from(client_count.max(1)).unwrap_or(1);
+    let cap = op_ceiling(test_duration, step).saturating_mul(clients);
+    usize::try_from(cap).unwrap_or(usize::MAX)
+}
+
+/// Read one versionstamped log subspace whole, in commit order, up to `cap`
+///
+/// One transaction, deliberately. Paging across several would let the two logs
+/// and the two records be read at different instants, and "nothing is writing
+/// during the check phase" is an assumption about the simulator that this suite
+/// has never verified; a check that quietly depended on it could pass on
+/// evidence that did not describe one moment.
+///
+/// What bounds the read instead is `cap`. The stream stops one entry past it, so
+/// a runaway log costs one entry more than the bound rather than however much
+/// the run managed to write, which keeps both the memory and the transaction's
+/// own five-second limit inside what the cap allows.
+///
+/// Returns the entries and whether the cap was exceeded. A capped read is not a
+/// shorter answer, it is evidence that something wrote more than the run's shape
+/// can explain, and the caller fails the run on it.
 async fn read_log(
     trx: &RetryableTransaction,
     subspace: &Subspace,
-) -> Result<Vec<LogEntry>, FdbBindingError> {
+    cap: usize,
+) -> Result<(Vec<LogEntry>, bool), FdbBindingError> {
     let (begin, end) = subspace.range();
     let options = RangeOption {
+        // One past the cap: reading exactly `cap` cannot distinguish a log that
+        // fits from one that was cut off at the boundary.
+        limit: Some(cap.saturating_add(1)),
         mode: StreamingMode::WantAll,
         ..RangeOption::from((begin, end))
     };
@@ -340,9 +450,12 @@ async fn read_log(
     let mut entries = Vec::new();
     let mut stream = trx.get_ranges_keyvalues(options, true);
     while let Some(kv) = stream.try_next().await? {
+        if entries.len() == cap {
+            return Ok((entries, true));
+        }
         entries.push(LogEntry::decode(subspace, kv.key(), kv.value()).map_err(decoded)?);
     }
-    Ok(entries)
+    Ok((entries, false))
 }
 
 /// Wrap a decoding failure, keeping the `source()` chain the retry loop reads
@@ -444,7 +557,19 @@ impl RustWorkload for LeaderElectionWorkload {
         // Line the clients up: one that started campaigning while the others
         // were still being created would spend the first steps of the run
         // uncontested, which is the least interesting shape a run can have.
-        let _ = self.context.delay(self.config.step).await;
+        if let Err(error) = self.context.delay(self.config.step).await {
+            // Not fatal, and not silent either. This client is about to start
+            // its role with delays that do not work, so the run wants to know
+            // where the roles that end early came from.
+            self.context.trace(
+                Severity::WarnAlways,
+                "LeaderElectionSetupDelayFailed",
+                details![
+                    "Client" => self.client_id,
+                    "Error" => format!("{error:?}")
+                ],
+            );
+        }
     }
 
     async fn start(&mut self, db: SimDatabase) {
@@ -479,9 +604,11 @@ impl RustWorkload for LeaderElectionWorkload {
         let evidence = self.read_evidence(&db).await;
         let Evidence {
             entries,
+            overflowed,
             snapshot,
             history,
             elector_entries,
+            elector_overflowed,
             elector_snapshot,
             elector_history,
         } = match evidence {
@@ -500,6 +627,18 @@ impl RustWorkload for LeaderElectionWorkload {
                 return;
             }
         };
+
+        let cap = log_entry_cap(
+            self.config.test_duration,
+            self.config.step,
+            self.client_count,
+        );
+        if overflowed {
+            self.report_overflow("driver", entries.len(), cap);
+        }
+        if elector_overflowed {
+            self.report_overflow("elector", elector_entries.len(), cap);
+        }
 
         let replayed = replay(&entries, leader_id_of);
         let expected = snapshot.as_ref().map(expected_record);
@@ -663,6 +802,10 @@ impl RustWorkload for LeaderElectionWorkload {
             Metric::val("elector_lease_losses", counters.elector_lease_losses as f64),
             Metric::val("elector_resigns", counters.elector_resigns as f64),
             Metric::val("ops_logged", self.driver.journal().ops_logged() as f64),
+            // Reported next to the count so a reader can see how close a client
+            // came to its ceiling. One that reached it stopped early, and this
+            // is where that shows.
+            Metric::val("op_ceiling", self.driver.journal().op_ceiling() as f64),
             Metric::val(
                 "max_observed_skew_secs",
                 self.driver
@@ -686,14 +829,30 @@ impl LeaderElectionWorkload {
     ///
     /// A snapshot read: nothing is writing any more, and taking conflict ranges
     /// over the whole log would only make the read fight itself on a retry.
+    ///
+    /// One transaction for all six reads, so the two elections are judged at a
+    /// single instant: an elector's log read after its record could hold a
+    /// belief the record no longer explains. What keeps that affordable is the
+    /// entry cap the two log reads carry, not paging.
     async fn read_evidence(&self, db: &SimDatabase) -> Result<Evidence, FdbBindingError> {
+        let cap = log_entry_cap(
+            self.config.test_duration,
+            self.config.step,
+            self.client_count,
+        );
         let subspace = log_subspace();
         let elector_subspace = elector_log_subspace();
         db.run(|trx, _| {
             let subspace = &subspace;
             let elector_subspace = &elector_subspace;
             async move {
-                let entries = read_log(&trx, subspace).await?;
+                // The retry loop is otherwise unbounded, and a read that cannot
+                // succeed would spend the whole check budget failing at it and
+                // then report nothing, which looks exactly like a run with
+                // nothing to report.
+                trx.set_option(TransactionOption::RetryLimit(CHECK_RETRY_LIMIT))?;
+
+                let (entries, overflowed) = read_log(&trx, subspace, cap).await?;
                 let snapshot = self.election.leader(&trx).await.map_err(decoded)?;
                 let history = self
                     .election
@@ -701,10 +860,8 @@ impl LeaderElectionWorkload {
                     .await
                     .map_err(decoded)?;
 
-                // The same transaction, so the two elections are read at one
-                // instant: an elector's log that was read after its record
-                // could hold a belief the record no longer explains.
-                let elector_entries = read_log(&trx, elector_subspace).await?;
+                let (elector_entries, elector_overflowed) =
+                    read_log(&trx, elector_subspace, cap).await?;
                 let elector_snapshot = self.elector_election.leader(&trx).await.map_err(decoded)?;
                 let elector_history = self
                     .elector_election
@@ -714,15 +871,35 @@ impl LeaderElectionWorkload {
 
                 Ok(Evidence {
                     entries,
+                    overflowed,
                     snapshot,
                     history,
                     elector_entries,
+                    elector_overflowed,
                     elector_snapshot,
                     elector_history,
                 })
             }
         })
         .await
+    }
+
+    /// Fail the run because a log was longer than the run could explain
+    ///
+    /// `Severity::Error`, because a log that overflowed is a run in which some
+    /// loop stopped being paced by simulated time. Everything judged below is
+    /// judged on a prefix, so a pass would be a pass on evidence that was cut
+    /// off, and this failure is the honest reading of the run either way.
+    fn report_overflow(&self, which: &str, entries: usize, cap: usize) {
+        self.context.trace(
+            Severity::Error,
+            "LeaderElectionLogOverflow",
+            details![
+                "Client" => self.client_id,
+                "Log" => which,
+                "Detail" => format!("log overflow: {entries} entries, cap {cap}")
+            ],
+        );
     }
 
     /// Judge the elector half of the run, or say why it was not judged
@@ -852,8 +1029,19 @@ impl LeaderElectionWorkload {
     /// that names no entry passes the end of the log, which is where a run that
     /// simply did not do enough shows what it was doing instead.
     fn dump_around(&self, entries: &[LogEntry], index: usize) {
+        if entries.is_empty() {
+            // Reachable, and it used to panic here. `ProgressMade` fails a run
+            // in which nothing happened at all, and a run in which nothing
+            // happened has no log: the violation names no entry, the caller
+            // passes the end of an empty log, and the slice below indexed it.
+            // There is nothing to dump; the failure has already been reported.
+            return;
+        }
+        // Clamped so the window is always a valid range: an index past the end
+        // would otherwise put `first` above `last`.
+        let index = index.min(entries.len() - 1);
         let first = index.saturating_sub(DUMP_RADIUS);
-        let last = (index + DUMP_RADIUS).min(entries.len().saturating_sub(1));
+        let last = (index + DUMP_RADIUS).min(entries.len() - 1);
         for (offset, entry) in entries[first..=last].iter().enumerate() {
             let record = &entry.record;
             self.context.trace(

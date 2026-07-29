@@ -9,10 +9,10 @@
 //!
 //! The decision core is unit-tested in the crate itself; what these tests add
 //! is everything that only a real database can show: that the compare-and-set
-//! really serializes concurrent claimants, that watches fire on the transitions
-//! they are supposed to and stay quiet on renewals, that the handle layer takes
-//! over after a leader stops running, and that the fencing composition rejects
-//! a wedged leader's writes.
+//! really serializes concurrent claimants, that a follower polling the record
+//! sees every transition it has to, that the handle layer takes over after a
+//! leader stops running, and that the fencing composition rejects a wedged
+//! leader's writes.
 //!
 //! Timing assertions are one-sided on purpose. A test never asserts that
 //! something happened *within* a short window, only that a steal could not
@@ -24,13 +24,13 @@ mod common;
 #[cfg(feature = "recipes-leader-election")]
 mod leader_election_tests {
     use foundationdb::{
-        Database, FdbResult,
+        Database,
         env::{Clock, Environment, SeededRng},
         recipes::leader_election::{
             ClaimAttempt, ClaimOutcome, ClaimToken, ElectorConfig, HistoryEventKind, LeadOutcome,
-            LeaderElection, LeaderElectionError, LeaderElector, LeaseDuration, LeaseGrant,
-            LeaseObservation, LeaseStatus, RefreshAttempt, RefreshOutcome, ResignOutcome, Result,
-            Timer,
+            LeaderElection, LeaderElectionError, LeaderElector, LeaderRecord, LeaseDuration,
+            LeaseGrant, LeaseObservation, LeaseStatus, RefreshAttempt, RefreshOutcome,
+            ResignOutcome, Result, Timer,
         },
         tuple::Subspace,
     };
@@ -202,13 +202,18 @@ mod leader_election_tests {
         )
     }
 
-    /// Arm a watch on the term key and hand it back to be awaited after commit.
-    async fn arm_term_watch(
-        db: &Database,
-        election: &LeaderElection,
-    ) -> Result<BoxFuture<'static, FdbResult<()>>> {
-        db.run(|txn, _| async move { Ok::<_, LeaderElectionError>(election.watch_term(&txn)) })
+    /// One round of a follower's discovery loop: read the record, nothing else.
+    async fn poll_leader(db: &Database, election: &LeaderElection) -> Result<Option<LeaderRecord>> {
+        db.run(|txn, _| async move { election.leader(&txn).await })
             .await
+    }
+
+    /// What a poller compares between two rounds
+    ///
+    /// Occupancy is part of it because a resign preserves both ballot and
+    /// generation, and would otherwise be invisible.
+    fn identity(record: &LeaderRecord) -> (u64, u64, bool) {
+        (record.ballot(), record.generation(), record.is_vacant())
     }
 
     // ========================================================================
@@ -470,25 +475,35 @@ mod leader_election_tests {
         Ok(())
     }
 
-    /// Watches park on the term key, so they fire when leadership itself moves
-    /// and stay quiet through renewals. Waking every contender twice a lease is
-    /// the herd this split exists to avoid.
+    /// Discovery is polling, so everything a follower can learn it learns by
+    /// re-reading the record and comparing what it found with what it found
+    /// last time. This is that loop, one round per transition, and it pins the
+    /// property the loop rests on: every applied write moves the identity a
+    /// poller compares, including a resign, which preserves both ballot and
+    /// generation.
     #[tokio::test]
-    async fn watch_discovery() -> Result<()> {
-        let (db, subspace) = setup("le_watch_discovery").await?;
+    async fn poll_discovery() -> Result<()> {
+        let (db, subspace) = setup("le_poll_discovery").await?;
         let holder = Contender::new(&db, &subspace, "leader-a", Duration::from_secs(30))?;
-        let election = &holder.election;
+        // A follower of its own: it shares nothing with the holder but the
+        // subspace, which is all a real one would have.
+        let follower = LeaderElection::new(subspace.clone());
 
-        let on_claim = arm_term_watch(&db, election).await?;
+        assert!(
+            poll_leader(&db, &follower).await?.is_none(),
+            "a never-claimed term has nothing to discover"
+        );
+
         let grant = won(holder.claim().await?);
-        tokio::time::timeout(Duration::from_secs(10), on_claim)
-            .await
-            .expect("a claim must wake a parked follower")
-            .expect("the watch itself failed");
+        let claimed = poll_leader(&db, &follower)
+            .await?
+            .expect("a claimed term must be readable by anybody");
+        assert_eq!(claimed.ballot(), grant.ballot());
+        assert_eq!(claimed.leader_id(), Some("leader-a"));
 
-        // Armed before the renewals, and deliberately not awaited until after
-        // them: a renewal that touched the term key would resolve it here.
-        let mut across_renewals = arm_term_watch(&db, election).await?;
+        // A renewal moves the identity too, and that is not noise: it is the
+        // signal that keeps a contender's observation window alive rather than
+        // authorizing a steal.
         let mut grant = grant;
         for _ in 0..2 {
             grant = match holder.refresh(&grant).await? {
@@ -496,19 +511,27 @@ mod leader_election_tests {
                 other => panic!("the holder should still hold its term, got {other:?}"),
             };
         }
-        assert!(
-            tokio::time::timeout(Duration::from_millis(500), &mut across_renewals)
-                .await
-                .is_err(),
-            "renewals must not wake followers"
+        let renewed = poll_leader(&db, &follower).await?.expect("still held");
+        assert_ne!(
+            identity(&claimed),
+            identity(&renewed),
+            "a poller must be able to tell that the holder is still alive"
+        );
+        assert_eq!(
+            renewed.ballot(),
+            claimed.ballot(),
+            "a renewal is the same term, so the ballot must not move"
         );
 
-        // The same watch is still armed, and a resign is a real transition.
         assert_eq!(holder.resign(&grant).await?, ResignOutcome::Resigned);
-        tokio::time::timeout(Duration::from_secs(10), across_renewals)
-            .await
-            .expect("a resign must wake a parked follower")
-            .expect("the watch itself failed");
+        let vacated = poll_leader(&db, &follower).await?.expect("still a record");
+        assert_ne!(
+            identity(&renewed),
+            identity(&vacated),
+            "a resign preserves ballot and generation, so occupancy is the only thing \
+             that can carry it to a poller"
+        );
+        assert!(vacated.is_vacant());
 
         Ok(())
     }
@@ -702,8 +725,8 @@ mod leader_election_tests {
     }
 
     /// The other half of the resign asymmetry, at the handle layer: a follower
-    /// parked on the term watch takes over as soon as the leader is done, in
-    /// far less than the lease it would have had to wait out.
+    /// polling its campaign takes over as soon as the leader is done, in far
+    /// less than the lease it would have had to wait out.
     #[tokio::test]
     async fn elector_handoff_on_completion() -> Result<()> {
         const LEASE: Duration = Duration::from_secs(6);
@@ -736,8 +759,8 @@ mod leader_election_tests {
             (started.elapsed(), outcome)
         });
 
-        // Long enough for the follower to have been denied and parked on the
-        // term watch, short enough to stay far from the lease.
+        // Long enough for the follower to have been denied and parked between
+        // two campaign polls, short enough to stay far from the lease.
         tokio::time::sleep(Duration::from_millis(500)).await;
         finish_tx.send(()).expect("the leader went away");
 
