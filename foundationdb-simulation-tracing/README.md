@@ -42,6 +42,11 @@ as a TraceEvent of type `RustTracingEvent`. Grep for it:
 grep '"Type": *"RustTracingEvent"' target/traces/trace.*.json
 ```
 
+By default, the bridge forwards `INFO`, `WARN`, and `ERROR` events. Set
+`FDB_SIM_TRACING_LEVEL=debug` (or `trace`) before the workload starts to include
+lower-level events and spans. The value is read once when the subscriber is
+installed.
+
 Each forwarded event carries `Target`, `File`, `Line`, and `Message` details
 (when present) followed by the event's own fields.
 

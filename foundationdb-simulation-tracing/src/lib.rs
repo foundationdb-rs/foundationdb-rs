@@ -3,7 +3,7 @@
 
 use std::{
     cell::RefCell,
-    fmt,
+    env, fmt,
     sync::{Once, atomic::AtomicU64},
 };
 
@@ -15,6 +15,7 @@ use tracing_core::{
 };
 use tracing_subscriber::{
     Registry,
+    filter::{LevelFilter, LevelParseError},
     layer::{Context, Layer, SubscriberExt},
     registry::LookupSpan,
 };
@@ -32,6 +33,8 @@ thread_local! {
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// Guards the one-shot global subscriber registration.
 static INIT: Once = Once::new();
+/// Environment variable controlling the maximum level forwarded to fdbserver.
+const LEVEL_ENV: &str = "FDB_SIM_TRACING_LEVEL";
 
 /// Installs the global tracing subscriber (first call only, idempotent) and
 /// binds tracing events emitted on the current simulation thread to
@@ -42,8 +45,10 @@ static INIT: Once = Once::new();
 /// context.
 ///
 /// The subscriber is a [`tracing_subscriber::Registry`] with a forwarding
-/// [`tracing_subscriber::Layer`], so span context (names and fields) is
-/// captured and attached to each forwarded event.
+/// [`tracing_subscriber::Layer`]. By default, it forwards `INFO` and above;
+/// set `FDB_SIM_TRACING_LEVEL` to `debug` or `trace` before the first call to
+/// override the level. Span context (names and fields) is captured and attached
+/// to each forwarded event.
 ///
 /// If another global tracing subscriber is already installed, this prints a
 /// warning to stderr and forwarding stays disabled (events reach the
@@ -60,7 +65,9 @@ pub fn install(context: &WorkloadContext) -> TracingGuard {
         *slot.borrow_mut() = Some((context.clone(), generation));
     });
     INIT.call_once(|| {
-        let subscriber = Registry::default().with(SimLayer);
+        let subscriber = Registry::default()
+            .with(SimLayer)
+            .with(configured_level_filter());
         if tracing_core::dispatcher::set_global_default(Dispatch::new(subscriber)).is_err() {
             eprintln!(
                 "foundationdb-simulation-tracing: a global tracing subscriber is already \
@@ -70,6 +77,34 @@ pub fn install(context: &WorkloadContext) -> TracingGuard {
         }
     });
     TracingGuard { generation }
+}
+
+/// Reads the forwarding level once, while the global subscriber is installed.
+fn configured_level_filter() -> LevelFilter {
+    match env::var(LEVEL_ENV) {
+        Ok(value) => match parse_level_filter(Some(&value)) {
+            Ok(level) => level,
+            Err(error) => {
+                eprintln!(
+                    "foundationdb-simulation-tracing: invalid {LEVEL_ENV}={value:?} ({error}); \
+                     defaulting to info"
+                );
+                LevelFilter::INFO
+            }
+        },
+        Err(env::VarError::NotPresent) => LevelFilter::INFO,
+        Err(env::VarError::NotUnicode(value)) => {
+            eprintln!(
+                "foundationdb-simulation-tracing: invalid non-Unicode {LEVEL_ENV}={value:?}; \
+                 defaulting to info"
+            );
+            LevelFilter::INFO
+        }
+    }
+}
+
+fn parse_level_filter(value: Option<&str>) -> Result<LevelFilter, LevelParseError> {
+    value.unwrap_or("info").parse()
 }
 
 /// Clears the thread-local context slot on drop, but only if the slot still
@@ -337,12 +372,20 @@ mod tests {
     /// are captured) and a `CaptureLayer` (so we can read the forwarded
     /// details), returning the details of the single emitted event.
     fn capture(emit: impl FnOnce()) -> Vec<(String, String)> {
+        capture_with_filter(LevelFilter::INFO, emit).unwrap()
+    }
+
+    fn capture_with_filter(
+        level_filter: LevelFilter,
+        emit: impl FnOnce(),
+    ) -> Option<Vec<(String, String)>> {
         let captured = Arc::new(Mutex::new(None));
         let subscriber = Registry::default()
             .with(SimLayer)
-            .with(CaptureLayer(captured.clone()));
+            .with(CaptureLayer(captured.clone()))
+            .with(level_filter);
         tracing_core::dispatcher::with_default(&Dispatch::new(subscriber), emit);
-        captured.lock().unwrap().take().unwrap()
+        captured.lock().unwrap().take()
     }
 
     fn has(details: &[(String, String)], key: &str, value: &str) -> bool {
@@ -356,6 +399,28 @@ mod tests {
         assert!(matches!(severity(&Level::INFO), Severity::Info));
         assert!(matches!(severity(&Level::WARN), Severity::Warn));
         assert!(matches!(severity(&Level::ERROR), Severity::WarnAlways));
+    }
+
+    #[test]
+    fn debug_events_are_dropped_by_default_and_enabled_by_override() {
+        let default = parse_level_filter(None).unwrap();
+        assert!(capture_with_filter(default, || tracing::debug!("filtered")).is_none());
+
+        let debug = parse_level_filter(Some("debug")).unwrap();
+        let details = capture_with_filter(debug, || tracing::debug!("forwarded")).unwrap();
+        assert!(has(&details, "Message", "forwarded"));
+    }
+
+    #[test]
+    fn debug_spans_are_dropped_by_default() {
+        let details = capture(|| {
+            let span = tracing::debug_span!("filtered_span", client = 7);
+            let _entered = span.enter();
+            tracing::info!("visible event");
+        });
+
+        assert!(!details.iter().any(|(key, _)| key == "Span"));
+        assert!(!has(&details, "client", "7"));
     }
 
     #[test]
