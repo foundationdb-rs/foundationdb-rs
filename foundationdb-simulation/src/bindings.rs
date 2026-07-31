@@ -45,7 +45,21 @@ pub fn str_for_c<T>(buf: T) -> ffi::CString
 where
     T: Into<Vec<u8>>,
 {
-    ffi::CString::new(buf).unwrap()
+    let mut buf = buf.into();
+    if buf.contains(&0) {
+        let mut escaped = Vec::with_capacity(buf.len());
+        for byte in buf {
+            if byte == 0 {
+                escaped.extend_from_slice(br"\0");
+            } else {
+                escaped.push(byte);
+            }
+        }
+        buf = escaped;
+    }
+
+    // SAFETY: Every interior NUL byte was escaped above.
+    unsafe { ffi::CString::from_vec_unchecked(buf) }
 }
 
 /// Capitalizes the first letter of a string.
@@ -310,5 +324,15 @@ impl<'a> Metric<'a> {
             avg: true,
             fmt: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::str_for_c;
+
+    #[test]
+    fn str_for_c_escapes_interior_nul() {
+        assert_eq!(str_for_c("a\0b").to_bytes(), br"a\0b");
     }
 }
