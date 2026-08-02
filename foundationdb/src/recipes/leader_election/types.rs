@@ -5,244 +5,183 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Core data structures for leader election
-//!
-//! This module defines the fundamental types used in the ballot-based
-//! leader election algorithm, including leader state, candidate info, and configuration.
-//!
-//! # Design Overview
-//!
-//! The election algorithm uses a ballot-based approach (similar to Raft's term):
-//! - **LeaderState**: Stored at a single key, contains ballot number and leader identity
-//! - **CandidateInfo**: Per-candidate registration with versionstamp for ordering
-//! - **Ballot Numbers**: Monotonically increasing, higher ballot always wins
+//! Public types for the poll-based leader-election protocol.
 
+use super::{LeaderElectionError, Result};
+use crate::recipes::ranked_register::Rank;
 use std::time::Duration;
 
-/// Default lease duration for leadership
-pub const DEFAULT_LEASE_DURATION: Duration = Duration::from_secs(10);
-
-/// Default heartbeat interval (should be lease_duration / 3 approximately)
-pub const DEFAULT_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(3);
-
-/// Default candidate timeout (when to consider a candidate dead)
-pub const DEFAULT_CANDIDATE_TIMEOUT: Duration = Duration::from_secs(15);
-
-/// The core leader state - stored at a single key
+/// Identifies one process incarnation participating in an election.
 ///
-/// Contains all information
-/// needed to determine leadership without scanning candidates.
-///
-/// # Ballot Numbers
-///
-/// The ballot number works like Raft's term:
-/// - Monotonically increasing counter
-/// - Higher ballot always wins
-/// - Prevents split-brain after recovery/partition
-/// - Incremented on every leadership claim or refresh
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LeaderState {
-    /// Ballot number (like Raft's term)
-    ///
-    /// Always increments when claiming or refreshing leadership.
-    /// Higher ballot wins in any conflict.
-    pub ballot: u64,
+/// Callers must use a fresh ID after process restart. Concurrent use of one ID
+/// remains data-safe because each successful poll receives a new rank, but it
+/// is protocol misuse because the independent callers cannot coordinate work.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ParticipantId(String);
 
-    /// Unique identifier of the leader process
-    pub leader_id: String,
-
-    /// Leader's priority (higher = more preferred)
-    ///
-    /// Used for preemption decisions when `allow_preemption` is enabled.
-    pub priority: i32,
-
-    /// Absolute timestamp when lease expires (nanos since epoch)
-    ///
-    /// Leadership is only valid while `current_time < lease_expiry_nanos`.
-    pub lease_expiry_nanos: u64,
-
-    /// Versionstamp assigned when this process registered
-    ///
-    /// Used for identity consistency and ordering.
-    pub versionstamp: [u8; 12],
-}
-
-impl LeaderState {
-    /// Check if the lease is still valid
-    ///
-    /// # Arguments
-    /// * `current_time` - Current time as Duration since epoch
-    ///
-    /// # Returns
-    /// `true` if the lease has not expired
-    pub fn is_lease_valid(&self, current_time: Duration) -> bool {
-        current_time.as_nanos() < self.lease_expiry_nanos as u128
+impl ParticipantId {
+    /// Creates a non-empty participant ID.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(value)))]
+    pub fn new(value: impl Into<String>) -> Result<Self> {
+        let value = value.into();
+        if value.is_empty() {
+            return Err(LeaderElectionError::InvalidParticipantId);
+        }
+        Ok(Self(value))
     }
 
-    /// Get remaining lease duration, if any
-    ///
-    /// # Arguments
-    /// * `current_time` - Current time as Duration since epoch
-    ///
-    /// # Returns
-    /// `Some(Duration)` if lease is still valid, `None` if expired
-    pub fn remaining_lease(&self, current_time: Duration) -> Option<Duration> {
-        let current_nanos = current_time.as_nanos() as u64;
-        if current_nanos < self.lease_expiry_nanos {
-            Some(Duration::from_nanos(
-                self.lease_expiry_nanos - current_nanos,
-            ))
-        } else {
-            None
+    /// Returns the participant ID as text.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// A caller-owned local observation of durable leader state.
+///
+/// The contained time is from one caller's monotonic clock. It is never
+/// persisted or compared with another participant's observation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Observation {
+    pub(crate) generation: Option<u64>,
+    pub(crate) owner: Option<ParticipantId>,
+    pub(crate) observed_at: Duration,
+}
+
+impl Observation {
+    /// Creates the initial local observation for a participant.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
+    pub fn initial(observed_at: Duration) -> Self {
+        Self {
+            generation: None,
+            owner: None,
+            observed_at,
         }
     }
-}
 
-/// Information about a registered candidate
-///
-/// Candidates exist independently of leadership. A process must register
-/// as a candidate before it can claim leadership.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CandidateInfo {
-    /// Unique identifier for the process
-    pub process_id: String,
-
-    /// Candidate's priority for leader selection
-    ///
-    /// Higher priority candidates can preempt lower priority leaders
-    /// when preemption is enabled.
-    pub priority: i32,
-
-    /// Last heartbeat timestamp (nanos since epoch)
-    ///
-    /// Used to determine if candidate is still alive.
-    pub last_heartbeat_nanos: u64,
-
-    /// Versionstamp from registration
-    ///
-    /// Fixed at registration time, never changes on heartbeat.
-    /// Provides global ordering of candidates.
-    pub versionstamp: [u8; 12],
-}
-
-impl CandidateInfo {
-    /// Check if this candidate is still alive
-    ///
-    /// # Arguments
-    /// * `current_time` - Current time as Duration since epoch
-    /// * `timeout` - Maximum time since last heartbeat
-    ///
-    /// # Returns
-    /// `true` if the candidate has sent a heartbeat within the timeout
-    pub fn is_alive(&self, current_time: Duration, timeout: Duration) -> bool {
-        let last_seen = Duration::from_nanos(self.last_heartbeat_nanos);
-        current_time.saturating_sub(last_seen) < timeout
+    /// Returns when this observation was made on the caller's monotonic clock.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn observed_at(&self) -> Duration {
+        self.observed_at
     }
 }
 
-/// Result of an election cycle
+/// The role prepared by one poll transaction attempt.
 ///
-/// Returned by `run_election_cycle` to indicate whether this process
-/// is the leader or a follower.
-#[derive(Debug, Clone)]
-pub enum ElectionResult {
-    /// This process is the leader
-    Leader(LeaderState),
-
-    /// This process is a follower
+/// It is valid only after the enclosing `Database::run` succeeds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PollOutcome {
+    /// The caller owns the durable state for this poll.
     ///
-    /// Contains the current leader state if one exists.
-    Follower(Option<LeaderState>),
+    /// `rank` must fence correctness-sensitive FoundationDB work through a
+    /// [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) in
+    /// the same enclosing transaction. External sinks must enforce it too.
+    Leader { rank: Rank, takeover: bool },
+    /// Another participant owns the durable state.
+    Follower { owner: ParticipantId, rank: Rank },
 }
 
-impl ElectionResult {
-    /// Check if this result indicates leadership
+impl PollOutcome {
+    /// Returns whether this poll made the caller leader.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn is_leader(&self) -> bool {
-        matches!(self, ElectionResult::Leader(_))
+        matches!(self, Self::Leader { .. })
     }
 
-    /// Get the leader state, regardless of whether we are leader or follower
-    pub fn leader_state(&self) -> Option<&LeaderState> {
+    /// Returns the durable generation as the ranked-register fencing token.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn rank(&self) -> Rank {
         match self {
-            ElectionResult::Leader(state) => Some(state),
-            ElectionResult::Follower(Some(state)) => Some(state),
-            ElectionResult::Follower(None) => None,
+            Self::Leader { rank, .. } | Self::Follower { rank, .. } => *rank,
         }
+    }
+
+    /// Returns whether leadership changed away from another participant.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn is_takeover(&self) -> bool {
+        matches!(self, Self::Leader { takeover: true, .. })
     }
 }
 
-/// Global configuration for the leader election system
+/// The result prepared by [`LeaderElection::poll`](super::LeaderElection::poll).
 ///
-/// Controls the behavior of the election system including lease duration,
-/// timeouts, and preemption policy.
-#[derive(Debug, Clone)]
-pub struct ElectionConfig {
-    /// How long a leadership lease lasts
-    ///
-    /// Leader must refresh before this expires to maintain leadership.
-    /// Longer values reduce election traffic but slow failover.
-    pub lease_duration: Duration,
-
-    /// Recommended heartbeat interval
-    ///
-    /// Candidates and leaders should send heartbeats at this interval.
-    /// Typically `lease_duration / 3` to ensure timely refresh.
-    pub heartbeat_interval: Duration,
-
-    /// How long before a candidate is considered dead
-    ///
-    /// Candidates that haven't sent a heartbeat within this duration
-    /// may be evicted from the candidate list.
-    pub candidate_timeout: Duration,
-
-    /// Master switch to enable/disable elections
-    ///
-    /// When disabled:
-    /// - No new leaders can be elected
-    /// - Existing leader remains until lease expires
-    /// - Registration and heartbeats return errors
-    pub election_enabled: bool,
-
-    /// Whether higher priority processes can preempt current leader
-    ///
-    /// If `true`, a candidate with higher priority can take over
-    /// leadership even if the current leader's lease is valid.
-    /// If `false`, must wait for lease to expire.
-    pub allow_preemption: bool,
+/// It is valid only after the enclosing `Database::run` succeeds. Before then,
+/// the transaction can retry, be cancelled, or fail to commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PollResult {
+    outcome: PollOutcome,
+    next_observation: Observation,
 }
 
-impl Default for ElectionConfig {
-    /// Creates default configuration with sensible production values
-    ///
-    /// - 10 second lease duration
-    /// - 3 second heartbeat interval
-    /// - 15 second candidate timeout
-    /// - Elections enabled
-    /// - Preemption enabled
-    fn default() -> Self {
+impl PollResult {
+    pub(crate) fn new(outcome: PollOutcome, next_observation: Observation) -> Self {
         Self {
-            lease_duration: DEFAULT_LEASE_DURATION,
-            heartbeat_interval: DEFAULT_HEARTBEAT_INTERVAL,
-            candidate_timeout: DEFAULT_CANDIDATE_TIMEOUT,
-            election_enabled: true,
-            allow_preemption: true,
+            outcome,
+            next_observation,
         }
+    }
+
+    /// Returns the poll role and its current fencing token.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn outcome(&self) -> &PollOutcome {
+        &self.outcome
+    }
+
+    /// Returns the observation to adopt after the enclosing transaction commits.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn next_observation(&self) -> &Observation {
+        &self.next_observation
+    }
+
+    /// Consumes this result and returns the next local observation.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn into_next_observation(self) -> Observation {
+        self.next_observation
     }
 }
 
-impl ElectionConfig {
-    /// Create a new ElectionConfig with custom lease duration
-    ///
-    /// Other values are derived from the lease duration:
-    /// - heartbeat_interval = lease_duration / 3
-    /// - candidate_timeout = lease_duration * 1.5
-    pub fn with_lease_duration(lease_duration: Duration) -> Self {
-        Self {
-            lease_duration,
-            heartbeat_interval: lease_duration / 3,
-            candidate_timeout: lease_duration + lease_duration / 2,
-            election_enabled: true,
-            allow_preemption: true,
-        }
+/// A read-only snapshot of durable election state.
+///
+/// This makes no liveness or leadership-validity claim. `Rank::ZERO` with no
+/// owner represents a state key that has never been created. After resignation,
+/// the owner is absent but the rank remains non-zero.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElectionState {
+    owner: Option<ParticipantId>,
+    rank: Rank,
+}
+
+impl ElectionState {
+    pub(crate) fn new(owner: Option<ParticipantId>, rank: Rank) -> Self {
+        Self { owner, rank }
+    }
+
+    /// Returns the participant owning the current durable state, if any.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn owner(&self) -> Option<&ParticipantId> {
+        self.owner.as_ref()
+    }
+
+    /// Returns the current durable generation as a fencing token.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn rank(&self) -> Rank {
+        self.rank
+    }
+}
+
+/// Result of a conditional resignation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResignOutcome {
+    /// The matching owner and generation were cleared.
+    Resigned,
+    /// The owner or generation had already changed.
+    Rejected,
+}
+
+impl ResignOutcome {
+    /// Returns whether the current transaction staged the matching resignation.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn is_resigned(&self) -> bool {
+        matches!(self, Self::Resigned)
     }
 }

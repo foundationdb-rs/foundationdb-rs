@@ -1,0 +1,32 @@
+# Poll-based, fenced leader-election simulation.
+#
+# Each client repeatedly polls one durable (generation, optional owner) state.
+# Every successful leader poll co-commits a RankedRegister read and protected
+# write at that generation, plus a versionstamp-ordered operation-log entry.
+
+[[test]]
+testTitle = 'PollLeaderElection'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 40
+    suspicionSecs = 2
+
+  [[test.workload]]
+    # Deterministic network disruption exercises transaction retries and
+    # maybe-committed outcomes. The commit log, not issue order, is the oracle.
+    testName = 'RandomClogging'
+    testDuration = 30.0
+    swizzle = 1
+
+  [[test.workload]]
+    # Rebooted clients resume with fresh workload-local observations.
+    testName = 'Attrition'
+    machinesToKill = 5
+    machinesToLeave = 3
+    reboot = true
+    testDuration = 30.0

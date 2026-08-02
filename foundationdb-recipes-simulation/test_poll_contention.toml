@@ -1,0 +1,29 @@
+# High-contention poll simulation.
+#
+# More bounded rounds and stronger clogging increase races between incumbent
+# polls, unchanged-revision suspicion, conditional resignations, and stale
+# fenced writes. Optional operation subsets are selected by context.rnd().
+
+[[test]]
+testTitle = 'PollLeaderElectionContention'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 160
+    suspicionSecs = 1
+
+  [[test.workload]]
+    testName = 'RandomClogging'
+    testDuration = 45.0
+    swizzle = 2
+
+  [[test.workload]]
+    testName = 'Attrition'
+    machinesToKill = 6
+    machinesToLeave = 2
+    reboot = true
+    testDuration = 45.0

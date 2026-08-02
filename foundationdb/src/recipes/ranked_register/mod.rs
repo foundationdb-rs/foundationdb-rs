@@ -23,46 +23,70 @@
 //! ## Composing with Leader Election
 //!
 //! The ranked register is designed to work with the leader election recipe.
-//! The leader election's ballot serves as the rank for register operations,
-//! providing automatic fencing against stale leaders.
+//! A successful leader poll returns the generation used as the rank for register
+//! operations, providing automatic fencing against stale leaders.
 //!
 //! ```rust,no_run
-//! # fn example() {
-//! use foundationdb::recipes::leader_election::LeaderElection;
-//! use foundationdb::recipes::ranked_register::{RankedRegister, Rank};
-//! use foundationdb::tuple::Subspace;
+//! # #[cfg(feature = "recipes-leader-election")]
+//! # mod leader_election_example {
+//! # async fn example(db: &foundationdb::Database) -> Result<(), foundationdb::FdbBindingError> {
+//! use std::time::Duration;
 //!
-//! let election = LeaderElection::new(Subspace::all().subspace(&"my-election"));
+//! use foundationdb::{
+//!     options::TransactionOption,
+//!     recipes::{
+//!         leader_election::{LeaderElection, Observation, ParticipantId, PollOutcome},
+//!         ranked_register::RankedRegister,
+//!     },
+//!     tuple::Subspace,
+//!     FdbBindingError,
+//! };
+//!
+//! let election = LeaderElection::new(
+//!     Subspace::all().subspace(&"my-election"),
+//!     Duration::from_secs(10),
+//! );
 //! let register = RankedRegister::new(Subspace::all().subspace(&"my-state"));
+//! let participant = ParticipantId::new("process-incarnation")?;
+//! let observation = Observation::initial(Duration::ZERO);
 //!
-//! // In the leader's main loop:
-//! // db.run(|txn, _| async move {
-//! //     let result = election.run_election_cycle(&txn, process_id, priority, now).await?;
-//! //     match result {
-//! //         ElectionResult::Leader(state) => {
-//! //             let rank = Rank::from(state.ballot);
-//! //             // Read current state (installs fence at this ballot)
-//! //             let current = register.read(&txn, rank).await?;
-//! //             // Mutate and write back
-//! //             register.write(&txn, rank, b"new_value").await?;
-//! //         }
-//! //         ElectionResult::Follower(_) => {
-//! //             // Safe read — doesn't interfere with leader's writes
-//! //             let current = register.value(&txn).await?;
-//! //         }
-//! //     }
-//! //     Ok(())
-//! // }).await?;
+//! // The application owns retries, options, scheduling, and local observation.
+//! let result = db.run(|txn, _maybe_committed| {
+//!     let election = election.clone();
+//!     let register = register.clone();
+//!     let participant = participant.clone();
+//!     let observation = observation.clone();
+//!     async move {
+//!         txn.set_option(TransactionOption::AutomaticIdempotency)?;
+//!         let poll = election.poll(&txn, &participant, &observation, Duration::ZERO).await?;
+//!         if let PollOutcome::Leader { rank, .. } = poll.outcome() {
+//!             register
+//!                 .read(&txn, *rank)
+//!                 .await
+//!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
+//!             register
+//!                 .write(&txn, *rank, b"new_value")
+//!                 .await
+//!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
+//!         }
+//!         Ok::<_, FdbBindingError>(poll)
+//!     }
+//! }).await?;
+//! // Adopt this only after db.run succeeded.
+//! let observation = result.into_next_observation();
+//! # let _ = observation;
+//! # Ok(())
+//! # }
 //! # }
 //! ```
 //!
 //! ### Why This Works
 //!
-//! - Leader election's ballot is monotonically increasing
-//! - A deposed leader has a lower ballot than the new leader
-//! - `read(rank)` installs a fence at the ballot value
+//! - Leader-election generations increase monotonically
+//! - A deposed leader has a lower generation than the new leader
+//! - `read(rank)` installs a fence at the generation value
 //! - Any write with a lower rank is automatically rejected
-//! - `value()` is safe for followers — it never installs a fence
+//! - `value()` is safe for followers, it never installs a fence
 
 mod algorithm;
 mod errors;

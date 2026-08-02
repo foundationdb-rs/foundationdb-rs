@@ -13,10 +13,9 @@ cargo build --release -p foundationdb-recipes-simulation
 
 # All test configurations
 TESTS=(
-    "foundationdb-recipes-simulation/test_leader_election.toml"
-    "foundationdb-recipes-simulation/test_ballot_stress.toml"
-    "foundationdb-recipes-simulation/test_rapid_leadership.toml"
-    "foundationdb-recipes-simulation/test_short_lease.toml"
+    "foundationdb-recipes-simulation/test_poll_leader_election.toml"
+    "foundationdb-recipes-simulation/test_poll_contention.toml"
+    "foundationdb-recipes-simulation/test_poll_suspicion.toml"
 )
 
 for test in "${TESTS[@]}"; do

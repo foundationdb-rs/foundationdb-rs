@@ -47,7 +47,7 @@ fdb-7_1 = ["foundationdb-sys/fdb-7_1", "foundationdb-gen/fdb-7_1"]
 fdb-7_3 = ["foundationdb-sys/fdb-7_3", "foundationdb-gen/fdb-7_3"]
 fdb-7_4 = ["foundationdb-sys/fdb-7_4", "foundationdb-gen/fdb-7_4"]
 recipes = ["recipes-leader-election", "recipes-ranked-register"]
-recipes-leader-election = []
+recipes-leader-election = ["recipes-ranked-register"]
 recipes-ranked-register = []
 trace = ["tracing"]
 

@@ -1,0 +1,29 @@
+# Suspicion and pause simulation.
+#
+# Clients use their local simulated monotonic duration only to decide whether
+# an unchanged observation may attempt takeover. It is never persisted and
+# never orders operations. Versionstamp keys provide the only replay order.
+
+[[test]]
+testTitle = 'PollLeaderElectionSuspicion'
+
+  [[test.workload]]
+    testName = 'External'
+    useCAPI = true
+    libraryName = 'foundationdb_recipes_simulation'
+    workloadName = 'LeaderElectionWorkload'
+    libraryPath = './target/release'
+    operationCount = 80
+    suspicionSecs = 3
+
+  [[test.workload]]
+    testName = 'RandomClogging'
+    testDuration = 40.0
+    swizzle = 1
+
+  [[test.workload]]
+    testName = 'Attrition'
+    machinesToKill = 4
+    machinesToLeave = 4
+    reboot = true
+    testDuration = 40.0

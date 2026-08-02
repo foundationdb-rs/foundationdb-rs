@@ -1,100 +1,74 @@
-# FoundationDB Recipes Simulation
+# FoundationDB recipes simulation
 
-Simulation workloads for testing FoundationDB recipes under chaos conditions.
-
-## Building
-
-```bash
-cargo build -p foundationdb-recipes-simulation --release
-```
+This crate runs deterministic FoundationDB simulator workloads for recipes.
+Its leader-election workload exercises the poll-based `LeaderElection` recipe
+composed with `RankedRegister` fencing.
 
 ## Running
 
-### Searching for bugs
-
-Use the provided scripts to run simulations:
-
 ```bash
-# Run all test configurations (1 iteration each by default)
 ./scripts/run_leader_election_simulation.sh
-
-# Run all test configurations with 10 iterations each
 ./scripts/run_leader_election_simulation.sh 10
 ```
 
-Traces are stored in `./target/traces/`.
-
-### Debugging
+The script builds the release workload and runs every polling configuration.
+Traces are written to `target/traces`. To reproduce a seed directly:
 
 ```bash
-# Don't forget to rm old traces to facilitate the search inside the traces
-fdbserver -r simulation -f foundationdb-recipes-simulation/test_leader_election.toml -b on --trace-format json -L ./target/traces --logsize 1GiB --seed <SEED>
+fdbserver -r simulation \
+  -f foundationdb-recipes-simulation/test_poll_leader_election.toml \
+  -b on --trace-format json -L target/traces --logsize 1GiB --seed <SEED>
 ```
 
-## Workloads
+## Leader-election workload
 
-### LeaderElectionWorkload
+The durable election state is one serializable key containing a generation and
+an optional owner. Generations never reset. The workload supplies an immutable
+caller-local observation and simulated monotonic time to each `poll`. A changed
+observation is recorded locally, while an unchanged owner may be suspected only
+after `suspicionSecs`. Time is neither persisted nor used to order commits.
 
-Tests the leader election recipe with:
-- Multiple clients registering as candidates
-- Periodic heartbeats and leadership attempts
-- Ballot-based leadership claims with lease expiry
-- Operation logging for verification
+Every `db.run` attempt sets `AutomaticIdempotency` at the caller boundary.
+Returned observations and local ranks are adopted only after the outer run
+succeeds. A failed run can have committed, so its co-committed versionstamp log
+entry remains an oracle witness rather than a reason to update local state.
 
-**Configuration (TOML):**
-- `operationCount`: Number of heartbeat+leadership cycles per client (default: 50)
-- `heartbeatTimeoutSecs`: Lease duration in seconds (default: 10)
-- `resignProbability`: Probability of resigning after becoming leader (default: 0.2)
+Each client performs bounded polling rounds. A deterministic `context.rnd()`
+bitset enables a subset of optional conditional resigns, deliberate stale
+resigns and writes, observers, and pauses. The core path always polls. A leader
+must call `RankedRegister::read(rank)` and successful `write(rank, payload)` in
+the same transaction as its poll. Leadership alone is not authority.
 
-**Test Configurations:**
+After an incarnation has committed a newer leader poll, the core path attempts
+a bounded protected write with that incarnation's earlier rank. This is a
+strictly older fencing token, not merely a duplicate-rank rejection, and needs
+no cross-client scheduling coordination.
 
-| Test File | Purpose |
-|-----------|---------|
-| `test_leader_election.toml` | Basic functionality test with moderate settings |
-| `test_ballot_stress.toml` | High contention test with rapid ballot transitions |
-| `test_rapid_leadership.toml` | Fast leadership turnover with high resign probability |
-| `test_short_lease.toml` | Short lease duration for timing edge cases |
+`RandomClogging` and `Attrition` provide fault injection. Transaction errors
+during start are diagnostics. A committed leader write rejection or stale write
+commit is reported as a protocol failure.
 
-**Invariants Verified (13 total):**
+## Commit-order oracle
 
-### Core Invariants (Foundational Safety)
+Every simulated poll, resign, observer, stale write, and protected write is
+co-logged in the same transaction. Log keys begin with an incomplete
+versionstamp, so the final range is ordered by actual commit order. Values carry
+the prior and resulting election state, requested rank, classification, write
+outcome, and protected payload identity.
 
-**1. DualPathValidation** - The keystone invariant using the "atomic ops pattern". Replays all logged operations in true FDB commit order (versionstamp-ordered keys) to compute expected leader state, then compares with the actual FDB snapshot. This single invariant subsumes both safety (at most one leader at a time) and ballot conservation (ballot matches claims). If the replayed state diverges from the database state, it indicates a bug in the leader election logic or logging.
+During `check`, client 0 reads the entire operation log, public election state,
+and ranked-register write rank and value in one transaction and one read
+version. It replays from generation zero, no owner, and no protected value. The
+oracle rejects:
 
-**2. LeaderIsCandidate** - Validates structural integrity: the current leader must exist in the candidates list. This ensures leadership can only be claimed by registered candidates. Exception: if the leader's lease has expired, candidate eviction is valid (the candidate may have timed out).
-
-**3. CandidateTimestamps** - Clock skew detection: ensures no candidate has a heartbeat timestamp more than 3 seconds in the future. This tolerance accounts for extreme clock skew simulation (up to ±1s offset, 1s drift ahead, 1.1x jitter multiplier). Future timestamps beyond this threshold indicate clock handling bugs.
-
-**4. LeadershipSequence** - Validates log ordering: each client's operation numbers (`op_num`) must be strictly monotonically increasing. With versionstamp-ordered logging, this verifies the log entries are properly sequenced per client.
-
-**5. RegistrationCoverage** - Protocol compliance: every client that successfully claimed leadership must have a prior registration entry in the log. This ensures the registration requirement of the leader election protocol is enforced.
-
-### Split-Brain Detection
-
-**6. NoOverlappingLeadership** - Ensures leadership claims have distinct versionstamps. Since FDB commits are serialized and each successful leadership claim commits atomically, versionstamp ordering guarantees sequential transitions. Duplicate versionstamps would indicate a logging bug. This invariant catches split-brain scenarios where two clients might incorrectly believe they are both leaders.
-
-**7. BallotValueBinding** - Validates ballot progression within each claim: the new ballot must be greater than the previous ballot read in the same transaction. This ensures the fencing token mechanism is working correctly and prevents duplicate elections at the same ballot number.
-
-### Timing and Ballot Bug Detection
-
-**8. FencingTokenMonotonicity** - Ensures ballots never regress: each successful leadership claim must have `ballot > previous_ballot` (or `previous_ballot == 0` for first claims after system reset). This catches stale leader writes where an old leader might attempt to use an outdated fencing token.
-
-**9. GlobalBallotSuccession** - State machine safety: each new leader's ballot must be strictly greater than the predecessor's ballot. This invariant catches state regression bugs where the system might accept a lower ballot number.
-
-### Correctness
-
-**10. MutexLinearizability** - Leadership transfers must happen sequentially with at most one holder at a time in log order. In lease-based systems, a new leader claiming leadership implicitly ends the previous leader's tenure (lease expired or preempted). This tracks both explicit resigns and implicit releases to verify the leadership history linearizes to a valid mutex model.
-
-**11. LeaseOverlapCheck** - Validates each successful leadership claim has a positive, non-zero `lease_expiry_nanos`. This ensures every leader has a bounded lease duration, which is essential for the lease-based leadership protocol to function correctly.
-
-**12. OneValuePerBallot** - Paxos safety property within each tenure: each ballot number must map to exactly one client between ballot resets. The ballot resets to 0 after a resign, starting a new tenure. This catches broken conflict ranges or ballot assignment logic where two clients might somehow both claim the same ballot within the same tenure.
-
-**13. LeaseExpiryAfterClaim** - Validates that every successful leadership claim has a lease that expires AFTER the claim was made. This catches incorrect lease duration calculations, clock skew causing past-expiry leases, or missing lease assignments. Uses the logged `claim_timestamp_nanos` to verify `lease_expiry > claim_time`.
-
-### Architecture Notes
-
-**Versionstamp-Ordered Logging**: All log entries use FDB versionstamp-ordered keys, providing true causal ordering based on actual FDB commit order rather than wall-clock time. This eliminates clock skew issues in log replay.
-
-**Dual-Path Validation Pattern**: The simulation uses a "dual-path" approach where one path replays the operation log to compute expected state, while the other path reads the actual FDB state. Comparing these two paths catches bugs that might only manifest under specific timing or failure conditions.
-
-**Clock Skew Simulation**: The simulation injects extreme clock skew (up to 2.2s total deviation) to stress-test time-dependent logic like lease expiry handling.
+- duplicate logical `(actor incarnation, op)` entries;
+- leader polls that do not create exactly the next generation for their owner,
+  or whose incumbent, unowned, or takeover classification disagrees with replay;
+- follower or observer records that change or misreport replay state;
+- resign results that do not exactly match the owner and rank while preserving
+  generation;
+- stale ranked-register writes that commit;
+- leader polls without a same-transaction fenced protected write; and
+- runs that never exercise a strictly stale fenced write; and
+- any mismatch between replayed final state and the public state, protected
+  write rank, or protected value read at the shared read version.

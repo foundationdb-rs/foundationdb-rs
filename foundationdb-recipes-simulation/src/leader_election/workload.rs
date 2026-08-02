@@ -1,588 +1,361 @@
-//! RustWorkload trait implementation for leader election simulation.
-//!
-//! Contains the three main workload phases:
-//! - setup: Initialize election and register candidates
-//! - start: Execute heartbeats and leadership attempts
-//! - check: Verify invariants against logged operations
+// Copyright 2024 foundationdb-rs developers
+//
+// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
+// http://opensource.org/licenses/MIT>, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-use std::time::Duration;
+//! Workload and commit-order oracle for poll-based leader election.
+
+use std::{collections::BTreeSet, time::Duration};
 
 use foundationdb::{
     FdbBindingError, RangeOption,
     options::{MutationType, TransactionOption},
-    recipes::leader_election::{ElectionConfig, LeaderElection},
-    tuple::{Versionstamp, pack, unpack},
+    recipes::{
+        leader_election::{LeaderElection, Observation, ParticipantId, PollOutcome},
+        ranked_register::{Rank, RankedRegister, RankedRegisterError},
+    },
+    tuple::{Subspace, Versionstamp, pack, unpack},
 };
-use foundationdb_simulation::{Metric, Metrics, RustWorkload, Severity, SimDatabase, details};
+use foundationdb_simulation::{
+    Metric, Metrics, RustWorkload, Severity, SimDatabase, SingleRustWorkload, WorkloadContext,
+    details,
+};
 use futures::TryStreamExt;
 
-use super::LeaderElectionWorkload;
-use super::types::{
-    LogEntries, LogEntry, OP_HEARTBEAT, OP_REGISTER, OP_RESIGN, OP_TRY_BECOME_LEADER,
-};
+use super::types::{LogEntry, OP_OBSERVE, OP_POLL, OP_RESIGN, OP_STALE_WRITE, Snapshot};
+
+const OPTIONAL_RESIGN: u32 = 1;
+const OPTIONAL_STALE: u32 = 2;
+const OPTIONAL_OBSERVER: u32 = 4;
+const OPTIONAL_PAUSE: u32 = 8;
+
+pub struct LeaderElectionWorkload {
+    context: WorkloadContext,
+    client_id: i32,
+    operation_count: usize,
+    suspicion_duration: Duration,
+    election_subspace: Subspace,
+    register_subspace: Subspace,
+    log_subspace: Subspace,
+    participant: ParticipantId,
+    observation: Observation,
+    last_rank: Option<Rank>,
+    stale_rank: Option<Rank>,
+    core_stale_write_completed: bool,
+    op_num: u64,
+    swarm: u32,
+    poll_count: u64,
+    leader_count: u64,
+    committed_resigns: u64,
+    run_errors: u64,
+}
+
+impl SingleRustWorkload for LeaderElectionWorkload {
+    fn new(_name: String, context: WorkloadContext) -> Self {
+        let client_id = context.client_id();
+        let suspicion_secs = context.get_option("suspicionSecs").unwrap_or(2_u64);
+        let now = simulated_now(&context);
+        let participant = ParticipantId::new(format!(
+            "participant-{client_id}-{}",
+            context.get_process_id()
+        ))
+        .expect("fixed participant IDs are non-empty");
+
+        Self {
+            client_id,
+            operation_count: context.get_option("operationCount").unwrap_or(40),
+            suspicion_duration: Duration::from_secs(suspicion_secs),
+            election_subspace: Subspace::all().subspace(&("poll-leader-election",)),
+            register_subspace: Subspace::all().subspace(&("poll-leader-register",)),
+            log_subspace: Subspace::all().subspace(&("poll-leader-log",)),
+            observation: Observation::initial(now),
+            last_rank: None,
+            stale_rank: None,
+            core_stale_write_completed: false,
+            op_num: 0,
+            swarm: context.rnd(),
+            poll_count: 0,
+            leader_count: 0,
+            committed_resigns: 0,
+            run_errors: 0,
+            participant,
+            context,
+        }
+    }
+}
 
 impl RustWorkload for LeaderElectionWorkload {
-    async fn setup(&mut self, db: SimDatabase) {
-        self.context.trace(
-            Severity::Info,
-            "LeaderElectionSetup",
-            details![
-                "Layer" => "Rust",
-                "Client" => self.client_id,
-                "Phase" => "Setup"
-            ],
-        );
-
-        // Log clock skew configuration for this client
-        self.context.trace(
-            Severity::Info,
-            "ClockSkewConfig",
-            details![
-                "Layer" => "Rust",
-                "ClientId" => self.client_id,
-                "ClockSkewLevel" => format!("{:?}", self.clock_skew_level),
-                "ClockOffsetSecs" => format!("{:.4}", self.clock_offset_secs),
-                "ClockTimerTime" => format!("{:.4}", self.clock_timer_time)
-            ],
-        );
-
-        // Client 0 initializes the leader election
+    async fn setup(&mut self, _db: SimDatabase) {
         if self.client_id == 0 {
-            let election = LeaderElection::new(self.election_subspace.clone());
-            let config = ElectionConfig::with_lease_duration(Duration::from_secs(
-                self.heartbeat_timeout_secs,
-            ));
-
-            const MAX_INIT_RETRIES: u32 = 10;
-            let mut init_success = false;
-
-            for attempt in 1..=MAX_INIT_RETRIES {
-                let result = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let config = config.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            election
-                                .initialize_with_config(&trx, config)
-                                .await
-                                .map_err(FdbBindingError::from)?;
-                            Ok::<_, FdbBindingError>(())
-                        }
-                    })
-                    .await;
-
-                match result {
-                    Ok(()) => {
-                        init_success = true;
-                        break;
-                    }
-                    Err(e) => {
-                        self.context.trace(
-                            Severity::Warn,
-                            "LeaderElectionInitRetry",
-                            details![
-                                "Attempt" => attempt,
-                                "MaxAttempts" => MAX_INIT_RETRIES,
-                                "Error" => format!("{:?}", e)
-                            ],
-                        );
-                    }
-                }
-            }
-
-            if !init_success {
-                self.context.trace(
-                    Severity::Error,
-                    "LeaderElectionInitFailed",
-                    details!["Error" => "Exhausted all retry attempts"],
-                );
-            }
-
-            // Register ALL candidates (Client 0 does this for everyone to avoid race condition)
-            for cid in 0..self.client_count {
-                let process_id = format!("process_{cid}");
-                let timestamp = self.local_time();
-                let log_subspace = self.log_subspace.clone();
-
-                let result = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let process_id = process_id.clone();
-                        let log_subspace = log_subspace.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            let reg_result = election
-                                .register_candidate(&trx, &process_id, 0, timestamp)
-                                .await;
-
-                            // Log with versionstamp-ordered key (FDB commit order)
-                            let success = reg_result.is_ok();
-                            let log_key = log_subspace.pack_with_versionstamp(&(
-                                Versionstamp::incomplete(0),
-                                cid,
-                                0_u64, // op_num 0 for registration
-                            ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let log_value =
-                                pack(&(OP_REGISTER, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
-                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
-
-                            reg_result.map_err(FdbBindingError::from)
-                        }
-                    })
-                    .await;
-
-                self.context.trace(
-                    Severity::Info,
-                    "ProcessRegistered",
-                    details![
-                        "Layer" => "Rust",
-                        "Client" => cid,
-                        "ProcessId" => process_id,
-                        "Success" => result.is_ok()
-                    ],
-                );
-            }
+            self.context.trace(
+                Severity::Info,
+                "PollLeaderElectionSetup",
+                details![
+                    "Layer" => "Rust",
+                    "SuspicionSecs" => self.suspicion_duration.as_secs(),
+                    "Protocol" => "poll-fenced-ranked-register"
+                ],
+            );
         }
-
-        // All clients start with op_num = 1 (registration was op 0, done by Client 0)
-        self.op_num = 1;
     }
 
     async fn start(&mut self, db: SimDatabase) {
-        self.context.trace(
-            Severity::Info,
-            "LeaderElectionStart",
-            details![
-                "Layer" => "Rust",
-                "Client" => self.client_id,
-                "Phase" => "Start",
-                "OperationCount" => self.operation_count
-            ],
-        );
+        let election = LeaderElection::new(self.election_subspace.clone(), self.suspicion_duration);
+        let register = RankedRegister::new(self.register_subspace.clone());
 
-        let election = LeaderElection::new(self.election_subspace.clone());
+        for round in 0..self.operation_count {
+            self.poll_count += 1;
+            let op_num = self.next_op_num();
+            let now = simulated_now(&self.context);
+            let payload = protected_payload(self.participant.as_str(), op_num);
+            let result = run_poll(
+                &db,
+                election.clone(),
+                register.clone(),
+                self.log_subspace.clone(),
+                self.participant.clone(),
+                self.observation.clone(),
+                now,
+                self.client_id,
+                op_num,
+                payload,
+            )
+            .await;
 
-        // Count-based loop (not time-based - simulation time only advances on async ops)
-        for _ in 0..self.operation_count {
-            // Use local_time() for clock skew simulation
-            let timestamp = self.local_time();
-            let current_time = timestamp.as_secs_f64();
-
-            // Send heartbeat
-            {
-                let process_id = self.process_id.clone();
-                let election = election.clone();
-                let log_subspace = self.log_subspace.clone();
-                let client_id = self.client_id;
-                let op_num = self.op_num;
-
-                let result = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let process_id = process_id.clone();
-                        let log_subspace = log_subspace.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-                            let hb_result = election
-                                .heartbeat_candidate(&trx, &process_id, 0, timestamp)
-                                .await;
-
-                            // Log with versionstamp-ordered key (FDB commit order)
-                            let success = hb_result.is_ok();
-                            let log_key = log_subspace.pack_with_versionstamp(&(
-                                Versionstamp::incomplete(0),
-                                client_id,
-                                op_num,
-                            ));
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let log_value =
-                                pack(&(OP_HEARTBEAT, success, false, 0_u64, 0_u64, 0_i64, 0_i64));
-                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
-
-                            hb_result.map_err(FdbBindingError::from)
+            match result {
+                Ok(poll) => {
+                    self.observation = poll.observation;
+                    if let Some(rank) = poll.leader_rank {
+                        if let Some(previous_rank) =
+                            self.last_rank.filter(|previous| *previous < rank)
+                        {
+                            self.stale_rank = Some(previous_rank);
                         }
-                    })
-                    .await;
+                        self.last_rank = Some(rank);
+                        self.leader_count += 1;
+                        if !poll.protected_write_committed {
+                            self.protocol_error(
+                                "LeaderWriteRejected",
+                                op_num,
+                                "leader poll committed without its fenced write",
+                            );
+                        }
+                    }
+                }
+                Err(error) => self.run_diagnostic("PollRunFailed", op_num, error),
+            }
 
-                self.op_num += 1;
-
-                if result.is_ok() {
-                    self.heartbeat_count += 1;
-                } else {
-                    self.error_count += 1;
+            if !self.core_stale_write_completed {
+                if let Some(stale_rank) = self.stale_rank {
+                    let op_num = self.next_op_num();
+                    match run_stale_write(
+                        &db,
+                        election.clone(),
+                        register.clone(),
+                        self.log_subspace.clone(),
+                        self.participant.as_str().to_owned(),
+                        stale_rank,
+                        self.client_id,
+                        op_num,
+                    )
+                    .await
+                    {
+                        Ok(true) => self.protocol_error(
+                            "StaleWriteCommitted",
+                            op_num,
+                            "a stale ranked-register write committed",
+                        ),
+                        Ok(false) => self.core_stale_write_completed = true,
+                        Err(error) => self.run_diagnostic("StaleWriteRunFailed", op_num, error),
+                    }
                 }
             }
 
-            // Try to become leader
-            let became_leader = {
-                let process_id = self.process_id.clone();
-                let election = election.clone();
-                let log_subspace = self.log_subspace.clone();
-                let client_id = self.client_id;
-                let op_num = self.op_num;
-
-                let result: Result<Option<_>, _> = db
-                    .run(|trx, _maybe_committed| {
-                        let election = election.clone();
-                        let process_id = process_id.clone();
-                        let log_subspace = log_subspace.clone();
-                        async move {
-                            trx.set_option(TransactionOption::AutomaticIdempotency)?;
-
-                            // Get previous ballot before claim attempt
-                            let current = election.get_leader_raw(&trx).await.ok().flatten();
-                            let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
-
-                            let claim_result = election
-                                .try_claim_leadership(&trx, &process_id, 0, timestamp)
-                                .await
-                                .map_err(FdbBindingError::from)?;
-
-                            // Extract ballot and lease info from result
-                            let (became_leader, ballot, lease_expiry) = match &claim_result {
-                                Some(state) => {
-                                    (true, state.ballot, state.lease_expiry_nanos as i64)
-                                }
-                                None => (false, previous_ballot, 0_i64),
-                            };
-
-                            // Log with versionstamp-ordered key (FDB commit order)
-                            // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                            let claim_timestamp_nanos = timestamp.as_nanos() as i64;
-                            let log_key = log_subspace.pack_with_versionstamp(&(
-                                Versionstamp::incomplete(0),
-                                client_id,
-                                op_num,
-                            ));
-                            let log_value = pack(&(
-                                OP_TRY_BECOME_LEADER,
-                                true,
-                                became_leader,
-                                ballot,
-                                previous_ballot,
-                                lease_expiry,
-                                claim_timestamp_nanos,
-                            ));
-                            trx.atomic_op(&log_key, &log_value, MutationType::SetVersionstampedKey);
-
-                            Ok::<_, FdbBindingError>(claim_result)
-                        }
-                    })
-                    .await;
-
-                self.op_num += 1;
-                self.leadership_attempts += 1;
-                let became_leader = matches!(&result, Ok(Some(_)));
-                if became_leader {
-                    self.times_became_leader += 1;
-                    // Enhanced logging with ballot and lease info for debugging
-                    if let Ok(Some(ref state)) = result {
-                        self.context.trace(
-                            Severity::Info,
-                            "BecameLeader",
-                            details![
-                                "Layer" => "Rust",
-                                "Client" => self.client_id,
-                                "ProcessId" => self.process_id.clone(),
-                                "Timestamp" => current_time,
-                                "Ballot" => state.ballot,
-                                "LeaseExpirySecs" => state.lease_expiry_nanos as f64 / 1_000_000_000.0
-                            ],
-                        );
-                    }
-                } else if result.is_ok() {
-                    // Log when leadership claim is rejected (for debugging overlaps)
-                    self.context.trace(
-                        Severity::Debug,
-                        "LeadershipClaimRejected",
-                        details![
-                            "Layer" => "Rust",
-                            "Client" => self.client_id,
-                            "ProcessId" => self.process_id.clone(),
-                            "Timestamp" => current_time,
-                            "Reason" => "Another leader has valid lease"
-                        ],
-                    );
+            if self.swarm & OPTIONAL_OBSERVER != 0 && round % 3 == 0 {
+                let op_num = self.next_op_num();
+                if let Err(error) = run_observer(
+                    &db,
+                    election.clone(),
+                    self.log_subspace.clone(),
+                    self.participant.as_str().to_owned(),
+                    self.client_id,
+                    op_num,
+                )
+                .await
+                {
+                    self.run_diagnostic("ObserverRunFailed", op_num, error);
                 }
-                if result.is_err() {
-                    self.error_count += 1;
-                }
-                became_leader
-            };
+            }
 
-            // Randomly resign if we became leader
-            if became_leader {
-                let rnd_val = self.context.rnd() as f64 / u32::MAX as f64;
-                if rnd_val < self.resign_probability {
-                    let process_id = self.process_id.clone();
-                    let election = election.clone();
-                    let log_subspace = self.log_subspace.clone();
-                    let client_id = self.client_id;
-                    let op_num = self.op_num;
-
-                    let resign_result: Result<bool, _> = db
-                        .run(|trx, _maybe_committed| {
-                            let election = election.clone();
-                            let process_id = process_id.clone();
-                            let log_subspace = log_subspace.clone();
-                            async move {
-                                trx.set_option(TransactionOption::AutomaticIdempotency)?;
-
-                                // Get previous ballot before resign
-                                let current = election.get_leader_raw(&trx).await.ok().flatten();
-                                let previous_ballot = current.map(|l| l.ballot).unwrap_or(0);
-
-                                let did_resign = election
-                                    .resign_leadership(&trx, &process_id)
-                                    .await
-                                    .map_err(FdbBindingError::from)?;
-
-                                // Log with versionstamp-ordered key (FDB commit order)
-                                // Format: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                                let log_key = log_subspace.pack_with_versionstamp(&(
-                                    Versionstamp::incomplete(0),
-                                    client_id,
-                                    op_num,
-                                ));
-                                let log_value = pack(&(
-                                    OP_RESIGN,
-                                    did_resign,
-                                    false,
-                                    0_u64,
-                                    previous_ballot,
-                                    0_i64,
-                                    0_i64,
-                                ));
-                                trx.atomic_op(
-                                    &log_key,
-                                    &log_value,
-                                    MutationType::SetVersionstampedKey,
-                                );
-
-                                Ok::<_, FdbBindingError>(did_resign)
+            if self.swarm & OPTIONAL_RESIGN != 0 && round % 5 == 1 {
+                if let Some(rank) = self.last_rank {
+                    let op_num = self.next_op_num();
+                    match run_resign(
+                        &db,
+                        election.clone(),
+                        self.log_subspace.clone(),
+                        self.participant.clone(),
+                        rank,
+                        self.client_id,
+                        op_num,
+                    )
+                    .await
+                    {
+                        Ok(resigned) => {
+                            if resigned {
+                                self.committed_resigns += 1;
                             }
-                        })
-                        .await;
-
-                    self.op_num += 1;
-
-                    if matches!(resign_result, Ok(true)) {
-                        self.resign_count += 1;
-                        self.context.trace(
-                            Severity::Info,
-                            "LeaderResigned",
-                            details![
-                                "Layer" => "Rust",
-                                "Client" => self.client_id,
-                                "ProcessId" => self.process_id.clone(),
-                                "Timestamp" => current_time
-                            ],
-                        );
-                    }
-                    if resign_result.is_err() {
-                        self.error_count += 1;
+                        }
+                        Err(error) => self.run_diagnostic("ResignRunFailed", op_num, error),
                     }
                 }
+            }
+
+            if self.swarm & OPTIONAL_STALE != 0 && round % 5 == 3 {
+                let stale_resign_op = self.next_op_num();
+                match run_resign(
+                    &db,
+                    election.clone(),
+                    self.log_subspace.clone(),
+                    self.participant.clone(),
+                    Rank::ZERO,
+                    self.client_id,
+                    stale_resign_op,
+                )
+                .await
+                {
+                    Ok(true) => self.protocol_error(
+                        "StaleResignCommitted",
+                        stale_resign_op,
+                        "a zero-rank stale resignation committed",
+                    ),
+                    Ok(false) => {}
+                    Err(error) => {
+                        self.run_diagnostic("StaleResignRunFailed", stale_resign_op, error)
+                    }
+                }
+
+                if let Some(stale_rank) = self.stale_rank {
+                    let op_num = self.next_op_num();
+                    match run_stale_write(
+                        &db,
+                        election.clone(),
+                        register.clone(),
+                        self.log_subspace.clone(),
+                        self.participant.as_str().to_owned(),
+                        stale_rank,
+                        self.client_id,
+                        op_num,
+                    )
+                    .await
+                    {
+                        Ok(true) => self.protocol_error(
+                            "StaleWriteCommitted",
+                            op_num,
+                            "a stale ranked-register write committed",
+                        ),
+                        Ok(false) => {}
+                        Err(error) => self.run_diagnostic("StaleWriteRunFailed", op_num, error),
+                    }
+                }
+            }
+
+            let pause = if self.swarm & OPTIONAL_PAUSE != 0 && round % 4 == 0 {
+                self.suspicion_duration + Duration::from_millis(1)
+            } else {
+                Duration::from_millis(1)
+            };
+            if let Err(error) = self.context.delay(pause).await {
+                self.context.trace(
+                    Severity::Warn,
+                    "SimulationDelayFailed",
+                    details!["Client" => self.client_id, "Error" => format!("{error:?}")],
+                );
             }
         }
-
-        self.context.trace(
-            Severity::Info,
-            "LeaderElectionStartComplete",
-            details![
-                "Layer" => "Rust",
-                "Client" => self.client_id,
-                "HeartbeatCount" => self.heartbeat_count,
-                "LeadershipAttempts" => self.leadership_attempts,
-                "TimesBecameLeader" => self.times_became_leader,
-                "ResignCount" => self.resign_count
-            ],
-        );
     }
 
     async fn check(&mut self, db: SimDatabase) {
-        self.trace_check_start();
-
-        // Only client 0 performs verification
         if self.client_id != 0 {
             return;
         }
 
-        // Step 1: Read all log entries and snapshot in a single transaction
-        // Capture read version for debugging (like Cycle.actor.cpp)
         let log_subspace = self.log_subspace.clone();
-        let election_subspace = self.election_subspace.clone();
-
-        let check_result = db
-            .run(|trx, _maybe_committed| {
+        let election = LeaderElection::new(self.election_subspace.clone(), self.suspicion_duration);
+        let register = RankedRegister::new(self.register_subspace.clone());
+        let check = db
+            .run(|txn, _maybe_committed| {
                 let log_subspace = log_subspace.clone();
-                let election_subspace = election_subspace.clone();
+                let election = election.clone();
+                let register = register.clone();
                 async move {
-                    // Get read version for debugging
-                    let read_version = trx.get_read_version().await?;
-
-                    // Read log entries - already in versionstamp (commit) order!
-                    let range = RangeOption::from(log_subspace.range());
-                    let kvs: Vec<_> = trx
-                        .get_ranges_keyvalues(range, false)
+                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                    let read_version = txn.get_read_version().await?;
+                    let values: Vec<_> = txn
+                        .get_ranges_keyvalues(RangeOption::from(log_subspace.range()), false)
                         .try_collect()
                         .await
                         .map_err(FdbBindingError::from)?;
-
-                    let mut entries: LogEntries = Vec::with_capacity(kvs.len());
-                    for kv in kvs.iter() {
-                        // Unpack key: (versionstamp, client_id, op_num)
-                        let key_tuple: (Versionstamp, i32, u64) = log_subspace
-                            .unpack(kv.key())
-                            .map_err(FdbBindingError::PackError)?;
-                        let (versionstamp, client_id, op_num) = key_tuple;
-
-                        // Unpack value: (op_type, success, became_leader, ballot, previous_ballot, lease_expiry_nanos, claim_timestamp_nanos)
-                        let value_tuple: (i64, bool, bool, u64, u64, i64, i64) =
-                            unpack(kv.value()).map_err(FdbBindingError::PackError)?;
-
-                        entries.push(LogEntry {
-                            versionstamp,
-                            client_id,
-                            op_num,
-                            op_type: value_tuple.0,
-                            success: value_tuple.1,
-                            became_leader: value_tuple.2,
-                            ballot: value_tuple.3,
-                            previous_ballot: value_tuple.4,
-                            lease_expiry_nanos: value_tuple.5,
-                            claim_timestamp_nanos: value_tuple.6,
-                        });
+                    let mut entries = Vec::with_capacity(values.len());
+                    for value in values {
+                        entries.push(decode_log_entry(&log_subspace, value.key(), value.value())?);
                     }
-
-                    // Read snapshot data
-                    let election = LeaderElection::new(election_subspace);
-                    let current_time = Duration::from_secs_f64(0.0); // Will use context.now() later
-
-                    let leader_state = election
-                        .get_leader_raw(&trx)
+                    let state = election.state(&txn).await.map_err(FdbBindingError::from)?;
+                    let protected = register
+                        .read(&txn, Rank::ZERO)
                         .await
-                        .map_err(FdbBindingError::from)?;
-
-                    let candidates = election
-                        .list_candidates(&trx, current_time)
-                        .await
-                        .map_err(FdbBindingError::from)?;
-
-                    let config = election.read_config(&trx).await.ok();
-
+                        .map_err(ranked_register_error)?;
                     Ok::<_, FdbBindingError>((
                         read_version,
                         entries,
-                        leader_state,
-                        candidates,
-                        config,
+                        Snapshot {
+                            generation: state.rank().as_u64(),
+                            owner: state.owner().map(|owner| owner.as_str().to_owned()),
+                            protected_rank: protected.write_rank().as_u64(),
+                            protected_value: protected.into_value(),
+                        },
                     ))
                 }
             })
             .await;
 
-        let (read_version, entries, leader_state, candidates, config) = match check_result {
-            Ok(r) => r,
-            Err(e) => {
-                self.context.trace(
-                    Severity::Error,
-                    "CheckPhaseReadFailed",
+        match check {
+            Ok((read_version, entries, snapshot)) => match replay(&entries, &snapshot) {
+                Ok(()) => self.context.trace(
+                    Severity::Info,
+                    "PollLeaderElectionCheckPassed",
                     details![
-                        "Layer" => "Rust",
-                        "Error" => format!("{:?}", e)
+                        "ReadVersion" => read_version,
+                        "Entries" => entries.len(),
+                        "Generation" => snapshot.generation
                     ],
-                );
-                return;
-            }
-        };
-
-        // Build snapshot struct
-        let snapshot = super::types::DatabaseSnapshot {
-            leader_state,
-            candidates,
-            config,
-        };
-
-        // Log read version and entry count
-        self.context.trace(
-            Severity::Info,
-            "CheckPhaseRead",
-            details![
-                "Layer" => "Rust",
-                "ReadVersion" => read_version,
-                "EntryCount" => entries.len(),
-                "HasLeader" => snapshot.leader_state.is_some(),
-                "CandidateCount" => snapshot.candidates.len()
-            ],
-        );
-
-        // Step 2: Run invariant checks FIRST (before dumping)
-        let result = self.run_all_invariant_checks(&entries, &snapshot);
-
-        // Step 3: Conditional dumping - only on failure (AtomicOps pattern)
-        if result.failed > 0 {
-            self.context.trace(
+                ),
+                Err(error) => self.context.trace(
+                    Severity::Error,
+                    "PollLeaderElectionInvariantFailed",
+                    details![
+                        "ReadVersion" => read_version,
+                        "Entries" => entries.len(),
+                        "Error" => error
+                    ],
+                ),
+            },
+            Err(error) => self.context.trace(
                 Severity::Error,
-                "InvariantFailed_DumpingState",
-                details![
-                    "Layer" => "Rust",
-                    "ReadVersion" => read_version,
-                    "FailedCount" => result.failed
-                ],
-            );
-            // Dump state for debugging
-            self.dump_config(&snapshot);
-            self.dump_leader_state(&snapshot);
-            self.dump_candidates(&snapshot);
-            self.dump_log_entries(&entries);
-        }
-
-        // Step 4: Extract and log statistics
-        let stats = self.extract_client_stats(&entries);
-        self.log_statistics(&entries, &stats);
-
-        // Step 5: Final summary with pass/fail status
-        if result.failed > 0 {
-            self.context.trace(
-                Severity::Error,
-                "LeaderElectionCheckFailed",
-                details![
-                    "Layer" => "Rust",
-                    "ReadVersion" => read_version,
-                    "InvariantsPassed" => result.passed,
-                    "InvariantsFailed" => result.failed,
-                    "FailedInvariants" => result.results.iter()
-                        .filter(|(_, p, _)| !*p)
-                        .map(|(name, _, _)| *name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ],
-            );
-        } else {
-            self.context.trace(
-                Severity::Info,
-                "LeaderElectionCheckPassed",
-                details![
-                    "Layer" => "Rust",
-                    "ReadVersion" => read_version,
-                    "InvariantsPassed" => result.passed,
-                    "Message" => "All invariants verified successfully"
-                ],
-            );
+                "PollLeaderElectionCheckReadFailed",
+                details!["Error" => format!("{error:?}")],
+            ),
         }
     }
 
     fn get_metrics(&self, mut out: Metrics) {
         out.extend([
-            Metric::val("heartbeat_count", self.heartbeat_count as f64),
-            Metric::val("leadership_attempts", self.leadership_attempts as f64),
-            Metric::val("times_became_leader", self.times_became_leader as f64),
-            Metric::val("resign_count", self.resign_count as f64),
-            Metric::val("error_count", self.error_count as f64),
-            Metric::val("op_count", self.op_num as f64),
+            Metric::val("poll_count", self.poll_count as f64),
+            Metric::val("leader_count", self.leader_count as f64),
+            Metric::val("committed_resigns", self.committed_resigns as f64),
+            Metric::val("run_errors", self.run_errors as f64),
         ]);
     }
 
@@ -590,3 +363,609 @@ impl RustWorkload for LeaderElectionWorkload {
         5000.0
     }
 }
+
+impl LeaderElectionWorkload {
+    fn next_op_num(&mut self) -> u64 {
+        let op_num = self.op_num;
+        self.op_num += 1;
+        op_num
+    }
+
+    fn run_diagnostic(&mut self, event: &str, op_num: u64, error: FdbBindingError) {
+        self.run_errors += 1;
+        self.context.trace(
+            Severity::Warn,
+            event,
+            details![
+                "Client" => self.client_id,
+                "OpNum" => op_num,
+                "Error" => format!("{error:?}"),
+                "MaybeCommitted" => error.get_fdb_error().is_some_and(|fdb| fdb.is_maybe_committed())
+            ],
+        );
+    }
+
+    fn protocol_error(&self, event: &str, op_num: u64, error: &str) {
+        self.context.trace(
+            Severity::Error,
+            event,
+            details!["Client" => self.client_id, "OpNum" => op_num, "Error" => error],
+        );
+    }
+}
+
+struct PollRun {
+    observation: Observation,
+    leader_rank: Option<Rank>,
+    protected_write_committed: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_poll(
+    db: &SimDatabase,
+    election: LeaderElection,
+    register: RankedRegister,
+    log_subspace: Subspace,
+    participant: ParticipantId,
+    previous: Observation,
+    now: Duration,
+    client_id: i32,
+    op_num: u64,
+    payload: Vec<u8>,
+) -> Result<PollRun, FdbBindingError> {
+    db.run(|txn, _maybe_committed| {
+        let election = election.clone();
+        let register = register.clone();
+        let log_subspace = log_subspace.clone();
+        let participant = participant.clone();
+        let previous = previous.clone();
+        let payload = payload.clone();
+        async move {
+            txn.set_option(TransactionOption::AutomaticIdempotency)?;
+            let prior = election.state(&txn).await.map_err(FdbBindingError::from)?;
+            let poll = election
+                .poll(&txn, &participant, &previous, now)
+                .await
+                .map_err(FdbBindingError::from)?;
+            let (
+                generation,
+                owner,
+                requested_rank,
+                result,
+                takeover,
+                protected_write_committed,
+                observed_write_rank,
+                observed_value,
+            ) = match poll.outcome() {
+                PollOutcome::Leader { rank, takeover } => {
+                    let read = register
+                        .read(&txn, *rank)
+                        .await
+                        .map_err(ranked_register_error)?;
+                    let write = register
+                        .write(&txn, *rank, &payload)
+                        .await
+                        .map_err(ranked_register_error)?;
+                    (
+                        rank.as_u64(),
+                        Some(participant.as_str()),
+                        rank.as_u64(),
+                        true,
+                        *takeover,
+                        write.is_committed(),
+                        read.write_rank().as_u64(),
+                        read.into_value(),
+                    )
+                }
+                PollOutcome::Follower { owner, rank } => (
+                    rank.as_u64(),
+                    Some(owner.as_str()),
+                    rank.as_u64(),
+                    false,
+                    false,
+                    false,
+                    0,
+                    None,
+                ),
+            };
+            write_log(
+                &txn,
+                &log_subspace,
+                client_id,
+                op_num,
+                OP_POLL,
+                participant.as_str(),
+                prior.rank().as_u64(),
+                prior.owner().map(|owner| owner.as_str()),
+                generation,
+                owner,
+                requested_rank,
+                result,
+                takeover,
+                protected_write_committed,
+                observed_write_rank,
+                observed_value.as_deref(),
+                if result { &payload } else { &[] },
+            );
+            Ok::<_, FdbBindingError>(PollRun {
+                observation: poll.into_next_observation(),
+                leader_rank: result.then_some(Rank::from(requested_rank)),
+                protected_write_committed,
+            })
+        }
+    })
+    .await
+}
+
+async fn run_resign(
+    db: &SimDatabase,
+    election: LeaderElection,
+    log_subspace: Subspace,
+    participant: ParticipantId,
+    rank: Rank,
+    client_id: i32,
+    op_num: u64,
+) -> Result<bool, FdbBindingError> {
+    db.run(|txn, _maybe_committed| {
+        let election = election.clone();
+        let log_subspace = log_subspace.clone();
+        let participant = participant.clone();
+        async move {
+            txn.set_option(TransactionOption::AutomaticIdempotency)?;
+            let prior = election.state(&txn).await.map_err(FdbBindingError::from)?;
+            let resigned = election
+                .resign(&txn, &participant, rank)
+                .await
+                .map_err(FdbBindingError::from)?
+                .is_resigned();
+            write_log(
+                &txn,
+                &log_subspace,
+                client_id,
+                op_num,
+                OP_RESIGN,
+                participant.as_str(),
+                prior.rank().as_u64(),
+                prior.owner().map(|owner| owner.as_str()),
+                prior.rank().as_u64(),
+                if resigned {
+                    None
+                } else {
+                    prior.owner().map(|owner| owner.as_str())
+                },
+                rank.as_u64(),
+                resigned,
+                false,
+                false,
+                0,
+                None,
+                &[],
+            );
+            Ok::<_, FdbBindingError>(resigned)
+        }
+    })
+    .await
+}
+
+async fn run_observer(
+    db: &SimDatabase,
+    election: LeaderElection,
+    log_subspace: Subspace,
+    actor: String,
+    client_id: i32,
+    op_num: u64,
+) -> Result<(), FdbBindingError> {
+    db.run(|txn, _maybe_committed| {
+        let election = election.clone();
+        let log_subspace = log_subspace.clone();
+        let actor = actor.clone();
+        async move {
+            txn.set_option(TransactionOption::AutomaticIdempotency)?;
+            let state = election.state(&txn).await.map_err(FdbBindingError::from)?;
+            write_log(
+                &txn,
+                &log_subspace,
+                client_id,
+                op_num,
+                OP_OBSERVE,
+                &actor,
+                state.rank().as_u64(),
+                state.owner().map(|owner| owner.as_str()),
+                state.rank().as_u64(),
+                state.owner().map(|owner| owner.as_str()),
+                state.rank().as_u64(),
+                true,
+                false,
+                false,
+                0,
+                None,
+                &[],
+            );
+            Ok::<_, FdbBindingError>(())
+        }
+    })
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_stale_write(
+    db: &SimDatabase,
+    election: LeaderElection,
+    register: RankedRegister,
+    log_subspace: Subspace,
+    actor: String,
+    stale_rank: Rank,
+    client_id: i32,
+    op_num: u64,
+) -> Result<bool, FdbBindingError> {
+    let payload = format!("stale:{actor}:{op_num}").into_bytes();
+    db.run(|txn, _maybe_committed| {
+        let election = election.clone();
+        let register = register.clone();
+        let log_subspace = log_subspace.clone();
+        let actor = actor.clone();
+        let payload = payload.clone();
+        async move {
+            txn.set_option(TransactionOption::AutomaticIdempotency)?;
+            let state = election.state(&txn).await.map_err(FdbBindingError::from)?;
+            let write = register
+                .write(&txn, stale_rank, &payload)
+                .await
+                .map_err(ranked_register_error)?;
+            write_log(
+                &txn,
+                &log_subspace,
+                client_id,
+                op_num,
+                OP_STALE_WRITE,
+                &actor,
+                state.rank().as_u64(),
+                state.owner().map(|owner| owner.as_str()),
+                state.rank().as_u64(),
+                state.owner().map(|owner| owner.as_str()),
+                stale_rank.as_u64(),
+                write.is_committed(),
+                false,
+                false,
+                0,
+                None,
+                &payload,
+            );
+            Ok::<_, FdbBindingError>(write.is_committed())
+        }
+    })
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_log(
+    txn: &foundationdb::Transaction,
+    log_subspace: &Subspace,
+    client_id: i32,
+    op_num: u64,
+    kind: i64,
+    actor: &str,
+    prior_generation: u64,
+    prior_owner: Option<&str>,
+    generation: u64,
+    owner: Option<&str>,
+    requested_rank: u64,
+    result: bool,
+    takeover: bool,
+    protected_write_committed: bool,
+    observed_write_rank: u64,
+    observed_value: Option<&[u8]>,
+    payload: &[u8],
+) {
+    let key =
+        log_subspace.pack_with_versionstamp(&(Versionstamp::incomplete(0), client_id, op_num));
+    let value = pack(&(
+        kind,
+        actor,
+        (
+            prior_generation,
+            prior_owner.is_some(),
+            prior_owner.unwrap_or(""),
+        ),
+        (generation, owner.is_some(), owner.unwrap_or("")),
+        (requested_rank, result, takeover, protected_write_committed),
+        (
+            observed_write_rank,
+            observed_value.is_some(),
+            observed_value.unwrap_or(&[]),
+        ),
+        payload,
+    ));
+    txn.atomic_op(&key, &value, MutationType::SetVersionstampedKey);
+}
+
+fn decode_log_entry(
+    log_subspace: &Subspace,
+    key: &[u8],
+    value: &[u8],
+) -> Result<LogEntry, FdbBindingError> {
+    let (versionstamp, client_id, op_num): (Versionstamp, i32, u64) = log_subspace
+        .unpack(key)
+        .map_err(FdbBindingError::PackError)?;
+    let (
+        kind,
+        actor,
+        (prior_generation, prior_has_owner, prior_owner),
+        (generation, has_owner, owner),
+        (requested_rank, result, takeover, protected_write_committed),
+        (observed_write_rank, observed_has_value, observed_value),
+        payload,
+    ): LogWire = unpack(value).map_err(FdbBindingError::PackError)?;
+    let prior_owner = optional_owner(prior_has_owner, prior_owner)?;
+    let owner = optional_owner(has_owner, owner)?;
+    let observed_value = optional_value(observed_has_value, observed_value)?;
+    Ok(LogEntry {
+        versionstamp,
+        client_id,
+        op_num,
+        kind,
+        actor,
+        prior_generation,
+        prior_owner,
+        generation,
+        owner,
+        requested_rank,
+        result,
+        takeover,
+        protected_write_committed,
+        observed_write_rank,
+        observed_value,
+        payload,
+    })
+}
+
+type LogWire = (
+    i64,
+    String,
+    (u64, bool, String),
+    (u64, bool, String),
+    (u64, bool, bool, bool),
+    (u64, bool, Vec<u8>),
+    Vec<u8>,
+);
+
+fn optional_owner(has_owner: bool, owner: String) -> Result<Option<String>, FdbBindingError> {
+    match (has_owner, owner.is_empty()) {
+        (true, false) => Ok(Some(owner)),
+        (false, true) => Ok(None),
+        _ => Err(FdbBindingError::new_custom_error(Box::new(LogError(
+            "invalid optional owner in operation log".to_owned(),
+        )))),
+    }
+}
+
+fn optional_value(has_value: bool, value: Vec<u8>) -> Result<Option<Vec<u8>>, FdbBindingError> {
+    match (has_value, value.is_empty()) {
+        (true, _) => Ok(Some(value)),
+        (false, true) => Ok(None),
+        (false, false) => Err(FdbBindingError::new_custom_error(Box::new(LogError(
+            "invalid optional value in operation log".to_owned(),
+        )))),
+    }
+}
+
+fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<(), String> {
+    let mut seen = BTreeSet::new();
+    let mut generation = 0;
+    let mut owner: Option<String> = None;
+    let mut protected_rank = 0;
+    let mut protected_value = None;
+    let mut saw_strict_stale_write = false;
+
+    for entry in entries {
+        if !seen.insert((entry.actor.clone(), entry.op_num)) {
+            return Err(format!(
+                "duplicate logical operation ({}, {}) at {:?}",
+                entry.actor, entry.op_num, entry.versionstamp
+            ));
+        }
+        if entry.actor.is_empty() {
+            return Err(format!(
+                "operation ({}, {}) has an empty actor",
+                entry.client_id, entry.op_num
+            ));
+        }
+        if entry.prior_generation != generation || entry.prior_owner != owner {
+            return Err(format!(
+                "operation ({}, {}) read ({}, {:?}), replay has ({}, {:?})",
+                entry.client_id,
+                entry.op_num,
+                entry.prior_generation,
+                entry.prior_owner,
+                generation,
+                owner
+            ));
+        }
+
+        match entry.kind {
+            OP_POLL => replay_poll(
+                entry,
+                &mut generation,
+                &mut owner,
+                &mut protected_rank,
+                &mut protected_value,
+            )?,
+            OP_RESIGN => replay_resign(entry, &mut generation, &mut owner)?,
+            OP_OBSERVE => {
+                if !entry.result
+                    || entry.generation != generation
+                    || entry.owner != owner
+                    || entry.requested_rank != generation
+                    || entry.takeover
+                    || entry.protected_write_committed
+                    || entry.observed_write_rank != 0
+                    || entry.observed_value.is_some()
+                    || !entry.payload.is_empty()
+                {
+                    return Err(format!(
+                        "observer ({}, {}) changed or misreported state",
+                        entry.client_id, entry.op_num
+                    ));
+                }
+            }
+            OP_STALE_WRITE => {
+                if entry.result
+                    || entry.generation != generation
+                    || entry.owner != owner
+                    || entry.requested_rank >= generation
+                    || entry.takeover
+                    || entry.protected_write_committed
+                    || entry.observed_write_rank != 0
+                    || entry.observed_value.is_some()
+                    || entry.payload.is_empty()
+                {
+                    return Err(format!(
+                        "stale write ({}, {}) did not abort at generation {}",
+                        entry.client_id, entry.op_num, generation
+                    ));
+                }
+                saw_strict_stale_write = true;
+            }
+            other => return Err(format!("unknown operation kind {other}")),
+        }
+    }
+
+    if snapshot.generation != generation || snapshot.owner != owner {
+        return Err(format!(
+            "final election state ({}, {:?}) differs from replay ({}, {:?})",
+            snapshot.generation, snapshot.owner, generation, owner
+        ));
+    }
+    if snapshot.protected_rank != protected_rank || snapshot.protected_value != protected_value {
+        return Err("final ranked-register state differs from replay".to_owned());
+    }
+    if protected_value.is_none() {
+        return Err("no leader poll committed a fenced protected write".to_owned());
+    }
+    if !saw_strict_stale_write {
+        return Err("no strictly stale ranked-register write was exercised".to_owned());
+    }
+    Ok(())
+}
+
+fn replay_poll(
+    entry: &LogEntry,
+    generation: &mut u64,
+    owner: &mut Option<String>,
+    protected_rank: &mut u64,
+    protected_value: &mut Option<Vec<u8>>,
+) -> Result<(), String> {
+    if entry.result {
+        let incumbent = owner.as_deref() == Some(entry.actor.as_str());
+        let unowned = owner.is_none();
+        let takeover = !incumbent && !unowned;
+        let expected_generation = generation.checked_add(1).ok_or("generation overflow")?;
+        let expected_owner = entry.actor.as_str();
+        let expected_payload = protected_payload(expected_owner, entry.op_num);
+        if entry.actor.is_empty()
+            || entry.generation != expected_generation
+            || entry.owner.as_deref() != Some(expected_owner)
+            || entry.requested_rank != entry.generation
+            || entry.takeover != takeover
+            || !entry.protected_write_committed
+            || entry.observed_write_rank != *protected_rank
+            || entry.observed_value != *protected_value
+            || entry.payload != expected_payload
+        {
+            return Err(format!(
+                "leader poll ({}, {}) mismatch: generation actual={} expected={}; owner actual={:?} expected={:?}; requested_rank actual={} expected={}; takeover actual={} expected={}; protected_write_committed actual={} expected=true; observed_write_rank actual={} expected={}; observed_value actual={:?} expected={:?}; payload actual={:?} expected={:?}",
+                entry.client_id,
+                entry.op_num,
+                entry.generation,
+                expected_generation,
+                entry.owner,
+                expected_owner,
+                entry.requested_rank,
+                entry.generation,
+                entry.takeover,
+                takeover,
+                entry.protected_write_committed,
+                entry.observed_write_rank,
+                protected_rank,
+                entry.observed_value,
+                protected_value,
+                entry.payload,
+                expected_payload,
+            ));
+        }
+        *generation = entry.generation;
+        *owner = entry.owner.clone();
+        *protected_rank = entry.generation;
+        *protected_value = Some(entry.payload.clone());
+    } else if owner.is_some()
+        && entry.generation == *generation
+        && entry.owner == *owner
+        && entry.requested_rank == *generation
+        && !entry.takeover
+        && !entry.protected_write_committed
+        && entry.observed_write_rank == 0
+        && entry.observed_value.is_none()
+        && entry.payload.is_empty()
+    {
+    } else {
+        return Err(format!(
+            "follower poll ({}, {}) does not report the replay state",
+            entry.client_id, entry.op_num
+        ));
+    }
+    Ok(())
+}
+
+fn replay_resign(
+    entry: &LogEntry,
+    generation: &mut u64,
+    owner: &mut Option<String>,
+) -> Result<(), String> {
+    let matches =
+        owner.as_deref() == Some(entry.actor.as_str()) && entry.requested_rank == *generation;
+    if entry.result != matches
+        || entry.generation != *generation
+        || entry.takeover
+        || entry.protected_write_committed
+        || entry.observed_write_rank != 0
+        || entry.observed_value.is_some()
+        || !entry.payload.is_empty()
+    {
+        return Err(format!(
+            "resign ({}, {}) does not match current owner and generation",
+            entry.client_id, entry.op_num
+        ));
+    }
+    let expected_owner = if matches { None } else { owner.clone() };
+    if entry.owner != expected_owner {
+        return Err(format!(
+            "resign ({}, {}) reported an invalid resulting owner",
+            entry.client_id, entry.op_num
+        ));
+    }
+    *owner = expected_owner;
+    Ok(())
+}
+
+fn simulated_now(context: &WorkloadContext) -> Duration {
+    Duration::from_secs_f64(context.now().max(0.0))
+}
+
+fn protected_payload(actor: &str, op_num: u64) -> Vec<u8> {
+    format!("leader:{actor}:{op_num}").into_bytes()
+}
+
+fn ranked_register_error(error: RankedRegisterError) -> FdbBindingError {
+    FdbBindingError::new_custom_error(Box::new(error))
+}
+
+#[derive(Debug)]
+struct LogError(String);
+
+impl std::fmt::Display for LogError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for LogError {}
