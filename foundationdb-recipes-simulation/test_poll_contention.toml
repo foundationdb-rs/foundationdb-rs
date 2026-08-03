@@ -1,8 +1,8 @@
 # High-contention poll simulation.
 #
-# More bounded rounds and stronger clogging increase races between incumbent
-# polls, unchanged-revision suspicion, conditional resignations, and stale
-# fenced writes. Optional operation subsets are selected by context.rnd().
+# More bounded rounds and stronger clogging increase races between renewals,
+# unchanged-revision lease expiry, conditional resignations, and stale fenced
+# writes. Autonomous weighted operations and swarm bits select optional work.
 
 [[test]]
 testTitle = 'PollLeaderElectionContention'

@@ -18,8 +18,10 @@ pub enum LeaderElectionError {
     InvalidState(String),
     /// A participant ID was empty.
     InvalidParticipantId,
-    /// The durable generation reached `u64::MAX`.
-    GenerationExhausted,
+    /// A configured lease duration was zero.
+    InvalidLeaseDuration,
+    /// The durable revision reached `u64::MAX`.
+    RevisionExhausted,
     /// An underlying FoundationDB error occurred.
     Fdb(FdbError),
     /// Failed to pack or unpack a tuple.
@@ -31,7 +33,8 @@ impl fmt::Display for LeaderElectionError {
         match self {
             Self::InvalidState(message) => write!(f, "Invalid leader election state: {message}"),
             Self::InvalidParticipantId => write!(f, "Participant ID must not be empty"),
-            Self::GenerationExhausted => write!(f, "Leader-election generation is exhausted"),
+            Self::InvalidLeaseDuration => write!(f, "Lease duration must not be zero"),
+            Self::RevisionExhausted => write!(f, "Leader-election revision is exhausted"),
             Self::Fdb(error) => write!(f, "Database error: {error}"),
             Self::PackError(error) => write!(f, "Pack error: {error:?}"),
         }
@@ -43,7 +46,10 @@ impl std::error::Error for LeaderElectionError {
         match self {
             Self::Fdb(error) => Some(error),
             Self::PackError(error) => Some(error),
-            Self::InvalidState(_) | Self::InvalidParticipantId | Self::GenerationExhausted => None,
+            Self::InvalidState(_)
+            | Self::InvalidParticipantId
+            | Self::InvalidLeaseDuration
+            | Self::RevisionExhausted => None,
         }
     }
 }

@@ -23,8 +23,8 @@
 //! ## Composing with Leader Election
 //!
 //! The ranked register is designed to work with the leader election recipe.
-//! A successful leader poll returns the generation used as the rank for register
-//! operations, providing automatic fencing against stale leaders.
+//! A successful leader poll returns a fencing rank derived from the durable
+//! revision, providing automatic fencing against stale leaders.
 //!
 //! ```rust,no_run
 //! # #[cfg(feature = "recipes-leader-election")]
@@ -33,9 +33,10 @@
 //! use std::time::Duration;
 //!
 //! use foundationdb::{
+//!     env::{Clock, Environment},
 //!     options::TransactionOption,
 //!     recipes::{
-//!         leader_election::{LeaderElection, Observation, ParticipantId, PollOutcome},
+//!         leader_election::{LeaderElection, LocalState, ParticipantId, PollOutcome},
 //!         ranked_register::RankedRegister,
 //!     },
 //!     tuple::Subspace,
@@ -45,20 +46,25 @@
 //! let election = LeaderElection::new(
 //!     Subspace::all().subspace(&"my-election"),
 //!     Duration::from_secs(10),
-//! );
+//! )?;
 //! let register = RankedRegister::new(Subspace::all().subspace(&"my-state"));
 //! let participant = ParticipantId::new("process-incarnation")?;
-//! let observation = Observation::initial(Duration::ZERO);
+//! let local_state = LocalState::unknown();
+//! let env = Environment::default();
 //!
 //! // The application owns retries, options, scheduling, and local observation.
 //! let result = db.run(|txn, _maybe_committed| {
 //!     let election = election.clone();
 //!     let register = register.clone();
 //!     let participant = participant.clone();
-//!     let observation = observation.clone();
+//!     let local_state = local_state.clone();
+//!     let env = env.clone();
 //!     async move {
 //!         txn.set_option(TransactionOption::AutomaticIdempotency)?;
-//!         let poll = election.poll(&txn, &participant, &observation, Duration::ZERO).await?;
+//!         let attempt_started_at = env.clock().monotonic();
+//!         let poll = election
+//!             .poll(&txn, &participant, &local_state, attempt_started_at)
+//!             .await?;
 //!         if let PollOutcome::Leader { rank, .. } = poll.outcome() {
 //!             register
 //!                 .read(&txn, *rank)
@@ -73,8 +79,8 @@
 //!     }
 //! }).await?;
 //! // Adopt this only after db.run succeeded.
-//! let observation = result.into_next_observation();
-//! # let _ = observation;
+//! let local_state = result.into_next_state(env.clock().monotonic());
+//! # let _ = local_state;
 //! # Ok(())
 //! # }
 //! # }
@@ -82,10 +88,10 @@
 //!
 //! ### Why This Works
 //!
-//! - Leader-election generations increase monotonically
-//! - A deposed leader has a lower generation than the new leader
-//! - `read(rank)` installs a fence at the generation value
-//! - Any write with a lower rank is automatically rejected
+//! - Durable leader-election revisions increase monotonically
+//! - A deposed leader has a lower fencing rank than the new leader
+//! - `read(rank)` installs a fence at that fencing rank
+//! - Any write with a lower fencing rank is automatically rejected
 //! - `value()` is safe for followers, it never installs a fence
 
 mod algorithm;
@@ -120,11 +126,16 @@ impl RankedRegister {
     /// The subspace isolates this register from other data in the database.
     /// No initialization step is required — the register starts in the
     /// bottom state (zero ranks, no value) until the first write.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(subspace))
+    )]
     pub fn new(subspace: Subspace) -> Self {
         Self { subspace }
     }
 
     /// Returns a reference to the underlying subspace
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn subspace(&self) -> &Subspace {
         &self.subspace
     }
@@ -135,6 +146,10 @@ impl RankedRegister {
     /// that prevents lower-ranked writes. Returns the current write rank and value.
     ///
     /// Used by the leader before writing to ensure consistency.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, txn))
+    )]
     pub async fn read<T>(&self, txn: &T, rank: Rank) -> Result<ReadResult>
     where
         T: Deref<Target = Transaction>,
@@ -149,6 +164,10 @@ impl RankedRegister {
     /// - `rank > max_write_rank` (no equal-or-higher write)
     ///
     /// Returns [`WriteResult::Committed`] or [`WriteResult::Aborted`].
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, txn, value))
+    )]
     pub async fn write<T>(&self, txn: &T, rank: Rank, value: &[u8]) -> Result<WriteResult>
     where
         T: Deref<Target = Transaction>,
@@ -160,6 +179,10 @@ impl RankedRegister {
     ///
     /// Safe for followers and observers — does not install a fence,
     /// so it won't interfere with the leader's writes.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, txn))
+    )]
     pub async fn value<T>(&self, txn: &T) -> Result<Option<Vec<u8>>>
     where
         T: Deref<Target = Transaction>,

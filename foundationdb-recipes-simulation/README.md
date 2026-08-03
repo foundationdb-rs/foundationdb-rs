@@ -22,53 +22,45 @@ fdbserver -r simulation \
 
 ## Leader-election workload
 
-The durable election state is one serializable key containing a generation and
-an optional owner. Generations never reset. The workload supplies an immutable
-caller-local observation and simulated monotonic time to each `poll`. A changed
-observation is recorded locally, while an unchanged owner may be suspected only
-after `suspicionSecs`. Time is neither persisted nor used to order commits.
+One serializable durable key contains a monotonic revision, optional owner, and
+persisted lease duration. Revisions never decrease. Clients use heterogeneous
+configured durations, but followers wait only the duration persisted with their
+exact unchanged observation.
 
-Every `db.run` attempt sets `AutomaticIdempotency` at the caller boundary.
-Returned observations and local ranks are adopted only after the outer run
-succeeds. A failed run can have committed, so its co-committed versionstamp log
-entry remains an oracle witness rather than a reason to update local state.
+Each `db.run` attempt obtains `attempt_started_at` from simulated monotonic time
+as its first action, then sets `AutomaticIdempotency` and calls `poll`. After a
+successful outer run, follower observations are adopted with a fresh simulated
+time. Failed poll and resign paths discard local state and rotate to a fresh
+caller incarnation. Time is never persisted or used to order commits.
 
-Each client performs bounded polling rounds. A deterministic `context.rnd()`
-bitset enables a subset of optional conditional resigns, deliberate stale
-resigns and writes, observers, and pauses. The core path always polls. A leader
-must call `RankedRegister::read(rank)` and successful `write(rank, payload)` in
-the same transaction as its poll. Leadership alone is not authority.
+Clients autonomously select a weighted mix of normal polls and adversarial
+resigns, observers, stale-token actions, pauses, duration changes, and local
+incarnation loss. A deterministic swarm bitset enables optional operation
+families. Every leader poll co-commits `RankedRegister::read(rank)`, protected
+`write(rank, payload)`, and its operation log entry. Leadership alone is not
+authority.
 
-After an incarnation has committed a newer leader poll, the core path attempts
-a bounded protected write with that incarnation's earlier rank. This is a
-strictly older fencing token, not merely a duplicate-rank rejection, and needs
-no cross-client scheduling coordination.
-
-`RandomClogging` and `Attrition` provide fault injection. Transaction errors
-during start are diagnostics. A committed leader write rejection or stale write
-commit is reported as a protocol failure.
+The completion phase biases execution toward boundary, stale-token,
+duration-reset, and fencing coverage that a short autonomous run might
+otherwise miss.
 
 ## Commit-order oracle
 
-Every simulated poll, resign, observer, stale write, and protected write is
-co-logged in the same transaction. Log keys begin with an incomplete
-versionstamp, so the final range is ordered by actual commit order. Values carry
-the prior and resulting election state, requested rank, classification, write
-outcome, and protected payload identity.
+Every simulated poll, resign, observer, and stale write is co-logged in its
+transaction. Log keys begin with an incomplete versionstamp, so the final range
+is ordered by actual commit order. Entries include durable prior/current state,
+caller local input, attempt time, configured duration, transition, fencing
+write evidence, and payload identity.
 
 During `check`, client 0 reads the entire operation log, public election state,
-and ranked-register write rank and value in one transaction and one read
-version. It replays from generation zero, no owner, and no protected value. The
-oracle rejects:
+and ranked-register write rank and value in one transaction at one read version.
+It replays from revision zero, no owner, and no protected value. The oracle
+enforces commit order, unique logical operations, exact local-state adoption,
+and public snapshot agreement. It tracks observed coverage for:
 
-- duplicate logical `(actor incarnation, op)` entries;
-- leader polls that do not create exactly the next generation for their owner,
-  or whose incumbent, unowned, or takeover classification disagrees with replay;
-- follower or observer records that change or misreport replay state;
-- resign results that do not exactly match the owner and rank while preserving
-  generation;
-- stale ranked-register writes that commit;
-- leader polls without a same-transaction fenced protected write; and
-- runs that never exercise a strictly stale fenced write; and
-- any mismatch between replayed final state and the public state, protected
-  write rank, or protected value read at the shared read version.
+- before, exact, and after persisted-duration expiry, including foreign takeover;
+- stale renewal, stale renewal after rank advance, exact resignation, delayed
+  stale resignation, and stale resignation after takeover;
+- follower reset after a renewal changes persisted duration;
+- rejected rank-zero and post-advance stale writes; and
+- a same-transaction fenced protected write for every leader poll.
