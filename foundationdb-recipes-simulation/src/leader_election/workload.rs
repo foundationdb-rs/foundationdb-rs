@@ -40,6 +40,7 @@ use super::types::{
 const OPTIONAL_RESIGN: u32 = 1;
 const OPTIONAL_OBSERVER: u32 = 2;
 const OPTIONAL_PAUSE: u32 = 4;
+const OPTIONAL_DELAYED_ADOPTION: u32 = 8;
 
 pub struct LeaderElectionWorkload {
     context: WorkloadContext,
@@ -65,6 +66,10 @@ pub struct LeaderElectionWorkload {
     poll_count: u64,
     leader_count: u64,
     run_errors: u64,
+    delayed_adoption_count: u64,
+    delayed_adoption_sub_lease_count: u64,
+    delayed_adoption_exact_lease_count: u64,
+    delayed_adoption_over_lease_count: u64,
 }
 
 impl SingleRustWorkload for LeaderElectionWorkload {
@@ -106,6 +111,10 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             poll_count: 0,
             leader_count: 0,
             run_errors: 0,
+            delayed_adoption_count: 0,
+            delayed_adoption_sub_lease_count: 0,
+            delayed_adoption_exact_lease_count: 0,
+            delayed_adoption_over_lease_count: 0,
             context,
         }
     }
@@ -150,6 +159,7 @@ impl RustWorkload for LeaderElectionWorkload {
             if run_normal_poll {
                 self.poll_count += 1;
                 let op_num = self.next_op_num();
+                let adoption_delay = self.random_adoption_delay();
                 let poll = run_poll(
                     &db,
                     election.clone(),
@@ -162,12 +172,16 @@ impl RustWorkload for LeaderElectionWorkload {
                     self.client_id,
                     self.incarnation,
                     op_num,
+                    adoption_delay,
                 )
                 .await;
 
                 let mut exercise_zero_stale_write = false;
                 match poll {
                     Ok(poll) => {
+                        if let Some(delay) = poll.adoption_delay {
+                            self.record_delayed_adoption(delay);
+                        }
                         self.local_state = poll.next_state;
                         if let Some(leadership) = poll.leadership {
                             if let Some(previous) = self
@@ -263,8 +277,14 @@ impl RustWorkload for LeaderElectionWorkload {
                     {
                         Ok(true) => {
                             self.local_state = LocalState::unknown();
-                            self.force_foreign_takeover(&db, &register, election.lease_duration())
-                                .await;
+                            self.force_foreign_takeover(
+                                &db,
+                                &register,
+                                election.lease_duration(),
+                                (self.swarm & OPTIONAL_DELAYED_ADOPTION != 0)
+                                    .then_some(AdoptionDelay::Longer),
+                            )
+                            .await;
                         }
                         Ok(false) => {}
                         Err(error) => {
@@ -401,6 +421,18 @@ impl RustWorkload for LeaderElectionWorkload {
 
         match result {
             Ok((read_version, entries, snapshot)) => match replay(&entries, &snapshot) {
+                Ok(coverage) if coverage.missing.contains(&"delayed_observation_adoption") => {
+                    self.context.trace(
+                        Severity::Error,
+                        "LeaderLeaseDelayedAdoptionMissing",
+                        details![
+                            "ReadVersion" => read_version,
+                            "Entries" => entries.len(),
+                            "WitnessesObserved" => coverage.observed,
+                            "MissingWitnesses" => coverage.missing.join(", "),
+                        ],
+                    )
+                }
                 Ok(coverage) => self.context.trace(
                     Severity::Info,
                     "LeaderLeaseCheckPassed",
@@ -430,6 +462,19 @@ impl RustWorkload for LeaderElectionWorkload {
             Metric::val("poll_count", self.poll_count as f64),
             Metric::val("leader_count", self.leader_count as f64),
             Metric::val("run_errors", self.run_errors as f64),
+            Metric::val("delayed_adoption_count", self.delayed_adoption_count as f64),
+            Metric::val(
+                "delayed_adoption_sub_lease_count",
+                self.delayed_adoption_sub_lease_count as f64,
+            ),
+            Metric::val(
+                "delayed_adoption_exact_lease_count",
+                self.delayed_adoption_exact_lease_count as f64,
+            ),
+            Metric::val(
+                "delayed_adoption_over_lease_count",
+                self.delayed_adoption_over_lease_count as f64,
+            ),
         ]);
     }
 
@@ -444,6 +489,7 @@ impl LeaderElectionWorkload {
         db: &SimDatabase,
         register: &RankedRegister,
         follower_duration: Duration,
+        adoption_delay: Option<AdoptionDelay>,
     ) {
         let foreign = ParticipantId::new(format!(
             "foreign\0λ-{}-{}-{}",
@@ -469,6 +515,7 @@ impl LeaderElectionWorkload {
             self.client_id,
             self.incarnation,
             foreign_op,
+            None,
         )
         .await;
         let Ok(foreign_poll) = foreign_poll else {
@@ -479,7 +526,9 @@ impl LeaderElectionWorkload {
         };
 
         self.local_state = LocalState::unknown();
-        let _ = self.poll_once(db, register, follower_duration).await;
+        let _ = self
+            .poll_once(db, register, follower_duration, adoption_delay)
+            .await;
         let Some(observation) = self.local_state.observation().cloned() else {
             return;
         };
@@ -493,12 +542,12 @@ impl LeaderElectionWorkload {
             .saturating_add(observation.lease_duration())
             .saturating_sub(Duration::from_millis(1));
         delay_until(&self.context, before).await;
-        let _ = self.poll_once(db, register, follower_duration).await;
+        let _ = self.poll_once(db, register, follower_duration, None).await;
         let exact = observation
             .first_observed_at()
             .saturating_add(observation.lease_duration());
         delay_until(&self.context, exact).await;
-        let takeover = self.poll_once(db, register, follower_duration).await;
+        let takeover = self.poll_once(db, register, follower_duration, None).await;
         if takeover.is_some_and(|leadership| leadership.rank() > predecessor.rank()) {
             self.exercise_stale_tokens(db, register, predecessor.clone(), predecessor.rank())
                 .await;
@@ -516,6 +565,20 @@ impl LeaderElectionWorkload {
         let op_num = self.op_num;
         self.op_num += 1;
         op_num
+    }
+
+    fn random_adoption_delay(&self) -> Option<AdoptionDelay> {
+        (self.swarm & OPTIONAL_DELAYED_ADOPTION != 0)
+            .then(|| AdoptionDelay::from_random(self.context.rnd()))
+    }
+
+    fn record_delayed_adoption(&mut self, delay: AdoptionDelay) {
+        self.delayed_adoption_count += 1;
+        match delay {
+            AdoptionDelay::Shorter => self.delayed_adoption_sub_lease_count += 1,
+            AdoptionDelay::Exact => self.delayed_adoption_exact_lease_count += 1,
+            AdoptionDelay::Longer => self.delayed_adoption_over_lease_count += 1,
+        }
     }
 
     fn run_diagnostic(&mut self, event: &str, op_num: u64, error: FdbBindingError) {
@@ -560,6 +623,7 @@ impl LeaderElectionWorkload {
         db: &SimDatabase,
         register: &RankedRegister,
         lease_duration: Duration,
+        adoption_delay: Option<AdoptionDelay>,
     ) -> Option<Leadership> {
         let election = LeaderElection::new(self.election_subspace.clone(), lease_duration)
             .expect("completion lease duration is non-zero");
@@ -576,10 +640,14 @@ impl LeaderElectionWorkload {
             self.client_id,
             self.incarnation,
             op_num,
+            adoption_delay,
         )
         .await;
         match result {
             Ok(poll) => {
+                if let Some(delay) = poll.adoption_delay {
+                    self.record_delayed_adoption(delay);
+                }
                 self.local_state = poll.next_state;
                 if let Some(leadership) = poll.leadership {
                     if let Some(previous) = self
@@ -627,6 +695,7 @@ impl LeaderElectionWorkload {
             self.client_id,
             self.incarnation,
             stale_poll_op,
+            None,
         )
         .await
         {
@@ -701,10 +770,17 @@ impl LeaderElectionWorkload {
 
         for phase in 0..3 {
             let lease_duration = self.lease_duration_for_round(self.operation_count + phase);
-            if let Some(first) = self.poll_once(&db, &register, lease_duration).await {
+            let adoption_delay = AdoptionDelay::for_completion_phase(phase);
+            if let Some(first) = self
+                .poll_once(&db, &register, lease_duration, Some(adoption_delay))
+                .await
+            {
                 let renewal_duration =
                     self.lease_duration_for_round(self.operation_count + phase + 1);
-                if let Some(renewed) = self.poll_once(&db, &register, renewal_duration).await {
+                if let Some(renewed) = self
+                    .poll_once(&db, &register, renewal_duration, Some(adoption_delay))
+                    .await
+                {
                     if first.rank() < renewed.rank() {
                         self.exercise_stale_tokens(&db, &register, first.clone(), first.rank())
                             .await;
@@ -728,8 +804,13 @@ impl LeaderElectionWorkload {
                     {
                         Ok(true) => {
                             self.local_state = LocalState::unknown();
-                            self.force_foreign_takeover(&db, &register, renewal_duration)
-                                .await;
+                            self.force_foreign_takeover(
+                                &db,
+                                &register,
+                                renewal_duration,
+                                Some(adoption_delay),
+                            )
+                            .await;
                         }
                         Ok(false) => self.protocol_error(
                             "ExactResignRejected",
@@ -743,7 +824,9 @@ impl LeaderElectionWorkload {
                     }
                 }
                 self.local_state = LocalState::unknown();
-                let _ = self.poll_once(&db, &register, renewal_duration).await;
+                let _ = self
+                    .poll_once(&db, &register, renewal_duration, Some(adoption_delay))
+                    .await;
             }
 
             if let Some(observation) = self.local_state.observation().cloned() {
@@ -752,12 +835,16 @@ impl LeaderElectionWorkload {
                     .saturating_add(observation.lease_duration())
                     .saturating_sub(Duration::from_millis(1));
                 let _ = delay_until(&self.context, before_expiry).await;
-                let _ = self.poll_once(&db, &register, lease_duration).await;
+                let _ = self
+                    .poll_once(&db, &register, lease_duration, Some(adoption_delay))
+                    .await;
                 let exact_expiry = observation
                     .first_observed_at()
                     .saturating_add(observation.lease_duration());
                 let _ = delay_until(&self.context, exact_expiry).await;
-                let _ = self.poll_once(&db, &register, lease_duration).await;
+                let _ = self
+                    .poll_once(&db, &register, lease_duration, Some(adoption_delay))
+                    .await;
             }
 
             if let Some(leadership) = self.local_state.leadership().cloned() {
@@ -766,7 +853,9 @@ impl LeaderElectionWorkload {
                     .saturating_add(leadership.lease_duration())
                     .saturating_add(Duration::from_millis(1));
                 let _ = delay_until(&self.context, after_expiry).await;
-                let _ = self.poll_once(&db, &register, lease_duration).await;
+                let _ = self
+                    .poll_once(&db, &register, lease_duration, Some(adoption_delay))
+                    .await;
             }
         }
     }
@@ -775,6 +864,36 @@ impl LeaderElectionWorkload {
 struct PollRun {
     next_state: LocalState,
     leadership: Option<Leadership>,
+    adoption_delay: Option<AdoptionDelay>,
+}
+
+#[derive(Clone, Copy)]
+enum AdoptionDelay {
+    Shorter,
+    Exact,
+    Longer,
+}
+
+impl AdoptionDelay {
+    fn from_random(random: u32) -> Self {
+        match random % 3 {
+            0 => Self::Shorter,
+            1 => Self::Exact,
+            _ => Self::Longer,
+        }
+    }
+
+    fn duration(self, lease_duration: Duration) -> Duration {
+        match self {
+            Self::Shorter => lease_duration / 2,
+            Self::Exact => lease_duration,
+            Self::Longer => lease_duration.saturating_add(Duration::from_millis(1)),
+        }
+    }
+
+    fn for_completion_phase(phase: usize) -> Self {
+        [Self::Shorter, Self::Exact, Self::Longer][phase]
+    }
 }
 
 #[derive(Clone)]
@@ -785,6 +904,7 @@ enum LocalExpectation {
         rank: u64,
         lease_duration: Duration,
         not_before: Duration,
+        planned_adoption_delay: Option<Duration>,
     },
 }
 
@@ -812,6 +932,7 @@ struct ReplayWitnesses {
     saw_post_advance_stale_write: bool,
     renewal_with_new_duration_rank: Option<u64>,
     saw_follower_duration_reset: bool,
+    saw_delayed_observation_adoption: bool,
 }
 
 async fn continuous_snapshot_check(
@@ -868,85 +989,123 @@ async fn run_poll(
     client_id: i32,
     incarnation: u64,
     op_num: u64,
+    adoption_delay: Option<AdoptionDelay>,
 ) -> Result<PollRun, FdbBindingError> {
     let payload = protected_payload(participant.as_str(), op_num);
     let configured_lease_duration = election.lease_duration();
-    db.run(|txn, _maybe_committed| {
-        let election = election.clone();
-        let register = register.clone();
-        let log_subspace = log_subspace.clone();
-        let participant = participant.clone();
-        let local_state = local_state.clone();
-        let payload = payload.clone();
-        let context = context.clone();
-        async move {
-            let attempt_started_at = simulated_now(&context);
-            txn.set_option(TransactionOption::AutomaticIdempotency)?;
-            let prior =
-                durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
-            let local_token = local_input(&local_state);
-            let poll = election
-                .poll(&txn, &participant, &local_state, attempt_started_at)
-                .await
-                .map_err(FdbBindingError::from)?;
-            let transition = transition_code(poll.outcome().transition());
-            let leader = matches!(poll.outcome(), PollOutcome::Leader { .. });
-            let (requested_write_rank, observed_write_rank, observed_value, write_committed) =
-                if let PollOutcome::Leader { rank, .. } = poll.outcome() {
-                    let read = register
-                        .read(&txn, *rank)
-                        .await
-                        .map_err(ranked_register_error)?;
-                    let write = register
-                        .write(&txn, *rank, &payload)
-                        .await
-                        .map_err(ranked_register_error)?;
-                    (
-                        rank.as_u64(),
-                        read.write_rank().as_u64(),
-                        read.into_value(),
-                        write.is_committed(),
-                    )
-                } else {
-                    (0, 0, None, false)
-                };
-            let current =
-                durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
-            write_log(
-                &txn,
-                &log_subspace,
-                client_id,
-                incarnation,
-                op_num,
-                OP_POLL,
-                participant.as_str(),
-                &prior,
-                &current,
-                &local_token,
-                tracks_local_state,
-                attempt_started_at,
-                configured_lease_duration,
-                transition,
-                leader,
-                requested_write_rank,
-                observed_write_rank,
-                observed_value.as_deref(),
-                write_committed,
-                if leader { &payload } else { &[] },
-            );
-            Ok::<_, FdbBindingError>((poll, attempt_started_at))
-        }
+    let (poll, attempt_started_at, planned_adoption_delay) = db
+        .run(|txn, _maybe_committed| {
+            let election = election.clone();
+            let register = register.clone();
+            let log_subspace = log_subspace.clone();
+            let participant = participant.clone();
+            let local_state = local_state.clone();
+            let payload = payload.clone();
+            let context = context.clone();
+            async move {
+                let attempt_started_at = simulated_now(&context);
+                txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                let prior =
+                    durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
+                let local_token = local_input(&local_state);
+                let poll = election
+                    .poll(&txn, &participant, &local_state, attempt_started_at)
+                    .await
+                    .map_err(FdbBindingError::from)?;
+                let transition = transition_code(poll.outcome().transition());
+                let leader = matches!(poll.outcome(), PollOutcome::Leader { .. });
+                let (requested_write_rank, observed_write_rank, observed_value, write_committed) =
+                    if let PollOutcome::Leader { rank, .. } = poll.outcome() {
+                        let read = register
+                            .read(&txn, *rank)
+                            .await
+                            .map_err(ranked_register_error)?;
+                        let write = register
+                            .write(&txn, *rank, &payload)
+                            .await
+                            .map_err(ranked_register_error)?;
+                        (
+                            rank.as_u64(),
+                            read.write_rank().as_u64(),
+                            read.into_value(),
+                            write.is_committed(),
+                        )
+                    } else {
+                        (0, 0, None, false)
+                    };
+                let current =
+                    durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
+                let planned_adoption_delay =
+                    planned_follower_adoption_delay(&poll, &local_state, adoption_delay);
+                write_log(
+                    &txn,
+                    &log_subspace,
+                    client_id,
+                    incarnation,
+                    op_num,
+                    OP_POLL,
+                    participant.as_str(),
+                    &prior,
+                    &current,
+                    &local_token,
+                    tracks_local_state,
+                    attempt_started_at,
+                    configured_lease_duration,
+                    planned_adoption_delay,
+                    transition,
+                    leader,
+                    requested_write_rank,
+                    observed_write_rank,
+                    observed_value.as_deref(),
+                    write_committed,
+                    if leader { &payload } else { &[] },
+                );
+                Ok::<_, FdbBindingError>((poll, attempt_started_at, planned_adoption_delay))
+            }
+        })
+        .await?;
+    let adoption_delay = match (adoption_delay, planned_adoption_delay) {
+        (Some(delay), Some(duration)) => match context.delay(duration).await {
+            Ok(()) => Some(delay),
+            Err(error) => return Err(FdbBindingError::from(error)),
+        },
+        _ => None,
+    };
+    let adopted_at =
+        simulated_now(context).max(attempt_started_at.saturating_add(Duration::from_nanos(1)));
+    let next_state = poll.into_next_state(adopted_at);
+    Ok(PollRun {
+        leadership: next_state.leadership().cloned(),
+        next_state,
+        adoption_delay,
     })
-    .await
-    .map(|(poll, attempt_started_at)| {
-        let adopted_at =
-            simulated_now(context).max(attempt_started_at.saturating_add(Duration::from_nanos(1)));
-        let next_state = poll.into_next_state(adopted_at);
-        PollRun {
-            leadership: next_state.leadership().cloned(),
-            next_state,
-        }
-    })
+}
+
+fn planned_follower_adoption_delay(
+    poll: &foundationdb::recipes::leader_election::PollResult,
+    local_state: &LocalState,
+    adoption_delay: Option<AdoptionDelay>,
+) -> Option<Duration> {
+    let PollOutcome::Follower {
+        owner,
+        rank,
+        lease_duration,
+    } = poll.outcome()
+    else {
+        return None;
+    };
+    let is_new_or_reset = !matches!(
+        local_state,
+        LocalState::Observation(observation)
+            if observation.owner() == owner
+                && observation.rank() == *rank
+                && observation.lease_duration() == *lease_duration
+    );
+    if is_new_or_reset {
+        adoption_delay.map(|delay| delay.duration(*lease_duration))
+    } else {
+        None
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -993,6 +1152,7 @@ async fn run_resign(
                 tracks_local_state,
                 now,
                 configured_lease_duration,
+                None,
                 TRANSITION_NONE,
                 result,
                 0,
@@ -1041,6 +1201,7 @@ async fn run_observer(
                 false,
                 now,
                 configured_lease_duration,
+                None,
                 TRANSITION_NONE,
                 true,
                 0,
@@ -1104,6 +1265,7 @@ async fn run_stale_write(
                 false,
                 now,
                 configured_lease_duration,
+                None,
                 TRANSITION_NONE,
                 write.is_committed(),
                 stale_rank.as_u64(),
@@ -1133,6 +1295,7 @@ fn write_log(
     tracks_local_state: bool,
     attempt_started_at: Duration,
     configured_lease_duration: Duration,
+    planned_adoption_delay: Option<Duration>,
     transition: i64,
     result: bool,
     requested_write_rank: u64,
@@ -1156,6 +1319,7 @@ fn write_log(
         tracks_local_state,
         duration_wire(attempt_started_at),
         duration_wire(configured_lease_duration),
+        optional_duration_wire(planned_adoption_delay),
         transition,
         result,
         (
@@ -1188,6 +1352,7 @@ fn decode_log_entry(
         tracks_local_state,
         attempt_started_at,
         configured_lease_duration,
+        planned_adoption_delay,
         transition,
         result,
         (
@@ -1212,6 +1377,7 @@ fn decode_log_entry(
         tracks_local_state,
         attempt_started_at: duration_from_wire(attempt_started_at)?,
         configured_lease_duration: duration_from_wire(configured_lease_duration)?,
+        planned_adoption_delay: optional_duration_from_wire(planned_adoption_delay)?,
         transition,
         result,
         requested_write_rank,
@@ -1223,6 +1389,7 @@ fn decode_log_entry(
 }
 
 type DurationWire = (u64, u32);
+type OptionalDurationWire = (bool, u64, u32);
 type DurableWire = (u64, bool, String, bool, u64, u32);
 type LocalWire = (i64, bool, String, u64, bool, u64, u32, u64, u32);
 type ProtectedWire = (u64, u64, bool, Vec<u8>, bool, Vec<u8>);
@@ -1235,6 +1402,7 @@ type LogWire = (
     bool,
     DurationWire,
     DurationWire,
+    OptionalDurationWire,
     i64,
     bool,
     ProtectedWire,
@@ -1278,7 +1446,7 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
                 entry.client_id, entry.op_num
             ));
         }
-        validate_local_input(entry, &local_states)?;
+        let delayed_observation = validate_local_input(entry, &local_states)?;
 
         match entry.kind {
             OP_POLL => replay_poll(
@@ -1287,6 +1455,7 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
                 &mut protected_rank,
                 &mut protected_value,
                 &mut witnesses,
+                delayed_observation,
             )?,
             OP_RESIGN => replay_resign(entry, &mut election, &mut witnesses)?,
             OP_OBSERVE => {
@@ -1387,8 +1556,11 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
     if !witnesses.saw_follower_duration_reset {
         missing.push("follower_duration_reset");
     }
+    if !witnesses.saw_delayed_observation_adoption {
+        missing.push("delayed_observation_adoption");
+    }
     Ok(CoverageReport {
-        observed: 15 - missing.len(),
+        observed: 16 - missing.len(),
         missing,
     })
 }
@@ -1399,6 +1571,7 @@ fn replay_poll(
     protected_rank: &mut u64,
     protected_value: &mut Option<Vec<u8>>,
     witnesses: &mut ReplayWitnesses,
+    delayed_observation: bool,
 ) -> Result<(), String> {
     let leader = validate_reported_poll(entry, election)?;
 
@@ -1478,6 +1651,9 @@ fn replay_poll(
                 && entry.attempt_started_at.saturating_sub(*observed_at) < *lease_duration
             {
                 witnesses.saw_before_expiry = true;
+                if delayed_observation {
+                    witnesses.saw_delayed_observation_adoption = true;
+                }
             }
         }
         if let LocalInput::Leadership {
@@ -1584,23 +1760,24 @@ fn replay_resign(
 fn validate_local_input(
     entry: &LogEntry,
     local_states: &BTreeMap<(String, u64), LocalExpectation>,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     if !entry.tracks_local_state {
-        return Ok(());
+        return Ok(false);
     }
     let key = (entry.actor.clone(), entry.incarnation);
     match local_states.get(&key) {
-        None if entry.local_input == LocalInput::Unknown => Ok(()),
+        None if entry.local_input == LocalInput::Unknown => Ok(false),
         None => Err(format!(
             "incarnation ({}, {}) adopted local state without a prior poll",
             entry.actor, entry.incarnation
         )),
-        Some(LocalExpectation::Exact(expected)) if expected == &entry.local_input => Ok(()),
+        Some(LocalExpectation::Exact(expected)) if expected == &entry.local_input => Ok(false),
         Some(LocalExpectation::AdoptedObservation {
             owner,
             rank,
             lease_duration,
             not_before,
+            planned_adoption_delay,
         }) => match &entry.local_input {
             LocalInput::Observation {
                 owner: actual_owner,
@@ -1611,9 +1788,11 @@ fn validate_local_input(
                 && actual_rank == rank
                 && actual_duration == lease_duration
                 && *observed_at > *not_before
+                && *observed_at
+                    >= not_before.saturating_add(planned_adoption_delay.unwrap_or_default())
                 && *observed_at <= entry.attempt_started_at =>
             {
-                Ok(())
+                Ok(planned_adoption_delay.is_some_and(|delay| delay > *lease_duration))
             }
             _ => Err(format!(
                 "incarnation ({}, {}) did not adopt its follower observation",
@@ -1637,14 +1816,19 @@ fn advance_local_state(
     }
     let key = (entry.actor.clone(), entry.incarnation);
     let next = match entry.kind {
-        OP_POLL if entry.result => LocalExpectation::Exact(LocalInput::Leadership {
-            participant: entry.actor.clone(),
-            rank: election.rank,
-            lease_duration: election
-                .lease_duration
-                .ok_or_else(|| "leader poll lost lease duration".to_owned())?,
-            renewed_at: entry.attempt_started_at,
-        }),
+        OP_POLL if entry.result => {
+            if entry.planned_adoption_delay.is_some() {
+                return Err("leader poll planned a follower adoption delay".to_owned());
+            }
+            LocalExpectation::Exact(LocalInput::Leadership {
+                participant: entry.actor.clone(),
+                rank: election.rank,
+                lease_duration: election
+                    .lease_duration
+                    .ok_or_else(|| "leader poll lost lease duration".to_owned())?,
+                renewed_at: entry.attempt_started_at,
+            })
+        }
         OP_POLL => match &entry.local_input {
             LocalInput::Observation {
                 owner,
@@ -1655,9 +1839,16 @@ fn advance_local_state(
                 && election.rank == *rank
                 && election.lease_duration == Some(*lease_duration) =>
             {
+                if entry.planned_adoption_delay.is_some() {
+                    return Err("preserved follower observation planned a delay".to_owned());
+                }
                 LocalExpectation::Exact(entry.local_input.clone())
             }
-            _ => follower_observation_expectation(election, entry.attempt_started_at)?,
+            _ => follower_observation_expectation(
+                election,
+                entry.attempt_started_at,
+                entry.planned_adoption_delay,
+            )?,
         },
         OP_RESIGN if entry.result => LocalExpectation::Exact(LocalInput::Unknown),
         OP_RESIGN => LocalExpectation::Exact(entry.local_input.clone()),
@@ -1670,6 +1861,7 @@ fn advance_local_state(
 fn follower_observation_expectation(
     election: &DurableState,
     not_before: Duration,
+    planned_adoption_delay: Option<Duration>,
 ) -> Result<LocalExpectation, String> {
     Ok(LocalExpectation::AdoptedObservation {
         owner: election
@@ -1681,6 +1873,7 @@ fn follower_observation_expectation(
             .lease_duration
             .ok_or_else(|| "follower poll lost lease duration".to_owned())?,
         not_before,
+        planned_adoption_delay,
     })
 }
 
@@ -1914,6 +2107,19 @@ fn duration_from_wire(wire: DurationWire) -> Result<Duration, FdbBindingError> {
         return Err(log_error("duration nanoseconds out of range"));
     }
     Ok(Duration::new(wire.0, wire.1))
+}
+
+fn optional_duration_wire(duration: Option<Duration>) -> OptionalDurationWire {
+    match duration {
+        Some(duration) => (true, duration.as_secs(), duration.subsec_nanos()),
+        None => (false, 0, 0),
+    }
+}
+
+fn optional_duration_from_wire(
+    wire: OptionalDurationWire,
+) -> Result<Option<Duration>, FdbBindingError> {
+    optional_duration(wire.0, wire.1, wire.2)
 }
 
 fn optional_duration(

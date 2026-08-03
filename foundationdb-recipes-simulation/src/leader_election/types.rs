@@ -69,6 +69,7 @@ pub(crate) struct LogEntry {
     pub(crate) tracks_local_state: bool,
     pub(crate) attempt_started_at: Duration,
     pub(crate) configured_lease_duration: Duration,
+    pub(crate) planned_adoption_delay: Option<Duration>,
     pub(crate) transition: i64,
     pub(crate) result: bool,
     pub(crate) requested_write_rank: u64,

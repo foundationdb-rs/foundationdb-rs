@@ -34,15 +34,21 @@ time. Failed poll and resign paths discard local state and rotate to a fresh
 caller incarnation. Time is never persisted or used to order commits.
 
 Clients autonomously select a weighted mix of normal polls and adversarial
-resigns, observers, stale-token actions, pauses, duration changes, and local
-incarnation loss. A deterministic swarm bitset enables optional operation
-families. Every leader poll co-commits `RankedRegister::read(rank)`, protected
-`write(rank, payload)`, and its operation log entry. Leadership alone is not
-authority.
+resigns, observers, stale-token actions, pauses, duration changes, delayed
+post-commit local-state adoption, and local incarnation loss. A deterministic
+swarm bitset enables optional operation families. The delayed-adoption family
+selects sub-lease, exact-lease, and over-lease simulated delays from the
+workload RNG before `db.run`. It delays only a new or reset follower
+observation, using its persisted lease duration, after a successful run and
+before calling `PollResult::into_next_state`. Every leader poll co-commits
+`RankedRegister::read(rank)`, protected `write(rank, payload)`, and its
+operation log entry. Leadership alone is not authority.
 
 The completion phase biases execution toward boundary, stale-token,
-duration-reset, and fencing coverage that a short autonomous run might
-otherwise miss.
+duration-reset, fencing, and delayed-adoption coverage that a short autonomous
+run might otherwise miss. Delayed-adoption metrics report successful delays in
+each of the three duration classes. Replay requires an over-lease delayed
+observation followed by a poll before that observation's adoption-based expiry.
 
 ## Commit-order oracle
 
