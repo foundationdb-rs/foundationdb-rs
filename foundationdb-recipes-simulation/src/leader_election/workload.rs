@@ -42,10 +42,61 @@ const OPTIONAL_OBSERVER: u32 = 2;
 const OPTIONAL_PAUSE: u32 = 4;
 const OPTIONAL_DELAYED_ADOPTION: u32 = 8;
 
+#[derive(Clone, Copy)]
+enum SwarmProfile {
+    Standard,
+    Contention,
+    Suspicion,
+}
+
+impl SwarmProfile {
+    fn from_random(random: u32) -> Self {
+        match random % 3 {
+            0 => Self::Standard,
+            1 => Self::Contention,
+            _ => Self::Suspicion,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Standard => "standard",
+            Self::Contention => "contention",
+            Self::Suspicion => "suspicion",
+        }
+    }
+
+    fn metric_value(self) -> f64 {
+        match self {
+            Self::Standard => 0.0,
+            Self::Contention => 1.0,
+            Self::Suspicion => 2.0,
+        }
+    }
+
+    fn operation_count(self) -> usize {
+        match self {
+            Self::Standard => 40,
+            Self::Contention => 160,
+            Self::Suspicion => 80,
+        }
+    }
+
+    fn lease_base_secs(self) -> u64 {
+        match self {
+            Self::Standard => 2,
+            Self::Contention => 1,
+            Self::Suspicion => 3,
+        }
+    }
+}
+
 pub struct LeaderElectionWorkload {
     context: WorkloadContext,
     client_id: i32,
+    profile: SwarmProfile,
     operation_count: usize,
+    lease_base_secs: u64,
     lease_duration: Duration,
     election_subspace: Subspace,
     register_subspace: Subspace,
@@ -75,8 +126,14 @@ pub struct LeaderElectionWorkload {
 impl SingleRustWorkload for LeaderElectionWorkload {
     fn new(_name: String, context: WorkloadContext) -> Self {
         let client_id = context.client_id();
-        let base_lease_secs = context.get_option("suspicionSecs").unwrap_or(2_u64);
-        let lease_duration = Duration::from_secs(base_lease_secs + u64::from(context.rnd() % 3));
+        let profile = SwarmProfile::from_random(context.rnd());
+        let operation_count = context
+            .get_option("operationCount")
+            .unwrap_or(profile.operation_count());
+        let lease_base_secs = context
+            .get_option("suspicionSecs")
+            .unwrap_or(profile.lease_base_secs());
+        let lease_duration = Duration::from_secs(lease_base_secs + u64::from(context.rnd() % 3));
         debug_assert!(ParticipantId::new("").is_err());
         let process_id = context.get_process_id();
         let participant_text = match context.rnd() % 4 {
@@ -90,7 +147,9 @@ impl SingleRustWorkload for LeaderElectionWorkload {
 
         Self {
             client_id,
-            operation_count: context.get_option("operationCount").unwrap_or(40),
+            profile,
+            operation_count,
+            lease_base_secs,
             lease_duration,
             election_subspace: Subspace::all().subspace(&("leader-lease",)),
             register_subspace: Subspace::all().subspace(&("leader-lease-register",)),
@@ -122,17 +181,19 @@ impl SingleRustWorkload for LeaderElectionWorkload {
 
 impl RustWorkload for LeaderElectionWorkload {
     async fn setup(&mut self, _db: SimDatabase) {
-        if self.client_id == 0 {
-            self.context.trace(
-                Severity::Info,
-                "LeaderLeaseSetup",
-                details![
-                    "Layer" => "Rust",
-                    "LeaseSecs" => self.lease_duration.as_secs(),
-                    "Protocol" => "poll-lease-fenced-ranked-register"
-                ],
-            );
-        }
+        self.context.trace(
+            Severity::Info,
+            "LeaderLeaseSetup",
+            details![
+                "Layer" => "Rust",
+                "Client" => self.client_id,
+                "Profile" => self.profile.name(),
+                "OperationCount" => self.operation_count,
+                "LeaseBaseSecs" => self.lease_base_secs,
+                "LeaseSecs" => self.lease_duration.as_secs(),
+                "Protocol" => "poll-lease-fenced-ranked-register"
+            ],
+        );
     }
 
     async fn start(&mut self, db: SimDatabase) {
@@ -459,6 +520,9 @@ impl RustWorkload for LeaderElectionWorkload {
 
     fn get_metrics(&self, mut out: Metrics) {
         out.extend([
+            Metric::val("swarm_profile", self.profile.metric_value()),
+            Metric::val("operation_count", self.operation_count as f64),
+            Metric::val("lease_base_secs", self.lease_base_secs as f64),
             Metric::val("poll_count", self.poll_count as f64),
             Metric::val("leader_count", self.leader_count as f64),
             Metric::val("run_errors", self.run_errors as f64),
@@ -823,7 +887,7 @@ impl LeaderElectionWorkload {
                         }
                     }
                 }
-                self.local_state = LocalState::unknown();
+                self.replace_incarnation("completion-reset");
                 let _ = self
                     .poll_once(&db, &register, renewal_duration, Some(adoption_delay))
                     .await;

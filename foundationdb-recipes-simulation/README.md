@@ -8,11 +8,15 @@ composed with `RankedRegister` fencing.
 
 ```bash
 ./scripts/run_leader_election_simulation.sh
-./scripts/run_leader_election_simulation.sh 10
+./scripts/run_leader_election_simulation.sh 50
 ```
 
-The script builds the release workload and runs every polling configuration.
-Traces are written to `target/traces`. To reproduce a seed directly:
+The script builds the release workload and runs the one canonical polling
+configuration. Its argument is the total number of runs, so `50` means exactly
+50 runs. Each run prints a generated 32-bit seed and writes to an isolated
+trace directory. Passing directories are deleted; a failing directory is kept
+and the script prints an exact reproduction command. To reproduce a seed
+directly:
 
 ```bash
 fdbserver -r simulation \
@@ -26,6 +30,15 @@ One serializable durable key contains a monotonic revision, optional owner, and
 persisted lease duration. Revisions never decrease. Clients use heterogeneous
 configured durations, but followers wait only the duration persisted with their
 exact unchanged observation.
+
+Each client deterministically selects one swarm profile from the workload RNG:
+standard (40 operations, 2-second lease base), contention (160 operations,
+1-second lease base), or suspicion (80 operations, 3-second lease base).
+`operationCount` and `suspicionSecs` remain optional workload overrides for
+focused runs; the canonical configuration leaves both unset so clients use the
+swarm defaults. Setup traces and metrics report the selected profile and the
+effective operation count and lease base. The `swarm_profile` metric maps
+standard, contention, and suspicion to 0, 1, and 2 respectively.
 
 Each `db.run` attempt obtains `attempt_started_at` from simulated monotonic time
 as its first action, then sets `AutomaticIdempotency` and calls `poll`. After a
