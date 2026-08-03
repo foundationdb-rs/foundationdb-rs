@@ -1400,18 +1400,7 @@ fn replay_poll(
     protected_value: &mut Option<Vec<u8>>,
     witnesses: &mut ReplayWitnesses,
 ) -> Result<(), String> {
-    let (expected_transition, leader) = expected_poll(entry, election)?;
-    if entry.transition != expected_transition || entry.result != leader {
-        return Err(format!(
-            "poll ({}, {}) transition/result actual=({}, {}) expected=({}, {})",
-            entry.client_id,
-            entry.op_num,
-            entry.transition,
-            entry.result,
-            expected_transition,
-            leader
-        ));
-    }
+    let leader = validate_reported_poll(entry, election)?;
 
     if leader {
         let expected_rank = election.rank.checked_add(1).ok_or("revision overflow")?;
@@ -1433,16 +1422,16 @@ fn replay_poll(
             ));
         }
         if matches!(
-            expected_transition,
+            entry.transition,
             TRANSITION_TOOK_OVER | TRANSITION_REACQUIRED
         ) {
             witnesses.saw_expiry = true;
         }
-        if expected_transition == TRANSITION_TOOK_OVER {
+        if entry.transition == TRANSITION_TOOK_OVER {
             witnesses.saw_foreign_takeover = true;
             witnesses.last_takeover_rank = Some(expected.rank);
         }
-        if expected_transition == TRANSITION_RENEWED
+        if entry.transition == TRANSITION_RENEWED
             && election.lease_duration != expected.lease_duration
         {
             witnesses.renewal_with_new_duration_rank = Some(expected.rank);
@@ -1695,44 +1684,89 @@ fn follower_observation_expectation(
     })
 }
 
-fn expected_poll(entry: &LogEntry, election: &DurableState) -> Result<(i64, bool), String> {
-    if election.owner.is_none() {
-        return Ok((TRANSITION_ACQUIRED, true));
-    }
-    match &entry.local_input {
-        LocalInput::Leadership {
-            participant,
-            rank,
-            lease_duration,
-            renewed_at,
-        } if participant == &entry.actor
-            && election.owner.as_deref() == Some(entry.actor.as_str())
-            && election.rank == *rank
-            && election.lease_duration == Some(*lease_duration)
-            && entry.attempt_started_at.saturating_sub(*renewed_at) < *lease_duration =>
-        {
-            Ok((TRANSITION_RENEWED, true))
-        }
-        LocalInput::Observation {
-            owner,
-            rank,
-            lease_duration,
-            observed_at,
-        } if election.owner.as_deref() == Some(owner)
-            && election.rank == *rank
-            && election.lease_duration == Some(*lease_duration)
-            && entry.attempt_started_at.saturating_sub(*observed_at) >= *lease_duration =>
-        {
-            if owner == &entry.actor {
-                Ok((TRANSITION_REACQUIRED, true))
-            } else {
-                Ok((TRANSITION_TOOK_OVER, true))
+fn validate_reported_poll(entry: &LogEntry, election: &DurableState) -> Result<bool, String> {
+    let valid = match entry.transition {
+        TRANSITION_ACQUIRED => entry.result && election.owner.is_none(),
+        TRANSITION_RENEWED => {
+            if !matches!(&entry.local_input, LocalInput::Leadership { .. }) {
+                return Err(poll_transition_error(
+                    entry,
+                    "renewal lacks a leadership token",
+                ));
             }
+            entry.result && renewal_enabled(entry, election)
         }
-        LocalInput::Leadership { .. } | LocalInput::Observation { .. } | LocalInput::Unknown => {
-            Ok((TRANSITION_FOLLOWED, false))
+        TRANSITION_TOOK_OVER | TRANSITION_REACQUIRED => {
+            let LocalInput::Observation { owner, .. } = &entry.local_input else {
+                return Err(poll_transition_error(
+                    entry,
+                    "takeover lacks an observation",
+                ));
+            };
+            entry.result
+                && takeover_enabled(entry, election)
+                && match entry.transition {
+                    TRANSITION_TOOK_OVER => owner != &entry.actor,
+                    TRANSITION_REACQUIRED => owner == &entry.actor,
+                    _ => unreachable!(),
+                }
         }
+        TRANSITION_FOLLOWED => {
+            !entry.result
+                && election.owner.is_some()
+                && !renewal_enabled(entry, election)
+                && !takeover_enabled(entry, election)
+        }
+        other => return Err(format!("unknown poll transition {other}")),
+    };
+    if valid {
+        Ok(entry.result)
+    } else {
+        Err(poll_transition_error(
+            entry,
+            "reported transition violates its safety preconditions",
+        ))
     }
+}
+
+fn renewal_enabled(entry: &LogEntry, election: &DurableState) -> bool {
+    let LocalInput::Leadership {
+        participant,
+        rank,
+        lease_duration,
+        renewed_at,
+    } = &entry.local_input
+    else {
+        return false;
+    };
+    participant == &entry.actor
+        && election.owner.as_deref() == Some(entry.actor.as_str())
+        && election.rank == *rank
+        && election.lease_duration == Some(*lease_duration)
+        && entry.attempt_started_at.saturating_sub(*renewed_at) < *lease_duration
+}
+
+fn takeover_enabled(entry: &LogEntry, election: &DurableState) -> bool {
+    let LocalInput::Observation {
+        owner,
+        rank,
+        lease_duration,
+        observed_at,
+    } = &entry.local_input
+    else {
+        return false;
+    };
+    election.owner.as_deref() == Some(owner)
+        && election.rank == *rank
+        && election.lease_duration == Some(*lease_duration)
+        && entry.attempt_started_at.saturating_sub(*observed_at) >= *lease_duration
+}
+
+fn poll_transition_error(entry: &LogEntry, message: &str) -> String {
+    format!(
+        "poll ({}, {}) transition {} invalid: {message}",
+        entry.client_id, entry.op_num, entry.transition
+    )
 }
 
 fn has_protected_effect(entry: &LogEntry) -> bool {
