@@ -7,13 +7,24 @@
 
 //! Key management for the ranked register
 //!
-//! Single key stores the entire register state (ranks + value).
+//! Each [`RankedRegister`](super::RankedRegister) stores its entire state at
+//! one key in its own [`Subspace`].
 //!
 //! # Key Schema
 //!
 //! ```text
 //! <subspace>/state  -> (max_read_rank: u64, max_write_rank: u64, has_value: bool, value: Bytes)
 //! ```
+//!
+//! The full tuple, including both ranks and the payload, is one FoundationDB
+//! value. Its encoded size is capped at 95,000 bytes, below FoundationDB's
+//! 100,000-byte value limit. Payload capacity is smaller and data-dependent
+//! because tuple encoding escapes bytes. Store a small reference or manifest
+//! instead when the protected data is large and immutable.
+//!
+//! Every ranked read or write for one subspace contends on this single key, so
+//! those updates serialize through FoundationDB conflicts. Model a keyed
+//! collection with one child subspace per logical key.
 
 use crate::tuple::Subspace;
 

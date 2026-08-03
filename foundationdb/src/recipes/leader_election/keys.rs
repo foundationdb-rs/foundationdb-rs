@@ -7,8 +7,21 @@
 
 //! Key management for leader election.
 //!
-//! A single key holds the durable coordination state. It deliberately contains
-//! no time value: takeover timing is a local caller concern.
+//! A single key holds the durable coordination state. It stores the relative
+//! lease duration, but no clock reading, absolute timestamp, renewal time, or
+//! expiry deadline. Takeover timing is a local caller concern.
+//!
+//! # Value schema
+//!
+//! ```text
+//! (schema_version: u64, revision: u64, has_owner: bool, owner: String,
+//!  has_lease_duration: bool, lease_duration_secs: u64,
+//!  lease_duration_subsec_nanos: u32)
+//! ```
+//!
+//! The schema version is decoded strictly. Untagged layouts from development
+//! versions of this recipe are unsupported: clear the election subspace before
+//! using this version of the recipe.
 
 use crate::tuple::Subspace;
 

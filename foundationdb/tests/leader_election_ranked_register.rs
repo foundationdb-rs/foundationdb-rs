@@ -971,4 +971,82 @@ mod leader_election_tests {
         assert_eq!(value.as_deref(), Some(b"bob".as_slice()));
         Ok(())
     }
+
+    #[tokio::test]
+    async fn same_participant_renewal_self_fences_old_rank_writes() -> Result<(), FdbBindingError> {
+        let db = crate::common::database().await?;
+        let election = setup_election(&db, "self_fencing", Duration::from_secs(5)).await?;
+        let register = setup_register(&db, "self_fencing").await?;
+        let alice = participant("alice-self-fencing");
+
+        let (acquired, acquired_write) = service_poll(
+            &db,
+            &election,
+            &register,
+            &alice,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+            b"rank-one",
+        )
+        .await?;
+        assert_eq!(
+            acquired.result.outcome().transition(),
+            PollTransition::Acquired
+        );
+        assert_eq!(acquired_write, Some(WriteResult::Committed));
+
+        let (renewed, renewed_write) = service_poll(
+            &db,
+            &election,
+            &register,
+            &alice,
+            &acquired.next_state,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            b"rank-two",
+        )
+        .await?;
+        assert_eq!(
+            renewed.result.outcome().transition(),
+            PollTransition::Renewed
+        );
+        assert_eq!(renewed_write, Some(WriteResult::Committed));
+        assert_eq!(renewed.result.outcome().rank().as_u64(), 2);
+
+        let stale_rank = acquired.result.outcome().rank();
+        let register_ref = register.clone();
+        let stale_write = db
+            .run(|txn, _| {
+                let register = register_ref.clone();
+                async move {
+                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                    register
+                        .write(&txn, stale_rank, b"stale")
+                        .await
+                        .map_err(register_error)
+                }
+            })
+            .await?;
+        assert_eq!(stale_write, WriteResult::Aborted);
+
+        let register_ref = register.clone();
+        let current_rank = renewed.result.outcome().rank();
+        let (write_rank, value) = db
+            .run(|txn, _| {
+                let register = register_ref.clone();
+                async move {
+                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                    let read = register
+                        .read(&txn, current_rank)
+                        .await
+                        .map_err(register_error)?;
+                    Ok::<_, FdbBindingError>((read.write_rank(), read.into_value()))
+                }
+            })
+            .await?;
+        assert_eq!(write_rank, current_rank);
+        assert_eq!(value.as_deref(), Some(b"rank-two".as_slice()));
+        Ok(())
+    }
 }

@@ -35,21 +35,25 @@ impl Rank {
     ///
     /// The sequence occupies the high 32 bits and the process ID the low 32 bits,
     /// so ranks are ordered primarily by sequence, then by process ID.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
     pub fn new(process_id: u32, sequence: u32) -> Self {
         Self(((sequence as u64) << 32) | process_id as u64)
     }
 
     /// Returns the process ID component of this rank
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn process_id(&self) -> u32 {
         self.0 as u32
     }
 
     /// Returns the sequence number component of this rank
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn sequence(&self) -> u32 {
         (self.0 >> 32) as u32
     }
 
     /// Returns the raw `u64` representation
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn as_u64(&self) -> u64 {
         self.0
     }
@@ -85,16 +89,19 @@ pub struct RegisterState {
 
 impl RegisterState {
     /// Returns the highest rank that has performed a read
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn max_read_rank(&self) -> Rank {
         self.max_read_rank
     }
 
     /// Returns the highest rank that has successfully written
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn max_write_rank(&self) -> Rank {
         self.max_write_rank
     }
 
     /// Returns the current value, if any
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn value(&self) -> Option<&[u8]> {
         self.value.as_deref()
     }
@@ -113,16 +120,19 @@ pub struct ReadResult {
 
 impl ReadResult {
     /// Returns the rank of the last successful write
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn write_rank(&self) -> Rank {
         self.write_rank
     }
 
     /// Returns a reference to the current value, if any
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn value(&self) -> Option<&[u8]> {
         self.value.as_deref()
     }
 
     /// Consumes self and returns the value
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn into_value(self) -> Option<Vec<u8>> {
         self.value
     }
@@ -139,6 +149,7 @@ pub enum WriteResult {
 
 impl WriteResult {
     /// Returns `true` if the write was committed
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn is_committed(&self) -> bool {
         matches!(self, WriteResult::Committed)
     }

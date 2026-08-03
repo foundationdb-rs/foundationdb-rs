@@ -8,44 +8,144 @@
 //! Poll-based Dynamo-style leader leases with FoundationDB fencing.
 //!
 //! This recipe adapts the client-side timing model of the
-//! [Amazon DynamoDB lock client](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-lock-client/):
-//! a durable owner record is observed, and a caller's own monotonic elapsed
-//! time decides when that unchanged record is suspicious. FoundationDB's
-//! serializable transaction on the single state key, not local time, decides
-//! which concurrent acquire, renewal, reacquisition, or takeover wins.
-//! It is Dynamo-inspired, not wire-compatible with the DynamoDB lock client.
+//! [Amazon DynamoDB lock client](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-lock-client/).
+//! A caller observes a durable owner record and uses elapsed time from its own
+//! monotonic clock to decide when that unchanged record is suspicious.
+//! FoundationDB's serializable transaction on one state key, not local time,
+//! resolves concurrent acquisition, renewal, reacquisition, and takeover.
+//! The protocol is Dynamo-inspired, not wire-compatible with the DynamoDB lock
+//! client.
 //!
-//! Every owner record persists its lease duration alongside a monotonically
-//! increasing revision. Followers wait the duration stored in their exact
-//! observation, never this handle's local duration. No timestamp or deadline
-//! is persisted. A leadership token may renew only while its caller-local
-//! elapsed time is below the duration stored in that exact durable revision.
-//! The caller supplies two monotonic-clock readings. Pass `attempt_started_at`
-//! immediately before each `poll` call in every retry attempt. It governs
-//! renewal and takeover eligibility, and stamps new leadership, so time spent
-//! reading or committing only shortens local validity. After `Database::run`
-//! succeeds, pass a fresh `adopted_at` to [`PollResult::into_next_state`]. That
-//! starts timing for a new or reset observation only after its durable read is
-//! known to have committed; an unchanged observation retains its original time.
+//! ## Durable state and local time
 //!
-//! A successful acquisition, renewal, reacquisition, or takeover returns a fresh
-//! [`Rank`](crate::recipes::ranked_register::Rank). Leadership status alone
-//! never authorizes an unfenced external side effect. Correctness-sensitive
-//! FoundationDB work must use that rank with a
+//! Durable state contains an optional owner, a monotonically increasing
+//! revision, and the last persisted relative lease duration. It contains no
+//! wall-clock or monotonic-clock reading, last-renewed timestamp, deadline, or
+//! expiry. A released record retains its revision and duration, while a
+//! never-created record has revision zero and no duration.
+//!
+//! [`Leadership`](crate::recipes::leader_election::Leadership) and
+//! [`Observation`](crate::recipes::leader_election::Observation) are caller-local
+//! state. A leadership token may renew only while elapsed time on that caller's
+//! clock is below the duration stored in its exact durable revision. A follower
+//! waits the duration stored in its exact observation, never this handle's
+//! configured duration.
+//! If the observed owner, revision, or duration changes, the caller starts a
+//! new observation window. If it is unchanged, the original observation time
+//! is retained.
+//!
+//! Clocks are never persisted or compared across processes. They only measure
+//! elapsed time for the caller that recorded them. On process restart, use a
+//! fresh [`ParticipantId`](crate::recipes::leader_election::ParticipantId) and
+//! begin again with
+//! [`LocalState::Unknown`](crate::recipes::leader_election::LocalState::Unknown),
+//! so the new incarnation observes the durable state and waits anew before
+//! attempting takeover.
+//!
+//! ## Poll lifecycle
+//!
+//! Call [`LeaderElection::poll`](crate::recipes::leader_election::LeaderElection::poll)
+//! inside the closure passed to
+//! [`Database::run`](crate::Database::run). Read `attempt_started_at` from the
+//! caller's monotonic clock immediately before each `poll` call, including
+//! every retry attempt. It controls renewal and takeover eligibility and stamps
+//! new leadership, so time spent reading, retrying, or committing only shortens
+//! local validity.
+//!
+//! A returned [`PollResult`](crate::recipes::leader_election::PollResult) is
+//! only prepared state. Adopt it with
+//! [`PollResult::into_next_state`](crate::recipes::leader_election::PollResult::into_next_state)
+//! after the outer `Database::run` succeeds. Use a fresh `adopted_at` reading
+//! then: it starts timing for a new or reset observation only after its durable
+//! read is known to have committed. An unchanged observation and a new
+//! leadership token retain their original attempt-local times. This prevents
+//! retries, cancellation, and unknown commits from authorizing work based on
+//! uncommitted caller-local state.
+//!
+//! The poll transaction reads and, for a leadership transition, writes the
+//! same durable key. FoundationDB conflict resolution serializes competing
+//! transitions. Local time only permits an attempted conditional takeover; it
+//! does not prove that the prior process stopped.
+//!
+//! ## Renewal cadence and fencing epochs
+//!
+//! Renew well before local expiry. Polling no less often than about every half
+//! lease is a practical starting point, with application-specific headroom for
+//! scheduling delay, transaction retries, and commit latency. This is
+//! availability guidance, not a safety condition or a durable expiry.
+//!
+//! A successful acquisition, renewal, reacquisition, or takeover returns a
+//! fresh [`Rank`](crate::recipes::ranked_register::Rank). Each is a new fencing
+//! epoch, including renewal by the same participant. Once the newer rank is
+//! installed, protected work using an older rank, even from that same process,
+//! can be rejected. Leadership status alone never authorizes an unfenced
+//! external side effect.
+//!
+//! Correctness-sensitive FoundationDB work must use the rank with a
 //! [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) in the
-//! same enclosing transaction; an external sink must atomically enforce the
-//! rank and reject older ranks.
+//! same enclosing transaction. An external sink must atomically enforce the
+//! rank and reject older ranks. See the
+//! [`RankedRegister` composition example](crate::recipes::ranked_register#composing-with-leader-election)
+//! rather than treating a successful poll as sufficient authorization.
 //!
-//! Local elapsed time only permits an attempted conditional takeover. It does
-//! not prove that the old process stopped. A failed or unavailable poll cannot
-//! renew leadership, so callers must not continue protected work from a stale
-//! local token.
+//! ## Safety versus liveness
 //!
-//! The caller owns scheduling and local state. This component never calls
-//! `Database::run`, retries, sets transaction options, sleeps, draws random
-//! values, starts background work, or reads wall-clock time. Adopt a returned
-//! [`PollResult`] or [`LocalState`] only after the enclosing `Database::run`
-//! succeeds, so retries, cancellation, and unknown commits authorize no work.
+//! Local expiry does not revoke durable ownership. It only prevents this caller
+//! from renewing with its local token and can lead a follower with an unchanged
+//! observation to attempt takeover. A failed or unavailable poll cannot renew
+//! leadership, so callers must stop protected work that depends on a stale
+//! local token. Fencing ranks, not timing alone, protect against a delayed or
+//! partitioned process.
+//!
+//! ## Protocol walkthrough
+//!
+//! 1. Create a non-zero-duration
+//!    [`LeaderElection`](crate::recipes::leader_election::LeaderElection) and a
+//!    fresh [`ParticipantId`](crate::recipes::leader_election::ParticipantId)
+//!    for this process incarnation. Start with
+//!    [`LocalState::Unknown`](crate::recipes::leader_election::LocalState::Unknown).
+//! 2. Poll in a `Database::run` attempt. A released or never-created state
+//!    produces [`PollOutcome::Leader`](crate::recipes::leader_election::PollOutcome::Leader)
+//!    with [`PollTransition::Acquired`](crate::recipes::leader_election::PollTransition::Acquired).
+//!    After the outer transaction succeeds, adopt its
+//!    [`Leadership`](crate::recipes::leader_election::Leadership) through
+//!    [`PollResult::into_next_state`](crate::recipes::leader_election::PollResult::into_next_state).
+//! 3. A caller that sees another owner receives
+//!    [`PollOutcome::Follower`](crate::recipes::leader_election::PollOutcome::Follower).
+//!    Its next [`LocalState`](crate::recipes::leader_election::LocalState)
+//!    contains an [`Observation`](crate::recipes::leader_election::Observation)
+//!    of that exact owner, revision, duration, and local observation time.
+//!    Repeated polls preserve that time only while the durable record is
+//!    unchanged.
+//! 4. The current holder polls with its matching, locally unexpired
+//!    [`Leadership`](crate::recipes::leader_election::Leadership) and receives
+//!    [`PollTransition::Renewed`](crate::recipes::leader_election::PollTransition::Renewed)
+//!    with a new rank. An unchanged observation that has waited at least its
+//!    persisted duration permits
+//!    [`PollTransition::TookOver`](crate::recipes::leader_election::PollTransition::TookOver),
+//!    or [`PollTransition::Reacquired`](crate::recipes::leader_election::PollTransition::Reacquired)
+//!    when the observer is the same participant.
+//! 5. For every leader outcome, co-commit the protected FoundationDB work with
+//!    the returned [`Rank`](crate::recipes::ranked_register::Rank), including
+//!    [`RankedRegister::read`](crate::recipes::ranked_register::RankedRegister::read)
+//!    to install its fence. A later rank fences delayed work using every older
+//!    rank.
+//! 6. A holder may call
+//!    [`LeaderElection::resign`](crate::recipes::leader_election::LeaderElection::resign)
+//!    with its exact leadership token. The conditional release preserves the
+//!    revision, so the next acquisition receives a strictly newer rank. A stale
+//!    resignation is rejected.
+//! 7. If the outer run retries, fails, is cancelled, or has an unknown commit,
+//!    do not adopt its `PollResult`. The next successful run rediscovers the
+//!    durable state. After restart, discard all local state, generate a fresh
+//!    participant ID, and follow the observation path again.
+//!
+//! ## Caller responsibilities
+//!
+//! The caller owns scheduling, retry policy, transaction options, sleeping,
+//! randomization, background work, and caller-local state. This component does
+//! not call `Database::run`, retry, set transaction options, sleep, draw random
+//! values, start background work, or read wall-clock time.
 //!
 //! ## Further reading
 //!
@@ -79,7 +179,8 @@ use std::time::Duration;
 ///
 /// `lease_duration` is this caller's non-zero desired duration. It is
 /// persisted on every successful acquisition, takeover, and renewal. Existing
-/// foreign records remain governed by their own persisted duration.
+/// foreign records remain governed by their own persisted duration. The handle
+/// holds no caller-local state and performs no scheduling or retries.
 #[derive(Clone, Debug)]
 pub struct LeaderElection {
     subspace: Subspace,
@@ -88,7 +189,9 @@ pub struct LeaderElection {
 
 impl LeaderElection {
     /// Creates an election handle with the non-zero duration it will persist on
-    /// ownership changes.
+    /// successful ownership changes.
+    ///
+    /// Constructing a handle does not read or initialize durable state.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(subspace))
@@ -124,6 +227,11 @@ impl LeaderElection {
     /// conservative relative to read and commit delay. After the enclosing
     /// `Database::run` succeeds, pass a fresh caller-clock reading to
     /// [`PollResult::into_next_state`] to adopt the returned state.
+    ///
+    /// Renew well before the local deadline represented by [`Leadership`],
+    /// leaving headroom for scheduling delay, retries, and commit latency.
+    /// This affects availability only; it is not a durable expiry or safety
+    /// condition.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn, participant, local_state))
@@ -150,6 +258,9 @@ impl LeaderElection {
     }
 
     /// Reads durable state without making any liveness or leadership-validity claim.
+    ///
+    /// This is a snapshot only. It does not create a local observation, permit
+    /// renewal or takeover, or authorize protected work.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn))
@@ -165,6 +276,9 @@ impl LeaderElection {
     ///
     /// The revision and persisted duration remain, so a later acquisition has
     /// a strictly newer fencing rank. A stale delayed resignation is rejected.
+    /// This conditional operation does not make a liveness claim and may be
+    /// used to relinquish an otherwise exact durable token after its local
+    /// renewal window has elapsed.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn, leadership))

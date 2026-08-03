@@ -18,7 +18,12 @@ use crate::{
 };
 use std::ops::Deref;
 
-use super::{errors::Result, keys, types::*};
+use super::{
+    MAX_ENCODED_REGISTER_STATE_BYTES,
+    errors::{RankedRegisterError, Result},
+    keys,
+    types::*,
+};
 
 // ============================================================================
 // STATE HELPERS
@@ -50,10 +55,16 @@ where
 }
 
 /// Write the register state to FoundationDB
-fn write_state<T>(txn: &T, key: &[u8], state: &RegisterState)
+fn write_state<T>(txn: &T, key: &[u8], state: &RegisterState) -> Result<()>
 where
     T: Deref<Target = Transaction>,
 {
+    let packed = encode_state(state)?;
+    txn.set(key, &packed);
+    Ok(())
+}
+
+fn encode_state(state: &RegisterState) -> Result<Vec<u8>> {
     let has_value = state.value.is_some();
     let value = state.value.as_deref().unwrap_or(&[]);
 
@@ -64,7 +75,13 @@ where
         value,
     );
     let packed = pack(&data);
-    txn.set(key, &packed);
+    if packed.len() > MAX_ENCODED_REGISTER_STATE_BYTES {
+        return Err(RankedRegisterError::EncodedStateTooLarge {
+            encoded_size: packed.len(),
+            limit: MAX_ENCODED_REGISTER_STATE_BYTES,
+        });
+    }
+    Ok(packed)
 }
 
 // ============================================================================
@@ -89,7 +106,7 @@ where
     // Update max_read_rank if our rank is higher
     if rank > state.max_read_rank {
         state.max_read_rank = rank;
-        write_state(txn, &key, &state);
+        write_state(txn, &key, &state)?;
     }
 
     Ok(ReadResult {
@@ -120,7 +137,7 @@ where
     // Commit the write
     state.max_write_rank = rank;
     state.value = Some(value.to_vec());
-    write_state(txn, &key, &state);
+    write_state(txn, &key, &state)?;
 
     Ok(WriteResult::Committed)
 }
@@ -138,4 +155,43 @@ where
     let key = keys::state_key(subspace);
     let state = read_state(txn, &key).await?;
     Ok(state.value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{RetryDecision, RetryableError};
+
+    fn state_with_value(value: Vec<u8>) -> RegisterState {
+        RegisterState {
+            max_read_rank: Rank::from(1_u64),
+            max_write_rank: Rank::from(1_u64),
+            value: Some(value),
+        }
+    }
+
+    #[test]
+    fn near_limit_plain_payload_fits_after_encoding() {
+        let state = state_with_value(vec![b'x'; MAX_ENCODED_REGISTER_STATE_BYTES - 100]);
+
+        let encoded = encode_state(&state).expect("plain payload must fit below the encoded cap");
+        assert!(encoded.len() <= MAX_ENCODED_REGISTER_STATE_BYTES);
+    }
+
+    #[test]
+    fn nul_heavy_payload_is_rejected_after_encoding() {
+        let payload = vec![0; MAX_ENCODED_REGISTER_STATE_BYTES - 1];
+        let error = encode_state(&state_with_value(payload))
+            .expect_err("NUL escaping must push the encoded state over the cap");
+
+        assert!(matches!(
+            &error,
+            RankedRegisterError::EncodedStateTooLarge {
+                encoded_size,
+                limit,
+            } if *encoded_size > MAX_ENCODED_REGISTER_STATE_BYTES
+                && *limit == MAX_ENCODED_REGISTER_STATE_BYTES
+        ));
+        assert!(matches!(error.retry_decision(), RetryDecision::Fatal));
+    }
 }

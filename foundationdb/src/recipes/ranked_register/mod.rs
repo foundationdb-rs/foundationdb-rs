@@ -12,6 +12,13 @@
 //! (PODC 2002). A ranked register is a mutable register with conflict detection
 //! via ranks, supporting unbounded processes with finite storage.
 //!
+//! Sections 4.2 and 4.3 of the paper use one logical ranked register. Section
+//! 5.1 implements it from one read-modify-write object, while Section 5.2 uses
+//! `n` registers as replicas to emulate one fault-tolerant logical register.
+//! This implementation is the single logical cell because FoundationDB already
+//! supplies replication and transactions. Multiple child-subspace registers are
+//! application sharding, not a replication requirement from the paper.
+//!
 //! ## Operations
 //!
 //! | Operation | Who | Effect |
@@ -20,11 +27,47 @@
 //! | [`write(rank, value)`](crate::recipes::ranked_register::RankedRegister::write) | Leader | Commits only if rank is high enough |
 //! | [`value()`](crate::recipes::ranked_register::RankedRegister::value) | Followers | Plain read, no fence installed |
 //!
+//! ## Addressing and capacity
+//!
+//! One [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) owns
+//! one [`Subspace`](crate::tuple::Subspace) and stores its complete state at
+//! that subspace's internal `"state"` key. For a keyed collection, derive a
+//! child subspace from each logical key before constructing the register:
+//!
+//! ```rust
+//! use foundationdb::{recipes::ranked_register::RankedRegister, tuple::Subspace};
+//!
+//! let registers = Subspace::all().subspace(&"document-registers");
+//! let document_id = "document-42";
+//! let register = RankedRegister::new(registers.subspace(&(document_id,)));
+//! # let _ = register;
+//! ```
+//!
+//! The read rank, write rank, presence flag, and payload are encoded together
+//! in one FoundationDB value. The encoded tuple is capped at
+//! [`MAX_ENCODED_REGISTER_STATE_BYTES`](crate::recipes::ranked_register::MAX_ENCODED_REGISTER_STATE_BYTES),
+//! below FoundationDB's 100,000-byte value limit. Usable payload capacity is
+//! smaller and data-dependent because tuple encoding escapes bytes. For large
+//! immutable data, store a small reference or manifest in the register instead.
+//!
+//! Ranked reads and writes for one register contend on that single key and are
+//! serialized by FoundationDB conflicts. Use separate child subspaces to shard
+//! independently updated logical items.
+//!
+//! Although the primitive stores one optional value, a successful ranked write
+//! can fence additional application-key writes staged in the same transaction.
+//! Stage those writes only when
+//! [`WriteResult::Committed`](crate::recipes::ranked_register::WriteResult::Committed)
+//! is returned. One rank can commit only once per register because each write
+//! requires a rank strictly greater than the stored maximum write rank.
+//!
 //! ## Composing with Leader Election
 //!
 //! The ranked register is designed to work with the leader election recipe.
-//! A successful leader poll returns a fencing rank derived from the durable
-//! revision, providing automatic fencing against stale leaders.
+//! Every successful leader poll returns a fencing rank derived from the durable
+//! revision, providing automatic fencing against stale leaders. This includes
+//! same-owner renewal: installing the new rank fences delayed work using the
+//! prior rank from that same process.
 //!
 //! ```rust,no_run
 //! # #[cfg(feature = "recipes-leader-election")]
@@ -89,7 +132,7 @@
 //! ### Why This Works
 //!
 //! - Durable leader-election revisions increase monotonically
-//! - A deposed leader has a lower fencing rank than the new leader
+//! - A renewal is a new fencing epoch, even for the same leader
 //! - `read(rank)` installs a fence at that fencing rank
 //! - Any write with a lower fencing rank is automatically rejected
 //! - `value()` is safe for followers, it never installs a fence
@@ -104,6 +147,13 @@ pub use types::{Rank, ReadResult, RegisterState, WriteResult};
 
 use crate::{Transaction, tuple::Subspace};
 use std::ops::Deref;
+
+/// Maximum permitted size of the complete encoded register-state value.
+///
+/// This leaves headroom below FoundationDB's 100,000-byte value limit. The
+/// limit applies after tuple encoding, so the maximum raw payload size varies
+/// with its contents.
+pub const MAX_ENCODED_REGISTER_STATE_BYTES: usize = 95_000;
 
 /// A ranked register backed by FoundationDB
 ///
@@ -164,6 +214,8 @@ impl RankedRegister {
     /// - `rank > max_write_rank` (no equal-or-higher write)
     ///
     /// Returns [`WriteResult::Committed`] or [`WriteResult::Aborted`].
+    /// Returns [`RankedRegisterError::EncodedStateTooLarge`] if the complete
+    /// encoded state exceeds [`MAX_ENCODED_REGISTER_STATE_BYTES`].
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn, value))

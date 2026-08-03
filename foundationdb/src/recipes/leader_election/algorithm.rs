@@ -21,7 +21,9 @@ use super::{
     PollOutcome, PollResult, PollTransition, ResignOutcome, Result, keys::state_key,
 };
 
-#[derive(Debug, Clone, Default)]
+const STATE_SCHEMA_VERSION: u64 = 1;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct DurableState {
     revision: u64,
     owner: Option<ParticipantId>,
@@ -36,14 +38,24 @@ where
         return Ok(DurableState::default());
     };
 
+    decode_state(&value)
+}
+
+fn decode_state(value: &[u8]) -> Result<DurableState> {
     let (
+        schema_version,
         revision,
         has_owner,
         owner,
         has_lease_duration,
         lease_duration_secs,
         lease_duration_subsec_nanos,
-    ): (u64, bool, String, bool, u64, u32) = unpack(&value)?;
+    ): (u64, u64, bool, String, bool, u64, u32) = unpack(value)?;
+    if schema_version != STATE_SCHEMA_VERSION {
+        return Err(LeaderElectionError::InvalidState(format!(
+            "unknown durable state schema version {schema_version}, expected {STATE_SCHEMA_VERSION}"
+        )));
+    }
     let owner = if has_owner {
         Some(ParticipantId::new(owner)?)
     } else if owner.is_empty() {
@@ -91,22 +103,24 @@ fn write_state<T>(txn: &T, key: &[u8], state: &DurableState)
 where
     T: Deref<Target = Transaction>,
 {
+    txn.set(key, &encode_state(state));
+}
+
+fn encode_state(state: &DurableState) -> Vec<u8> {
     let owner = state.owner.as_ref().map_or("", ParticipantId::as_str);
     let (lease_duration_secs, lease_duration_subsec_nanos) =
         state.lease_duration.map_or((0, 0), |duration| {
             (duration.as_secs(), duration.subsec_nanos())
         });
-    txn.set(
-        key,
-        &pack(&(
-            state.revision,
-            state.owner.is_some(),
-            owner,
-            state.lease_duration.is_some(),
-            lease_duration_secs,
-            lease_duration_subsec_nanos,
-        )),
-    );
+    pack(&(
+        STATE_SCHEMA_VERSION,
+        state.revision,
+        state.owner.is_some(),
+        owner,
+        state.lease_duration.is_some(),
+        lease_duration_secs,
+        lease_duration_subsec_nanos,
+    ))
 }
 
 fn next_revision(state: &DurableState) -> Result<u64> {
@@ -356,4 +370,41 @@ where
         "leader-election resignation staged in transaction"
     );
     Ok(ResignOutcome::Resigned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn durable_state_version_one_round_trips() {
+        let state = DurableState {
+            revision: 42,
+            owner: Some(ParticipantId::new("alice-incarnation").unwrap()),
+            lease_duration: Some(Duration::new(5, 123)),
+        };
+
+        assert_eq!(decode_state(&encode_state(&state)).unwrap(), state);
+    }
+
+    #[test]
+    fn unknown_durable_state_schema_version_is_rejected() {
+        let value = pack(&(2_u64, 1_u64, true, "alice", true, 5_u64, 0_u32));
+
+        assert!(matches!(
+            decode_state(&value),
+            Err(LeaderElectionError::InvalidState(message))
+                if message.contains("unknown durable state schema version 2")
+        ));
+    }
+
+    #[test]
+    fn untagged_six_field_durable_state_is_rejected() {
+        let value = pack(&(1_u64, true, "alice", true, 5_u64, 0_u32));
+
+        assert!(matches!(
+            decode_state(&value),
+            Err(LeaderElectionError::PackError(_))
+        ));
+    }
 }

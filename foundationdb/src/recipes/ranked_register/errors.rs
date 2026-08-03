@@ -22,6 +22,16 @@ pub enum RankedRegisterError {
     PackError(PackError),
     /// Invalid state encountered in the register
     InvalidState(String),
+    /// The complete encoded register state exceeds the supported limit.
+    ///
+    /// This is a non-retryable caller error. The limit includes tuple encoding
+    /// overhead and escaping, not only the raw payload length.
+    EncodedStateTooLarge {
+        /// Size of the encoded register-state tuple in bytes.
+        encoded_size: usize,
+        /// Maximum supported encoded register-state size in bytes.
+        limit: usize,
+    },
 }
 
 impl fmt::Display for RankedRegisterError {
@@ -31,6 +41,13 @@ impl fmt::Display for RankedRegisterError {
             Self::Binding(e) => write!(f, "Retry loop error: {e}"),
             Self::PackError(e) => write!(f, "Pack error: {e:?}"),
             Self::InvalidState(msg) => write!(f, "Invalid state: {msg}"),
+            Self::EncodedStateTooLarge {
+                encoded_size,
+                limit,
+            } => write!(
+                f,
+                "Encoded register state is {encoded_size} bytes, above the {limit}-byte limit"
+            ),
         }
     }
 }
@@ -41,7 +58,7 @@ impl std::error::Error for RankedRegisterError {
             Self::Fdb(e) => Some(e),
             Self::Binding(e) => Some(e),
             Self::PackError(e) => Some(e),
-            Self::InvalidState(_) => None,
+            Self::InvalidState(_) | Self::EncodedStateTooLarge { .. } => None,
         }
     }
 }
