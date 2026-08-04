@@ -876,10 +876,10 @@ impl LeaderElectionWorkload {
                             )
                             .await;
                         }
-                        Ok(false) => self.protocol_error(
-                            "ExactResignRejected",
-                            resign_op,
-                            "fresh leadership token did not resign",
+                        Ok(false) => self.context.trace(
+                            Severity::Info,
+                            "ExactResignContended",
+                            details!["Client" => self.client_id, "OpNum" => resign_op],
                         ),
                         Err(error) => {
                             self.run_diagnostic("ExactResignFailed", resign_op, error);
