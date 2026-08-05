@@ -101,6 +101,7 @@ pub struct LeaderElectionWorkload {
     election_subspace: Subspace,
     register_subspace: Subspace,
     log_subspace: Subspace,
+    completion_ready_subspace: Subspace,
     participant: ParticipantId,
     incarnation: u64,
     local_state: LocalState,
@@ -154,6 +155,8 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             election_subspace: Subspace::all().subspace(&("leader-lease",)),
             register_subspace: Subspace::all().subspace(&("leader-lease-register",)),
             log_subspace: Subspace::all().subspace(&("leader-lease-log",)),
+            completion_ready_subspace: Subspace::all()
+                .subspace(&("leader-lease-completion-ready",)),
             participant,
             incarnation: 0,
             local_state: LocalState::unknown(),
@@ -427,6 +430,12 @@ impl RustWorkload for LeaderElectionWorkload {
             }
         }
 
+        self.write_completion_ready_marker(&db).await;
+        if self.client_id != 0 {
+            return;
+        }
+
+        self.wait_for_completion_ready_markers(&db).await;
         self.complete_witnesses(db, register).await;
     }
 
@@ -548,6 +557,72 @@ impl RustWorkload for LeaderElectionWorkload {
 }
 
 impl LeaderElectionWorkload {
+    async fn write_completion_ready_marker(&mut self, db: &SimDatabase) {
+        let key = self.completion_ready_subspace.pack(&(self.client_id,));
+
+        loop {
+            let result = db
+                .run(|txn, _maybe_committed| {
+                    let key = key.clone();
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        txn.set(&key, b"ready");
+                        Ok::<_, FdbBindingError>(())
+                    }
+                })
+                .await;
+            match result {
+                Ok(()) => return,
+                Err(error) => self.run_diagnostic("CompletionReadyWriteFailed", self.op_num, error),
+            }
+
+            self.completion_barrier_delay().await;
+        }
+    }
+
+    async fn wait_for_completion_ready_markers(&mut self, db: &SimDatabase) {
+        let client_count = self.context.client_count();
+
+        loop {
+            let completion_ready_subspace = self.completion_ready_subspace.clone();
+            let ready = db
+                .run(|txn, _maybe_committed| {
+                    let completion_ready_subspace = completion_ready_subspace.clone();
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        for client_id in 0..client_count {
+                            if txn
+                                .get(&completion_ready_subspace.pack(&(client_id,)), false)
+                                .await?
+                                .is_none()
+                            {
+                                return Ok::<_, FdbBindingError>(false);
+                            }
+                        }
+                        Ok(true)
+                    }
+                })
+                .await;
+            match ready {
+                Ok(true) => return,
+                Ok(false) => {}
+                Err(error) => self.run_diagnostic("CompletionReadyReadFailed", self.op_num, error),
+            }
+
+            self.completion_barrier_delay().await;
+        }
+    }
+
+    async fn completion_barrier_delay(&self) {
+        if let Err(error) = self.context.delay(Duration::from_millis(1)).await {
+            self.context.trace(
+                Severity::Warn,
+                "CompletionBarrierDelayFailed",
+                details!["Client" => self.client_id, "Error" => format!("{error:?}")],
+            );
+        }
+    }
+
     async fn force_foreign_takeover(
         &mut self,
         db: &SimDatabase,
@@ -921,6 +996,33 @@ impl LeaderElectionWorkload {
                     .poll_once(&db, &register, lease_duration, Some(adoption_delay))
                     .await;
             }
+        }
+
+        let witness_lease_duration = self.lease_duration_for_round(self.operation_count + 3);
+        self.replace_incarnation("final-delayed-adoption");
+        let _ = self
+            .poll_once(
+                &db,
+                &register,
+                witness_lease_duration,
+                Some(AdoptionDelay::Longer),
+            )
+            .await;
+        if self.local_state.leadership().is_some() {
+            self.replace_incarnation("final-delayed-adoption-follower");
+            let _ = self
+                .poll_once(
+                    &db,
+                    &register,
+                    witness_lease_duration,
+                    Some(AdoptionDelay::Longer),
+                )
+                .await;
+        }
+        if self.local_state.observation().is_some() {
+            let _ = self
+                .poll_once(&db, &register, witness_lease_duration, None)
+                .await;
         }
     }
 }
