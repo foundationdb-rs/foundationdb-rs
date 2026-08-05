@@ -7,8 +7,8 @@
 
 //! Error types returned by leader-election operations.
 
-use crate::FdbError;
 use crate::tuple::PackError;
+use crate::{FdbBindingError, FdbError, RetryableError};
 use std::fmt;
 
 /// Leader-election-specific errors.
@@ -42,6 +42,8 @@ pub enum LeaderElectionError {
     /// Inspect the source error and let the enclosing transaction runner apply
     /// its normal retry policy where appropriate.
     Fdb(FdbError),
+    /// A transaction-runner error occurred.
+    Binding(Box<FdbBindingError>),
     /// Failed to encode or decode the recipe's durable tuple state.
     ///
     /// On reads this can accompany malformed or incompatible durable data; on
@@ -57,6 +59,7 @@ impl fmt::Display for LeaderElectionError {
             Self::InvalidLeaseDuration => write!(f, "Lease duration must not be zero"),
             Self::RevisionExhausted => write!(f, "Leader-election revision is exhausted"),
             Self::Fdb(error) => write!(f, "Database error: {error}"),
+            Self::Binding(error) => write!(f, "Retry loop error: {error}"),
             Self::PackError(error) => write!(f, "Pack error: {error:?}"),
         }
     }
@@ -66,6 +69,7 @@ impl std::error::Error for LeaderElectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Fdb(error) => Some(error),
+            Self::Binding(error) => Some(error.as_ref()),
             Self::PackError(error) => Some(error),
             Self::InvalidState(_)
             | Self::InvalidParticipantId
@@ -81,11 +85,48 @@ impl From<FdbError> for LeaderElectionError {
     }
 }
 
+impl From<FdbBindingError> for LeaderElectionError {
+    fn from(error: FdbBindingError) -> Self {
+        Self::Binding(Box::new(error))
+    }
+}
+
 impl From<PackError> for LeaderElectionError {
     fn from(error: PackError) -> Self {
         Self::PackError(error)
     }
 }
 
+/// The `source()` chain exposes wrapped FoundationDB errors, so the default
+/// retry decision is transparent to `Database::run`.
+impl RetryableError for LeaderElectionError {}
+
 /// Result type for [`super::LeaderElection`] operations.
 pub type Result<T> = std::result::Result<T, LeaderElectionError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{RetryDecision, RetryableError};
+
+    #[test]
+    fn fdb_errors_are_retry_transparent() {
+        let error = LeaderElectionError::Fdb(FdbError::from_code(1020));
+
+        assert!(matches!(error.retry_decision(), RetryDecision::Fdb(_)));
+    }
+
+    #[test]
+    fn runner_errors_are_preserved() {
+        let error = LeaderElectionError::from(FdbBindingError::ReferenceToTransactionKept);
+
+        assert!(matches!(error, LeaderElectionError::Binding(_)));
+    }
+
+    #[test]
+    fn runner_error_source_chain_is_retry_transparent() {
+        let error = LeaderElectionError::from(FdbBindingError::from(FdbError::from_code(1020)));
+
+        assert!(matches!(error.retry_decision(), RetryDecision::Fdb(_)));
+    }
+}

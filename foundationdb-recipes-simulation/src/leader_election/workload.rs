@@ -42,6 +42,12 @@ const OPTIONAL_OBSERVER: u32 = 2;
 const OPTIONAL_PAUSE: u32 = 4;
 const OPTIONAL_DELAYED_ADOPTION: u32 = 8;
 
+// `complete_witnesses` deterministically drives these paths after the swarm finishes.
+const FORCED_WITNESS_COUNT: usize = 7;
+// The remaining paths depend on earlier swarm state, simulated timing, or a successful local
+// acquire-and-renew chain in the completion tail.
+const PROBABILISTIC_WITNESS_COUNT: usize = 9;
+
 #[derive(Clone, Copy)]
 enum SwarmProfile {
     Standard,
@@ -122,6 +128,7 @@ pub struct LeaderElectionWorkload {
     delayed_adoption_sub_lease_count: u64,
     delayed_adoption_exact_lease_count: u64,
     delayed_adoption_over_lease_count: u64,
+    completion_run_errors: u64,
 }
 
 impl SingleRustWorkload for LeaderElectionWorkload {
@@ -177,6 +184,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             delayed_adoption_sub_lease_count: 0,
             delayed_adoption_exact_lease_count: 0,
             delayed_adoption_over_lease_count: 0,
+            completion_run_errors: 0,
             context,
         }
     }
@@ -436,7 +444,9 @@ impl RustWorkload for LeaderElectionWorkload {
         }
 
         self.wait_for_completion_ready_markers(&db).await;
+        let run_errors_before_completion = self.run_errors;
         self.complete_witnesses(db, register).await;
+        self.completion_run_errors = self.run_errors - run_errors_before_completion;
     }
 
     async fn check(&mut self, db: SimDatabase) {
@@ -491,15 +501,37 @@ impl RustWorkload for LeaderElectionWorkload {
 
         match result {
             Ok((read_version, entries, snapshot)) => match replay(&entries, &snapshot) {
-                Ok(coverage) if coverage.missing.contains(&"delayed_observation_adoption") => {
+                Ok(coverage)
+                    if !coverage.forced_missing.is_empty() && self.completion_run_errors == 0 =>
+                {
                     self.context.trace(
                         Severity::Error,
-                        "LeaderLeaseDelayedAdoptionMissing",
+                        "LeaderLeaseForcedWitnessMissing",
                         details![
                             "ReadVersion" => read_version,
                             "Entries" => entries.len(),
-                            "WitnessesObserved" => coverage.observed,
-                            "MissingWitnesses" => coverage.missing.join(", "),
+                            "ForcedWitnessesObserved" => coverage.forced_observed,
+                            "ForcedWitnessesMissing" => coverage.forced_missing.join(", "),
+                            "ProbabilisticWitnessesObserved" => coverage.probabilistic_observed,
+                            "ProbabilisticWitnessesMissing" => coverage.probabilistic_missing.join(", "),
+                        ],
+                    )
+                }
+                Ok(coverage)
+                    if !coverage.forced_missing.is_empty()
+                        || !coverage.probabilistic_missing.is_empty() =>
+                {
+                    self.context.trace(
+                        Severity::Warn,
+                        "LeaderLeaseCoverageIncomplete",
+                        details![
+                            "ReadVersion" => read_version,
+                            "Entries" => entries.len(),
+                            "CompletionRunErrors" => self.completion_run_errors,
+                            "ForcedWitnessesObserved" => coverage.forced_observed,
+                            "ForcedWitnessesMissing" => coverage.forced_missing.join(", "),
+                            "ProbabilisticWitnessesObserved" => coverage.probabilistic_observed,
+                            "ProbabilisticWitnessesMissing" => coverage.probabilistic_missing.join(", "),
                         ],
                     )
                 }
@@ -509,8 +541,8 @@ impl RustWorkload for LeaderElectionWorkload {
                     details![
                         "ReadVersion" => read_version,
                         "Entries" => entries.len(),
-                        "WitnessesObserved" => coverage.observed,
-                        "MissingWitnesses" => coverage.missing.join(", "),
+                        "ForcedWitnessesObserved" => coverage.forced_observed,
+                        "ProbabilisticWitnessesObserved" => coverage.probabilistic_observed,
                     ],
                 ),
                 Err(error) => self.context.trace(
@@ -548,6 +580,7 @@ impl RustWorkload for LeaderElectionWorkload {
                 "delayed_adoption_over_lease_count",
                 self.delayed_adoption_over_lease_count as f64,
             ),
+            Metric::val("completion_run_errors", self.completion_run_errors as f64),
         ]);
     }
 
@@ -657,8 +690,12 @@ impl LeaderElectionWorkload {
             None,
         )
         .await;
-        let Ok(foreign_poll) = foreign_poll else {
-            return;
+        let foreign_poll = match foreign_poll {
+            Ok(poll) => poll,
+            Err(error) => {
+                self.run_diagnostic("ForeignTakeoverPollFailed", foreign_op, error);
+                return;
+            }
         };
         let Some(predecessor) = foreign_poll.leadership else {
             return;
@@ -1076,8 +1113,10 @@ enum LocalExpectation {
 }
 
 struct CoverageReport {
-    observed: usize,
-    missing: Vec<&'static str>,
+    forced_observed: usize,
+    forced_missing: Vec<&'static str>,
+    probabilistic_observed: usize,
+    probabilistic_missing: Vec<&'static str>,
 }
 
 #[derive(Default)]
@@ -1679,58 +1718,61 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
     if protected_value.is_none() {
         return Err("no fenced leader write committed".to_owned());
     }
-    let mut missing = Vec::new();
+    let mut forced_missing = Vec::new();
     if !witnesses.saw_expiry {
-        missing.push("expiry");
+        forced_missing.push("expiry");
     }
     if !witnesses.saw_foreign_takeover {
-        missing.push("foreign_takeover");
+        forced_missing.push("foreign_takeover");
     }
     if !witnesses.saw_before_expiry {
-        missing.push("before_expiry");
-    }
-    if !witnesses.saw_exact_expiry {
-        missing.push("exact_expiry");
+        forced_missing.push("before_expiry");
     }
     if !witnesses.saw_after_expiry {
-        missing.push("after_expiry");
+        forced_missing.push("after_expiry");
     }
     if !witnesses.saw_stale_renew {
-        missing.push("stale_renew");
-    }
-    if !witnesses.saw_stale_renew_after_advance {
-        missing.push("stale_renew_after_advance");
-    }
-    if !witnesses.saw_stale_resign {
-        missing.push("stale_resign");
-    }
-    if !witnesses.saw_delayed_stale_resign {
-        missing.push("delayed_stale_resign");
-    }
-    if !witnesses.saw_stale_resign_after_takeover {
-        missing.push("stale_resign_after_takeover");
-    }
-    if !witnesses.saw_exact_resign {
-        missing.push("exact_resign");
+        forced_missing.push("stale_renew");
     }
     if !witnesses.saw_stale_write {
-        missing.push("stale_write");
-    }
-    if !witnesses.saw_zero_rank_stale_write {
-        missing.push("zero_rank_stale_write");
-    }
-    if !witnesses.saw_post_advance_stale_write {
-        missing.push("post_advance_stale_write");
-    }
-    if !witnesses.saw_follower_duration_reset {
-        missing.push("follower_duration_reset");
+        forced_missing.push("stale_write");
     }
     if !witnesses.saw_delayed_observation_adoption {
-        missing.push("delayed_observation_adoption");
+        forced_missing.push("delayed_observation_adoption");
+    }
+    let mut probabilistic_missing = Vec::new();
+    if !witnesses.saw_exact_expiry {
+        probabilistic_missing.push("exact_expiry");
+    }
+    if !witnesses.saw_stale_renew_after_advance {
+        probabilistic_missing.push("stale_renew_after_advance");
+    }
+    if !witnesses.saw_stale_resign {
+        probabilistic_missing.push("stale_resign");
+    }
+    if !witnesses.saw_delayed_stale_resign {
+        probabilistic_missing.push("delayed_stale_resign");
+    }
+    if !witnesses.saw_stale_resign_after_takeover {
+        probabilistic_missing.push("stale_resign_after_takeover");
+    }
+    if !witnesses.saw_exact_resign {
+        probabilistic_missing.push("exact_resign");
+    }
+    if !witnesses.saw_post_advance_stale_write {
+        probabilistic_missing.push("post_advance_stale_write");
+    }
+    if !witnesses.saw_follower_duration_reset {
+        probabilistic_missing.push("follower_duration_reset");
+    }
+    if !witnesses.saw_zero_rank_stale_write {
+        probabilistic_missing.push("zero_rank_stale_write");
     }
     Ok(CoverageReport {
-        observed: 16 - missing.len(),
-        missing,
+        forced_observed: FORCED_WITNESS_COUNT - forced_missing.len(),
+        forced_missing,
+        probabilistic_observed: PROBABILISTIC_WITNESS_COUNT - probabilistic_missing.len(),
+        probabilistic_missing,
     })
 }
 
@@ -1902,6 +1944,8 @@ fn replay_resign(
         ));
     }
     if !matches {
+        // An idempotent re-execution after an exact resignation is a safe no-op, like a stale
+        // resignation, so replay accepts either instead of requiring a durable change.
         witnesses.saw_stale_resign = true;
         if let LocalInput::Leadership {
             renewed_at,
@@ -2048,6 +2092,8 @@ fn follower_observation_expectation(
 
 fn validate_reported_poll(entry: &LogEntry, election: &DurableState) -> Result<bool, String> {
     let valid = match entry.transition {
+        // A stale token may acquire a released election, but its new rank still fences the old
+        // leadership, so this is not a renewal.
         TRANSITION_ACQUIRED => entry.result && election.owner.is_none(),
         TRANSITION_RENEWED => {
             if !matches!(&entry.local_input, LocalInput::Leadership { .. }) {

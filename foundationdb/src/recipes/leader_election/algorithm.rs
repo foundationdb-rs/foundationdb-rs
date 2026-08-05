@@ -197,6 +197,7 @@ where
     tracing::debug!(
         poll_outcome = "leader",
         poll_action = action,
+        participant = participant.as_str(),
         revision,
         takeover = transition == PollTransition::TookOver,
         reacquisition = transition == PollTransition::Reacquired,
@@ -236,19 +237,21 @@ fn follower_result(
         )
     })?;
     let rank = Rank::from(state.revision);
-    let outcome = PollOutcome::Follower {
-        owner,
-        rank,
-        lease_duration,
-    };
 
     #[cfg(feature = "trace")]
     tracing::debug!(
         poll_outcome = "follower",
         poll_reason = _reason,
+        owner = owner.as_str(),
         revision = rank.as_u64(),
         "leader-election poll observed owner"
     );
+
+    let outcome = PollOutcome::Follower {
+        owner,
+        rank,
+        lease_duration,
+    };
 
     Ok(PollResult::new(outcome, next_observation))
 }
@@ -349,8 +352,19 @@ where
         || state.lease_duration != Some(leadership.lease_duration())
     {
         #[cfg(feature = "trace")]
+        let rejection_reason = if state.owner.as_ref() != Some(leadership.participant()) {
+            "owner_changed"
+        } else if state.revision != leadership.rank().as_u64() {
+            "revision_changed"
+        } else {
+            "lease_duration_changed"
+        };
+        #[cfg(feature = "trace")]
         tracing::debug!(
             resign_outcome = "rejected",
+            resign_reason = rejection_reason,
+            participant = leadership.participant().as_str(),
+            leadership_revision = leadership.rank().as_u64(),
             revision = state.revision,
             "leader-election stale resignation rejected"
         );

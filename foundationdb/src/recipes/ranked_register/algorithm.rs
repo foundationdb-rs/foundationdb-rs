@@ -84,6 +84,19 @@ fn encode_state(state: &RegisterState) -> Result<Vec<u8>> {
     Ok(packed)
 }
 
+/// Ensures a value remains encodable after a later ranked read installs the
+/// largest possible fence. Without this headroom, a near-cap write could make
+/// a future fence installation fail only because its rank encoding is larger.
+fn ensure_value_survives_future_fence(value: &[u8]) -> Result<()> {
+    let largest_rank = Rank::from(u64::MAX);
+    let state = RegisterState {
+        max_read_rank: largest_rank,
+        max_write_rank: largest_rank,
+        value: Some(value.to_vec()),
+    };
+    encode_state(&state).map(|_| ())
+}
+
 // ============================================================================
 // CORE OPERATIONS (Paper Section 5.1, Figure 3)
 // ============================================================================
@@ -105,6 +118,13 @@ where
 
     // Update max_read_rank if our rank is higher
     if rank > state.max_read_rank {
+        #[cfg(feature = "trace")]
+        tracing::debug!(
+            register_action = "fence_installed",
+            rank = rank.as_u64(),
+            previous_max_read_rank = state.max_read_rank.as_u64(),
+            "ranked-register fence staged in transaction"
+        );
         state.max_read_rank = rank;
         write_state(txn, &key, &state)?;
     }
@@ -131,8 +151,20 @@ where
 
     // Check rank conditions (paper Section 5.1)
     if rank < state.max_read_rank || rank <= state.max_write_rank {
+        #[cfg(feature = "trace")]
+        tracing::debug!(
+            register_action = "write_aborted",
+            rank = rank.as_u64(),
+            max_read_rank = state.max_read_rank.as_u64(),
+            max_write_rank = state.max_write_rank.as_u64(),
+            fenced_by_read = rank < state.max_read_rank,
+            fenced_by_write = rank <= state.max_write_rank,
+            "ranked-register write rejected by fencing rank"
+        );
         return Ok(WriteResult::Aborted);
     }
+
+    ensure_value_survives_future_fence(value)?;
 
     // Commit the write
     state.max_write_rank = rank;
@@ -144,8 +176,9 @@ where
 
 /// Read the current value without updating ranks
 ///
-/// This is a plain read for followers/observers. It does NOT update
-/// `max_read_rank`, so it won't interfere with the leader's writes.
+/// This is a plain read for followers and observers. It does not update
+/// `max_read_rank`, so it installs no durable fence. As a non-snapshot
+/// FoundationDB read, it still adds a conflict range for this register key.
 ///
 /// Safe to call from any process at any time.
 pub async fn value<T>(txn: &T, subspace: &Subspace) -> Result<Option<Vec<u8>>>
@@ -193,5 +226,34 @@ mod tests {
                 && *limit == MAX_ENCODED_REGISTER_STATE_BYTES
         ));
         assert!(matches!(error.retry_decision(), RetryDecision::Fatal));
+    }
+
+    #[test]
+    fn near_cap_value_reserves_future_fence_headroom() {
+        let largest_rank = Rank::from(u64::MAX);
+        let max_rank_empty_state = RegisterState {
+            max_read_rank: largest_rank,
+            max_write_rank: largest_rank,
+            value: Some(Vec::new()),
+        };
+        let payload = vec![
+            b'x';
+            MAX_ENCODED_REGISTER_STATE_BYTES
+                - encode_state(&max_rank_empty_state)
+                    .expect("empty max-rank state must fit")
+                    .len()
+                + 1
+        ];
+        let low_rank_state = RegisterState {
+            max_read_rank: Rank::from(1_u64),
+            max_write_rank: Rank::from(1_u64),
+            value: Some(payload.clone()),
+        };
+
+        assert!(encode_state(&low_rank_state).is_ok());
+        assert!(matches!(
+            ensure_value_survives_future_fence(&payload),
+            Err(RankedRegisterError::EncodedStateTooLarge { .. })
+        ));
     }
 }

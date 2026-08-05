@@ -69,10 +69,11 @@
 //!
 //! ## Renewal cadence and fencing epochs
 //!
-//! Renew well before local expiry. Polling no less often than about every half
-//! lease is a practical starting point, with application-specific headroom for
-//! scheduling delay, transaction retries, and commit latency. This is
-//! availability guidance, not a safety condition or a durable expiry.
+//! Renew with substantial headroom before local expiry. A cadence around one
+//! third of a lease leaves more room than polling at half a lease for
+//! scheduling delay, transaction retries, and commit latency. Tune it to the
+//! application's latency budget. This is availability guidance, not a safety
+//! condition or a durable expiry.
 //!
 //! A successful acquisition, renewal, reacquisition, or takeover returns a
 //! fresh [`Rank`](crate::recipes::ranked_register::Rank). Each is a new fencing
@@ -80,6 +81,11 @@
 //! installed, protected work using an older rank, even from that same process,
 //! can be rejected. Leadership status alone never authorizes an unfenced
 //! external side effect.
+//!
+//! Ranks returned by this recipe are opaque durable revisions. Do not mix them
+//! with [`Rank::new`](crate::recipes::ranked_register::Rank::new) values in the
+//! same ranked register or rank space. A manually constructed rank can exceed
+//! every future election revision and permanently fence election-backed work.
 //!
 //! Correctness-sensitive FoundationDB work must use the rank with a
 //! [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) in the
@@ -96,6 +102,10 @@
 //! leadership, so callers must stop protected work that depends on a stale
 //! local token. Fencing ranks, not timing alone, protect against a delayed or
 //! partitioned process.
+//!
+//! Do not rely on a background heartbeat that cannot interrupt, fence, or stop
+//! in-progress protected work. It can renew a lease, but the protected-work
+//! path must still stop when it cannot obtain and use a current fencing rank.
 //!
 //! ## Protocol walkthrough
 //!
@@ -234,7 +244,11 @@ impl LeaderElection {
     /// condition.
     #[cfg_attr(
         feature = "trace",
-        tracing::instrument(level = "debug", skip(self, txn, participant, local_state))
+        tracing::instrument(
+            level = "debug",
+            skip(self, txn, participant, local_state),
+            fields(participant = participant.as_str())
+        )
     )]
     pub async fn poll<T>(
         &self,
@@ -281,7 +295,14 @@ impl LeaderElection {
     /// renewal window has elapsed.
     #[cfg_attr(
         feature = "trace",
-        tracing::instrument(level = "debug", skip(self, txn, leadership))
+        tracing::instrument(
+            level = "debug",
+            skip(self, txn, leadership),
+            fields(
+                participant = leadership.participant().as_str(),
+                leadership_revision = leadership.rank().as_u64()
+            )
+        )
     )]
     pub async fn resign<T>(&self, txn: &T, leadership: &Leadership) -> Result<ResignOutcome>
     where

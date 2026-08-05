@@ -80,7 +80,7 @@
 //!     options::TransactionOption,
 //!     recipes::{
 //!         leader_election::{LeaderElection, LocalState, ParticipantId, PollOutcome},
-//!         ranked_register::RankedRegister,
+//!         ranked_register::{RankedRegister, WriteResult},
 //!     },
 //!     tuple::Subspace,
 //!     FdbBindingError,
@@ -113,10 +113,13 @@
 //!                 .read(&txn, *rank)
 //!                 .await
 //!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
-//!             register
+//!             let write_result = register
 //!                 .write(&txn, *rank, b"new_value")
 //!                 .await
 //!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
+//!             if write_result == WriteResult::Committed {
+//!                 txn.set(b"application-key", b"new_value");
+//!             }
 //!         }
 //!         Ok::<_, FdbBindingError>(poll)
 //!     }
@@ -215,7 +218,8 @@ impl RankedRegister {
     ///
     /// Returns [`WriteResult::Committed`] or [`WriteResult::Aborted`].
     /// Returns [`RankedRegisterError::EncodedStateTooLarge`] if the complete
-    /// encoded state exceeds [`MAX_ENCODED_REGISTER_STATE_BYTES`].
+    /// encoded state would exceed [`MAX_ENCODED_REGISTER_STATE_BYTES`] after a
+    /// later ranked read installs the largest possible fence.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn, value))
@@ -229,8 +233,9 @@ impl RankedRegister {
 
     /// Read the current value without updating ranks
     ///
-    /// Safe for followers and observers — does not install a fence,
-    /// so it won't interfere with the leader's writes.
+    /// Safe for followers and observers: it installs no durable fence. Its
+    /// normal non-snapshot FoundationDB read still adds a conflict range for
+    /// this register key, so it can conflict with a concurrent leader write.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn))

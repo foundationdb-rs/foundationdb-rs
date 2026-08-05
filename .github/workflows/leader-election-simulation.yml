@@ -12,6 +12,7 @@ jobs:
   simulation:
     name: "Leader Election Simulation (Nix) - ${{ matrix.instance }}"
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'leader-election-correctness') && '{"instance":[1,2,3,4],"iterations":[200]}' || '{"instance":[1],"iterations":[10]}') }}

@@ -21,7 +21,10 @@
 //!
 //! The schema version is decoded strictly. Untagged layouts from development
 //! versions of this recipe are unsupported: clear the election subspace before
-//! using this version of the recipe.
+//! using this version of the recipe. The election revision is also the fencing
+//! rank for every paired ranked register, so clear those register subspaces
+//! before reuse as well. Leaving an older register fence in place rejects the
+//! new election's lower ranks.
 
 use crate::tuple::Subspace;
 

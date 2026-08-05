@@ -3,6 +3,8 @@ set -e
 
 # Number of runs (default: 1, use 0 for infinite)
 MAX_ITERATIONS=${1:-1}
+# Bound one pathological seed while keeping its traces for diagnosis.
+SEED_TIMEOUT=${LEADER_ELECTION_SEED_TIMEOUT:-15m}
 
 # Create trace directory
 mkdir -p ./target/traces
@@ -29,13 +31,18 @@ while [ "$MAX_ITERATIONS" -eq 0 ] || [ "$iteration" -le "$MAX_ITERATIONS" ]; do
     echo "Config: $TEST"
     echo "Iteration: $iteration"
     echo "Seed: $seed"
+    echo "Per-seed timeout: $SEED_TIMEOUT"
     echo "----------------------"
 
-    if fdbserver -r simulation -f "$TEST" -b on --trace-format json -L "$trace_dir" --logsize 1GiB --seed "$seed"; then
+    if timeout --kill-after=1m "$SEED_TIMEOUT" \
+        fdbserver -r simulation -f "$TEST" -b on --trace-format json -L "$trace_dir" --logsize 1GiB --seed "$seed"; then
         rm -rf -- "$trace_dir"
         echo "Iteration $iteration passed"
     else
         status=$?
+        if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+            echo "TIMED OUT after $SEED_TIMEOUT on iteration $iteration"
+        fi
         echo "FAILED on iteration $iteration for $TEST"
         echo "Seed: $seed"
         echo "Traces: $trace_dir"

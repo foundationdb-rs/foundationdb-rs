@@ -910,6 +910,181 @@ mod leader_election_tests {
     }
 
     #[tokio::test]
+    async fn concurrent_unknown_polls_acquire_exactly_once() -> Result<(), FdbBindingError> {
+        let db = Arc::new(crate::common::database().await?);
+        let election = setup_election(&db, "concurrent_unknown", Duration::from_secs(5)).await?;
+        let alice = participant("alice-concurrent-unknown");
+        let bob = participant("bob-concurrent-unknown");
+        let staged = Arc::new(Barrier::new(3));
+        let alice_attempts = Arc::new(AtomicUsize::new(0));
+        let bob_attempts = Arc::new(AtomicUsize::new(0));
+
+        let alice_poll = {
+            let db = db.clone();
+            let election = election.clone();
+            let participant = alice.clone();
+            let staged = staged.clone();
+            let attempts = alice_attempts.clone();
+            tokio::spawn(async move {
+                db.run(|txn, _| {
+                    let election = election.clone();
+                    let participant = participant.clone();
+                    let staged = staged.clone();
+                    let first_attempt = attempts.fetch_add(1, Ordering::SeqCst) == 0;
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        let result = election
+                            .poll(&txn, &participant, &LocalState::unknown(), Duration::ZERO)
+                            .await?;
+                        if first_attempt {
+                            staged.wait().await;
+                        }
+                        Ok::<_, FdbBindingError>(result)
+                    }
+                })
+                .await
+            })
+        };
+        let bob_poll = {
+            let db = db.clone();
+            let election = election.clone();
+            let participant = bob.clone();
+            let staged = staged.clone();
+            let attempts = bob_attempts.clone();
+            tokio::spawn(async move {
+                db.run(|txn, _| {
+                    let election = election.clone();
+                    let participant = participant.clone();
+                    let staged = staged.clone();
+                    let first_attempt = attempts.fetch_add(1, Ordering::SeqCst) == 0;
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        let result = election
+                            .poll(&txn, &participant, &LocalState::unknown(), Duration::ZERO)
+                            .await?;
+                        if first_attempt {
+                            staged.wait().await;
+                        }
+                        Ok::<_, FdbBindingError>(result)
+                    }
+                })
+                .await
+            })
+        };
+
+        staged.wait().await;
+        let alice_result = alice_poll.await.expect("alice task must not panic")?;
+        let bob_result = bob_poll.await.expect("bob task must not panic")?;
+        let acquired = [(&alice, &alice_result), (&bob, &bob_result)]
+            .into_iter()
+            .find_map(|(participant, result)| {
+                (result.outcome().transition() == PollTransition::Acquired).then_some(participant)
+            })
+            .expect("one concurrent unknown poll must acquire");
+
+        assert_eq!(
+            [alice_result.outcome(), bob_result.outcome()]
+                .into_iter()
+                .filter(|outcome| outcome.transition() == PollTransition::Acquired)
+                .count(),
+            1
+        );
+        assert_eq!(
+            [alice_result.outcome(), bob_result.outcome()]
+                .into_iter()
+                .filter(|outcome| outcome.transition() == PollTransition::Followed)
+                .count(),
+            1
+        );
+        assert!(
+            alice_attempts.load(Ordering::SeqCst) >= 2 || bob_attempts.load(Ordering::SeqCst) >= 2,
+            "one conflicting poll must retry"
+        );
+        let durable = state(&db, &election).await?;
+        assert_eq!(durable.owner(), Some(acquired));
+        assert_eq!(durable.rank().as_u64(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn retried_poll_adopts_only_committed_attempt_result() -> Result<(), FdbBindingError> {
+        let db = Arc::new(crate::common::database().await?);
+        let election = setup_election(&db, "retry_adoption", Duration::from_secs(5)).await?;
+        let alice = participant("alice-retry-adoption");
+        let bob = participant("bob-retry-adoption");
+        let acquired = poll(
+            &db,
+            &election,
+            &alice,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+        )
+        .await?;
+        let staged = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let time = TestTime::new(Duration::ZERO);
+        let bob_poll = {
+            let db = db.clone();
+            let election = election.clone();
+            let participant = bob.clone();
+            let staged = staged.clone();
+            let release = release.clone();
+            let attempts = attempts.clone();
+            let time = time.clone();
+            tokio::spawn(async move {
+                db.run(|txn, _| {
+                    let election = election.clone();
+                    let participant = participant.clone();
+                    let staged = staged.clone();
+                    let release = release.clone();
+                    let first_attempt = attempts.fetch_add(1, Ordering::SeqCst) == 0;
+                    let time = time.clone();
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        let result = election
+                            .poll(&txn, &participant, &LocalState::unknown(), time.monotonic())
+                            .await?;
+                        if first_attempt {
+                            staged.wait().await;
+                            release.wait().await;
+                        }
+                        Ok::<_, FdbBindingError>(result)
+                    }
+                })
+                .await
+            })
+        };
+
+        staged.wait().await;
+        let renewed = poll(
+            &db,
+            &election,
+            &alice,
+            &acquired.next_state,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        )
+        .await?;
+        assert_eq!(renewed.result.outcome().rank().as_u64(), 2);
+        time.set(Duration::from_secs(10));
+        release.wait().await;
+
+        let result = bob_poll.await.expect("bob task must not panic")?;
+        assert!(attempts.load(Ordering::SeqCst) >= 2);
+        assert_eq!(result.outcome().transition(), PollTransition::Followed);
+        assert_eq!(result.outcome().rank().as_u64(), 2);
+        let next_state = result.into_next_state(time.monotonic());
+        let observation = next_state
+            .observation()
+            .expect("the committed retry must produce an observation");
+        assert_eq!(observation.rank().as_u64(), 2);
+        assert_eq!(observation.first_observed_at(), Duration::from_secs(10));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn leader_poll_fences_ranked_register_and_stale_rank_is_rejected()
     -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
