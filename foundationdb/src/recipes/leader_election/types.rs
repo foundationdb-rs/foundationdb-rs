@@ -21,7 +21,14 @@ use std::time::Duration;
 pub struct ParticipantId(String);
 
 impl ParticipantId {
-    /// Creates a non-empty process-incarnation ID.
+    /// Maximum tuple-encoded size of a process-incarnation ID.
+    ///
+    /// The limit includes the tuple string type code, terminator, and escaping
+    /// of embedded NUL bytes. It leaves enough space for the rest of the
+    /// durable election state below FoundationDB's 100,000-byte value limit.
+    pub const MAX_ENCODED_BYTES: usize = 95_000;
+
+    /// Creates a non-empty process-incarnation ID within the encoded-size limit.
     ///
     /// The value is persisted as the durable owner when this participant leads,
     /// so it must distinguish a restarted process from its previous incarnation.
@@ -31,6 +38,18 @@ impl ParticipantId {
         if value.is_empty() {
             return Err(LeaderElectionError::InvalidParticipantId);
         }
+        let encoded_size = value
+            .bytes()
+            .filter(|byte| *byte == 0)
+            .fold(value.len().saturating_add(2), |size, _| {
+                size.saturating_add(1)
+            });
+        if encoded_size > Self::MAX_ENCODED_BYTES {
+            return Err(LeaderElectionError::ParticipantIdTooLarge {
+                encoded_size,
+                limit: Self::MAX_ENCODED_BYTES,
+            });
+        }
         Ok(Self(value))
     }
 
@@ -38,6 +57,34 @@ impl ParticipantId {
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn participant_id_accepts_the_encoded_size_limit() {
+        let value = "\0".repeat((ParticipantId::MAX_ENCODED_BYTES - 2) / 2);
+
+        assert!(ParticipantId::new(value).is_ok());
+    }
+
+    #[test]
+    fn participant_id_rejects_an_encoded_size_above_the_limit() {
+        let value = "\0".repeat(ParticipantId::MAX_ENCODED_BYTES / 2);
+
+        match ParticipantId::new(value) {
+            Err(LeaderElectionError::ParticipantIdTooLarge {
+                encoded_size,
+                limit,
+            }) => {
+                assert_eq!(encoded_size, ParticipantId::MAX_ENCODED_BYTES + 2);
+                assert_eq!(limit, ParticipantId::MAX_ENCODED_BYTES);
+            }
+            result => panic!("expected an oversized participant ID error, got {result:?}"),
+        }
     }
 }
 

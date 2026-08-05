@@ -130,20 +130,6 @@ fn next_revision(state: &DurableState) -> Result<u64> {
         .ok_or(LeaderElectionError::RevisionExhausted)
 }
 
-fn pending_observation(state: &DurableState) -> Result<PendingNextState> {
-    let owner = state.owner.clone().ok_or_else(|| {
-        LeaderElectionError::InvalidState("observation requested from released state".to_owned())
-    })?;
-    let lease_duration = state.lease_duration.ok_or_else(|| {
-        LeaderElectionError::InvalidState("observation requested without lease duration".to_owned())
-    })?;
-    Ok(PendingNextState::new_observation(
-        owner,
-        Rank::from(state.revision),
-        lease_duration,
-    ))
-}
-
 fn same_observation(state: &DurableState, observation: &Observation) -> bool {
     state.owner.as_ref() == Some(observation.owner())
         && state.revision == observation.rank().as_u64()
@@ -220,12 +206,6 @@ fn follower_result(
     previous: Option<&Observation>,
     _reason: &'static str,
 ) -> Result<PollResult> {
-    let next_observation = match previous {
-        Some(previous) if same_observation(state, previous) => {
-            PendingNextState::preserve_observation(previous.clone())
-        }
-        Some(_) | None => pending_observation(state)?,
-    };
     let owner = state.owner.clone().ok_or_else(|| {
         LeaderElectionError::InvalidState(
             "follower result requested from released state".to_owned(),
@@ -237,6 +217,12 @@ fn follower_result(
         )
     })?;
     let rank = Rank::from(state.revision);
+    let next_observation = match previous {
+        Some(previous) if same_observation(state, previous) => {
+            PendingNextState::preserve_observation(previous.clone())
+        }
+        Some(_) | None => PendingNextState::new_observation(owner.clone(), rank, lease_duration),
+    };
 
     #[cfg(feature = "trace")]
     tracing::debug!(
@@ -399,6 +385,23 @@ mod tests {
         };
 
         assert_eq!(decode_state(&encode_state(&state)).unwrap(), state);
+    }
+
+    #[test]
+    fn maximum_participant_id_keeps_durable_state_below_fdb_value_limit() {
+        let owner =
+            ParticipantId::new("\0".repeat((ParticipantId::MAX_ENCODED_BYTES - 2) / 2)).unwrap();
+        assert_eq!(
+            pack(&owner.as_str()).len(),
+            ParticipantId::MAX_ENCODED_BYTES
+        );
+        let state = DurableState {
+            revision: u64::MAX,
+            owner: Some(owner),
+            lease_duration: Some(Duration::new(u64::MAX, 999_999_999)),
+        };
+
+        assert!(encode_state(&state).len() <= 100_000);
     }
 
     #[test]

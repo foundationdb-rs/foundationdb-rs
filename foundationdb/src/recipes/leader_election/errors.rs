@@ -27,6 +27,16 @@ pub enum LeaderElectionError {
     ///
     /// Empty text cannot distinguish a participating process incarnation.
     InvalidParticipantId,
+    /// A [`ParticipantId`](super::ParticipantId) exceeds the encoded-size limit.
+    ///
+    /// The limit includes tuple encoding and NUL escaping, so it guarantees the
+    /// complete durable election state fits below FoundationDB's value limit.
+    ParticipantIdTooLarge {
+        /// Tuple-encoded participant ID size in bytes.
+        encoded_size: usize,
+        /// Maximum supported tuple-encoded participant ID size in bytes.
+        limit: usize,
+    },
     /// A configured lease duration was zero.
     ///
     /// A zero duration would make every local validity interval immediately
@@ -56,6 +66,13 @@ impl fmt::Display for LeaderElectionError {
         match self {
             Self::InvalidState(message) => write!(f, "Invalid leader election state: {message}"),
             Self::InvalidParticipantId => write!(f, "Participant ID must not be empty"),
+            Self::ParticipantIdTooLarge {
+                encoded_size,
+                limit,
+            } => write!(
+                f,
+                "Encoded participant ID is {encoded_size} bytes, above the {limit}-byte limit"
+            ),
             Self::InvalidLeaseDuration => write!(f, "Lease duration must not be zero"),
             Self::RevisionExhausted => write!(f, "Leader-election revision is exhausted"),
             Self::Fdb(error) => write!(f, "Database error: {error}"),
@@ -73,6 +90,7 @@ impl std::error::Error for LeaderElectionError {
             Self::PackError(error) => Some(error),
             Self::InvalidState(_)
             | Self::InvalidParticipantId
+            | Self::ParticipantIdTooLarge { .. }
             | Self::InvalidLeaseDuration
             | Self::RevisionExhausted => None,
         }
