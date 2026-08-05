@@ -838,7 +838,7 @@ impl LeaderElectionWorkload {
         )
         .await
         {
-            Ok(poll) if poll.leadership.is_some() => self.protocol_error(
+            Ok(poll) if poll.transition == PollTransition::Renewed => self.protocol_error(
                 "StaleRenewSucceeded",
                 stale_poll_op,
                 "a stale leadership token changed durable state",
@@ -1030,6 +1030,7 @@ impl LeaderElectionWorkload {
 struct PollRun {
     next_state: LocalState,
     leadership: Option<Leadership>,
+    transition: PollTransition,
     adoption_delay: Option<AdoptionDelay>,
 }
 
@@ -1239,10 +1240,12 @@ async fn run_poll(
     };
     let adopted_at =
         simulated_now(context).max(attempt_started_at.saturating_add(Duration::from_nanos(1)));
+    let transition = poll.outcome().transition();
     let next_state = poll.into_next_state(adopted_at);
     Ok(PollRun {
         leadership: next_state.leadership().cloned(),
         next_state,
+        transition,
         adoption_delay,
     })
 }

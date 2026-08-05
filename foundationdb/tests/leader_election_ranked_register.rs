@@ -722,6 +722,36 @@ mod leader_election_tests {
         let durable = state(&db, &election).await?;
         assert_eq!(durable.owner(), Some(&alice));
         assert_eq!(durable.rank().as_u64(), 2);
+
+        let election_for_resign = election.clone();
+        let renewed_token = leadership(&renewed.next_state);
+        let resigned = db
+            .run(|txn, _| {
+                let election = election_for_resign.clone();
+                let token = renewed_token.clone();
+                async move {
+                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                    Ok::<_, FdbBindingError>(election.resign(&txn, &token).await?)
+                }
+            })
+            .await?;
+        assert_eq!(resigned, ResignOutcome::Resigned);
+
+        let reacquired_from_stale = poll(
+            &db,
+            &election,
+            &alice,
+            &acquired.next_state,
+            Duration::from_secs(3),
+            Duration::from_secs(3),
+        )
+        .await?;
+        assert!(reacquired_from_stale.result.outcome().is_leader());
+        assert_eq!(
+            reacquired_from_stale.result.outcome().transition(),
+            PollTransition::Acquired
+        );
+        assert_eq!(reacquired_from_stale.result.outcome().rank().as_u64(), 3);
         Ok(())
     }
 
