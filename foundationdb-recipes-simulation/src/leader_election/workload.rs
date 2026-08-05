@@ -41,6 +41,7 @@ const OPTIONAL_RESIGN: u32 = 1;
 const OPTIONAL_OBSERVER: u32 = 2;
 const OPTIONAL_PAUSE: u32 = 4;
 const OPTIONAL_DELAYED_ADOPTION: u32 = 8;
+const RACE_PARTICIPANT_PREFIX: &str = "race\0";
 
 // `complete_witnesses` deterministically drives these paths after the swarm finishes.
 const FORCED_WITNESS_COUNT: usize = 7;
@@ -108,6 +109,7 @@ pub struct LeaderElectionWorkload {
     register_subspace: Subspace,
     log_subspace: Subspace,
     completion_ready_subspace: Subspace,
+    race_subspace: Subspace,
     participant: ParticipantId,
     incarnation: u64,
     local_state: LocalState,
@@ -129,6 +131,8 @@ pub struct LeaderElectionWorkload {
     delayed_adoption_exact_lease_count: u64,
     delayed_adoption_over_lease_count: u64,
     completion_run_errors: u64,
+    coordinated_race_completed: bool,
+    coordinated_race_contenders: usize,
 }
 
 impl SingleRustWorkload for LeaderElectionWorkload {
@@ -164,6 +168,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             log_subspace: Subspace::all().subspace(&("leader-lease-log",)),
             completion_ready_subspace: Subspace::all()
                 .subspace(&("leader-lease-completion-ready",)),
+            race_subspace: Subspace::all().subspace(&("leader-lease-race",)),
             participant,
             incarnation: 0,
             local_state: LocalState::unknown(),
@@ -185,6 +190,8 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             delayed_adoption_exact_lease_count: 0,
             delayed_adoption_over_lease_count: 0,
             completion_run_errors: 0,
+            coordinated_race_completed: false,
+            coordinated_race_contenders: 0,
             context,
         }
     }
@@ -428,22 +435,15 @@ impl RustWorkload for LeaderElectionWorkload {
                 delay_until(&self.context, target).await;
                 continue;
             }
-            let delay = Duration::from_millis(1);
-            if let Err(error) = self.context.delay(delay).await {
-                self.context.trace(
-                    Severity::Warn,
-                    "SimulationDelayFailed",
-                    details!["Client" => self.client_id, "Error" => format!("{error:?}")],
-                );
-            }
+            delay_until(&self.context, self.inter_round_target(round)).await;
         }
 
         self.write_completion_ready_marker(&db).await;
+        self.wait_for_completion_ready_markers(&db).await;
+        self.coordinated_takeover_race(&db, &register).await;
         if self.client_id != 0 {
             return;
         }
-
-        self.wait_for_completion_ready_markers(&db).await;
         let run_errors_before_completion = self.run_errors;
         self.complete_witnesses(db, register).await;
         self.completion_run_errors = self.run_errors - run_errors_before_completion;
@@ -502,7 +502,11 @@ impl RustWorkload for LeaderElectionWorkload {
         match result {
             Ok((read_version, entries, snapshot)) => match replay(&entries, &snapshot) {
                 Ok(coverage)
-                    if !coverage.forced_missing.is_empty() && self.completion_run_errors == 0 =>
+                    if (!coverage.forced_missing.is_empty() && self.completion_run_errors == 0)
+                        || (self.coordinated_race_completed
+                            && (!coverage.saw_coordinated_race
+                                || coverage.coordinated_race_contenders
+                                    != self.coordinated_race_contenders)) =>
                 {
                     self.context.trace(
                         Severity::Error,
@@ -514,12 +518,17 @@ impl RustWorkload for LeaderElectionWorkload {
                             "ForcedWitnessesMissing" => coverage.forced_missing.join(", "),
                             "ProbabilisticWitnessesObserved" => coverage.probabilistic_observed,
                             "ProbabilisticWitnessesMissing" => coverage.probabilistic_missing.join(", "),
+                            "CoordinatedRaceCompleted" => self.coordinated_race_completed,
+                            "CoordinatedRaceObserved" => coverage.saw_coordinated_race,
+                            "CoordinatedRaceContenders" => coverage.coordinated_race_contenders,
+                            "ExpectedCoordinatedRaceContenders" => self.coordinated_race_contenders,
                         ],
                     )
                 }
                 Ok(coverage)
                     if !coverage.forced_missing.is_empty()
-                        || !coverage.probabilistic_missing.is_empty() =>
+                        || !coverage.probabilistic_missing.is_empty()
+                        || !self.coordinated_race_completed =>
                 {
                     self.context.trace(
                         Severity::Warn,
@@ -532,6 +541,10 @@ impl RustWorkload for LeaderElectionWorkload {
                             "ForcedWitnessesMissing" => coverage.forced_missing.join(", "),
                             "ProbabilisticWitnessesObserved" => coverage.probabilistic_observed,
                             "ProbabilisticWitnessesMissing" => coverage.probabilistic_missing.join(", "),
+                            "CoordinatedRaceCompleted" => self.coordinated_race_completed,
+                            "CoordinatedRaceObserved" => coverage.saw_coordinated_race,
+                            "CoordinatedRaceContenders" => coverage.coordinated_race_contenders,
+                            "ExpectedCoordinatedRaceContenders" => self.coordinated_race_contenders,
                         ],
                     )
                 }
@@ -543,6 +556,9 @@ impl RustWorkload for LeaderElectionWorkload {
                         "Entries" => entries.len(),
                         "ForcedWitnessesObserved" => coverage.forced_observed,
                         "ProbabilisticWitnessesObserved" => coverage.probabilistic_observed,
+                        "CoordinatedRaceObserved" => coverage.saw_coordinated_race,
+                        "CoordinatedRaceContenders" => coverage.coordinated_race_contenders,
+                        "ExpectedCoordinatedRaceContenders" => self.coordinated_race_contenders,
                     ],
                 ),
                 Err(error) => self.context.trace(
@@ -581,6 +597,18 @@ impl RustWorkload for LeaderElectionWorkload {
                 self.delayed_adoption_over_lease_count as f64,
             ),
             Metric::val("completion_run_errors", self.completion_run_errors as f64),
+            Metric::val(
+                "coordinated_race_completed",
+                if self.coordinated_race_completed {
+                    1.0
+                } else {
+                    0.0
+                },
+            ),
+            Metric::val(
+                "coordinated_race_contenders",
+                self.coordinated_race_contenders as f64,
+            ),
         ]);
     }
 
@@ -591,41 +619,77 @@ impl RustWorkload for LeaderElectionWorkload {
 
 impl LeaderElectionWorkload {
     async fn write_completion_ready_marker(&mut self, db: &SimDatabase) {
-        let key = self.completion_ready_subspace.pack(&(self.client_id,));
+        let completion_ready_subspace = self.completion_ready_subspace.clone();
+        self.write_phase_marker(db, &completion_ready_subspace, "ready", b"ready")
+            .await;
+    }
+
+    async fn wait_for_completion_ready_markers(&mut self, db: &SimDatabase) {
+        let completion_ready_subspace = self.completion_ready_subspace.clone();
+        self.wait_for_phase_markers(db, &completion_ready_subspace, "ready")
+            .await;
+    }
+
+    async fn completion_barrier_delay(&self) {
+        if let Err(error) = self.context.delay(Duration::from_millis(1)).await {
+            self.context.trace(
+                Severity::Warn,
+                "CompletionBarrierDelayFailed",
+                details!["Client" => self.client_id, "Error" => format!("{error:?}")],
+            );
+        }
+    }
+
+    async fn write_phase_marker(
+        &mut self,
+        db: &SimDatabase,
+        marker_subspace: &Subspace,
+        phase: &str,
+        value: &[u8],
+    ) {
+        let key = marker_subspace.pack(&(phase, self.client_id));
 
         loop {
             let result = db
                 .run(|txn, _maybe_committed| {
                     let key = key.clone();
+                    let value = value.to_vec();
                     async move {
                         txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                        txn.set(&key, b"ready");
+                        txn.set(&key, &value);
                         Ok::<_, FdbBindingError>(())
                     }
                 })
                 .await;
             match result {
                 Ok(()) => return,
-                Err(error) => self.run_diagnostic("CompletionReadyWriteFailed", self.op_num, error),
+                Err(error) => self.run_diagnostic("PhaseMarkerWriteFailed", self.op_num, error),
             }
 
             self.completion_barrier_delay().await;
         }
     }
 
-    async fn wait_for_completion_ready_markers(&mut self, db: &SimDatabase) {
+    async fn wait_for_phase_markers(
+        &mut self,
+        db: &SimDatabase,
+        marker_subspace: &Subspace,
+        phase: &str,
+    ) {
         let client_count = self.context.client_count();
 
         loop {
-            let completion_ready_subspace = self.completion_ready_subspace.clone();
+            let marker_subspace = marker_subspace.clone();
+            let phase = phase.to_owned();
             let ready = db
                 .run(|txn, _maybe_committed| {
-                    let completion_ready_subspace = completion_ready_subspace.clone();
+                    let marker_subspace = marker_subspace.clone();
+                    let phase = phase.clone();
                     async move {
                         txn.set_option(TransactionOption::AutomaticIdempotency)?;
                         for client_id in 0..client_count {
                             if txn
-                                .get(&completion_ready_subspace.pack(&(client_id,)), false)
+                                .get(&marker_subspace.pack(&(phase.as_str(), client_id)), false)
                                 .await?
                                 .is_none()
                             {
@@ -639,20 +703,153 @@ impl LeaderElectionWorkload {
             match ready {
                 Ok(true) => return,
                 Ok(false) => {}
-                Err(error) => self.run_diagnostic("CompletionReadyReadFailed", self.op_num, error),
+                Err(error) => self.run_diagnostic("PhaseMarkerReadFailed", self.op_num, error),
             }
 
             self.completion_barrier_delay().await;
         }
     }
 
-    async fn completion_barrier_delay(&self) {
-        if let Err(error) = self.context.delay(Duration::from_millis(1)).await {
-            self.context.trace(
-                Severity::Warn,
-                "CompletionBarrierDelayFailed",
-                details!["Client" => self.client_id, "Error" => format!("{error:?}")],
-            );
+    async fn phase_statuses(
+        &mut self,
+        db: &SimDatabase,
+        marker_subspace: &Subspace,
+        phase: &str,
+    ) -> Vec<Vec<u8>> {
+        let client_count = self.context.client_count();
+
+        loop {
+            let marker_subspace = marker_subspace.clone();
+            let phase = phase.to_owned();
+            let statuses = db
+                .run(|txn, _maybe_committed| {
+                    let marker_subspace = marker_subspace.clone();
+                    let phase = phase.clone();
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        let mut statuses = Vec::with_capacity(client_count as usize);
+                        for client_id in 0..client_count {
+                            statuses.push(
+                                txn.get(&marker_subspace.pack(&(phase.as_str(), client_id)), false)
+                                    .await?
+                                    .map(|value| value.to_vec())
+                                    .unwrap_or_default(),
+                            );
+                        }
+                        Ok::<_, FdbBindingError>(statuses)
+                    }
+                })
+                .await;
+            match statuses {
+                Ok(statuses) => return statuses,
+                Err(error) => self.run_diagnostic("PhaseStatusReadFailed", self.op_num, error),
+            }
+
+            self.completion_barrier_delay().await;
+        }
+    }
+
+    async fn coordinated_takeover_race(&mut self, db: &SimDatabase, register: &RankedRegister) {
+        let race_subspace = self.race_subspace.clone();
+        self.replace_incarnation("race");
+        let _ = self
+            .poll_once(db, register, self.lease_duration, None)
+            .await;
+        self.write_phase_marker(db, &race_subspace, "observed", b"ready")
+            .await;
+        self.wait_for_phase_markers(db, &race_subspace, "observed")
+            .await;
+
+        let observation = self.local_state.observation().cloned();
+        if let Some(observation) = observation.as_ref() {
+            delay_until(
+                &self.context,
+                observation
+                    .first_observed_at()
+                    .saturating_add(observation.lease_duration()),
+            )
+            .await;
+        }
+        self.write_phase_marker(db, &race_subspace, "expired", b"ready")
+            .await;
+        self.wait_for_phase_markers(db, &race_subspace, "expired")
+            .await;
+
+        let status: &[u8] = if let Some(observation) = observation {
+            let stale_rank = observation.rank();
+            let race_poll_op = self.next_op_num();
+            let race_poll = run_poll(
+                db,
+                LeaderElection::new(self.election_subspace.clone(), self.lease_duration)
+                    .expect("configured lease duration is non-zero"),
+                register.clone(),
+                self.log_subspace.clone(),
+                self.participant.clone(),
+                self.local_state.clone(),
+                true,
+                &self.context,
+                self.client_id,
+                self.incarnation,
+                race_poll_op,
+                None,
+            )
+            .await;
+            match race_poll {
+                Ok(poll) => {
+                    self.local_state = poll.next_state;
+                    let stale_write_op = self.next_op_num();
+                    match run_stale_write(
+                        db,
+                        LeaderElection::new(self.election_subspace.clone(), self.lease_duration)
+                            .expect("configured lease duration is non-zero"),
+                        register.clone(),
+                        self.log_subspace.clone(),
+                        self.participant.as_str().to_owned(),
+                        stale_rank,
+                        simulated_now(&self.context),
+                        self.client_id,
+                        self.incarnation,
+                        stale_write_op,
+                    )
+                    .await
+                    {
+                        Ok(false) => b"contended",
+                        Ok(true) => {
+                            self.protocol_error(
+                                "RaceStaleWriteCommitted",
+                                stale_write_op,
+                                "a takeover contender committed at the predecessor rank",
+                            );
+                            b"error"
+                        }
+                        Err(error) => {
+                            self.run_diagnostic("RaceStaleWriteFailed", stale_write_op, error);
+                            b"error"
+                        }
+                    }
+                }
+                Err(error) => {
+                    self.run_diagnostic("RacePollFailed", race_poll_op, error);
+                    self.replace_incarnation("race-poll-error");
+                    b"error"
+                }
+            }
+        } else {
+            b"incumbent"
+        };
+        self.write_phase_marker(db, &race_subspace, "done", status)
+            .await;
+        self.wait_for_phase_markers(db, &race_subspace, "done")
+            .await;
+
+        if self.client_id == 0 {
+            let statuses = self.phase_statuses(db, &race_subspace, "done").await;
+            self.coordinated_race_contenders = statuses
+                .iter()
+                .filter(|status| *status == b"contended")
+                .count();
+            self.coordinated_race_completed = self.coordinated_race_contenders >= 2
+                && statuses.iter().all(|status| status != b"error");
         }
     }
 
@@ -732,6 +929,25 @@ impl LeaderElectionWorkload {
 }
 
 impl LeaderElectionWorkload {
+    fn inter_round_target(&self, round: usize) -> Duration {
+        let (anchor, lease_duration) = match &self.local_state {
+            LocalState::Observation(observation) => (
+                observation.first_observed_at(),
+                observation.lease_duration(),
+            ),
+            LocalState::Leadership(leadership) => {
+                (leadership.last_renewed_at(), leadership.lease_duration())
+            }
+            LocalState::Unknown => (simulated_now(&self.context), self.lease_duration),
+        };
+        let offset = match (self.swarm as usize + round) % 3 {
+            0 => lease_duration / 2,
+            1 => lease_duration,
+            _ => lease_duration.saturating_add(Duration::from_millis(1)),
+        };
+        anchor.saturating_add(offset)
+    }
+
     fn lease_duration_for_round(&self, round: usize) -> Duration {
         self.lease_duration
             + Duration::from_secs(u64::from((self.swarm.wrapping_add(round as u32)) % 3))
@@ -1117,6 +1333,8 @@ struct CoverageReport {
     forced_missing: Vec<&'static str>,
     probabilistic_observed: usize,
     probabilistic_missing: Vec<&'static str>,
+    saw_coordinated_race: bool,
+    coordinated_race_contenders: usize,
 }
 
 #[derive(Default)]
@@ -1139,6 +1357,10 @@ struct ReplayWitnesses {
     renewal_with_new_duration_rank: Option<u64>,
     saw_follower_duration_reset: bool,
     saw_delayed_observation_adoption: bool,
+    race_predecessor: Option<(String, u64, Duration)>,
+    race_contenders: BTreeSet<String>,
+    race_winner: Option<String>,
+    race_stale_writers: BTreeSet<String>,
 }
 
 async fn continuous_snapshot_check(
@@ -1701,6 +1923,7 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
                 } else {
                     witnesses.saw_post_advance_stale_write = true;
                 }
+                record_race_stale_write(entry, &mut witnesses)?;
             }
             other => return Err(format!("unknown operation kind {other}")),
         }
@@ -1768,11 +1991,16 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
     if !witnesses.saw_zero_rank_stale_write {
         probabilistic_missing.push("zero_rank_stale_write");
     }
+    let saw_coordinated_race = witnesses.race_contenders.len() >= 2
+        && witnesses.race_winner.is_some()
+        && witnesses.race_stale_writers == witnesses.race_contenders;
     Ok(CoverageReport {
         forced_observed: FORCED_WITNESS_COUNT - forced_missing.len(),
         forced_missing,
         probabilistic_observed: PROBABILISTIC_WITNESS_COUNT - probabilistic_missing.len(),
         probabilistic_missing,
+        saw_coordinated_race,
+        coordinated_race_contenders: witnesses.race_contenders.len(),
     })
 }
 
@@ -1900,6 +2128,64 @@ fn replay_poll(
                 witnesses.saw_follower_duration_reset = true;
             }
         }
+    }
+    record_race_takeover(entry, witnesses)?;
+    Ok(())
+}
+
+fn record_race_takeover(entry: &LogEntry, witnesses: &mut ReplayWitnesses) -> Result<(), String> {
+    let LocalInput::Observation {
+        owner,
+        rank,
+        lease_duration,
+        observed_at,
+    } = &entry.local_input
+    else {
+        return Ok(());
+    };
+    if !entry.actor.starts_with(RACE_PARTICIPANT_PREFIX)
+        || entry.attempt_started_at.saturating_sub(*observed_at) < *lease_duration
+    {
+        return Ok(());
+    }
+    let predecessor = (owner.clone(), *rank, *lease_duration);
+    if let Some(expected) = witnesses.race_predecessor.as_ref() {
+        if expected != &predecessor {
+            return Err("coordinated race contenders observed different predecessors".to_owned());
+        }
+    } else {
+        witnesses.race_predecessor = Some(predecessor);
+    }
+    if !witnesses.race_contenders.insert(entry.actor.clone()) {
+        return Err("coordinated race contender retried as a second logical operation".to_owned());
+    }
+    match (entry.transition, entry.result) {
+        (TRANSITION_TOOK_OVER, true) => {
+            if witnesses.race_winner.replace(entry.actor.clone()).is_some() {
+                return Err("coordinated race elected more than one winner".to_owned());
+            }
+        }
+        (TRANSITION_FOLLOWED, false) => {}
+        _ => return Err("coordinated race contender reported an invalid outcome".to_owned()),
+    }
+    Ok(())
+}
+
+fn record_race_stale_write(
+    entry: &LogEntry,
+    witnesses: &mut ReplayWitnesses,
+) -> Result<(), String> {
+    if !entry.actor.starts_with(RACE_PARTICIPANT_PREFIX) {
+        return Ok(());
+    }
+    let Some((_, predecessor_rank, _)) = witnesses.race_predecessor.as_ref() else {
+        return Err("coordinated race stale write lacks a predecessor".to_owned());
+    };
+    if entry.requested_write_rank != *predecessor_rank {
+        return Err("coordinated race stale write used the wrong rank".to_owned());
+    }
+    if !witnesses.race_stale_writers.insert(entry.actor.clone()) {
+        return Err("coordinated race contender issued multiple stale writes".to_owned());
     }
     Ok(())
 }
@@ -2387,6 +2673,17 @@ fn simulated_now(context: &WorkloadContext) -> Duration {
 
 fn ranked_register_error(error: RankedRegisterError) -> FdbBindingError {
     FdbBindingError::new_custom_error(Box::new(error))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RACE_PARTICIPANT_PREFIX;
+
+    #[test]
+    fn race_prefix_matches_replacement_incarnations() {
+        assert!("race\0λ-0-0-1".starts_with(RACE_PARTICIPANT_PREFIX));
+        assert!(!r"race\0λ-0-0-1".starts_with(RACE_PARTICIPANT_PREFIX));
+    }
 }
 
 fn log_error(message: &str) -> FdbBindingError {
