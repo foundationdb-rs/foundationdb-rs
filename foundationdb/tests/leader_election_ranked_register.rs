@@ -1046,6 +1046,13 @@ mod leader_election_tests {
                         let result = election
                             .poll(&txn, &participant, &LocalState::unknown(), time.monotonic())
                             .await?;
+                        // A read-only transaction does not conflict-check its election read at
+                        // commit. This isolated marker makes the staged attempt a write
+                        // transaction, so Alice's renewal deterministically forces its retry.
+                        txn.set(
+                            b"leader_election_ranked_register/retry_adoption_marker",
+                            b"",
+                        );
                         if first_attempt {
                             staged.wait().await;
                             release.wait().await;
