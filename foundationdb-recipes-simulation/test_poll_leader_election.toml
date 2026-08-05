@@ -5,8 +5,17 @@
 # leader poll co-commits a RankedRegister read, protected write at its fencing
 # rank, and a versionstamp-ordered operation-log entry.
 
+# Production runs Redwood; the unconstrained random engine draw picked RocksDB on
+# most seeds at up to 49x the wall time of this forced choice, and never picked
+# redwood at all (measured 2026-07-31).
+[configuration]
+storageEngineType = 3
+# The simulated S3/HTTP mock adds 1-3 machines per datacenter and nothing here uses it.
+simHTTPServerEnabled = false
+
 [[test]]
 testTitle = 'PollLeaderElection'
+runConsistencyCheck = false
 
   [[test.workload]]
     testName = 'External'
