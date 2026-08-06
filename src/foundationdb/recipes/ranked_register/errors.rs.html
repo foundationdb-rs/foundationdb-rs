@@ -70,7 +70,23 @@
 <a href="#69" id="69">69</a>
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -94,6 +110,16 @@
     </span>PackError(PackError),
     <span class="doccomment">/// Invalid state encountered in the register
     </span>InvalidState(String),
+    <span class="doccomment">/// The requested raw value exceeds this handle's configured limit.
+    ///
+    /// This is a non-retryable caller error. The limit is local configuration
+    /// and is never persisted in FoundationDB.
+    </span>ValueTooLarge {
+        <span class="doccomment">/// Requested raw value size in bytes.
+        </span>value_size: usize,
+        <span class="doccomment">/// Configured maximum raw value size in bytes.
+        </span>limit: usize,
+    },
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>RankedRegisterError {
@@ -103,6 +129,12 @@
             <span class="self">Self</span>::Binding(e) =&gt; <span class="macro">write!</span>(f, <span class="string">"Retry loop error: {e}"</span>),
             <span class="self">Self</span>::PackError(e) =&gt; <span class="macro">write!</span>(f, <span class="string">"Pack error: {e:?}"</span>),
             <span class="self">Self</span>::InvalidState(msg) =&gt; <span class="macro">write!</span>(f, <span class="string">"Invalid state: {msg}"</span>),
+            <span class="self">Self</span>::ValueTooLarge { value_size, limit } =&gt; {
+                <span class="macro">write!</span>(
+                    f,
+                    <span class="string">"Register value is {value_size} bytes, above the {limit}-byte limit"
+                </span>)
+            }
         }
     }
 }
@@ -113,7 +145,7 @@
             <span class="self">Self</span>::Fdb(e) =&gt; <span class="prelude-val">Some</span>(e),
             <span class="self">Self</span>::Binding(e) =&gt; <span class="prelude-val">Some</span>(e),
             <span class="self">Self</span>::PackError(e) =&gt; <span class="prelude-val">Some</span>(e),
-            <span class="self">Self</span>::InvalidState(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="self">Self</span>::InvalidState(<span class="kw">_</span>) | <span class="self">Self</span>::ValueTooLarge { .. } =&gt; <span class="prelude-val">None</span>,
         }
     }
 }

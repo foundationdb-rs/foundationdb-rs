@@ -84,162 +84,90 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types, constants, and enums for leader election simulation workload.
+<a href="#86" id="86">86</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
+//
+// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-</span><span class="kw">use </span>foundationdb::recipes::leader_election::{CandidateInfo, ElectionConfig, LeaderState};
+</span><span class="doccomment">//! Commit-log types for the leader-lease simulation.
+
+</span><span class="kw">use </span>std::time::Duration;
+
 <span class="kw">use </span>foundationdb::tuple::Versionstamp;
 
-<span class="comment">// Use i64 instead of u8 for tuple packing (u8 is not supported)
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_REGISTER: i64 = <span class="number">0</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_HEARTBEAT: i64 = <span class="number">1</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_TRY_BECOME_LEADER: i64 = <span class="number">2</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_RESIGN: i64 = <span class="number">3</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_POLL: i64 = <span class="number">0</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_RESIGN: i64 = <span class="number">1</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_OBSERVE: i64 = <span class="number">2</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>OP_STALE_WRITE: i64 = <span class="number">3</span>;
 
-<span class="doccomment">/// A single log entry - entries are read in FDB commit order (versionstamp ordering)
-</span><span class="attr">#[derive(Debug, Clone)]
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>LOCAL_UNKNOWN: i64 = <span class="number">0</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>LOCAL_OBSERVATION: i64 = <span class="number">1</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>LOCAL_LEADERSHIP: i64 = <span class="number">2</span>;
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>TRANSITION_ACQUIRED: i64 = <span class="number">0</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>TRANSITION_RENEWED: i64 = <span class="number">1</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>TRANSITION_TOOK_OVER: i64 = <span class="number">2</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>TRANSITION_REACQUIRED: i64 = <span class="number">3</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>TRANSITION_FOLLOWED: i64 = <span class="number">4</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>TRANSITION_NONE: i64 = <span class="number">5</span>;
+
+<span class="doccomment">/// One durable election state exposed by the recipe's public API.
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Default)]
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DurableState {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) rank: u64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) owner: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) lease_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+}
+
+<span class="doccomment">/// Caller-owned state supplied to an operation, represented without recipe
+/// private fields so commit-order replay can independently validate it.
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq)]
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>LocalInput {
+    Unknown,
+    Observation {
+        owner: String,
+        rank: u64,
+        lease_duration: Duration,
+        observed_at: Duration,
+    },
+    Leadership {
+        participant: String,
+        rank: u64,
+        lease_duration: Duration,
+        renewed_at: Duration,
+    },
+}
+
+<span class="doccomment">/// One versionstamp-ordered simulation operation.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LogEntry {
-    <span class="kw">pub </span>versionstamp: Versionstamp,
-    <span class="kw">pub </span>client_id: i32,
-    <span class="kw">pub </span>op_num: u64,
-    <span class="kw">pub </span>op_type: i64,
-    <span class="kw">pub </span>success: bool,
-    <span class="kw">pub </span>became_leader: bool,
-
-    <span class="comment">// Ballot tracking for invariant checks
-    </span><span class="doccomment">/// Ballot number after the operation completed
-    </span><span class="kw">pub </span>ballot: u64,
-    <span class="doccomment">/// Ballot number before the operation (for detecting transitions)
-    </span><span class="kw">pub </span>previous_ballot: u64,
-
-    <span class="comment">// Lease tracking for overlap detection
-    </span><span class="doccomment">/// Lease expiry timestamp in nanoseconds (for leadership claims)
-    </span><span class="kw">pub </span>lease_expiry_nanos: i64,
-    <span class="doccomment">/// Timestamp when leadership claim was made (for lease validity checks)
-    </span><span class="kw">pub </span>claim_timestamp_nanos: i64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) versionstamp: Versionstamp,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) client_id: i32,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) incarnation: u64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) op_num: u64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) kind: i64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) actor: String,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) prior: DurableState,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) current: DurableState,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) local_input: LocalInput,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) tracks_local_state: bool,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) attempt_started_at: Duration,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) configured_lease_duration: Duration,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) planned_adoption_delay: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) transition: i64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) result: bool,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) requested_write_rank: u64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) observed_write_rank: u64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) observed_value: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) protected_write_committed: bool,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) payload: Vec&lt;u8&gt;,
 }
 
-<span class="doccomment">/// Log entries in FDB commit order (versionstamp-ordered keys give us true ordering)
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>LogEntries = Vec&lt;LogEntry&gt;;
-
-<span class="doccomment">/// Operation types for logging
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>OpType {
-    Register,
-    Heartbeat,
-    TryBecomeLeader,
-    Resign,
-}
-
-<span class="kw">impl </span>OpType {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_i64(val: i64) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">match </span>val {
-            OP_REGISTER =&gt; <span class="prelude-val">Some</span>(OpType::Register),
-            OP_HEARTBEAT =&gt; <span class="prelude-val">Some</span>(OpType::Heartbeat),
-            OP_TRY_BECOME_LEADER =&gt; <span class="prelude-val">Some</span>(OpType::TryBecomeLeader),
-            OP_RESIGN =&gt; <span class="prelude-val">Some</span>(OpType::Resign),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>as_str(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-        <span class="kw">match </span><span class="self">self </span>{
-            OpType::Register =&gt; <span class="string">"Register"</span>,
-            OpType::Heartbeat =&gt; <span class="string">"Heartbeat"</span>,
-            OpType::TryBecomeLeader =&gt; <span class="string">"TryBecomeLeader"</span>,
-            OpType::Resign =&gt; <span class="string">"Resign"</span>,
-        }
-    }
-}
-
-<span class="doccomment">/// Snapshot of database state for invariant checking
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DatabaseSnapshot {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) leader_state: <span class="prelude-ty">Option</span>&lt;LeaderState&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) candidates: Vec&lt;CandidateInfo&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) config: <span class="prelude-ty">Option</span>&lt;ElectionConfig&gt;,
-}
-
-<span class="doccomment">/// Result of running all invariant checks
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CheckResult {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) passed: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) failed: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) results: Vec&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, bool, String)&gt;,
-}
-
-<span class="doccomment">/// Per-client statistics extracted from log entries
-</span><span class="attr">#[derive(Default, Debug)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ClientStats {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) register_count: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) heartbeat_count: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) leadership_attempt_count: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) leadership_success_count: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) resign_count: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) error_count: usize,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) op_nums: Vec&lt;u64&gt;,
-}
-
-<span class="comment">// ============================================================================
-// CLOCK SKEW SIMULATION (mimics FDB's sim2.actor.cpp)
-// ============================================================================
-
-</span><span class="doccomment">/// Clock skew defaults (mimicking FDB's sim2)
-</span><span class="kw">pub const </span>DEFAULT_CLOCK_JITTER_RANGE: f64 = <span class="number">0.2</span>; <span class="comment">// ±10% like DELAY_JITTER_RANGE
-</span><span class="kw">pub const </span>DEFAULT_CLOCK_JITTER_OFFSET: f64 = <span class="number">0.9</span>; <span class="comment">// Like DELAY_JITTER_OFFSET
-
-</span><span class="doccomment">/// Clock skew levels for simulation
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>ClockSkewLevel {
-    <span class="doccomment">/// Light: ±100ms (like FDB's timer() vs now())
-    </span>Light,
-    <span class="doccomment">/// Moderate: ±500ms (cloud NTP worst case)
-    </span>Moderate,
-    <span class="doccomment">/// Extreme: ±1s (stress test, will cause election churn)
-    </span>Extreme,
-}
-
-<span class="kw">impl </span>ClockSkewLevel {
-    <span class="doccomment">/// Maximum clock offset in seconds for this skew level
-    </span><span class="kw">pub fn </span>max_offset_secs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
-        <span class="kw">match </span><span class="self">self </span>{
-            ClockSkewLevel::Light =&gt; <span class="number">0.1</span>,
-            ClockSkewLevel::Moderate =&gt; <span class="number">0.5</span>,
-            ClockSkewLevel::Extreme =&gt; <span class="number">1.0</span>,
-        }
-    }
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Snapshot {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) election: DurableState,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) protected_rank: u64,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) protected_value: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;,
 }
 </code></pre></div></section></main></body></html>

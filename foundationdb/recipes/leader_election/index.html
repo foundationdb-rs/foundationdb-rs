@@ -1,91 +1,157 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Leader election recipe for distributed consensus"><title>foundationdb::recipes::leader_election - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.1 (4eb161250 2025-03-15)" data-channel="1.85.1" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../foundationdb/index.html">foundationdb</a><span class="version">0.11.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module leader_<wbr>election</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#leader-election-for-foundationdb" title="Leader Election for FoundationDB">Leader Election for FoundationDB</a><ul><li><a href="#when-to-use-this" title="When to Use This">When to Use This</a></li><li><a href="#api-overview" title="API Overview">API Overview</a></li><li><a href="#key-concepts" title="Key Concepts">Key Concepts</a></li><li><a href="#configuration" title="Configuration">Configuration</a></li><li><a href="#return-types" title="Return Types">Return Types</a></li><li><a href="#safety-properties" title="Safety Properties">Safety Properties</a></li><li><a href="#simulation-testing" title="Simulation Testing">Simulation Testing</a></li></ul></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In foundationdb::<wbr>recipes</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="../../index.html">foundationdb</a>::<wbr><a href="../index.html">recipes</a></span><h1>Module <span>leader_election</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/foundationdb/recipes/leader_election/mod.rs.html#8-500">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Leader election recipe for distributed consensus</p>
-<h2 id="leader-election-for-foundationdb"><a class="doc-anchor" href="#leader-election-for-foundationdb">§</a>Leader Election for FoundationDB</h2>
-<p>A distributed leader election recipe using FoundationDB as coordination backend.
-Similar to <a href="https://curator.apache.org/">Apache Curator’s LeaderLatch</a> for ZooKeeper,
-but leveraging FDB’s serializable transactions for stronger guarantees.</p>
-<h3 id="when-to-use-this"><a class="doc-anchor" href="#when-to-use-this">§</a>When to Use This</h3>
-<p><strong>Good use cases:</strong></p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Leader election recipe for distributed consensus Poll-based Dynamo-style leader leases with FoundationDB fencing."><title>foundationdb::recipes::leader_election - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.1 (4eb161250 2025-03-15)" data-channel="1.85.1" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../foundationdb/index.html">foundationdb</a><span class="version">0.11.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module leader_<wbr>election</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#durable-state-and-local-time" title="Durable state and local time">Durable state and local time</a></li><li><a href="#cutover-from-v011-durable-state" title="Cutover from v0.11 durable state">Cutover from v0.11 durable state</a></li><li><a href="#poll-lifecycle" title="Poll lifecycle">Poll lifecycle</a></li><li><a href="#renewal-cadence-and-fencing-epochs" title="Renewal cadence and fencing epochs">Renewal cadence and fencing epochs</a></li><li><a href="#safety-versus-liveness" title="Safety versus liveness">Safety versus liveness</a></li><li><a href="#protocol-walkthrough" title="Protocol walkthrough">Protocol walkthrough</a></li><li><a href="#caller-responsibilities" title="Caller responsibilities">Caller responsibilities</a></li><li><a href="#further-reading" title="Further reading">Further reading</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In foundationdb::<wbr>recipes</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="../../index.html">foundationdb</a>::<wbr><a href="../index.html">recipes</a></span><h1>Module <span>leader_election</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/foundationdb/recipes/leader_election/mod.rs.html#8-326">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Leader election recipe for distributed consensus
+Poll-based Dynamo-style leader leases with FoundationDB fencing.</p>
+<p>This recipe adapts the client-side timing model of the
+<a href="https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-lock-client/">Amazon DynamoDB lock client</a>.
+A caller observes a durable owner record and uses elapsed time from its own
+monotonic clock to decide when that unchanged record is suspicious.
+FoundationDB’s serializable transaction on one state key, not local time,
+resolves concurrent acquisition, renewal, reacquisition, and takeover.
+The protocol is Dynamo-inspired, not wire-compatible with the DynamoDB lock
+client.</p>
+<h3 id="durable-state-and-local-time"><a class="doc-anchor" href="#durable-state-and-local-time">§</a>Durable state and local time</h3>
+<p>Durable state contains an optional owner, a monotonically increasing
+revision, and the last persisted relative lease duration. It contains no
+wall-clock or monotonic-clock reading, last-renewed timestamp, deadline, or
+expiry. A released record retains its revision and duration, while a
+never-created record has revision zero and no duration.</p>
+<p><a href="struct.Leadership.html" title="struct foundationdb::recipes::leader_election::Leadership"><code>Leadership</code></a> and
+<a href="struct.Observation.html" title="struct foundationdb::recipes::leader_election::Observation"><code>Observation</code></a> are caller-local
+state. A leadership token may renew only while elapsed time on that caller’s
+clock is below the duration stored in its exact durable revision. A follower
+waits the duration stored in its exact observation, never this handle’s
+configured duration.
+If the observed owner, revision, or duration changes, the caller starts a
+new observation window. If it is unchanged, the original observation time
+is retained.</p>
+<p>Clocks are never persisted or compared across processes. They only measure
+elapsed time for the caller that recorded them. On process restart, use a
+fresh <a href="struct.ParticipantId.html" title="struct foundationdb::recipes::leader_election::ParticipantId"><code>ParticipantId</code></a> and
+begin again with
+<a href="enum.LocalState.html#variant.Unknown" title="variant foundationdb::recipes::leader_election::LocalState::Unknown"><code>LocalState::Unknown</code></a>,
+so the new incarnation observes the durable state and waits anew before
+attempting takeover.</p>
+<h3 id="cutover-from-v011-durable-state"><a class="doc-anchor" href="#cutover-from-v011-durable-state">§</a>Cutover from v0.11 durable state</h3>
+<p>This release’s durable state is intentionally incompatible with v0.11.
+v0.11 and new clients use different keys, so a mixed deployment is unsafe:
+each population can elect a leader without observing or fencing the other.</p>
+<p>Upgrade by a destructive cutover, not an in-place migration. Stop or
+quiesce every old participant and all protected work before starting the
+new deployment. Then allocate fresh subspaces or epochs for the new
+election, its <a href="../ranked_register/struct.RankedRegister.html" title="struct foundationdb::recipes::ranked_register::RankedRegister"><code>RankedRegister</code></a>,
+and the protected sink or rank namespace. Only then start clients using
+this release. This recipe neither reads nor migrates v0.11 durable state.</p>
+<h3 id="poll-lifecycle"><a class="doc-anchor" href="#poll-lifecycle">§</a>Poll lifecycle</h3>
+<p>Call <a href="struct.LeaderElection.html#method.poll" title="method foundationdb::recipes::leader_election::LeaderElection::poll"><code>LeaderElection::poll</code></a>
+inside the closure passed to
+<a href="../../struct.Database.html#method.run" title="method foundationdb::Database::run"><code>Database::run</code></a>. Read <code>attempt_started_at</code> from the
+caller’s monotonic clock immediately before each <code>poll</code> call, including
+every retry attempt. It controls renewal and takeover eligibility and stamps
+new leadership, so time spent reading, retrying, or committing only shortens
+local validity.</p>
+<p>A returned <a href="struct.PollResult.html" title="struct foundationdb::recipes::leader_election::PollResult"><code>PollResult</code></a> is
+only prepared state. Adopt it with
+<a href="struct.PollResult.html#method.into_next_state" title="method foundationdb::recipes::leader_election::PollResult::into_next_state"><code>PollResult::into_next_state</code></a>
+after the outer <code>Database::run</code> succeeds. Use a fresh <code>adopted_at</code> reading
+then: it starts timing for a new or reset observation only after its durable
+read is known to have committed. An unchanged observation and a new
+leadership token retain their original attempt-local times. This prevents
+retries, cancellation, and unknown commits from authorizing work based on
+uncommitted caller-local state.</p>
+<p>The poll transaction reads and, for a leadership transition, writes the
+same durable key. FoundationDB conflict resolution serializes competing
+transitions. Local time only permits an attempted conditional takeover; it
+does not prove that the prior process stopped.</p>
+<h3 id="renewal-cadence-and-fencing-epochs"><a class="doc-anchor" href="#renewal-cadence-and-fencing-epochs">§</a>Renewal cadence and fencing epochs</h3>
+<p>Renew with substantial headroom before local expiry. A cadence around one
+third of a lease leaves more room than polling at half a lease for
+scheduling delay, transaction retries, and commit latency. Tune it to the
+application’s latency budget. This is availability guidance, not a safety
+condition or a durable expiry.</p>
+<p>A successful acquisition, renewal, reacquisition, or takeover returns a
+fresh <a href="../ranked_register/struct.Rank.html" title="struct foundationdb::recipes::ranked_register::Rank"><code>Rank</code></a>. Each is a new fencing
+epoch, including renewal by the same participant. Once the newer rank is
+installed, protected work using an older rank, even from that same process,
+can be rejected. Leadership status alone never authorizes an unfenced
+external side effect.</p>
+<p>Ranks returned by this recipe are opaque durable revisions. Do not mix them
+with <a href="../ranked_register/struct.Rank.html#method.new" title="associated function foundationdb::recipes::ranked_register::Rank::new"><code>Rank::new</code></a> values in the
+same ranked register or rank space. A manually constructed rank can exceed
+every future election revision and permanently fence election-backed work.</p>
+<p>Correctness-sensitive FoundationDB work must use the rank with a
+<a href="../ranked_register/struct.RankedRegister.html" title="struct foundationdb::recipes::ranked_register::RankedRegister"><code>RankedRegister</code></a> in the
+same enclosing transaction. An external sink must atomically enforce the
+rank and reject older ranks. See the
+<a href="../ranked_register/index.html#composing-with-leader-election" title="mod foundationdb::recipes::ranked_register"><code>RankedRegister</code> composition example</a>
+rather than treating a successful poll as sufficient authorization.</p>
+<h3 id="safety-versus-liveness"><a class="doc-anchor" href="#safety-versus-liveness">§</a>Safety versus liveness</h3>
+<p>Local expiry does not revoke durable ownership. It only prevents this caller
+from renewing with its local token and can lead a follower with an unchanged
+observation to attempt takeover. A failed or unavailable poll cannot renew
+leadership, so callers must stop protected work that depends on a stale
+local token. Fencing ranks, not timing alone, protect against a delayed or
+partitioned process.</p>
+<p>Do not rely on a background heartbeat that cannot interrupt, fence, or stop
+in-progress protected work. It can renew a lease, but the protected-work
+path must still stop when it cannot obtain and use a current fencing rank.</p>
+<h3 id="protocol-walkthrough"><a class="doc-anchor" href="#protocol-walkthrough">§</a>Protocol walkthrough</h3>
+<ol>
+<li>Create a non-zero-duration
+<a href="struct.LeaderElection.html" title="struct foundationdb::recipes::leader_election::LeaderElection"><code>LeaderElection</code></a> and a
+fresh <a href="struct.ParticipantId.html" title="struct foundationdb::recipes::leader_election::ParticipantId"><code>ParticipantId</code></a>
+for this process incarnation. Start with
+<a href="enum.LocalState.html#variant.Unknown" title="variant foundationdb::recipes::leader_election::LocalState::Unknown"><code>LocalState::Unknown</code></a>.</li>
+<li>Poll in a <code>Database::run</code> attempt. A released or never-created state
+produces <a href="enum.PollOutcome.html#variant.Leader" title="variant foundationdb::recipes::leader_election::PollOutcome::Leader"><code>PollOutcome::Leader</code></a>
+with <a href="enum.PollTransition.html#variant.Acquired" title="variant foundationdb::recipes::leader_election::PollTransition::Acquired"><code>PollTransition::Acquired</code></a>.
+After the outer transaction succeeds, adopt its
+<a href="struct.Leadership.html" title="struct foundationdb::recipes::leader_election::Leadership"><code>Leadership</code></a> through
+<a href="struct.PollResult.html#method.into_next_state" title="method foundationdb::recipes::leader_election::PollResult::into_next_state"><code>PollResult::into_next_state</code></a>.</li>
+<li>A caller that sees another owner receives
+<a href="enum.PollOutcome.html#variant.Follower" title="variant foundationdb::recipes::leader_election::PollOutcome::Follower"><code>PollOutcome::Follower</code></a>.
+Its next <a href="enum.LocalState.html" title="enum foundationdb::recipes::leader_election::LocalState"><code>LocalState</code></a>
+contains an <a href="struct.Observation.html" title="struct foundationdb::recipes::leader_election::Observation"><code>Observation</code></a>
+of that exact owner, revision, duration, and local observation time.
+Repeated polls preserve that time only while the durable record is
+unchanged.</li>
+<li>The current holder polls with its matching, locally unexpired
+<a href="struct.Leadership.html" title="struct foundationdb::recipes::leader_election::Leadership"><code>Leadership</code></a> and receives
+<a href="enum.PollTransition.html#variant.Renewed" title="variant foundationdb::recipes::leader_election::PollTransition::Renewed"><code>PollTransition::Renewed</code></a>
+with a new rank. An unchanged observation that has waited at least its
+persisted duration permits
+<a href="enum.PollTransition.html#variant.TookOver" title="variant foundationdb::recipes::leader_election::PollTransition::TookOver"><code>PollTransition::TookOver</code></a>,
+or <a href="enum.PollTransition.html#variant.Reacquired" title="variant foundationdb::recipes::leader_election::PollTransition::Reacquired"><code>PollTransition::Reacquired</code></a>
+when the observer is the same participant.</li>
+<li>For every leader outcome, co-commit the protected FoundationDB work with
+the returned <a href="../ranked_register/struct.Rank.html" title="struct foundationdb::recipes::ranked_register::Rank"><code>Rank</code></a>, including
+<a href="../ranked_register/struct.RankedRegister.html#method.read" title="method foundationdb::recipes::ranked_register::RankedRegister::read"><code>RankedRegister::read</code></a>
+to install its fence. A later rank fences delayed work using every older
+rank.</li>
+<li>A holder may call
+<a href="struct.LeaderElection.html#method.resign" title="method foundationdb::recipes::leader_election::LeaderElection::resign"><code>LeaderElection::resign</code></a>
+with its exact leadership token. The conditional release preserves the
+revision, so the next acquisition receives a strictly newer rank. A stale
+resignation is rejected.</li>
+<li>If the outer run retries, fails, is cancelled, or has an unknown commit,
+do not adopt its <code>PollResult</code>. The next successful run rediscovers the
+durable state. After restart, discard all local state, generate a fresh
+participant ID, and follow the observation path again.</li>
+</ol>
+<h3 id="caller-responsibilities"><a class="doc-anchor" href="#caller-responsibilities">§</a>Caller responsibilities</h3>
+<p>The caller owns scheduling, retry policy, transaction options, sleeping,
+randomization, background work, and caller-local state. This component does
+not call <code>Database::run</code>, retry, set transaction options, sleep, draw random
+values, start background work, or read wall-clock time.</p>
+<h3 id="further-reading"><a class="doc-anchor" href="#further-reading">§</a>Further reading</h3>
 <ul>
-<li>Singleton services (only one instance should be active)</li>
-<li>Job schedulers (one coordinator assigns work)</li>
-<li>Primary/backup failover</li>
-<li>Exclusive access to external resources</li>
+<li><a href="https://aws.amazon.com/builders-library/leader-election-in-distributed-systems/">AWS Builders Library: Leader Election in Distributed Systems</a></li>
+<li><a href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html">Martin Kleppmann: How to do distributed locking</a></li>
+<li>Mike Burrows, “The Chubby Lock Service for Loosely-Coupled Distributed
+Systems” (OSDI 2006).</li>
+<li>Gregory Chockler and Dahlia Malkhi, “Active Disk Paxos with Infinitely
+Many Processes” (PODC 2002).</li>
+<li>Salman Niazi, Mahmoud Ismail, Gautier Berthou, and Jim Dowling, “Leader
+Election Using NewSQL Database Systems” (DAIS 2015, LNCS 9038).</li>
+<li><a href="https://github.com/awslabs/amazon-dynamodb-lock-client">AWS Labs: Amazon DynamoDB Lock Client</a></li>
+<li><a href="https://zookeeper.apache.org/doc/r3.5.5/recipes.html">Apache ZooKeeper Recipes, GUID note</a></li>
 </ul>
-<p><strong>Consider alternatives if:</strong></p>
-<ul>
-<li>You need mutex/lock semantics for short critical sections
-(use FoundationDB transactions directly)</li>
-<li>You need fair queuing (this uses priority-based preemption)</li>
-</ul>
-<h3 id="api-overview"><a class="doc-anchor" href="#api-overview">§</a>API Overview</h3>
-<p>The main entry point is <a href="struct.LeaderElection.html" title="struct foundationdb::recipes::leader_election::LeaderElection"><code>LeaderElection</code></a>. Typical usage follows this pattern:</p>
-<div><table><thead><tr><th>Step</th><th>Method</th><th>Frequency</th></tr></thead><tbody>
-<tr><td>1. Setup</td><td><a href="struct.LeaderElection.html#method.new" title="associated function foundationdb::recipes::leader_election::LeaderElection::new"><code>new</code></a></td><td>Once per process</td></tr>
-<tr><td>2. Initialize</td><td><a href="struct.LeaderElection.html#method.initialize" title="method foundationdb::recipes::leader_election::LeaderElection::initialize"><code>initialize</code></a></td><td>Once globally (idempotent)</td></tr>
-<tr><td>3. Register</td><td><a href="struct.LeaderElection.html#method.register_candidate" title="method foundationdb::recipes::leader_election::LeaderElection::register_candidate"><code>register_candidate</code></a></td><td>Once per process</td></tr>
-<tr><td>4. Election loop</td><td><a href="struct.LeaderElection.html#method.run_election_cycle" title="method foundationdb::recipes::leader_election::LeaderElection::run_election_cycle"><code>run_election_cycle</code></a></td><td>Every heartbeat interval</td></tr>
-<tr><td>5. Shutdown</td><td><a href="struct.LeaderElection.html#method.resign_leadership" title="method foundationdb::recipes::leader_election::LeaderElection::resign_leadership"><code>resign_leadership</code></a> + <a href="struct.LeaderElection.html#method.unregister_candidate" title="method foundationdb::recipes::leader_election::LeaderElection::unregister_candidate"><code>unregister_candidate</code></a></td><td>On graceful exit</td></tr>
-</tbody></table>
-</div>
-<p>For advanced use cases, lower-level methods are available:</p>
-<ul>
-<li><a href="struct.LeaderElection.html#method.try_claim_leadership" title="method foundationdb::recipes::leader_election::LeaderElection::try_claim_leadership"><code>try_claim_leadership</code></a> - Attempt to become leader</li>
-<li><a href="struct.LeaderElection.html#method.refresh_lease" title="method foundationdb::recipes::leader_election::LeaderElection::refresh_lease"><code>refresh_lease</code></a> - Extend leadership lease</li>
-<li><a href="struct.LeaderElection.html#method.get_leader" title="method foundationdb::recipes::leader_election::LeaderElection::get_leader"><code>get_leader</code></a> - Query current leader</li>
-<li><a href="struct.LeaderElection.html#method.is_leader" title="method foundationdb::recipes::leader_election::LeaderElection::is_leader"><code>is_leader</code></a> - Check if this process is leader</li>
-</ul>
-<h3 id="key-concepts"><a class="doc-anchor" href="#key-concepts">§</a>Key Concepts</h3><h4 id="ballots"><a class="doc-anchor" href="#ballots">§</a>Ballots</h4>
-<p>Ballot numbers work like Raft’s term - a monotonically increasing counter
-that establishes ordering. Higher ballot always wins. Each leadership claim
-or lease refresh increments the ballot. This prevents split-brain scenarios
-after network partitions heal.</p>
-<p>The ballot is returned in <a href="struct.LeaderState.html#structfield.ballot" title="field foundationdb::recipes::leader_election::LeaderState::ballot"><code>LeaderState::ballot</code></a> and can be used as a
-fencing token when accessing external resources.</p>
-<h4 id="leases"><a class="doc-anchor" href="#leases">§</a>Leases</h4>
-<p>Leaders hold time-bounded leases configured via <a href="struct.ElectionConfig.html#structfield.lease_duration" title="field foundationdb::recipes::leader_election::ElectionConfig::lease_duration"><code>lease_duration</code></a>.
-A leader must call <a href="struct.LeaderElection.html#method.run_election_cycle" title="method foundationdb::recipes::leader_election::LeaderElection::run_election_cycle"><code>run_election_cycle</code></a> (or <a href="struct.LeaderElection.html#method.refresh_lease" title="method foundationdb::recipes::leader_election::LeaderElection::refresh_lease"><code>refresh_lease</code></a>)
-before the lease expires to maintain leadership.</p>
-<p>If a leader fails to refresh (crash, network partition), other candidates
-can claim leadership after the lease expires.</p>
-<h4 id="preemption"><a class="doc-anchor" href="#preemption">§</a>Preemption</h4>
-<p>When <a href="struct.ElectionConfig.html#structfield.allow_preemption" title="field foundationdb::recipes::leader_election::ElectionConfig::allow_preemption"><code>allow_preemption</code></a> is true, higher-priority candidates
-can preempt lower-priority leaders. Priority is set via the <code>priority</code> parameter
-in <a href="struct.LeaderElection.html#method.register_candidate" title="method foundationdb::recipes::leader_election::LeaderElection::register_candidate"><code>register_candidate</code></a>. This enables graceful leadership migration
-to new machines during rolling deployments or infrastructure upgrades.</p>
-<h3 id="configuration"><a class="doc-anchor" href="#configuration">§</a>Configuration</h3>
-<p>Configure via <a href="struct.ElectionConfig.html" title="struct foundationdb::recipes::leader_election::ElectionConfig"><code>ElectionConfig</code></a> passed to <a href="struct.LeaderElection.html#method.initialize_with_config" title="method foundationdb::recipes::leader_election::LeaderElection::initialize_with_config"><code>initialize_with_config</code></a>:</p>
-<div><table><thead><tr><th>Field</th><th>Default</th><th>Description</th></tr></thead><tbody>
-<tr><td><a href="struct.ElectionConfig.html#structfield.lease_duration" title="field foundationdb::recipes::leader_election::ElectionConfig::lease_duration"><code>lease_duration</code></a></td><td>10s</td><td>How long leadership is valid without refresh</td></tr>
-<tr><td><a href="struct.ElectionConfig.html#structfield.heartbeat_interval" title="field foundationdb::recipes::leader_election::ElectionConfig::heartbeat_interval"><code>heartbeat_interval</code></a></td><td>3s</td><td>Recommended interval for calling <code>run_election_cycle</code></td></tr>
-<tr><td><a href="struct.ElectionConfig.html#structfield.candidate_timeout" title="field foundationdb::recipes::leader_election::ElectionConfig::candidate_timeout"><code>candidate_timeout</code></a></td><td>15s</td><td>When to consider candidates dead</td></tr>
-<tr><td><a href="struct.ElectionConfig.html#structfield.election_enabled" title="field foundationdb::recipes::leader_election::ElectionConfig::election_enabled"><code>election_enabled</code></a></td><td>true</td><td>Enable/disable elections globally</td></tr>
-<tr><td><a href="struct.ElectionConfig.html#structfield.allow_preemption" title="field foundationdb::recipes::leader_election::ElectionConfig::allow_preemption"><code>allow_preemption</code></a></td><td>true</td><td>Allow priority-based preemption</td></tr>
-</tbody></table>
-</div>
-<p><strong>Rule of thumb:</strong> <code>heartbeat_interval</code> should be less than <code>lease_duration / 3</code>
-to allow retries before lease expires.</p>
-<h3 id="return-types"><a class="doc-anchor" href="#return-types">§</a>Return Types</h3>
-<ul>
-<li><a href="enum.ElectionResult.html" title="enum foundationdb::recipes::leader_election::ElectionResult"><code>ElectionResult</code></a> - Returned by <a href="struct.LeaderElection.html#method.run_election_cycle" title="method foundationdb::recipes::leader_election::LeaderElection::run_election_cycle"><code>run_election_cycle</code></a>, indicates
-whether this process is the leader or a follower</li>
-<li><a href="struct.LeaderState.html" title="struct foundationdb::recipes::leader_election::LeaderState"><code>LeaderState</code></a> - Information about a leader: process ID, ballot, lease expiry</li>
-<li><a href="struct.CandidateInfo.html" title="struct foundationdb::recipes::leader_election::CandidateInfo"><code>CandidateInfo</code></a> - Information about a registered candidate</li>
-</ul>
-<h3 id="safety-properties"><a class="doc-anchor" href="#safety-properties">§</a>Safety Properties</h3>
-<ul>
-<li><strong>Mutual Exclusion</strong>: At most one leader at any time (guaranteed by FDB serializable transactions)</li>
-<li><strong>Liveness</strong>: A correct process eventually becomes leader</li>
-<li><strong>Consistency</strong>: Ballot numbers provide total ordering of leadership changes</li>
-</ul>
-<h3 id="simulation-testing"><a class="doc-anchor" href="#simulation-testing">§</a>Simulation Testing</h3>
-<p>This implementation is validated through FoundationDB’s deterministic simulation
-framework under extreme conditions including network partitions, process failures,
-and clock skew up to ±2 seconds.</p>
-<p>Key invariants verified:</p>
-<ul>
-<li>No overlapping leadership (mutual exclusion)</li>
-<li>Ballot monotonicity (ballots never regress)</li>
-<li>Fencing token validity (each claim increments ballot)</li>
-</ul>
-<p>See <code>foundationdb-recipes-simulation</code> crate for test configurations.</p>
-</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.CandidateInfo.html" title="struct foundationdb::recipes::leader_election::CandidateInfo">Candidate<wbr>Info</a></div><div class="desc docblock-short">Information about a registered candidate</div></li><li><div class="item-name"><a class="struct" href="struct.ElectionConfig.html" title="struct foundationdb::recipes::leader_election::ElectionConfig">Election<wbr>Config</a></div><div class="desc docblock-short">Global configuration for the leader election system</div></li><li><div class="item-name"><a class="struct" href="struct.LeaderElection.html" title="struct foundationdb::recipes::leader_election::LeaderElection">Leader<wbr>Election</a></div><div class="desc docblock-short">Coordinator for distributed leader election.</div></li><li><div class="item-name"><a class="struct" href="struct.LeaderState.html" title="struct foundationdb::recipes::leader_election::LeaderState">Leader<wbr>State</a></div><div class="desc docblock-short">The core leader state - stored at a single key</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.ElectionResult.html" title="enum foundationdb::recipes::leader_election::ElectionResult">Election<wbr>Result</a></div><div class="desc docblock-short">Result of an election cycle</div></li><li><div class="item-name"><a class="enum" href="enum.LeaderElectionError.html" title="enum foundationdb::recipes::leader_election::LeaderElectionError">Leader<wbr>Election<wbr>Error</a></div><div class="desc docblock-short">Leader election specific errors</div></li></ul><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="type" href="type.Result.html" title="type foundationdb::recipes::leader_election::Result">Result</a></div><div class="desc docblock-short">Result type for leader election operations</div></li></ul></section></div></main></body></html>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.ElectionState.html" title="struct foundationdb::recipes::leader_election::ElectionState">Election<wbr>State</a></div><div class="desc docblock-short">A read-only snapshot of durable state for diagnostics and observability.</div></li><li><div class="item-name"><a class="struct" href="struct.LeaderElection.html" title="struct foundationdb::recipes::leader_election::LeaderElection">Leader<wbr>Election</a></div><div class="desc docblock-short">A handle for one independently scoped leader lease.</div></li><li><div class="item-name"><a class="struct" href="struct.Leadership.html" title="struct foundationdb::recipes::leader_election::Leadership">Leadership</a></div><div class="desc docblock-short">The exact durable owner record a caller may attempt to renew before local expiry.</div></li><li><div class="item-name"><a class="struct" href="struct.Observation.html" title="struct foundationdb::recipes::leader_election::Observation">Observation</a></div><div class="desc docblock-short">An exact durable owner record adopted after a successful outer transaction.</div></li><li><div class="item-name"><a class="struct" href="struct.ParticipantId.html" title="struct foundationdb::recipes::leader_election::ParticipantId">Participant<wbr>Id</a></div><div class="desc docblock-short">Identifies one caller process incarnation participating in an election.</div></li><li><div class="item-name"><a class="struct" href="struct.PollResult.html" title="struct foundationdb::recipes::leader_election::PollResult">Poll<wbr>Result</a></div><div class="desc docblock-short">The result prepared by <a href="struct.LeaderElection.html#method.poll" title="method foundationdb::recipes::leader_election::LeaderElection::poll"><code>super::LeaderElection::poll</code></a>.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.LeaderElectionError.html" title="enum foundationdb::recipes::leader_election::LeaderElectionError">Leader<wbr>Election<wbr>Error</a></div><div class="desc docblock-short">Leader-election-specific errors.</div></li><li><div class="item-name"><a class="enum" href="enum.LocalState.html" title="enum foundationdb::recipes::leader_election::LocalState">Local<wbr>State</a></div><div class="desc docblock-short">Caller-owned state carried between successful outer transactions.</div></li><li><div class="item-name"><a class="enum" href="enum.PollOutcome.html" title="enum foundationdb::recipes::leader_election::PollOutcome">Poll<wbr>Outcome</a></div><div class="desc docblock-short">The role and fencing rank prepared by one poll transaction attempt.</div></li><li><div class="item-name"><a class="enum" href="enum.PollTransition.html" title="enum foundationdb::recipes::leader_election::PollTransition">Poll<wbr>Transition</a></div><div class="desc docblock-short">The state-machine transition classified by one poll attempt.</div></li><li><div class="item-name"><a class="enum" href="enum.ResignOutcome.html" title="enum foundationdb::recipes::leader_election::ResignOutcome">Resign<wbr>Outcome</a></div><div class="desc docblock-short">Result of a conditional resignation attempt.</div></li></ul><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="type" href="type.Result.html" title="type foundationdb::recipes::leader_election::Result">Result</a></div><div class="desc docblock-short">Result type for <a href="struct.LeaderElection.html" title="struct foundationdb::recipes::leader_election::LeaderElection"><code>super::LeaderElection</code></a> operations.</div></li></ul></section></div></main></body></html>

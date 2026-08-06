@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["RankedRegisterError","WriteResult"],"struct":["Rank","RankedRegister","ReadResult","RegisterState"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"constant":["MAX_VALUE_CHUNK_BYTES"],"enum":["RankedRegisterError","WriteResult"],"struct":["Rank","RankedRegister","ReadResult","RegisterState"],"type":["Result"]};

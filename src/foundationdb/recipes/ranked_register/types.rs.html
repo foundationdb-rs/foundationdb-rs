@@ -143,7 +143,20 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -180,21 +193,25 @@
     ///
     /// The sequence occupies the high 32 bits and the process ID the low 32 bits,
     /// so ranks are ordered primarily by sequence, then by process ID.
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>))]
     </span><span class="kw">pub fn </span>new(process_id: u32, sequence: u32) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(((sequence <span class="kw">as </span>u64) &lt;&lt; <span class="number">32</span>) | process_id <span class="kw">as </span>u64)
     }
 
     <span class="doccomment">/// Returns the process ID component of this rank
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>process_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
         <span class="self">self</span>.<span class="number">0 </span><span class="kw">as </span>u32
     }
 
     <span class="doccomment">/// Returns the sequence number component of this rank
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>sequence(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
         (<span class="self">self</span>.<span class="number">0 </span>&gt;&gt; <span class="number">32</span>) <span class="kw">as </span>u32
     }
 
     <span class="doccomment">/// Returns the raw `u64` representation
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>as_u64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="self">self</span>.<span class="number">0
     </span>}
@@ -217,9 +234,10 @@
     }
 }
 
-<span class="doccomment">/// Internal state of the ranked register as stored in FoundationDB
+<span class="doccomment">/// Logical state of the ranked register
 ///
-/// Tracks the maximum read and write ranks alongside the current value.
+/// Tracks the maximum read and write ranks alongside the current value. The
+/// implementation stores metadata and value chunks separately.
 /// Private fields enforce invariants through the algorithm module.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Default)]
 </span><span class="kw">pub struct </span>RegisterState {
@@ -230,16 +248,19 @@
 
 <span class="kw">impl </span>RegisterState {
     <span class="doccomment">/// Returns the highest rank that has performed a read
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>max_read_rank(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Rank {
         <span class="self">self</span>.max_read_rank
     }
 
     <span class="doccomment">/// Returns the highest rank that has successfully written
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>max_write_rank(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Rank {
         <span class="self">self</span>.max_write_rank
     }
 
     <span class="doccomment">/// Returns the current value, if any
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
         <span class="self">self</span>.value.as_deref()
     }
@@ -258,23 +279,27 @@
 
 <span class="kw">impl </span>ReadResult {
     <span class="doccomment">/// Returns the rank of the last successful write
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>write_rank(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Rank {
         <span class="self">self</span>.write_rank
     }
 
     <span class="doccomment">/// Returns a reference to the current value, if any
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
         <span class="self">self</span>.value.as_deref()
     }
 
     <span class="doccomment">/// Consumes self and returns the value
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>into_value(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; {
         <span class="self">self</span>.value
     }
 }
 
 <span class="doccomment">/// Result of a ranked write operation
-</span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+</span><span class="attr">#[must_use = <span class="string">"a committed write result controls whether co-staged application writes are valid"</span>]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>WriteResult {
     <span class="doccomment">/// The write was accepted (rank was high enough)
     </span>Committed,
@@ -284,6 +309,7 @@
 
 <span class="kw">impl </span>WriteResult {
     <span class="doccomment">/// Returns `true` if the write was committed
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
     </span><span class="kw">pub fn </span>is_committed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, WriteResult::Committed)
     }
