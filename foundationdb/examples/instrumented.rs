@@ -102,6 +102,7 @@ MetricsReport {
             commit_duration: Some(
                 10.609832ms,
             ),
+            grv_duration: None,
             on_error_duration: None,
             outcome: Committed,
             conflicting_keys: NotRequested,

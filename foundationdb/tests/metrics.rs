@@ -37,6 +37,7 @@ async fn instrumented_run_success() -> FdbResult<()> {
     );
     assert!(matches!(attempt.outcome, AttemptOutcome::Committed));
     assert!(attempt.commit_duration.is_some());
+    assert!(attempt.grv_duration.is_none());
     assert!(attempt.on_error_duration.is_none());
 
     let total = metrics.total_usage();
@@ -328,6 +329,8 @@ async fn test_transaction_info() -> FdbResult<()> {
                         metrics.get_transaction_info().read_version,
                         Some(read_version)
                     );
+                    let again = txn.get_read_version().await?;
+                    assert_eq!(again, read_version);
                     Ok::<_, FdbBindingError>(read_version)
                 }
             })
@@ -337,6 +340,7 @@ async fn test_transaction_info() -> FdbResult<()> {
         let report = metrics.get_metrics_data();
         assert_eq!(report.attempts.len(), 1);
         assert_eq!(report.attempts[0].read_version, Some(read_version));
+        assert!(report.attempts[0].grv_duration.is_some());
     }
 
     // commit_version
@@ -352,6 +356,7 @@ async fn test_transaction_info() -> FdbResult<()> {
         assert!(metrics.transaction.commit_version.is_some());
         // Not asked for, not fetched.
         assert!(metrics.transaction.read_version.is_none());
+        assert!(metrics.attempts[0].grv_duration.is_none());
     }
 
     // retries
@@ -513,6 +518,10 @@ async fn test_time_metrics() -> FdbResult<()> {
         let attempt = &metrics.attempts[0];
         assert!(attempt.duration.is_some(), "attempt duration");
         assert!(attempt.commit_duration.is_some(), "commit duration");
+        assert!(
+            attempt.grv_duration.is_none(),
+            "get_read_version was not called"
+        );
         assert!(attempt.on_error_duration.is_none(), "on_error did not run");
         assert!(metrics.total_duration >= attempt.duration);
     }

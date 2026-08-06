@@ -116,6 +116,9 @@ pub struct AttemptMetrics {
     pub duration: Option<Duration>,
     /// Time spent in `commit`, `None` if the attempt never reached it.
     pub commit_duration: Option<Duration>,
+    /// Time spent waiting on `get_read_version`, `None` if it was never called.
+    /// The first completion of the attempt is kept.
+    pub grv_duration: Option<Duration>,
     /// Time spent in `on_error`, backoff included. `None` if `on_error` did not
     /// run, which is the case for the last attempt of a run.
     pub on_error_duration: Option<Duration>,
@@ -198,6 +201,7 @@ struct OpenAttempt {
     usage: Option<Arc<AttemptUsage>>,
     duration: Option<Duration>,
     commit_duration: Option<Duration>,
+    grv_duration: Option<Duration>,
     conflicting_keys: ConflictKeys,
     read_version: Option<i64>,
 }
@@ -251,7 +255,7 @@ impl TransactionMetrics {
             // the attempt being dropped did anything worth reporting. Some
             // activity is recorded straight on `OpenAttempt` instead of
             // `AttemptUsage` (read version, conflicting keys, commit
-            // duration), so it has to be checked too.
+            // duration, grv duration), so it has to be checked too.
             let snapshot = dropped.snapshot();
             let idle = snapshot
                 == UsageSnapshot {
@@ -262,6 +266,7 @@ impl TransactionMetrics {
                 && open.read_version.is_none()
                 && open.duration.is_none()
                 && open.commit_duration.is_none()
+                && open.grv_duration.is_none()
                 && matches!(open.conflicting_keys, ConflictKeys::NotRequested);
 
             if !idle {
@@ -297,6 +302,15 @@ impl TransactionMetrics {
         }
     }
 
+    /// Records the time spent waiting on `get_read_version`, whatever its
+    /// result. Later calls of the same attempt are ignored.
+    pub(crate) fn record_grv(&self, duration: Duration) {
+        let mut open = self.open();
+        if open.grv_duration.is_none() {
+            open.grv_duration = Some(duration);
+        }
+    }
+
     /// Ends the current attempt and pushes it to the report.
     ///
     /// Does nothing when no attempt is being recorded, which makes it safe to
@@ -321,6 +335,7 @@ impl TransactionMetrics {
             custom_metrics: usage.custom_metrics(),
             duration: open.duration.or_else(|| Some(usage.elapsed())),
             commit_duration: open.commit_duration,
+            grv_duration: open.grv_duration,
             on_error_duration: None,
             outcome,
             conflicting_keys: open.conflicting_keys,
@@ -517,6 +532,8 @@ mod tests {
         first.record_set(10);
         first.increment_custom(key.clone(), 1);
         metrics.record_commit(Duration::from_millis(3));
+        metrics.record_grv(Duration::from_millis(5));
+        metrics.record_grv(Duration::from_millis(1)); // first sample wins
         metrics.finish_attempt(AttemptOutcome::Retried {
             cause: FdbError::from_code(1020),
         });
@@ -540,6 +557,7 @@ mod tests {
         assert_eq!(first.usage.bytes_written, 10);
         assert_eq!(first.custom_metrics.get(&key), Some(&1));
         assert_eq!(first.commit_duration, Some(Duration::from_millis(3)));
+        assert_eq!(first.grv_duration, Some(Duration::from_millis(5)));
         assert_eq!(first.on_error_duration, Some(Duration::from_millis(7)));
         assert!(matches!(
             first.outcome,
@@ -551,6 +569,7 @@ mod tests {
         assert_eq!(second.usage.bytes_written, 4);
         assert_eq!(second.custom_metrics.get(&key), Some(&2));
         assert!(second.commit_duration.is_none());
+        assert!(second.grv_duration.is_none());
         assert!(matches!(second.outcome, AttemptOutcome::Committed));
 
         assert_eq!(report.total_usage().bytes_written, 14);
