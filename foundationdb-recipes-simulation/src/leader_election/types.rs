@@ -1,122 +1,86 @@
-//! Types, constants, and enums for leader election simulation workload.
+// Copyright 2024 foundationdb-rs developers
+//
+// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
+// http://opensource.org/licenses/MIT>, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.
 
-use foundationdb::recipes::leader_election::{CandidateInfo, ElectionConfig, LeaderState};
+//! Commit-log types for the leader-lease simulation.
+
+use std::time::Duration;
+
 use foundationdb::tuple::Versionstamp;
 
-// Use i64 instead of u8 for tuple packing (u8 is not supported)
-pub(crate) const OP_REGISTER: i64 = 0;
-pub(crate) const OP_HEARTBEAT: i64 = 1;
-pub(crate) const OP_TRY_BECOME_LEADER: i64 = 2;
-pub(crate) const OP_RESIGN: i64 = 3;
+pub(crate) const OP_POLL: i64 = 0;
+pub(crate) const OP_RESIGN: i64 = 1;
+pub(crate) const OP_OBSERVE: i64 = 2;
+pub(crate) const OP_STALE_WRITE: i64 = 3;
 
-/// A single log entry - entries are read in FDB commit order (versionstamp ordering)
-#[derive(Debug, Clone)]
+pub(crate) const LOCAL_UNKNOWN: i64 = 0;
+pub(crate) const LOCAL_OBSERVATION: i64 = 1;
+pub(crate) const LOCAL_LEADERSHIP: i64 = 2;
+
+pub(crate) const TRANSITION_ACQUIRED: i64 = 0;
+pub(crate) const TRANSITION_RENEWED: i64 = 1;
+pub(crate) const TRANSITION_TOOK_OVER: i64 = 2;
+pub(crate) const TRANSITION_REACQUIRED: i64 = 3;
+pub(crate) const TRANSITION_FOLLOWED: i64 = 4;
+pub(crate) const TRANSITION_NONE: i64 = 5;
+
+/// One durable election state exposed by the recipe's public API.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct DurableState {
+    pub(crate) rank: u64,
+    pub(crate) owner: Option<String>,
+    pub(crate) lease_duration: Option<Duration>,
+}
+
+/// Caller-owned state supplied to an operation, represented without recipe
+/// private fields so commit-order replay can independently validate it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LocalInput {
+    Unknown,
+    Observation {
+        owner: String,
+        rank: u64,
+        lease_duration: Duration,
+        observed_at: Duration,
+    },
+    Leadership {
+        participant: String,
+        rank: u64,
+        lease_duration: Duration,
+        renewed_at: Duration,
+    },
+}
+
+/// One versionstamp-ordered simulation operation.
+#[derive(Debug)]
 pub(crate) struct LogEntry {
-    pub versionstamp: Versionstamp,
-    pub client_id: i32,
-    pub op_num: u64,
-    pub op_type: i64,
-    pub success: bool,
-    pub became_leader: bool,
-
-    // Ballot tracking for invariant checks
-    /// Ballot number after the operation completed
-    pub ballot: u64,
-    /// Ballot number before the operation (for detecting transitions)
-    pub previous_ballot: u64,
-
-    // Lease tracking for overlap detection
-    /// Lease expiry timestamp in nanoseconds (for leadership claims)
-    pub lease_expiry_nanos: i64,
-    /// Timestamp when leadership claim was made (for lease validity checks)
-    pub claim_timestamp_nanos: i64,
+    pub(crate) versionstamp: Versionstamp,
+    pub(crate) client_id: i32,
+    pub(crate) incarnation: u64,
+    pub(crate) op_num: u64,
+    pub(crate) kind: i64,
+    pub(crate) actor: String,
+    pub(crate) prior: DurableState,
+    pub(crate) current: DurableState,
+    pub(crate) local_input: LocalInput,
+    pub(crate) tracks_local_state: bool,
+    pub(crate) attempt_started_at: Duration,
+    pub(crate) configured_lease_duration: Duration,
+    pub(crate) planned_adoption_delay: Option<Duration>,
+    pub(crate) transition: i64,
+    pub(crate) result: bool,
+    pub(crate) requested_write_rank: u64,
+    pub(crate) observed_write_rank: u64,
+    pub(crate) observed_value: Option<Vec<u8>>,
+    pub(crate) protected_write_committed: bool,
+    pub(crate) payload: Vec<u8>,
 }
 
-/// Log entries in FDB commit order (versionstamp-ordered keys give us true ordering)
-pub(crate) type LogEntries = Vec<LogEntry>;
-
-/// Operation types for logging
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum OpType {
-    Register,
-    Heartbeat,
-    TryBecomeLeader,
-    Resign,
-}
-
-impl OpType {
-    pub(crate) fn from_i64(val: i64) -> Option<Self> {
-        match val {
-            OP_REGISTER => Some(OpType::Register),
-            OP_HEARTBEAT => Some(OpType::Heartbeat),
-            OP_TRY_BECOME_LEADER => Some(OpType::TryBecomeLeader),
-            OP_RESIGN => Some(OpType::Resign),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            OpType::Register => "Register",
-            OpType::Heartbeat => "Heartbeat",
-            OpType::TryBecomeLeader => "TryBecomeLeader",
-            OpType::Resign => "Resign",
-        }
-    }
-}
-
-/// Snapshot of database state for invariant checking
-pub(crate) struct DatabaseSnapshot {
-    pub(crate) leader_state: Option<LeaderState>,
-    pub(crate) candidates: Vec<CandidateInfo>,
-    pub(crate) config: Option<ElectionConfig>,
-}
-
-/// Result of running all invariant checks
-pub(crate) struct CheckResult {
-    pub(crate) passed: usize,
-    pub(crate) failed: usize,
-    pub(crate) results: Vec<(&'static str, bool, String)>,
-}
-
-/// Per-client statistics extracted from log entries
-#[derive(Default, Debug)]
-pub(crate) struct ClientStats {
-    pub(crate) register_count: usize,
-    pub(crate) heartbeat_count: usize,
-    pub(crate) leadership_attempt_count: usize,
-    pub(crate) leadership_success_count: usize,
-    pub(crate) resign_count: usize,
-    pub(crate) error_count: usize,
-    pub(crate) op_nums: Vec<u64>,
-}
-
-// ============================================================================
-// CLOCK SKEW SIMULATION (mimics FDB's sim2.actor.cpp)
-// ============================================================================
-
-/// Clock skew defaults (mimicking FDB's sim2)
-pub const DEFAULT_CLOCK_JITTER_RANGE: f64 = 0.2; // ±10% like DELAY_JITTER_RANGE
-pub const DEFAULT_CLOCK_JITTER_OFFSET: f64 = 0.9; // Like DELAY_JITTER_OFFSET
-
-/// Clock skew levels for simulation
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum ClockSkewLevel {
-    /// Light: ±100ms (like FDB's timer() vs now())
-    Light,
-    /// Moderate: ±500ms (cloud NTP worst case)
-    Moderate,
-    /// Extreme: ±1s (stress test, will cause election churn)
-    Extreme,
-}
-
-impl ClockSkewLevel {
-    /// Maximum clock offset in seconds for this skew level
-    pub fn max_offset_secs(&self) -> f64 {
-        match self {
-            ClockSkewLevel::Light => 0.1,
-            ClockSkewLevel::Moderate => 0.5,
-            ClockSkewLevel::Extreme => 1.0,
-        }
-    }
+pub(crate) struct Snapshot {
+    pub(crate) election: DurableState,
+    pub(crate) protected_rank: u64,
+    pub(crate) protected_value: Option<Vec<u8>>,
 }

@@ -5,752 +5,423 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Ballot-based Leader Election Algorithm
-//!
-//! This module implements an O(1) leader election protocol using a ballot-based
-//! approach similar to Raft's term concept.
-//!
-//! # Design Overview
-//!
-//! Instead of scanning all candidates to find the leader (O(N)), we store the
-//! leader state explicitly at a single key with a ballot number.
-//!
-//! ## Ballot Numbers
-//!
-//! Ballot numbers work like Raft's term:
-//! - Monotonically increasing counter
-//! - Higher ballot always wins
-//! - Prevents split-brain after recovery/partition
-//! - Incremented on every leadership claim or refresh
-//!
-//! ## Key Operations (all O(1))
-//!
-//! - `try_claim_leadership`: Read leader key, check if can claim, write new state
-//! - `refresh_lease`: Read leader key, verify identity, write with new ballot
-//! - `get_leader`: Single key read
-//! - `is_leader`: Single key read + comparison
-//!
-//! ## Safety
-//!
-//! FoundationDB's serializable transactions ensure safety:
-//! - Reading leader key creates a read conflict
-//! - Writing leader key creates a write conflict
-//! - Concurrent claims result in conflict, one wins, others retry
-//! - On retry, losing processes see updated state
-//!
-//! # Candidate Management
-//!
-//! Candidates are stored separately from leadership:
-//! - `register_candidate`: Uses SetVersionstampedValue for ordering (once)
-//! - `heartbeat_candidate`: Regular set, preserves versionstamp
-//! - Candidates exist independently of leadership
+//! Transactional implementation of the Dynamo-style lease state machine.
 
 use crate::{
-    RangeOption, Transaction,
-    options::MutationType,
-    tuple::{Subspace, Versionstamp, pack, pack_with_versionstamp, unpack},
+    Transaction,
+    recipes::ranked_register::Rank,
+    tuple::{Subspace, pack, unpack},
 };
-use futures::StreamExt;
 use std::ops::Deref;
 use std::time::Duration;
 
+use super::types::PendingNextState;
 use super::{
-    errors::{LeaderElectionError, Result},
-    keys::*,
-    types::*,
+    ElectionState, LeaderElectionError, Leadership, LocalState, Observation, ParticipantId,
+    PollOutcome, PollResult, PollTransition, ResignOutcome, Result, keys::state_key,
 };
 
-// ============================================================================
-// CONFIGURATION OPERATIONS
-// ============================================================================
+const STATE_SCHEMA_VERSION: u64 = 1;
 
-/// Initialize the leader election system with configuration
-///
-/// Sets up the initial configuration for the election. This operation is idempotent -
-/// if the system is already initialized, it does nothing.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `config` - Initial configuration parameters
-pub async fn initialize<T>(txn: &T, subspace: &Subspace, config: ElectionConfig) -> Result<()>
-where
-    T: Deref<Target = Transaction>,
-{
-    let key = config_key(subspace);
-
-    // Check if already initialized
-    if txn.get(&key, false).await?.is_none() {
-        write_config_internal(txn, &key, &config);
-    }
-
-    Ok(())
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct DurableState {
+    revision: u64,
+    owner: Option<ParticipantId>,
+    lease_duration: Option<Duration>,
 }
 
-/// Read election configuration from the database
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace containing election data
-///
-/// # Returns
-/// Current election configuration
-///
-/// # Errors
-/// Returns `NotInitialized` if the election system hasn't been initialized
-pub async fn read_config<T>(txn: &T, subspace: &Subspace) -> Result<ElectionConfig>
+async fn read_state<T>(txn: &T, key: &[u8]) -> Result<DurableState>
 where
     T: Deref<Target = Transaction>,
 {
-    let key = config_key(subspace);
-    let data = txn
-        .get(&key, false)
-        .await?
-        .ok_or(LeaderElectionError::NotInitialized)?;
+    let Some(value) = txn.get(key, false).await? else {
+        return Ok(DurableState::default());
+    };
 
-    // Unpack tuple: (lease_duration_nanos, heartbeat_interval_nanos, candidate_timeout_nanos, election_enabled, allow_preemption)
-    let tuple: (u64, u64, u64, bool, bool) = unpack(&data)?;
+    decode_state(&value)
+}
 
-    Ok(ElectionConfig {
-        lease_duration: Duration::from_nanos(tuple.0),
-        heartbeat_interval: Duration::from_nanos(tuple.1),
-        candidate_timeout: Duration::from_nanos(tuple.2),
-        election_enabled: tuple.3,
-        allow_preemption: tuple.4,
+fn decode_state(value: &[u8]) -> Result<DurableState> {
+    let (
+        schema_version,
+        revision,
+        has_owner,
+        owner,
+        has_lease_duration,
+        lease_duration_secs,
+        lease_duration_subsec_nanos,
+    ): (u64, u64, bool, String, bool, u64, u32) = unpack(value)?;
+    if schema_version != STATE_SCHEMA_VERSION {
+        return Err(LeaderElectionError::InvalidState(format!(
+            "unknown durable state schema version {schema_version}, expected {STATE_SCHEMA_VERSION}"
+        )));
+    }
+    let owner = if has_owner {
+        Some(ParticipantId::new(owner)?)
+    } else if owner.is_empty() {
+        None
+    } else {
+        return Err(LeaderElectionError::InvalidState(
+            "released state contains an owner ID".to_owned(),
+        ));
+    };
+    if !has_lease_duration && (lease_duration_secs != 0 || lease_duration_subsec_nanos != 0) {
+        return Err(LeaderElectionError::InvalidState(
+            "missing lease duration has non-zero fields".to_owned(),
+        ));
+    }
+    if has_lease_duration && lease_duration_subsec_nanos >= 1_000_000_000 {
+        return Err(LeaderElectionError::InvalidState(
+            "lease duration subsecond nanos is out of range".to_owned(),
+        ));
+    }
+    let lease_duration =
+        has_lease_duration.then(|| Duration::new(lease_duration_secs, lease_duration_subsec_nanos));
+    if revision == 0 && (owner.is_some() || lease_duration.is_some()) {
+        return Err(LeaderElectionError::InvalidState(
+            "zero revision state is not empty".to_owned(),
+        ));
+    }
+    if revision > 0 && lease_duration.is_none() {
+        return Err(LeaderElectionError::InvalidState(
+            "created state has no lease duration".to_owned(),
+        ));
+    }
+    if lease_duration == Some(Duration::ZERO) {
+        return Err(LeaderElectionError::InvalidState(
+            "persisted lease duration is zero".to_owned(),
+        ));
+    }
+    Ok(DurableState {
+        revision,
+        owner,
+        lease_duration,
     })
 }
 
-/// Write election configuration to the database
-///
-/// Updates the global election parameters. This affects all participating processes.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `config` - New configuration to apply
-pub async fn write_config<T>(txn: &T, subspace: &Subspace, config: &ElectionConfig) -> Result<()>
+fn write_state<T>(txn: &T, key: &[u8], state: &DurableState)
 where
     T: Deref<Target = Transaction>,
 {
-    let key = config_key(subspace);
-    write_config_internal(txn, &key, config);
-    Ok(())
+    txn.set(key, &encode_state(state));
 }
 
-fn write_config_internal<T>(txn: &T, key: &[u8], config: &ElectionConfig)
-where
-    T: Deref<Target = Transaction>,
-{
-    let data = (
-        config.lease_duration.as_nanos() as u64,
-        config.heartbeat_interval.as_nanos() as u64,
-        config.candidate_timeout.as_nanos() as u64,
-        config.election_enabled,
-        config.allow_preemption,
-    );
-    let packed = pack(&data);
-    txn.set(key, &packed);
+fn encode_state(state: &DurableState) -> Vec<u8> {
+    let owner = state.owner.as_ref().map_or("", ParticipantId::as_str);
+    let (lease_duration_secs, lease_duration_subsec_nanos) =
+        state.lease_duration.map_or((0, 0), |duration| {
+            (duration.as_secs(), duration.subsec_nanos())
+        });
+    pack(&(
+        STATE_SCHEMA_VERSION,
+        state.revision,
+        state.owner.is_some(),
+        owner,
+        state.lease_duration.is_some(),
+        lease_duration_secs,
+        lease_duration_subsec_nanos,
+    ))
 }
 
-// ============================================================================
-// LEADER STATE HELPERS
-// ============================================================================
+fn next_revision(state: &DurableState) -> Result<u64> {
+    state
+        .revision
+        .checked_add(1)
+        .ok_or(LeaderElectionError::RevisionExhausted)
+}
 
-/// Read leader state from the leader key
-async fn read_leader_state<T>(txn: &T, key: &[u8]) -> Result<Option<LeaderState>>
+fn same_observation(state: &DurableState, observation: &Observation) -> bool {
+    state.owner.as_ref() == Some(observation.owner())
+        && state.revision == observation.rank().as_u64()
+        && state.lease_duration == Some(observation.lease_duration())
+}
+
+fn valid_leadership(
+    state: &DurableState,
+    participant: &ParticipantId,
+    leadership: &Leadership,
+    now: Duration,
+) -> bool {
+    leadership.participant() == participant
+        && state.owner.as_ref() == Some(participant)
+        && state.revision == leadership.rank().as_u64()
+        && state.lease_duration == Some(leadership.lease_duration())
+        && now.saturating_sub(leadership.last_renewed_at()) < leadership.lease_duration()
+}
+
+fn leader_result<T>(
+    txn: &T,
+    key: &[u8],
+    state: &DurableState,
+    participant: &ParticipantId,
+    lease_duration: Duration,
+    attempt_started_at: Duration,
+    transition: PollTransition,
+) -> Result<PollResult>
 where
     T: Deref<Target = Transaction>,
 {
-    let data = match txn.get(key, false).await? {
-        Some(d) => d,
-        None => return Ok(None),
+    let revision = next_revision(state)?;
+    let next_state = DurableState {
+        revision,
+        owner: Some(participant.clone()),
+        lease_duration: Some(lease_duration),
+    };
+    write_state(txn, key, &next_state);
+    let rank = Rank::from(revision);
+
+    #[cfg(feature = "trace")]
+    let action = match transition {
+        PollTransition::Acquired => "acquisition",
+        PollTransition::Renewed => "renewal",
+        PollTransition::TookOver => "takeover",
+        PollTransition::Reacquired => "reacquisition",
+        PollTransition::Followed => "follower",
     };
 
-    // Unpack tuple: (ballot, leader_id, priority, lease_expiry_nanos, versionstamp_bytes)
-    let tuple: (u64, String, i32, u64, Vec<u8>) = unpack(&data)?;
+    #[cfg(feature = "trace")]
+    tracing::debug!(
+        poll_outcome = "leader",
+        poll_action = action,
+        participant = participant.as_str(),
+        revision,
+        takeover = transition == PollTransition::TookOver,
+        reacquisition = transition == PollTransition::Reacquired,
+        "leader-election poll staged in transaction"
+    );
 
-    let versionstamp: [u8; 12] = tuple.4.try_into().map_err(|_| {
-        LeaderElectionError::InvalidState("Invalid versionstamp length".to_string())
+    Ok(PollResult::new(
+        PollOutcome::Leader { rank, transition },
+        PendingNextState::leadership(Leadership::new(
+            participant.clone(),
+            rank,
+            lease_duration,
+            attempt_started_at,
+        )),
+    ))
+}
+
+fn follower_result(
+    state: &DurableState,
+    previous: Option<&Observation>,
+    _reason: &'static str,
+) -> Result<PollResult> {
+    let owner = state.owner.clone().ok_or_else(|| {
+        LeaderElectionError::InvalidState(
+            "follower result requested from released state".to_owned(),
+        )
     })?;
+    let lease_duration = state.lease_duration.ok_or_else(|| {
+        LeaderElectionError::InvalidState(
+            "follower result requested without lease duration".to_owned(),
+        )
+    })?;
+    let rank = Rank::from(state.revision);
+    let next_observation = match previous {
+        Some(previous) if same_observation(state, previous) => {
+            PendingNextState::preserve_observation(previous.clone())
+        }
+        Some(_) | None => PendingNextState::new_observation(owner.clone(), rank, lease_duration),
+    };
 
-    Ok(Some(LeaderState {
-        ballot: tuple.0,
-        leader_id: tuple.1,
-        priority: tuple.2,
-        lease_expiry_nanos: tuple.3,
-        versionstamp,
-    }))
-}
-
-/// Write leader state to the leader key
-fn write_leader_state<T>(txn: &T, key: &[u8], state: &LeaderState)
-where
-    T: Deref<Target = Transaction>,
-{
-    let data = (
-        state.ballot,
-        state.leader_id.clone(),
-        state.priority,
-        state.lease_expiry_nanos,
-        state.versionstamp.to_vec(),
+    #[cfg(feature = "trace")]
+    tracing::debug!(
+        poll_outcome = "follower",
+        poll_reason = _reason,
+        owner = owner.as_str(),
+        revision = rank.as_u64(),
+        "leader-election poll observed owner"
     );
-    let packed = pack(&data);
-    txn.set(key, &packed);
-}
 
-// ============================================================================
-// LEADER OPERATIONS - ALL O(1)
-// ============================================================================
-
-/// Try to claim leadership
-///
-/// This is the core leader election operation:
-/// 1. Look up candidate registration (O(1))
-/// 2. Read current leader state (O(1))
-/// 3. Decide if we can claim based on ballot/priority/lease
-/// 4. Write new state with incremented ballot (O(1))
-///
-/// FDB transaction conflict detection ensures safety.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - ID of the process attempting to claim leadership
-/// * `my_priority` - This process's priority (higher = more preferred)
-/// * `current_time` - Current time for lease calculation
-///
-/// # Returns
-/// * `Ok(Some(state))` - Successfully claimed leadership
-/// * `Ok(None)` - Cannot claim, another valid leader exists
-/// * `Err(UnregisteredCandidate)` - Process is not registered as a candidate
-/// * `Err(_)` - Other error occurred
-pub async fn try_claim_leadership<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-    my_priority: i32,
-    current_time: Duration,
-) -> Result<Option<LeaderState>>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    if !config.election_enabled {
-        return Err(LeaderElectionError::ElectionDisabled);
-    }
-
-    // Look up candidate to get versionstamp - only registered candidates can claim leadership
-    let candidate = get_candidate(txn, subspace, process_id)
-        .await?
-        .ok_or(LeaderElectionError::UnregisteredCandidate)?;
-    let my_versionstamp = candidate.versionstamp;
-
-    let key = leader_key(subspace);
-    let current_leader = read_leader_state(txn, &key).await?;
-
-    let can_claim = match &current_leader {
-        None => true, // No leader exists
-        Some(leader) => {
-            leader.leader_id == process_id // Already leader (refresh)
-                || !leader.is_lease_valid(current_time) // Lease expired
-                || (config.allow_preemption && my_priority > leader.priority) // Preemption
-        }
+    let outcome = PollOutcome::Follower {
+        owner,
+        rank,
+        lease_duration,
     };
 
-    if !can_claim {
-        return Ok(None);
+    Ok(PollResult::new(outcome, next_observation))
+}
+
+pub(crate) async fn poll<T>(
+    txn: &T,
+    subspace: &Subspace,
+    lease_duration: Duration,
+    participant: &ParticipantId,
+    local_state: &LocalState,
+    attempt_started_at: Duration,
+) -> Result<PollResult>
+where
+    T: Deref<Target = Transaction>,
+{
+    let key = state_key(subspace);
+    let state = read_state(txn, &key).await?;
+
+    match local_state {
+        LocalState::Leadership(leadership)
+            if valid_leadership(&state, participant, leadership, attempt_started_at) =>
+        {
+            leader_result(
+                txn,
+                &key,
+                &state,
+                participant,
+                lease_duration,
+                attempt_started_at,
+                PollTransition::Renewed,
+            )
+        }
+        LocalState::Observation(observation) if state.owner.is_some() => {
+            if same_observation(&state, observation)
+                && attempt_started_at.saturating_sub(observation.first_observed_at())
+                    >= observation.lease_duration()
+            {
+                let transition = if observation.owner() == participant {
+                    PollTransition::Reacquired
+                } else {
+                    PollTransition::TookOver
+                };
+                leader_result(
+                    txn,
+                    &key,
+                    &state,
+                    participant,
+                    lease_duration,
+                    attempt_started_at,
+                    transition,
+                )
+            } else {
+                follower_result(&state, Some(observation), "observation")
+            }
+        }
+        LocalState::Unknown if state.owner.is_some() => follower_result(&state, None, "unknown"),
+        LocalState::Leadership(_) if state.owner.is_some() => {
+            follower_result(&state, None, "leadership_not_renewable")
+        }
+        LocalState::Observation(_) | LocalState::Unknown | LocalState::Leadership(_) => {
+            leader_result(
+                txn,
+                &key,
+                &state,
+                participant,
+                lease_duration,
+                attempt_started_at,
+                PollTransition::Acquired,
+            )
+        }
+    }
+}
+
+pub(crate) async fn state<T>(txn: &T, subspace: &Subspace) -> Result<ElectionState>
+where
+    T: Deref<Target = Transaction>,
+{
+    let state = read_state(txn, &state_key(subspace)).await?;
+    Ok(ElectionState::new(
+        state.owner,
+        Rank::from(state.revision),
+        state.lease_duration,
+    ))
+}
+
+pub(crate) async fn resign<T>(
+    txn: &T,
+    subspace: &Subspace,
+    leadership: &Leadership,
+) -> Result<ResignOutcome>
+where
+    T: Deref<Target = Transaction>,
+{
+    let key = state_key(subspace);
+    let state = read_state(txn, &key).await?;
+    if state.owner.as_ref() != Some(leadership.participant())
+        || state.revision != leadership.rank().as_u64()
+        || state.lease_duration != Some(leadership.lease_duration())
+    {
+        #[cfg(feature = "trace")]
+        let rejection_reason = if state.owner.as_ref() != Some(leadership.participant()) {
+            "owner_changed"
+        } else if state.revision != leadership.rank().as_u64() {
+            "revision_changed"
+        } else {
+            "lease_duration_changed"
+        };
+        #[cfg(feature = "trace")]
+        tracing::debug!(
+            resign_outcome = "rejected",
+            resign_reason = rejection_reason,
+            participant = leadership.participant().as_str(),
+            leadership_revision = leadership.rank().as_u64(),
+            revision = state.revision,
+            "leader-election stale resignation rejected"
+        );
+        return Ok(ResignOutcome::Rejected);
     }
 
-    // Claim leadership with incremented ballot
-    let new_ballot = current_leader.as_ref().map(|l| l.ballot + 1).unwrap_or(1);
-    let lease_expiry = current_time + config.lease_duration;
-
-    let new_state = LeaderState {
-        ballot: new_ballot,
-        leader_id: process_id.to_string(),
-        priority: my_priority,
-        lease_expiry_nanos: lease_expiry.as_nanos() as u64,
-        versionstamp: my_versionstamp,
+    let released = DurableState {
+        revision: state.revision,
+        owner: None,
+        lease_duration: state.lease_duration,
     };
-
-    write_leader_state(txn, &key, &new_state);
-    Ok(Some(new_state))
-}
-
-/// Refresh leadership lease
-///
-/// Called periodically by the leader to extend lease.
-/// Fails if no longer the leader (preempted or lease expired).
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - ID of the process refreshing its lease
-/// * `current_time` - Current time for lease calculation
-///
-/// # Returns
-/// * `Ok(Some(state))` - Lease refreshed successfully
-/// * `Ok(None)` - No longer the leader
-pub async fn refresh_lease<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-    current_time: Duration,
-) -> Result<Option<LeaderState>>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    let key = leader_key(subspace);
-
-    let current = read_leader_state(txn, &key).await?;
-
-    match current {
-        Some(leader) if leader.leader_id == process_id => {
-            // Still leader - refresh with incremented ballot
-            let new_state = LeaderState {
-                ballot: leader.ballot + 1,
-                lease_expiry_nanos: (current_time + config.lease_duration).as_nanos() as u64,
-                leader_id: leader.leader_id,
-                priority: leader.priority,
-                versionstamp: leader.versionstamp,
-            };
-            write_leader_state(txn, &key, &new_state);
-            Ok(Some(new_state))
-        }
-        _ => Ok(None), // Not leader anymore
-    }
-}
-
-/// Voluntarily resign leadership
-///
-/// Immediately releases leadership. Other candidates can claim.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - ID of the process resigning
-///
-/// # Returns
-/// `true` if was leader and resigned, `false` otherwise
-pub async fn resign_leadership<T>(txn: &T, subspace: &Subspace, process_id: &str) -> Result<bool>
-where
-    T: Deref<Target = Transaction>,
-{
-    let key = leader_key(subspace);
-    let current = read_leader_state(txn, &key).await?;
-
-    match current {
-        Some(leader) if leader.leader_id == process_id => {
-            txn.clear(&key);
-            Ok(true)
-        }
-        _ => Ok(false),
-    }
-}
-
-/// Check if this process is the current leader
-///
-/// Fast read-only check (O(1)).
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - ID of the process to check
-/// * `current_time` - Current time for lease validation
-///
-/// # Returns
-/// `true` if the process is the current leader with valid lease
-pub async fn is_leader<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-    current_time: Duration,
-) -> Result<bool>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    if !config.election_enabled {
-        return Err(LeaderElectionError::ElectionDisabled);
-    }
-
-    match get_leader(txn, subspace, current_time).await? {
-        Some(leader) => Ok(leader.leader_id == process_id),
-        None => Ok(false),
-    }
-}
-
-/// Get current leader information
-///
-/// Returns None if no leader or lease expired.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `current_time` - Current time for lease validation
-///
-/// # Returns
-/// Current leader state if one exists with valid lease
-pub async fn get_leader<T>(
-    txn: &T,
-    subspace: &Subspace,
-    current_time: Duration,
-) -> Result<Option<LeaderState>>
-where
-    T: Deref<Target = Transaction>,
-{
-    let key = leader_key(subspace);
-    let leader = read_leader_state(txn, &key).await?;
-
-    match leader {
-        Some(l) if l.is_lease_valid(current_time) => Ok(Some(l)),
-        _ => Ok(None),
-    }
-}
-
-/// Get current leader information without lease validation
-///
-/// Returns the leader state regardless of whether the lease has expired.
-/// Useful for debugging and invariant checking.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-///
-/// # Returns
-/// Current leader state if one exists, regardless of lease validity
-pub async fn get_leader_raw<T>(txn: &T, subspace: &Subspace) -> Result<Option<LeaderState>>
-where
-    T: Deref<Target = Transaction>,
-{
-    let key = leader_key(subspace);
-    read_leader_state(txn, &key).await
-}
-
-// ============================================================================
-// CANDIDATE MANAGEMENT
-// ============================================================================
-
-/// Register as a candidate
-///
-/// This is separate from leadership. A process must be a candidate
-/// to claim leadership, but being a candidate doesn't make you leader.
-///
-/// Uses SetVersionstampedValue for registration ordering. The versionstamp
-/// is assigned by FDB at commit time and never changes on heartbeat.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - Unique identifier for this process
-/// * `priority` - This process's priority (higher = more preferred)
-/// * `current_time` - Current time for heartbeat timestamp
-pub async fn register_candidate<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-    priority: i32,
-    current_time: Duration,
-) -> Result<()>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    if !config.election_enabled {
-        return Err(LeaderElectionError::ElectionDisabled);
-    }
-
-    let key = candidate_key(subspace, process_id);
-
-    // Versionstamp is assigned by FDB at commit - ONLY done once at registration
-    // Tuple: (priority, timestamp_nanos, versionstamp)
-    let data = (
-        priority,
-        current_time.as_nanos() as u64,
-        Versionstamp::incomplete(0),
+    write_state(txn, &key, &released);
+    #[cfg(feature = "trace")]
+    tracing::debug!(
+        resign_outcome = "resigned",
+        revision = released.revision,
+        "leader-election resignation staged in transaction"
     );
-    let packed = pack_with_versionstamp(&data);
-    txn.atomic_op(&key, &packed, MutationType::SetVersionstampedValue);
-
-    Ok(())
+    Ok(ResignOutcome::Resigned)
 }
 
-/// Send heartbeat as candidate
-///
-/// Updates last-seen timestamp while preserving the versionstamp.
-/// This uses a regular set operation (not atomic), which:
-/// 1. Fixes error 2000 (can read after write in same transaction)
-/// 2. Preserves the original versionstamp for ordering
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - Unique identifier for this process
-/// * `priority` - This process's priority (can be updated)
-/// * `current_time` - Current time for heartbeat timestamp
-///
-/// # Errors
-/// Returns `ProcessNotFound` if not registered
-pub async fn heartbeat_candidate<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-    priority: i32,
-    current_time: Duration,
-) -> Result<()>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    if !config.election_enabled {
-        return Err(LeaderElectionError::ElectionDisabled);
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let key = candidate_key(subspace, process_id);
-
-    // READ existing entry to get versionstamp
-    let existing = txn
-        .get(&key, false)
-        .await?
-        .ok_or_else(|| LeaderElectionError::ProcessNotFound(process_id.to_string()))?;
-
-    // Unpack: (priority, timestamp_nanos, versionstamp)
-    let tuple: (i32, u64, Versionstamp) = unpack(&existing)?;
-    let versionstamp = tuple.2;
-
-    // WRITE with regular set, preserving versionstamp
-    let data = (priority, current_time.as_nanos() as u64, versionstamp);
-    let packed = pack(&data); // Regular pack, NOT pack_with_versionstamp
-    txn.set(&key, &packed); // Regular set, NOT atomic_op
-
-    Ok(())
-}
-
-/// Unregister as candidate
-///
-/// Removes candidate registration. If this process was leader,
-/// it should call resign_leadership first.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - Unique identifier for this process
-pub async fn unregister_candidate<T>(txn: &T, subspace: &Subspace, process_id: &str) -> Result<()>
-where
-    T: Deref<Target = Transaction>,
-{
-    let key = candidate_key(subspace, process_id);
-    txn.clear(&key);
-    Ok(())
-}
-
-/// Get candidate info for a specific process
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - Unique identifier for the process
-///
-/// # Returns
-/// Candidate info if registered, None otherwise
-pub async fn get_candidate<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-) -> Result<Option<CandidateInfo>>
-where
-    T: Deref<Target = Transaction>,
-{
-    let key = candidate_key(subspace, process_id);
-    let data = match txn.get(&key, false).await? {
-        Some(d) => d,
-        None => return Ok(None),
-    };
-
-    // Unpack: (priority, timestamp_nanos, versionstamp)
-    let tuple: (i32, u64, Versionstamp) = unpack(&data)?;
-
-    Ok(Some(CandidateInfo {
-        process_id: process_id.to_string(),
-        priority: tuple.0,
-        last_heartbeat_nanos: tuple.1,
-        versionstamp: *tuple.2.as_bytes(),
-    }))
-}
-
-/// List all registered candidates
-///
-/// O(N) operation - use sparingly, mainly for monitoring.
-/// Returns only alive candidates (within timeout).
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `current_time` - Current time for alive check
-///
-/// # Returns
-/// Vector of alive candidate info, sorted by versionstamp
-pub async fn list_candidates<T>(
-    txn: &T,
-    subspace: &Subspace,
-    current_time: Duration,
-) -> Result<Vec<CandidateInfo>>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    let (start, end) = candidates_range(subspace);
-    let candidates_subspace = subspace.subspace(&(CANDIDATES_PREFIX,));
-
-    let mut alive_candidates = Vec::new();
-
-    let range = RangeOption::from((start, end));
-    let mut kvs = txn.get_ranges_keyvalues(range, false);
-
-    while let Some(kv) = kvs.next().await {
-        let kv = kv?;
-
-        // Extract process_id from key
-        let key_tuple: (String,) = candidates_subspace.unpack(kv.key())?;
-        let process_id = key_tuple.0;
-
-        // Unpack value: (priority, timestamp_nanos, versionstamp)
-        let tuple: (i32, u64, Versionstamp) = unpack(kv.value())?;
-
-        let candidate = CandidateInfo {
-            process_id,
-            priority: tuple.0,
-            last_heartbeat_nanos: tuple.1,
-            versionstamp: *tuple.2.as_bytes(),
+    #[test]
+    fn durable_state_version_one_round_trips() {
+        let state = DurableState {
+            revision: 42,
+            owner: Some(ParticipantId::new("alice-incarnation").unwrap()),
+            lease_duration: Some(Duration::new(5, 123)),
         };
 
-        // Filter by alive status
-        if candidate.is_alive(current_time, config.candidate_timeout) {
-            alive_candidates.push(candidate);
-        }
+        assert_eq!(decode_state(&encode_state(&state)).unwrap(), state);
     }
 
-    // Sort by versionstamp for consistent ordering
-    alive_candidates.sort_by_key(|a| a.versionstamp);
-
-    Ok(alive_candidates)
-}
-
-/// Remove dead candidates
-///
-/// O(N) operation - should be called by leader periodically.
-/// Removes candidates that haven't sent heartbeat within timeout.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `current_time` - Current time for timeout check
-///
-/// # Returns
-/// Count of evicted candidates
-pub async fn evict_dead_candidates<T>(
-    txn: &T,
-    subspace: &Subspace,
-    current_time: Duration,
-) -> Result<usize>
-where
-    T: Deref<Target = Transaction>,
-{
-    let config = read_config(txn, subspace).await?;
-    let (start, end) = candidates_range(subspace);
-    let candidates_subspace = subspace.subspace(&(CANDIDATES_PREFIX,));
-
-    let mut evicted = 0;
-
-    let range = RangeOption::from((start, end));
-    let mut kvs = txn.get_ranges_keyvalues(range, false);
-
-    while let Some(kv) = kvs.next().await {
-        let kv = kv?;
-
-        // Unpack value: (priority, timestamp_nanos, versionstamp)
-        let tuple: (i32, u64, Versionstamp) = unpack(kv.value())?;
-
-        // Extract process_id for CandidateInfo
-        let key_tuple: (String,) = candidates_subspace.unpack(kv.key())?;
-
-        let candidate = CandidateInfo {
-            process_id: key_tuple.0,
-            priority: tuple.0,
-            last_heartbeat_nanos: tuple.1,
-            versionstamp: *tuple.2.as_bytes(),
+    #[test]
+    fn maximum_participant_id_keeps_durable_state_below_fdb_value_limit() {
+        let owner =
+            ParticipantId::new("\0".repeat((ParticipantId::MAX_ENCODED_BYTES - 2) / 2)).unwrap();
+        assert_eq!(
+            pack(&owner.as_str()).len(),
+            ParticipantId::MAX_ENCODED_BYTES
+        );
+        let state = DurableState {
+            revision: u64::MAX,
+            owner: Some(owner),
+            lease_duration: Some(Duration::new(u64::MAX, 999_999_999)),
         };
 
-        if !candidate.is_alive(current_time, config.candidate_timeout) {
-            txn.clear(kv.key());
-            evicted += 1;
-        }
+        assert!(encode_state(&state).len() <= 100_000);
     }
 
-    Ok(evicted)
-}
+    #[test]
+    fn unknown_durable_state_schema_version_is_rejected() {
+        let value = pack(&(2_u64, 1_u64, true, "alice", true, 5_u64, 0_u32));
 
-// ============================================================================
-// HIGH-LEVEL CONVENIENCE API
-// ============================================================================
+        assert!(matches!(
+            decode_state(&value),
+            Err(LeaderElectionError::InvalidState(message))
+                if message.contains("unknown durable state schema version 2")
+        ));
+    }
 
-/// Run a complete election cycle
-///
-/// Combines candidate heartbeat + leadership claim in one operation.
-/// This is what most users should call in their main loop.
-///
-/// # Arguments
-/// * `txn` - The FoundationDB transaction
-/// * `subspace` - The subspace for storing election data
-/// * `process_id` - Unique identifier for this process
-/// * `my_priority` - This process's priority
-/// * `current_time` - Current time
-///
-/// # Returns
-/// `ElectionResult::Leader` if this process is leader, `ElectionResult::Follower` otherwise
-///
-/// # Example
-/// ```ignore
-/// loop {
-///     let result = db.run(|txn| {
-///         run_election_cycle(&txn, &subspace, &my_id, my_priority, now())
-///     }).await?;
-///
-///     match result {
-///         ElectionResult::Leader(state) => {
-///             // Do leader work
-///         }
-///         ElectionResult::Follower(Some(leader)) => {
-///             // Follow the leader
-///         }
-///         ElectionResult::Follower(None) => {
-///             // No leader yet, retry
-///         }
-///     }
-///
-///     sleep(config.heartbeat_interval).await;
-/// }
-/// ```
-pub async fn run_election_cycle<T>(
-    txn: &T,
-    subspace: &Subspace,
-    process_id: &str,
-    my_priority: i32,
-    current_time: Duration,
-) -> Result<ElectionResult>
-where
-    T: Deref<Target = Transaction>,
-{
-    // 1. Send heartbeat as candidate
-    heartbeat_candidate(txn, subspace, process_id, my_priority, current_time).await?;
+    #[test]
+    fn untagged_six_field_durable_state_is_rejected() {
+        let value = pack(&(1_u64, true, "alice", true, 5_u64, 0_u32));
 
-    // 2. Try to claim/maintain leadership
-    match try_claim_leadership(txn, subspace, process_id, my_priority, current_time).await? {
-        Some(state) => Ok(ElectionResult::Leader(state)),
-        None => {
-            let current_leader = get_leader(txn, subspace, current_time).await?;
-            Ok(ElectionResult::Follower(current_leader))
-        }
+        assert!(matches!(
+            decode_state(&value),
+            Err(LeaderElectionError::PackError(_))
+        ));
     }
 }

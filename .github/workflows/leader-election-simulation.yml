@@ -2,19 +2,85 @@ name: Leader Election Simulation
 
 on:
   workflow_dispatch:
+  # Run the full campaign nightly at 02:00 UTC.
+  schedule:
+    - cron: "0 2 * * *"
   push:
     branches:
       - main
   pull_request:
+    types: [ labeled, unlabeled, opened, synchronize, reopened ]
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
-  simulation:
-    name: "Leader Election Simulation (Nix) - ${{ matrix.instance }}"
+  select-campaign:
+    name: Select leader-election simulation campaign
     runs-on: ubuntu-latest
+    outputs:
+      campaign: ${{ steps.campaign.outputs.campaign }}
+      matrix: ${{ steps.campaign.outputs.matrix }}
+    steps:
+      - name: Checkout history for push comparison
+        if: github.event_name == 'push'
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect relevant changes
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          # On pushes to main, compare with the main commit before this push.
+          # This input is ignored for pull requests, which use the REST API.
+          base: ${{ github.ref }}
+          filters: |
+            relevant:
+              - 'foundationdb/src/recipes/leader_election/**'
+              - 'foundationdb/src/recipes/ranked_register/**'
+              - 'foundationdb/tests/ranked_register.rs'
+              - 'foundationdb/tests/leader_election_ranked_register.rs'
+              - 'foundationdb-recipes-simulation/**'
+              - 'foundationdb-simulation/**'
+              - 'scripts/run_leader_election_simulation.sh'
+              - '.github/workflows/leader-election-simulation.yml'
+
+      - name: Select campaign tier
+        id: campaign
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HAS_CORRECTNESS_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'leader-election-correctness') }}
+          HAS_RELEVANT_CHANGES: ${{ steps.changes.outputs.relevant || 'false' }}
+        run: |
+          if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" || "$HAS_CORRECTNESS_LABEL" == "true" ]]; then
+            campaign=full
+            workers=4
+            seeds=200
+          elif [[ "$HAS_RELEVANT_CHANGES" == "true" ]]; then
+            campaign=extended
+            workers=4
+            seeds=50
+          else
+            campaign=smoke
+            workers=1
+            seeds=10
+          fi
+
+          instances=$(seq -s, 1 "$workers")
+          echo "campaign=$campaign" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"instance\":[$instances],\"iterations\":[$seeds]}" >> "$GITHUB_OUTPUT"
+
+  simulation:
+    needs: select-campaign
+    name: "Leader Election Simulation (${{ needs.select-campaign.outputs.campaign }}, Nix) - ${{ matrix.instance }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
-      matrix:
-        instance: [1, 2, 3, 4]
+      matrix: ${{ fromJSON(needs.select-campaign.outputs.matrix) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.0
@@ -22,8 +88,8 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
-      - name: Run leader election simulation (25 iterations)
-        run: nix develop -c ./scripts/run_leader_election_simulation.sh 25
+      - name: Run leader election simulation (${{ matrix.iterations }} iterations)
+        run: nix develop -c ./scripts/run_leader_election_simulation.sh ${{ matrix.iterations }}
 
       - name: Upload traces on failure
         if: failure()

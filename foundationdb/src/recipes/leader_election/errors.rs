@@ -5,62 +5,79 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Error types for leader election
-//!
-//! Defines the error hierarchy for leader election operations,
-//! including election-specific errors and conversions from underlying errors.
+//! Error types returned by leader-election operations.
 
-use crate::FdbError;
 use crate::tuple::PackError;
+use crate::{FdbBindingError, FdbError, RetryableError};
 use std::fmt;
 
-/// Leader election specific errors
+/// Leader-election-specific errors.
 ///
-/// Represents all possible error conditions that can occur during
-/// leader election operations.
+/// [`LeaderElectionError::Fdb`] retains the underlying FoundationDB error for
+/// the caller's transaction runner to classify. The other variants identify
+/// invalid local configuration, unsupported durable data, or a protocol limit.
 #[derive(Debug)]
 pub enum LeaderElectionError {
-    /// Election is currently disabled
+    /// The durable state could not be decoded or violated a protocol invariant.
     ///
-    /// Returned when attempting election operations while the election
-    /// system is administratively disabled
-    ElectionDisabled,
-    /// Process not found
-    ///
-    /// The specified process UUID doesn't exist in the election registry
-    ProcessNotFound(String),
-    /// Global configuration not initialized
-    ///
-    /// The election system hasn't been initialized with `initialize()`
-    NotInitialized,
-    /// Invalid state
-    ///
-    /// The election system is in an inconsistent or unexpected state
+    /// Do not treat this as an unowned state. It can indicate corrupt data, an
+    /// incompatible schema, or data written outside this recipe.
     InvalidState(String),
-    /// Database error
+    /// A [`ParticipantId`](super::ParticipantId) was empty.
     ///
-    /// An underlying FoundationDB error occurred
+    /// Empty text cannot distinguish a participating process incarnation.
+    InvalidParticipantId,
+    /// A [`ParticipantId`](super::ParticipantId) exceeds the encoded-size limit.
+    ///
+    /// The limit includes tuple encoding and NUL escaping, so it guarantees the
+    /// complete durable election state fits below FoundationDB's value limit.
+    ParticipantIdTooLarge {
+        /// Tuple-encoded participant ID size in bytes.
+        encoded_size: usize,
+        /// Maximum supported tuple-encoded participant ID size in bytes.
+        limit: usize,
+    },
+    /// A configured lease duration was zero.
+    ///
+    /// A zero duration would make every local validity interval immediately
+    /// expired, so [`super::LeaderElection::new`] rejects it.
+    InvalidLeaseDuration,
+    /// The durable revision reached `u64::MAX`.
+    ///
+    /// No further ownership transition can create a strictly newer fencing
+    /// rank in this election subspace.
+    RevisionExhausted,
+    /// An underlying FoundationDB read, write, or commit-related error occurred.
+    ///
+    /// Inspect the source error and let the enclosing transaction runner apply
+    /// its normal retry policy where appropriate.
     Fdb(FdbError),
-    /// Serialization error
+    /// A transaction-runner error occurred.
+    Binding(Box<FdbBindingError>),
+    /// Failed to encode or decode the recipe's durable tuple state.
     ///
-    /// Failed to pack/unpack data using the tuple layer
+    /// On reads this can accompany malformed or incompatible durable data; on
+    /// writes it prevents staging the requested state change.
     PackError(PackError),
-    /// Candidate not registered
-    ///
-    /// The process attempted to claim leadership without being registered as a candidate
-    UnregisteredCandidate,
 }
 
 impl fmt::Display for LeaderElectionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ElectionDisabled => write!(f, "Election is currently disabled"),
-            Self::ProcessNotFound(id) => write!(f, "Process not found: {id}"),
-            Self::NotInitialized => write!(f, "Global configuration not initialized"),
-            Self::InvalidState(msg) => write!(f, "Invalid state: {msg}"),
-            Self::Fdb(e) => write!(f, "Database error: {e}"),
-            Self::PackError(e) => write!(f, "Pack error: {e:?}"),
-            Self::UnregisteredCandidate => write!(f, "Candidate not registered"),
+            Self::InvalidState(message) => write!(f, "Invalid leader election state: {message}"),
+            Self::InvalidParticipantId => write!(f, "Participant ID must not be empty"),
+            Self::ParticipantIdTooLarge {
+                encoded_size,
+                limit,
+            } => write!(
+                f,
+                "Encoded participant ID is {encoded_size} bytes, above the {limit}-byte limit"
+            ),
+            Self::InvalidLeaseDuration => write!(f, "Lease duration must not be zero"),
+            Self::RevisionExhausted => write!(f, "Leader-election revision is exhausted"),
+            Self::Fdb(error) => write!(f, "Database error: {error}"),
+            Self::Binding(error) => write!(f, "Retry loop error: {error}"),
+            Self::PackError(error) => write!(f, "Pack error: {error:?}"),
         }
     }
 }
@@ -68,9 +85,14 @@ impl fmt::Display for LeaderElectionError {
 impl std::error::Error for LeaderElectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Fdb(e) => Some(e),
-            Self::PackError(e) => Some(e),
-            _ => None,
+            Self::Fdb(error) => Some(error),
+            Self::Binding(error) => Some(error.as_ref()),
+            Self::PackError(error) => Some(error),
+            Self::InvalidState(_)
+            | Self::InvalidParticipantId
+            | Self::ParticipantIdTooLarge { .. }
+            | Self::InvalidLeaseDuration
+            | Self::RevisionExhausted => None,
         }
     }
 }
@@ -81,13 +103,48 @@ impl From<FdbError> for LeaderElectionError {
     }
 }
 
+impl From<FdbBindingError> for LeaderElectionError {
+    fn from(error: FdbBindingError) -> Self {
+        Self::Binding(Box::new(error))
+    }
+}
+
 impl From<PackError> for LeaderElectionError {
     fn from(error: PackError) -> Self {
         Self::PackError(error)
     }
 }
 
-/// Result type for leader election operations
-///
-/// Convenience type alias for Results that may fail with LeaderElectionError
+/// The `source()` chain exposes wrapped FoundationDB errors, so the default
+/// retry decision is transparent to `Database::run`.
+impl RetryableError for LeaderElectionError {}
+
+/// Result type for [`super::LeaderElection`] operations.
 pub type Result<T> = std::result::Result<T, LeaderElectionError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{RetryDecision, RetryableError};
+
+    #[test]
+    fn fdb_errors_are_retry_transparent() {
+        let error = LeaderElectionError::Fdb(FdbError::from_code(1020));
+
+        assert!(matches!(error.retry_decision(), RetryDecision::Fdb(_)));
+    }
+
+    #[test]
+    fn runner_errors_are_preserved() {
+        let error = LeaderElectionError::from(FdbBindingError::ReferenceToTransactionKept);
+
+        assert!(matches!(error, LeaderElectionError::Binding(_)));
+    }
+
+    #[test]
+    fn runner_error_source_chain_is_retry_transparent() {
+        let error = LeaderElectionError::from(FdbBindingError::from(FdbError::from_code(1020)));
+
+        assert!(matches!(error.retry_decision(), RetryDecision::Fdb(_)));
+    }
+}
