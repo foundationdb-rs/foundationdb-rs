@@ -1321,8 +1321,10 @@ impl LeaderElectionWorkload {
     ) {
         self.replace_incarnation("final-exact-resign");
         let lease_duration = COMPLETION_RENEWAL_BASE_LEASE_DURATION;
-        let mut leadership = self.poll_once(db, register, lease_duration, None).await;
-        if leadership.is_none() {
+        let leadership = loop {
+            if let Some(leadership) = self.poll_once(db, register, lease_duration, None).await {
+                break leadership;
+            }
             if let Some(observation) = self.local_state.observation().cloned() {
                 delay_until(
                     &self.context,
@@ -1332,11 +1334,11 @@ impl LeaderElectionWorkload {
                         .saturating_add(SIMULATED_TIME_ROUND_TRIP_TOLERANCE),
                 )
                 .await;
-                leadership = self.poll_once(db, register, lease_duration, None).await;
+            } else {
+                // `poll_once` resets to a fresh unknown incarnation on a run error. Yield before
+                // retrying that incarnation so repeated run errors cannot form a busy loop.
+                self.completion_barrier_delay().await;
             }
-        }
-        let Some(leadership) = leadership else {
-            return;
         };
 
         let renewal_duration = leadership
