@@ -23,16 +23,17 @@
 //!
 //! | Operation | Who | Effect |
 //! |-----------|-----|--------|
-//! | [`read(rank)`](crate::recipes::ranked_register::RankedRegister::read) | Leader | Updates max_read_rank (installs fence), returns current value |
+//! | [`read(rank)`](crate::recipes::ranked_register::RankedRegister::read) | Leader | Raises max_read_rank only for a higher rank, returns current value |
 //! | [`write(rank, value)`](crate::recipes::ranked_register::RankedRegister::write) | Leader | Commits only if rank is high enough |
 //! | [`value()`](crate::recipes::ranked_register::RankedRegister::value) | Followers | Plain read, no fence installed |
 //!
-//! ## Addressing and capacity
+//! ## Addressing, schema, and capacity
 //!
 //! One [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) owns
-//! one [`Subspace`](crate::tuple::Subspace) and stores its complete state at
-//! that subspace's internal `"state"` key. For a keyed collection, derive a
-//! child subspace from each logical key before constructing the register:
+//! one [`Subspace`](crate::tuple::Subspace). Its internal `"state"` key stores
+//! a versioned metadata tuple, while raw value bytes are stored in sequential
+//! `"value"/<u64 index>` child keys. For a keyed collection, derive a child
+//! subspace from each logical key before constructing the register:
 //!
 //! ```rust
 //! use foundationdb::{recipes::ranked_register::RankedRegister, tuple::Subspace};
@@ -43,16 +44,32 @@
 //! # let _ = register;
 //! ```
 //!
-//! The read rank, write rank, presence flag, and payload are encoded together
-//! in one FoundationDB value. The encoded tuple is capped at
-//! [`MAX_ENCODED_REGISTER_STATE_BYTES`](crate::recipes::ranked_register::MAX_ENCODED_REGISTER_STATE_BYTES),
-//! below FoundationDB's 100,000-byte value limit. Usable payload capacity is
-//! smaller and data-dependent because tuple encoding escapes bytes. For large
-//! immutable data, store a small reference or manifest in the register instead.
+//! Each value chunk is raw bytes and may be exactly
+//! [`MAX_VALUE_CHUNK_BYTES`](crate::recipes::ranked_register::MAX_VALUE_CHUNK_BYTES)
+//! bytes. [`RankedRegister::new`](crate::recipes::ranked_register::RankedRegister::new)
+//! imposes no recipe aggregate limit, although
+//! FoundationDB transaction limits remain the backend boundary. Use
+//! [`RankedRegister::with_max_value_bytes`](crate::recipes::ranked_register::RankedRegister::with_max_value_bytes)
+//! to impose a local aggregate limit
+//! on one handle. That limit is never stored in FoundationDB, so all handles
+//! that write through the same subspace should use compatible limits.
+//!
+//! This schema is intentionally incompatible with ranked-register state from
+//! v0.11 and earlier. It does not decode the former unversioned tuple layout.
+//! Start with a fresh subspace, or clear an existing register subspace before
+//! using this version.
 //!
 //! Ranked reads and writes for one register contend on that single key and are
 //! serialized by FoundationDB conflicts. Use separate child subspaces to shard
 //! independently updated logical items.
+//!
+//! ## Rank domains
+//!
+//! A register rank space has one authority. Do not mix
+//! [`Rank::new`](crate::recipes::ranked_register::Rank::new) values with
+//! leader-election ranks or values issued by another rank allocator in the
+//! same register. A rank from a different domain can permanently fence valid
+//! future writes from the intended authority.
 //!
 //! Although the primitive stores one optional value, a successful ranked write
 //! can fence additional application-key writes staged in the same transaction.
@@ -151,12 +168,10 @@ pub use types::{Rank, ReadResult, RegisterState, WriteResult};
 use crate::{Transaction, tuple::Subspace};
 use std::ops::Deref;
 
-/// Maximum permitted size of the complete encoded register-state value.
+/// Maximum size of one raw register-value chunk.
 ///
-/// This leaves headroom below FoundationDB's 100,000-byte value limit. The
-/// limit applies after tuple encoding, so the maximum raw payload size varies
-/// with its contents.
-pub const MAX_ENCODED_REGISTER_STATE_BYTES: usize = 95_000;
+/// This is FoundationDB's exact 100,000-byte value limit.
+pub const MAX_VALUE_CHUNK_BYTES: usize = 100_000;
 
 /// A ranked register backed by FoundationDB
 ///
@@ -171,6 +186,7 @@ pub const MAX_ENCODED_REGISTER_STATE_BYTES: usize = 95_000;
 #[derive(Clone, Debug)]
 pub struct RankedRegister {
     subspace: Subspace,
+    max_value_bytes: Option<usize>,
 }
 
 impl RankedRegister {
@@ -184,7 +200,25 @@ impl RankedRegister {
         tracing::instrument(level = "debug", skip(subspace))
     )]
     pub fn new(subspace: Subspace) -> Self {
-        Self { subspace }
+        Self {
+            subspace,
+            max_value_bytes: None,
+        }
+    }
+
+    /// Create a ranked register with a local aggregate value-size limit.
+    ///
+    /// The limit applies only to writes through this handle. It is not durable
+    /// state, so use compatible limits for all writers of the same subspace.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(subspace))
+    )]
+    pub fn with_max_value_bytes(subspace: Subspace, limit: usize) -> Self {
+        Self {
+            subspace,
+            max_value_bytes: Some(limit),
+        }
     }
 
     /// Returns a reference to the underlying subspace
@@ -195,8 +229,9 @@ impl RankedRegister {
 
     /// Perform a ranked read
     ///
-    /// Updates `max_read_rank` if the given rank is higher, installing a fence
-    /// that prevents lower-ranked writes. Returns the current write rank and value.
+    /// Raises `max_read_rank` only when the given rank is higher, installing a
+    /// fence that prevents lower-ranked writes. A superseded rank returns the
+    /// current write rank and value without changing the installed fence.
     ///
     /// Used by the leader before writing to ensure consistency.
     #[cfg_attr(
@@ -217,9 +252,8 @@ impl RankedRegister {
     /// - `rank > max_write_rank` (no equal-or-higher write)
     ///
     /// Returns [`WriteResult::Committed`] or [`WriteResult::Aborted`].
-    /// Returns [`RankedRegisterError::EncodedStateTooLarge`] if the complete
-    /// encoded state would exceed [`MAX_ENCODED_REGISTER_STATE_BYTES`] after a
-    /// later ranked read installs the largest possible fence.
+    /// Returns [`RankedRegisterError::ValueTooLarge`] when this handle has a
+    /// configured limit and `value` exceeds it.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, txn, value))
@@ -228,7 +262,7 @@ impl RankedRegister {
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::write(txn, &self.subspace, rank, value).await
+        algorithm::write(txn, &self.subspace, rank, value, self.max_value_bytes).await
     }
 
     /// Read the current value without updating ranks

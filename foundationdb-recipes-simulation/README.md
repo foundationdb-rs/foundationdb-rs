@@ -24,6 +24,15 @@ fdbserver -r simulation \
   -b on --trace-format json -L target/traces --logsize 1GiB --seed <SEED>
 ```
 
+## CI campaigns
+
+CI runs 1 worker x 10 seeds for ordinary pull requests and pushes to `main`.
+Changes to the leader-election or RankedRegister recipes, simulation code, or
+the runner use 4 workers x 50 seeds. The nightly and manually dispatched
+campaigns, plus pull requests labelled `leader-election-correctness`, use 4
+workers x 200 seeds. Failed runs retain their trace directory as a workflow
+artifact.
+
 ## Leader-election workload
 
 One serializable durable key contains a monotonic revision, optional owner, and

@@ -44,10 +44,12 @@ const OPTIONAL_DELAYED_ADOPTION: u32 = 8;
 const RACE_PARTICIPANT_PREFIX: &str = "race\0";
 
 // `complete_witnesses` deterministically drives these paths after the swarm finishes.
-const FORCED_WITNESS_COUNT: usize = 7;
-// The remaining paths depend on earlier swarm state, simulated timing, or a successful local
-// acquire-and-renew chain in the completion tail.
-const PROBABILISTIC_WITNESS_COUNT: usize = 9;
+const FORCED_WITNESS_COUNT: usize = 9;
+// The remaining paths depend on earlier swarm state or simulated timing.
+const PROBABILISTIC_WITNESS_COUNT: usize = 7;
+// `WorkloadContext::now()` crosses the simulator's f64 boundary. Preserve the replay's exact
+// state eligibility checks while accepting its demonstrated one-nanosecond round-trip loss.
+const SIMULATED_TIME_ROUND_TRIP_TOLERANCE: Duration = Duration::from_nanos(1);
 
 #[derive(Clone, Copy)]
 enum SwarmProfile {
@@ -503,10 +505,10 @@ impl RustWorkload for LeaderElectionWorkload {
             Ok((read_version, entries, snapshot)) => match replay(&entries, &snapshot) {
                 Ok(coverage)
                     if (!coverage.forced_missing.is_empty() && self.completion_run_errors == 0)
-                        || (self.coordinated_race_completed
-                            && (!coverage.saw_coordinated_race
-                                || coverage.coordinated_race_contenders
-                                    != self.coordinated_race_contenders)) =>
+                        || !self.coordinated_race_completed
+                        || !coverage.saw_coordinated_race
+                        || coverage.coordinated_race_contenders
+                            != self.coordinated_race_contenders =>
                 {
                     self.context.trace(
                         Severity::Error,
@@ -752,9 +754,34 @@ impl LeaderElectionWorkload {
     async fn coordinated_takeover_race(&mut self, db: &SimDatabase, register: &RankedRegister) {
         let race_subspace = self.race_subspace.clone();
         self.replace_incarnation("race");
-        let _ = self
-            .poll_once(db, register, self.lease_duration, None)
-            .await;
+        let initial_poll_op = self.next_op_num();
+        let initial_race_poll = run_poll(
+            db,
+            LeaderElection::new(self.election_subspace.clone(), self.lease_duration)
+                .expect("configured lease duration is non-zero"),
+            register.clone(),
+            self.log_subspace.clone(),
+            self.participant.clone(),
+            self.local_state.clone(),
+            true,
+            &self.context,
+            self.client_id,
+            self.incarnation,
+            initial_poll_op,
+            None,
+        )
+        .await;
+        let initial_poll_failed = match initial_race_poll {
+            Ok(poll) => {
+                self.local_state = poll.next_state;
+                false
+            }
+            Err(error) => {
+                self.run_diagnostic("RaceInitialPollFailed", initial_poll_op, error);
+                self.replace_incarnation("race-initial-poll-error");
+                true
+            }
+        };
         self.write_phase_marker(db, &race_subspace, "observed", b"ready")
             .await;
         self.wait_for_phase_markers(db, &race_subspace, "observed")
@@ -775,7 +802,9 @@ impl LeaderElectionWorkload {
         self.wait_for_phase_markers(db, &race_subspace, "expired")
             .await;
 
-        let status: &[u8] = if let Some(observation) = observation {
+        let status: &[u8] = if initial_poll_failed {
+            b"error"
+        } else if let Some(observation) = observation {
             let stale_rank = observation.rank();
             let race_poll_op = self.next_op_num();
             let race_poll = run_poll(
@@ -1276,6 +1305,72 @@ impl LeaderElectionWorkload {
             let _ = self
                 .poll_once(&db, &register, witness_lease_duration, None)
                 .await;
+        }
+
+        self.force_exact_resign_and_follower_duration_reset(&db, &register)
+            .await;
+    }
+
+    async fn force_exact_resign_and_follower_duration_reset(
+        &mut self,
+        db: &SimDatabase,
+        register: &RankedRegister,
+    ) {
+        self.replace_incarnation("final-exact-resign");
+        let lease_duration = self.lease_duration_for_round(self.operation_count + 4);
+        let mut leadership = self.poll_once(db, register, lease_duration, None).await;
+        if leadership.is_none() {
+            if let Some(observation) = self.local_state.observation().cloned() {
+                delay_until(
+                    &self.context,
+                    observation
+                        .first_observed_at()
+                        .saturating_add(observation.lease_duration())
+                        .saturating_add(SIMULATED_TIME_ROUND_TRIP_TOLERANCE),
+                )
+                .await;
+                leadership = self.poll_once(db, register, lease_duration, None).await;
+            }
+        }
+        let Some(leadership) = leadership else {
+            return;
+        };
+
+        let renewal_duration = leadership
+            .lease_duration()
+            .saturating_add(Duration::from_secs(1));
+        let leader_incarnation = self.incarnation;
+        let Some(renewed) = self.poll_once(db, register, renewal_duration, None).await else {
+            return;
+        };
+
+        self.replace_incarnation("final-duration-reset-follower");
+        let _ = self.poll_once(db, register, renewal_duration, None).await;
+
+        let resign_op = self.next_op_num();
+        let resignation_election =
+            LeaderElection::new(self.election_subspace.clone(), renewal_duration)
+                .expect("completion lease duration is non-zero");
+        match run_resign(
+            db,
+            resignation_election,
+            self.log_subspace.clone(),
+            renewed,
+            simulated_now(&self.context),
+            self.client_id,
+            leader_incarnation,
+            true,
+            resign_op,
+        )
+        .await
+        {
+            Ok(true) => {}
+            Ok(false) => self.protocol_error(
+                "FinalExactResignContended",
+                resign_op,
+                "the deterministic exact-resignation witness was contended",
+            ),
+            Err(error) => self.run_diagnostic("FinalExactResignFailed", resign_op, error),
         }
     }
 }
@@ -1963,6 +2058,12 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
     if !witnesses.saw_delayed_observation_adoption {
         forced_missing.push("delayed_observation_adoption");
     }
+    if !witnesses.saw_exact_resign {
+        forced_missing.push("exact_resign");
+    }
+    if !witnesses.saw_follower_duration_reset {
+        forced_missing.push("follower_duration_reset");
+    }
     let mut probabilistic_missing = Vec::new();
     if !witnesses.saw_exact_expiry {
         probabilistic_missing.push("exact_expiry");
@@ -1979,14 +2080,8 @@ fn replay(entries: &[LogEntry], snapshot: &Snapshot) -> Result<CoverageReport, S
     if !witnesses.saw_stale_resign_after_takeover {
         probabilistic_missing.push("stale_resign_after_takeover");
     }
-    if !witnesses.saw_exact_resign {
-        probabilistic_missing.push("exact_resign");
-    }
     if !witnesses.saw_post_advance_stale_write {
         probabilistic_missing.push("post_advance_stale_write");
-    }
-    if !witnesses.saw_follower_duration_reset {
-        probabilistic_missing.push("follower_duration_reset");
     }
     if !witnesses.saw_zero_rank_stale_write {
         probabilistic_missing.push("zero_rank_stale_write");
@@ -2287,8 +2382,11 @@ fn validate_local_input(
                 && actual_rank == rank
                 && actual_duration == lease_duration
                 && *observed_at > *not_before
-                && *observed_at
-                    >= not_before.saturating_add(planned_adoption_delay.unwrap_or_default())
+                && adopted_after_planned_delay(
+                    *observed_at,
+                    *not_before,
+                    planned_adoption_delay.unwrap_or_default(),
+                )
                 && *observed_at <= entry.attempt_started_at =>
             {
                 Ok(planned_adoption_delay.is_some_and(|delay| delay > *lease_duration))
@@ -2303,6 +2401,17 @@ fn validate_local_input(
             entry.actor, entry.incarnation
         )),
     }
+}
+
+fn adopted_after_planned_delay(
+    observed_at: Duration,
+    not_before: Duration,
+    planned_adoption_delay: Duration,
+) -> bool {
+    observed_at
+        >= not_before
+            .saturating_add(planned_adoption_delay)
+            .saturating_sub(SIMULATED_TIME_ROUND_TRIP_TOLERANCE)
 }
 
 fn advance_local_state(
@@ -2677,12 +2786,31 @@ fn ranked_register_error(error: RankedRegisterError) -> FdbBindingError {
 
 #[cfg(test)]
 mod tests {
-    use super::RACE_PARTICIPANT_PREFIX;
+    use std::time::Duration;
+
+    use super::{RACE_PARTICIPANT_PREFIX, adopted_after_planned_delay};
 
     #[test]
     fn race_prefix_matches_replacement_incarnations() {
         assert!("race\0λ-0-0-1".starts_with(RACE_PARTICIPANT_PREFIX));
         assert!(!r"race\0λ-0-0-1".starts_with(RACE_PARTICIPANT_PREFIX));
+    }
+
+    #[test]
+    fn delayed_adoption_tolerates_only_one_nanosecond_round_trip_loss() {
+        let not_before = Duration::from_secs(10);
+        let delay = Duration::from_secs(2);
+
+        assert!(adopted_after_planned_delay(
+            not_before + delay - Duration::from_nanos(1),
+            not_before,
+            delay,
+        ));
+        assert!(!adopted_after_planned_delay(
+            not_before + delay - Duration::from_nanos(2),
+            not_before,
+            delay,
+        ));
     }
 }
 

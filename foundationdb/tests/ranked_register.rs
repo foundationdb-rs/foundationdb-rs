@@ -12,8 +12,11 @@ mod ranked_register_tests {
     use std::sync::atomic::{AtomicU8, Ordering};
 
     use foundationdb::{
-        Database, FdbBindingError, FdbError,
-        recipes::ranked_register::{Rank, RankedRegister, RankedRegisterError, WriteResult},
+        Database, FdbBindingError, FdbError, RetryDecision, RetryableError,
+        options::TransactionOption,
+        recipes::ranked_register::{
+            MAX_VALUE_CHUNK_BYTES, Rank, RankedRegister, RankedRegisterError, WriteResult,
+        },
         tuple::Subspace,
     };
 
@@ -197,7 +200,7 @@ mod ranked_register_tests {
         // Write with rank 5
         let rr_ref = &rr;
         db.run(|txn, _| async move {
-            rr_ref.write(&txn, Rank::from(5u64), b"X").await?;
+            let _ = rr_ref.write(&txn, Rank::from(5u64), b"X").await?;
             Ok::<_, RankedRegisterError>(())
         })
         .await?;
@@ -260,6 +263,189 @@ mod ranked_register_tests {
             })
             .await?;
         assert_eq!(result, WriteResult::Committed);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multi_chunk_round_trip() -> Result<(), RankedRegisterError> {
+        let db = crate::common::database().await?;
+        let rr = setup_test(&db, "test_multi_chunk_round_trip").await?;
+        let value = vec![0x5a; MAX_VALUE_CHUNK_BYTES + 1];
+        let value_ref = &value;
+
+        let rr_ref = &rr;
+        let result = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(1_u64), value_ref).await })
+            .await?;
+        assert_eq!(result, WriteResult::Committed);
+
+        let rr_ref = &rr;
+        let round_trip = db
+            .run(|txn, _| async move { rr_ref.value(&txn).await })
+            .await?;
+        assert_eq!(round_trip.as_deref(), Some(value.as_slice()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_payload_is_present() -> Result<(), RankedRegisterError> {
+        let db = crate::common::database().await?;
+        let rr = setup_test(&db, "test_empty_payload_is_present").await?;
+
+        let rr_ref = &rr;
+        let result = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(1_u64), b"").await })
+            .await?;
+        assert_eq!(result, WriteResult::Committed);
+
+        let rr_ref = &rr;
+        let value = db
+            .run(|txn, _| async move { rr_ref.value(&txn).await })
+            .await?;
+        assert_eq!(value.as_deref(), Some(b"".as_slice()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shrinking_value_clears_stale_chunks() -> Result<(), RankedRegisterError> {
+        let db = crate::common::database().await?;
+        let rr = setup_test(&db, "test_shrinking_value_clears_stale_chunks").await?;
+        let initial = vec![0x31; MAX_VALUE_CHUNK_BYTES * 2 + 1];
+        let initial_ref = &initial;
+
+        let rr_ref = &rr;
+        let result = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(1_u64), initial_ref).await })
+            .await?;
+        assert_eq!(result, WriteResult::Committed);
+
+        let rr_ref = &rr;
+        let result = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(2_u64), b"small").await })
+            .await?;
+        assert_eq!(result, WriteResult::Committed);
+
+        let rr_ref = &rr;
+        let value = db
+            .run(|txn, _| async move { rr_ref.value(&txn).await })
+            .await?;
+        assert_eq!(value.as_deref(), Some(b"small".as_slice()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_configured_max_value_rejects_write() -> Result<(), RankedRegisterError> {
+        let db = crate::common::database().await?;
+        let subspace = Subspace::all().subspace(&("test_configured_max_value_rejects_write",));
+        let rr = RankedRegister::with_max_value_bytes(subspace, 3);
+
+        let rr_ref = &rr;
+        let error = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(1_u64), b"four").await })
+            .await
+            .expect_err("configured limit must reject oversized values");
+        assert!(matches!(
+            error,
+            RankedRegisterError::ValueTooLarge {
+                value_size: 4,
+                limit: 3,
+            }
+        ));
+        assert!(matches!(error.retry_decision(), RetryDecision::Fatal));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_independent_handle_read_installs_fence() -> Result<(), RankedRegisterError> {
+        let db = crate::common::database().await?;
+        let reader = setup_test(&db, "test_independent_handle_read_installs_fence").await?;
+        let writer = RankedRegister::new(reader.subspace().clone());
+
+        let reader_ref = &reader;
+        db.run(|txn, _| async move {
+            reader_ref.read(&txn, Rank::from(10_u64)).await?;
+            Ok::<_, RankedRegisterError>(())
+        })
+        .await?;
+
+        let writer_ref = &writer;
+        let result = db
+            .run(|txn, _| async move { writer_ref.write(&txn, Rank::from(9_u64), b"fenced").await })
+            .await?;
+        assert_eq!(result, WriteResult::Aborted);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_equal_rank_recommit_is_aborted() -> Result<(), RankedRegisterError> {
+        let db = crate::common::database().await?;
+        let rr = setup_test(&db, "test_equal_rank_recommit_is_aborted").await?;
+
+        let rr_ref = &rr;
+        let first = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(1_u64), b"first").await })
+            .await?;
+        assert_eq!(first, WriteResult::Committed);
+
+        let rr_ref = &rr;
+        let second = db
+            .run(|txn, _| async move { rr_ref.write(&txn, Rank::from(1_u64), b"second").await })
+            .await?;
+        assert_eq!(second, WriteResult::Aborted);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_writes_conflict_on_register_state() -> Result<(), RankedRegisterError>
+    {
+        let db = crate::common::database().await?;
+        let rr = setup_test(&db, "test_concurrent_writes_conflict_on_register_state").await?;
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+
+        let first = rr.clone();
+        let first_barrier = barrier.clone();
+        let first_write = db.run(|txn, _| {
+            let first = first.clone();
+            let barrier = first_barrier.clone();
+            async move {
+                txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                txn.set_option(TransactionOption::RetryLimit(0))?;
+                let result = first.write(&txn, Rank::from(1_u64), b"a").await?;
+                barrier.wait().await;
+                Ok::<_, RankedRegisterError>(result)
+            }
+        });
+        let second = rr.clone();
+        let second_barrier = barrier.clone();
+        let second_write = db.run(|txn, _| {
+            let second = second.clone();
+            let barrier = second_barrier.clone();
+            async move {
+                txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                txn.set_option(TransactionOption::RetryLimit(0))?;
+                let result = second.write(&txn, Rank::from(1_u64), b"b").await?;
+                barrier.wait().await;
+                Ok::<_, RankedRegisterError>(result)
+            }
+        });
+        let (write_a, write_b) = tokio::join!(first_write, second_write);
+        assert_eq!(
+            usize::from(write_a.is_ok()) + usize::from(write_b.is_ok()),
+            1
+        );
+
+        let rr_ref = &rr;
+        let value = db
+            .run(|txn, _| async move { rr_ref.value(&txn).await })
+            .await?;
+        assert!(matches!(value.as_deref(), Some(b"a") | Some(b"b")));
 
         Ok(())
     }

@@ -42,6 +42,19 @@
 //! so the new incarnation observes the durable state and waits anew before
 //! attempting takeover.
 //!
+//! ## Cutover from v0.11 durable state
+//!
+//! This release's durable state is intentionally incompatible with v0.11.
+//! v0.11 and new clients use different keys, so a mixed deployment is unsafe:
+//! each population can elect a leader without observing or fencing the other.
+//!
+//! Upgrade by a destructive cutover, not an in-place migration. Stop or
+//! quiesce every old participant and all protected work before starting the
+//! new deployment. Then allocate fresh subspaces or epochs for the new
+//! election, its [`RankedRegister`](crate::recipes::ranked_register::RankedRegister),
+//! and the protected sink or rank namespace. Only then start clients using
+//! this release. This recipe neither reads nor migrates v0.11 durable state.
+//!
 //! ## Poll lifecycle
 //!
 //! Call [`LeaderElection::poll`](crate::recipes::leader_election::LeaderElection::poll)

@@ -22,14 +22,14 @@ pub enum RankedRegisterError {
     PackError(PackError),
     /// Invalid state encountered in the register
     InvalidState(String),
-    /// The complete encoded register state exceeds the supported limit.
+    /// The requested raw value exceeds this handle's configured limit.
     ///
-    /// This is a non-retryable caller error. The limit includes tuple encoding
-    /// overhead and escaping, not only the raw payload length.
-    EncodedStateTooLarge {
-        /// Size of the encoded register-state tuple in bytes.
-        encoded_size: usize,
-        /// Maximum supported encoded register-state size in bytes.
+    /// This is a non-retryable caller error. The limit is local configuration
+    /// and is never persisted in FoundationDB.
+    ValueTooLarge {
+        /// Requested raw value size in bytes.
+        value_size: usize,
+        /// Configured maximum raw value size in bytes.
         limit: usize,
     },
 }
@@ -41,13 +41,12 @@ impl fmt::Display for RankedRegisterError {
             Self::Binding(e) => write!(f, "Retry loop error: {e}"),
             Self::PackError(e) => write!(f, "Pack error: {e:?}"),
             Self::InvalidState(msg) => write!(f, "Invalid state: {msg}"),
-            Self::EncodedStateTooLarge {
-                encoded_size,
-                limit,
-            } => write!(
-                f,
-                "Encoded register state is {encoded_size} bytes, above the {limit}-byte limit"
-            ),
+            Self::ValueTooLarge { value_size, limit } => {
+                write!(
+                    f,
+                    "Register value is {value_size} bytes, above the {limit}-byte limit"
+                )
+            }
         }
     }
 }
@@ -58,7 +57,7 @@ impl std::error::Error for RankedRegisterError {
             Self::Fdb(e) => Some(e),
             Self::Binding(e) => Some(e),
             Self::PackError(e) => Some(e),
-            Self::InvalidState(_) | Self::EncodedStateTooLarge { .. } => None,
+            Self::InvalidState(_) | Self::ValueTooLarge { .. } => None,
         }
     }
 }

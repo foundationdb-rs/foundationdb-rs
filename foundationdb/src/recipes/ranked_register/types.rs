@@ -76,9 +76,10 @@ impl fmt::Display for Rank {
     }
 }
 
-/// Internal state of the ranked register as stored in FoundationDB
+/// Logical state of the ranked register
 ///
-/// Tracks the maximum read and write ranks alongside the current value.
+/// Tracks the maximum read and write ranks alongside the current value. The
+/// implementation stores metadata and value chunks separately.
 /// Private fields enforce invariants through the algorithm module.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RegisterState {
@@ -139,6 +140,7 @@ impl ReadResult {
 }
 
 /// Result of a ranked write operation
+#[must_use = "a committed write result controls whether co-staged application writes are valid"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriteResult {
     /// The write was accepted (rank was high enough)

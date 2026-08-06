@@ -97,6 +97,18 @@ cargo build -p bindingtester
 
 The binding tester runs automatically in CI when a PR has the `correctness` label.
 
+### Leader-election simulation campaigns
+
+The leader-election simulator runs a smoke campaign of 1 worker x 10 seeds on
+ordinary pull requests and pushes to `main`. Changes to the leader-election or
+RankedRegister recipes, simulation code, the simulation runner, or this
+workflow automatically run an extended campaign of 4 workers x 50 seeds.
+
+The full campaign runs nightly at 02:00 UTC, when manually dispatched, and on
+pull requests carrying the `leader-election-correctness` label. It uses 4
+workers x 200 seeds. Apply that label when a change needs the full
+correctness campaign before the nightly run.
+
 ## Code Style
 
 - Run `cargo fmt` before committing
