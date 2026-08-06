@@ -1588,10 +1588,9 @@ impl Transaction {
     /// compromised by transaction options) is guaranteed to represent all transactions which were
     /// reported committed before that call.
     ///
-    /// On an instrumented transaction, the version and the wait on this future
-    /// are recorded in the metrics of the current attempt. They are only ever
-    /// recorded when this method is called: the binding never fetches a read
-    /// version on its own.
+    /// On an instrumented transaction, the version is recorded in the metrics of
+    /// the current attempt. It is only ever recorded when this method is called:
+    /// the binding never fetches a read version on its own.
     pub fn get_read_version(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {

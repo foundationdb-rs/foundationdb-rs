@@ -313,7 +313,7 @@ async fn test_transaction_info() -> FdbResult<()> {
     let db = common::database().await?;
 
     // read_version: recorded when the user asks for it, on the attempt and on
-    // the transaction information. grv_duration is the wait of that call.
+    // the transaction information.
     {
         let metrics = TransactionMetrics::new();
         let hooks = MetricsHooks::new(&metrics);

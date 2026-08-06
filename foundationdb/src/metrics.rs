@@ -126,8 +126,9 @@ pub struct AttemptMetrics {
     pub outcome: AttemptOutcome,
     /// Conflicting key ranges, only read after a commit conflict.
     pub conflicting_keys: ConflictKeys,
-    /// Read version of the attempt, recorded when `get_read_version` is called.
-    /// The binding never fetches it on its own.
+    /// Read version of the attempt, recorded when
+    /// [`Transaction::get_read_version`](crate::Transaction::get_read_version)
+    /// is called. The binding never fetches it on its own.
     pub read_version: Option<i64>,
 }
 
