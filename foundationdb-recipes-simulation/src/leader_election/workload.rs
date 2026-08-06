@@ -50,8 +50,9 @@ const PROBABILISTIC_WITNESS_COUNT: usize = 7;
 // `WorkloadContext::now()` crosses the simulator's f64 boundary. Preserve the replay's exact
 // state eligibility checks while accepting its demonstrated one-nanosecond round-trip loss.
 const SIMULATED_TIME_ROUND_TRIP_TOLERANCE: Duration = Duration::from_nanos(1);
-// The deterministic completion tail must renew before its lease can expire under clogging.
-const COMPLETION_RENEWAL_LEASE_DURATION: Duration = Duration::from_secs(60);
+// The deterministic completion tail must renew before its lease can expire under any simulator
+// time jump. Its one-second renewal reaches `Duration::MAX` while remaining strictly larger.
+const COMPLETION_RENEWAL_BASE_LEASE_DURATION: Duration = Duration::new(u64::MAX - 1, 999_999_999);
 
 #[derive(Clone, Copy)]
 enum SwarmProfile {
@@ -1319,7 +1320,7 @@ impl LeaderElectionWorkload {
         register: &RankedRegister,
     ) {
         self.replace_incarnation("final-exact-resign");
-        let lease_duration = COMPLETION_RENEWAL_LEASE_DURATION;
+        let lease_duration = COMPLETION_RENEWAL_BASE_LEASE_DURATION;
         let mut leadership = self.poll_once(db, register, lease_duration, None).await;
         if leadership.is_none() {
             if let Some(observation) = self.local_state.observation().cloned() {
