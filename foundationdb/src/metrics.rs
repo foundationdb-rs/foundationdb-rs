@@ -116,10 +116,8 @@ pub struct AttemptMetrics {
     pub duration: Option<Duration>,
     /// Time spent in `commit`, `None` if the attempt never reached it.
     pub commit_duration: Option<Duration>,
-    /// Time spent waiting on
-    /// [`Transaction::get_read_version`](crate::Transaction::get_read_version),
-    /// `None` if it was never called. The first completion of the attempt is
-    /// kept.
+    /// Time spent waiting on `get_read_version`, `None` if it was never called.
+    /// The first completion of the attempt is kept.
     pub grv_duration: Option<Duration>,
     /// Time spent in `on_error`, backoff included. `None` if `on_error` did not
     /// run, which is the case for the last attempt of a run.
@@ -128,9 +126,8 @@ pub struct AttemptMetrics {
     pub outcome: AttemptOutcome,
     /// Conflicting key ranges, only read after a commit conflict.
     pub conflicting_keys: ConflictKeys,
-    /// Read version of the attempt, recorded when
-    /// [`Transaction::get_read_version`](crate::Transaction::get_read_version)
-    /// is called. The binding never fetches it on its own.
+    /// Read version of the attempt, recorded when `get_read_version` is called.
+    /// The binding never fetches it on its own.
     pub read_version: Option<i64>,
 }
 
