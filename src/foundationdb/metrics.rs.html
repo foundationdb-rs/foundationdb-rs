@@ -593,7 +593,26 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a></pre></div><pre class="rust"><code><span class="doccomment">//! Per-attempt metrics collected by [`Database::instrumented_run`](crate::Database::instrumented_run).
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a></pre></div><pre class="rust"><code><span class="doccomment">//! Per-attempt metrics collected by [`Database::instrumented_run`](crate::Database::instrumented_run).
 //!
 //! The report is a list of [`AttemptMetrics`], one per transaction attempt, in
 //! order: a retried transaction keeps everything it did in its earlier
@@ -711,6 +730,9 @@
     </span><span class="kw">pub </span>duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     <span class="doccomment">/// Time spent in `commit`, `None` if the attempt never reached it.
     </span><span class="kw">pub </span>commit_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="doccomment">/// Time spent waiting on `get_read_version`, `None` if it was never called.
+    /// The first completion of the attempt is kept.
+    </span><span class="kw">pub </span>grv_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     <span class="doccomment">/// Time spent in `on_error`, backoff included. `None` if `on_error` did not
     /// run, which is the case for the last attempt of a run.
     </span><span class="kw">pub </span>on_error_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
@@ -793,6 +815,7 @@
     usage: <span class="prelude-ty">Option</span>&lt;Arc&lt;AttemptUsage&gt;&gt;,
     duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     commit_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    grv_duration: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     conflicting_keys: ConflictKeys,
     read_version: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 }
@@ -846,7 +869,7 @@
             // the attempt being dropped did anything worth reporting. Some
             // activity is recorded straight on `OpenAttempt` instead of
             // `AttemptUsage` (read version, conflicting keys, commit
-            // duration), so it has to be checked too.
+            // duration, grv duration), so it has to be checked too.
             </span><span class="kw">let </span>snapshot = dropped.snapshot();
             <span class="kw">let </span>idle = snapshot
                 == UsageSnapshot {
@@ -857,6 +880,7 @@
                 &amp;&amp; open.read_version.is_none()
                 &amp;&amp; open.duration.is_none()
                 &amp;&amp; open.commit_duration.is_none()
+                &amp;&amp; open.grv_duration.is_none()
                 &amp;&amp; <span class="macro">matches!</span>(open.conflicting_keys, ConflictKeys::NotRequested);
 
             <span class="kw">if </span>!idle {
@@ -892,6 +916,15 @@
         }
     }
 
+    <span class="doccomment">/// Records the time spent waiting on `get_read_version`, whatever its
+    /// result. Later calls of the same attempt are ignored.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>record_grv(<span class="kw-2">&amp;</span><span class="self">self</span>, duration: Duration) {
+        <span class="kw">let </span><span class="kw-2">mut </span>open = <span class="self">self</span>.open();
+        <span class="kw">if </span>open.grv_duration.is_none() {
+            open.grv_duration = <span class="prelude-val">Some</span>(duration);
+        }
+    }
+
     <span class="doccomment">/// Ends the current attempt and pushes it to the report.
     ///
     /// Does nothing when no attempt is being recorded, which makes it safe to
@@ -916,6 +949,7 @@
             custom_metrics: usage.custom_metrics(),
             duration: open.duration.or_else(|| <span class="prelude-val">Some</span>(usage.elapsed())),
             commit_duration: open.commit_duration,
+            grv_duration: open.grv_duration,
             on_error_duration: <span class="prelude-val">None</span>,
             outcome,
             conflicting_keys: open.conflicting_keys,
@@ -1112,7 +1146,9 @@
         first.record_set(<span class="number">10</span>);
         first.increment_custom(key.clone(), <span class="number">1</span>);
         metrics.record_commit(Duration::from_millis(<span class="number">3</span>));
-        metrics.finish_attempt(AttemptOutcome::Retried {
+        metrics.record_grv(Duration::from_millis(<span class="number">5</span>));
+        metrics.record_grv(Duration::from_millis(<span class="number">1</span>)); <span class="comment">// first sample wins
+        </span>metrics.finish_attempt(AttemptOutcome::Retried {
             cause: FdbError::from_code(<span class="number">1020</span>),
         });
         metrics.set_on_error_duration(Duration::from_millis(<span class="number">7</span>));
@@ -1135,6 +1171,7 @@
         <span class="macro">assert_eq!</span>(first.usage.bytes_written, <span class="number">10</span>);
         <span class="macro">assert_eq!</span>(first.custom_metrics.get(<span class="kw-2">&amp;</span>key), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">1</span>));
         <span class="macro">assert_eq!</span>(first.commit_duration, <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">3</span>)));
+        <span class="macro">assert_eq!</span>(first.grv_duration, <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">5</span>)));
         <span class="macro">assert_eq!</span>(first.on_error_duration, <span class="prelude-val">Some</span>(Duration::from_millis(<span class="number">7</span>)));
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             first.outcome,
@@ -1146,6 +1183,7 @@
         <span class="macro">assert_eq!</span>(second.usage.bytes_written, <span class="number">4</span>);
         <span class="macro">assert_eq!</span>(second.custom_metrics.get(<span class="kw-2">&amp;</span>key), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">2</span>));
         <span class="macro">assert!</span>(second.commit_duration.is_none());
+        <span class="macro">assert!</span>(second.grv_duration.is_none());
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(second.outcome, AttemptOutcome::Committed));
 
         <span class="macro">assert_eq!</span>(report.total_usage().bytes_written, <span class="number">14</span>);

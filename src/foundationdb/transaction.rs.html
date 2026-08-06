@@ -1982,7 +1982,11 @@
 <a href="#1981" id="1981">1981</a>
 <a href="#1982" id="1982">1982</a>
 <a href="#1983" id="1983">1983</a>
-<a href="#1984" id="1984">1984</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -3579,15 +3583,19 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
     ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;i64&gt;&gt; + Send + Sync + Unpin + <span class="kw">use</span>&lt;&gt; {
         <span class="kw">let </span>metrics = <span class="self">self</span>.metrics().cloned();
+        <span class="kw">let </span>started_at = metrics.as_ref().map(|<span class="kw">_</span>| Instant::now());
 
         FdbFuture::&lt;i64&gt;::new(<span class="kw">unsafe </span>{
             fdb_sys::fdb_transaction_get_read_version(<span class="self">self</span>.inner.as_ptr())
         })
-        .map_ok(<span class="kw">move </span>|version| {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(metrics) = <span class="kw-2">&amp;</span>metrics {
-                metrics.set_read_version(version);
+        .map(<span class="kw">move </span>|result| {
+            <span class="kw">if let </span>(<span class="prelude-val">Some</span>(metrics), <span class="prelude-val">Some</span>(started_at)) = (<span class="kw-2">&amp;</span>metrics, started_at) {
+                metrics.record_grv(started_at.elapsed());
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(version) = result {
+                    metrics.set_read_version(version);
+                }
             }
-            version
+            result
         })
     }
 
