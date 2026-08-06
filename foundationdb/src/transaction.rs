@@ -1588,22 +1588,27 @@ impl Transaction {
     /// compromised by transaction options) is guaranteed to represent all transactions which were
     /// reported committed before that call.
     ///
-    /// On an instrumented transaction, the version is recorded in the metrics of
-    /// the current attempt. It is only ever recorded when this method is called:
-    /// the binding never fetches a read version on its own.
+    /// On an instrumented transaction, the version and the wait on this future
+    /// are recorded in the metrics of the current attempt. They are only ever
+    /// recorded when this method is called: the binding never fetches a read
+    /// version on its own.
     pub fn get_read_version(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
         let metrics = self.metrics().cloned();
+        let started_at = metrics.as_ref().map(|_| Instant::now());
 
         FdbFuture::<i64>::new(unsafe {
             fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr())
         })
-        .map_ok(move |version| {
-            if let Some(metrics) = &metrics {
-                metrics.set_read_version(version);
+        .map(move |result| {
+            if let (Some(metrics), Some(started_at)) = (&metrics, started_at) {
+                metrics.record_grv(started_at.elapsed());
+                if let Ok(version) = result {
+                    metrics.set_read_version(version);
+                }
             }
-            version
+            result
         })
     }
 
