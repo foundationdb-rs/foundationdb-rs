@@ -145,7 +145,14 @@ If the parameter doesn’t exist, its value is invalid or set to null, the funct
 }</code></pre></div>
 <h4 id="tracing"><a class="doc-anchor" href="#tracing">§</a>Tracing</h4>
 <p>Use <code>WorkloadContext::trace</code> to log messages with a given severity and a map of string “details”.
-A severity of <code>Severity::Error</code> will automatically stop the <code>fdbserver</code> process.</p>
+A severity of <code>Severity::Error</code> will automatically stop the <code>fdbserver</code> process. The event
+name’s first character is uppercased automatically, matching FDB’s convention for event types.</p>
+<p>Every call to <code>trace</code> automatically adds a <code>RustWorkload="1"</code> detail to the event (unless you
+already supplied one), so a runner can grep all Rust-origin trace lines with a single token.
+When you trace with <code>Severity::Error</code>, the crate also adds a <code>RustFailure="1"</code> detail (unless
+you already supplied one). This lets a runner parsing the <code>fdbserver</code> trace logs distinguish a
+failure detected by the Rust workload from an FDB-internal Sev40 event, which will never carry
+this field.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>RustWorkload <span class="kw">for </span>MyWorkload {
     <span class="kw">fn </span>setup(<span class="kw-2">&amp;mut </span><span class="self">self</span>, db: SimDatabase) {
