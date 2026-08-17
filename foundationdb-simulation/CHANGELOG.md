@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-17
+
+### <!-- 0 -->⚠️ BREAKING CHANGES
+
+- Fix(simulation): use c_char instead of i8 at FFI boundaries
+
+### <!-- 1 -->🚀 Features
+
+- Feat(simulation): implement Clone for WorkloadContext
+- Feat(simulation): simulator-backed SimClock, SimRng and WorkloadContext::environment
+- Feat(simulation): tag Rust workload trace events for failure triage
+
+### <!-- 2 -->🐛 Bug Fixes
+
+- Fix(simulation): drop let-chain in fdb_rt for MSRV, pin toolchain
+- Fix(simulation): draw next_u32 straight from the simulator generator
+- Escape NUL bytes in trace strings
+
+### <!-- 4 -->🚜 Refactor
+
+- Refactor(simulation): sim wall time counts from the UNIX epoch
+- Refactor(simulation): fold the budget proof into the atomic example
+
+### <!-- 5 -->📚 Documentation
+
+- Docs(simulation): build the example workloads around env-injected structs
+- Docs(simulation): add budget example proving time budgets under the simulator
+
+[0.4.0]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.3.0..0.4.0
+
+
 ## [0.3.0] - 2026-06-24
 
 ### <!-- 1 -->🚀 Features
