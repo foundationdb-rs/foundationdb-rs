@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-08-17
+
+### <!-- 0 -->⚠️ BREAKING CHANGES
+
+- Feat!: manage the network thread with a process-global lifecycle state machine
+- Fix: address review findings on exit logging and range test isolation
+- Feat!: remove experimental tenant support (#468)
+- Feat!: typed closure errors for Database::run via RetryableError (#479)
+- Feat(foundationdb)!: retain full per-attempt detail in transaction metrics
+- Feat(foundationdb)!: modular retry runner with observational hooks and typed retry policy
+- Refactor(foundationdb)!: remove orphaned instrumented transaction constructors
+- Feat(recipes)!: rewrite leader election
+
+### <!-- 1 -->🚀 Features
+
+- Feat(foundationdb): client-side transaction budget and always-on attempt usage accounting
+- Feat(foundationdb): conflict-range introspection and budgeted scan example
+- Feat(foundationdb): add env module with pluggable Clock and Rng
+- Feat(metrics): record get_read_version wait on AttemptMetrics
+
+### <!-- 2 -->🐛 Bug Fixes
+
+- Fix: address self-review findings on network lifecycle
+- Fix: resolve FdbError through the error source chain in get_fdb_error (#479)
+- Fix: satisfy MSRV clippy (precedence, needless_lifetimes)
+- Fix(foundationdb): review follow-ups on diagnostics and instrumentation
+- Fix(foundationdb): widen begin_attempt idle heuristic to OpenAttempt fields
+- Fix(foundationdb): measure client budget time limits with the budget clock
+- Harden Dynamo-style leader leases
+- Harden leader election fencing
+- Distinguish stale renewal from acquisition
+- Address leader election review findings
+- Validate leader election participants
+- Harden fenced leader election
+
+### <!-- 5 -->📚 Documentation
+
+- Docs: recommend explicit network shutdown in production
+- Docs: fix the four rustdoc warnings
+- Drop rustdoc path links on grv and read_version fields
+- Docs(metrics): restore pre-existing comments
+
+### <!-- 6 -->🧪 Testing
+
+- Test: replace block_on wrappers with #[tokio::test] async tests
+- Test: scope directory and tuple test clears to their own subspaces
+- Test: prove retry behavior for wrapped and stringified closure errors (#479)
+- Clarify leader election integration target
+- Force retry adoption conflict
+
+### <!-- 8 -->⚙️ Miscellaneous
+
+- Chore: fix useless_borrows_in_formatting lints from clippy 1.97
+- Chore(foundationdb): instrument the env constructors under the trace feature
+
+[0.12.0]: https://github.com/foundationdb-rs}/foundationdb-rs/compare/0.11.0..0.12.0
+
+
 ## [0.11.0] - 2026-06-24
 
 ### <!-- 1 -->🚀 Features
