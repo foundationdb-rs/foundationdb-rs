@@ -190,7 +190,15 @@ impl SingleRustWorkload for MyWorkload {
 ### Tracing
 
 Use `WorkloadContext::trace` to log messages with a given severity and a map of string "details".
-A severity of `Severity::Error` will automatically stop the `fdbserver` process.
+A severity of `Severity::Error` will automatically stop the `fdbserver` process. The event
+name's first character is uppercased automatically, matching FDB's convention for event types.
+
+Every call to `trace` automatically adds a `RustWorkload="1"` detail to the event (unless you
+already supplied one), so a runner can grep all Rust-origin trace lines with a single token.
+When you trace with `Severity::Error`, the crate also adds a `RustFailure="1"` detail (unless
+you already supplied one). This lets a runner parsing the `fdbserver` trace logs distinguish a
+failure detected by the Rust workload from an FDB-internal Sev40 event, which will never carry
+this field.
 
 ```rust
 impl RustWorkload for MyWorkload {
