@@ -72,6 +72,15 @@ fn capitalize_first(s: &str) -> Option<String> {
         .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
 }
 
+/// ASCII-uppercases the first byte of a trace event name, matching FDB's convention that
+/// event types start with a capital letter. Leaves an empty name unchanged.
+fn capitalize_first_byte(mut name: Vec<u8>) -> Vec<u8> {
+    if let Some(first) = name.first_mut() {
+        first.make_ascii_uppercase();
+    }
+    name
+}
+
 /// Macro that can be used to create log "details" more easily.
 #[macro_export]
 macro_rules! details {
@@ -119,7 +128,10 @@ pub enum Severity {
     Warn = FDBSeverity_FDBSeverity_Warn,
     /// warn always
     WarnAlways = FDBSeverity_FDBSeverity_WarnAlways,
-    /// error, this severity automatically breaks execution
+    /// error, this severity automatically breaks execution. `WorkloadContext::trace` also
+    /// appends a `RustFailure="1"` detail on top of the `RustWorkload="1"` detail added to
+    /// every event, so trace consumers can tell a Rust workload failure apart from an
+    /// FDB-internal Sev40 event.
     Error = FDBSeverity_FDBSeverity_Error,
 }
 
@@ -143,6 +155,52 @@ impl Clone for WorkloadContext {
     }
 }
 
+/// Detail key automatically appended to `Severity::Error` trace events.
+const RUST_FAILURE_KEY: &str = "RustFailure";
+/// Detail key automatically appended to every trace event, regardless of severity.
+const RUST_WORKLOAD_KEY: &str = "RustWorkload";
+
+/// Appends a `key="1"` detail to `details_storage` unless a detail with that key (already
+/// capitalized) is present.
+fn push_marker_if_absent(details_storage: &mut Vec<(ffi::CString, ffi::CString)>, key: &str) {
+    if !details_storage
+        .iter()
+        .any(|(k, _)| k.as_bytes() == key.as_bytes())
+    {
+        details_storage.push((str_for_c(key), str_for_c("1")));
+    }
+}
+
+/// Builds the trace detail storage for [`WorkloadContext::trace`].
+///
+/// Applies `capitalize_first` to every caller-supplied key (dropping empty values), then
+/// appends a `RustWorkload="1"` detail to every event and, for [`Severity::Error`], a
+/// `RustFailure="1"` detail as well, unless the caller already supplied one under that key.
+fn prepare_trace_details<S2, S3>(
+    severity: Severity,
+    details: &[(S2, S3)],
+) -> Vec<(ffi::CString, ffi::CString)>
+where
+    S2: AsRef<str>,
+    S3: AsRef<str>,
+{
+    let mut details_storage = details
+        .iter()
+        .filter_map(|(key, val)| {
+            let val = val.as_ref();
+            if val.is_empty() {
+                return None;
+            }
+            capitalize_first(key.as_ref()).map(|k| (str_for_c(k), str_for_c(val)))
+        })
+        .collect::<Vec<_>>();
+    push_marker_if_absent(&mut details_storage, RUST_WORKLOAD_KEY);
+    if matches!(severity, Severity::Error) {
+        push_marker_if_absent(&mut details_storage, RUST_FAILURE_KEY);
+    }
+    details_storage
+}
+
 impl WorkloadContext {
     #[doc(hidden)]
     pub fn new(raw: FDBWorkloadContext) -> Self {
@@ -154,24 +212,22 @@ impl WorkloadContext {
         self.0.api_version
     }
 
-    /// Add a log entry in the FoundationDB logs
+    /// Add a log entry in the FoundationDB logs.
+    ///
+    /// The event `name`'s first byte is uppercased automatically, matching FDB's convention
+    /// for event types. A `RustWorkload="1"` detail is appended to every event (unless the
+    /// caller already provided one), so trace consumers can grep all Rust-origin trace lines
+    /// with a single token. When `severity` is [`Severity::Error`], a `RustFailure="1"` detail
+    /// is appended too (same rule), so a Rust-detected failure can be told apart from an
+    /// FDB-internal Sev40 event.
     pub fn trace<S, S2, S3>(&self, severity: Severity, name: S, details: &[(S2, S3)])
     where
         S: Into<Vec<u8>>,
         S2: AsRef<str>,
         S3: AsRef<str>,
     {
-        let name = str_for_c(name);
-        let details_storage = details
-            .iter()
-            .filter_map(|(key, val)| {
-                let val = val.as_ref();
-                if val.is_empty() {
-                    return None;
-                }
-                capitalize_first(key.as_ref()).map(|k| (str_for_c(k), str_for_c(val)))
-            })
-            .collect::<Vec<_>>();
+        let name = str_for_c(capitalize_first_byte(name.into()));
+        let details_storage = prepare_trace_details(severity, details);
         let details = details_storage
             .iter()
             .map(|(key, val)| FDBStringPair {
@@ -329,10 +385,126 @@ impl<'a> Metric<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::str_for_c;
+    use super::{Severity, capitalize_first_byte, prepare_trace_details, str_for_c};
 
     #[test]
     fn str_for_c_escapes_interior_nul() {
         assert_eq!(str_for_c("a\0b").to_bytes(), br"a\0b");
+    }
+
+    #[test]
+    fn error_severity_gets_rust_failure_marker() {
+        let details: &[(&str, &str)] = &[("Reason", "boom")];
+        let result = prepare_trace_details(Severity::Error, details);
+        assert!(
+            result
+                .iter()
+                .any(|(k, v)| k.as_bytes() == b"RustFailure" && v.as_bytes() == b"1")
+        );
+    }
+
+    #[test]
+    fn non_error_severity_has_no_rust_failure_marker() {
+        let details: &[(&str, &str)] = &[("Reason", "boom")];
+        let result = prepare_trace_details(Severity::Warn, details);
+        assert!(!result.iter().any(|(k, _)| k.as_bytes() == b"RustFailure"));
+    }
+
+    #[test]
+    fn caller_lowercase_rust_failure_key_is_not_duplicated() {
+        let details: &[(&str, &str)] = &[("rustFailure", "custom")];
+        let result = prepare_trace_details(Severity::Error, details);
+        let matching: Vec<_> = result
+            .iter()
+            .filter(|(k, _)| k.as_bytes() == b"RustFailure")
+            .collect();
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].1.as_bytes(), b"custom");
+    }
+
+    #[test]
+    fn caller_capitalized_rust_failure_key_is_not_duplicated() {
+        let details: &[(&str, &str)] = &[("RustFailure", "custom")];
+        let result = prepare_trace_details(Severity::Error, details);
+        let matching: Vec<_> = result
+            .iter()
+            .filter(|(k, _)| k.as_bytes() == b"RustFailure")
+            .collect();
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].1.as_bytes(), b"custom");
+    }
+
+    #[test]
+    fn every_severity_gets_rust_workload_marker() {
+        let details: &[(&str, &str)] = &[];
+        for severity in [
+            Severity::Debug,
+            Severity::Info,
+            Severity::Warn,
+            Severity::WarnAlways,
+            Severity::Error,
+        ] {
+            let result = prepare_trace_details(severity, details);
+            assert!(
+                result
+                    .iter()
+                    .any(|(k, v)| k.as_bytes() == b"RustWorkload" && v.as_bytes() == b"1")
+            );
+        }
+    }
+
+    #[test]
+    fn error_severity_gets_both_markers() {
+        let details: &[(&str, &str)] = &[];
+        let result = prepare_trace_details(Severity::Error, details);
+        assert!(
+            result
+                .iter()
+                .any(|(k, v)| k.as_bytes() == b"RustWorkload" && v.as_bytes() == b"1")
+        );
+        assert!(
+            result
+                .iter()
+                .any(|(k, v)| k.as_bytes() == b"RustFailure" && v.as_bytes() == b"1")
+        );
+    }
+
+    #[test]
+    fn caller_lowercase_rust_workload_key_is_not_duplicated() {
+        let details: &[(&str, &str)] = &[("rustWorkload", "custom")];
+        let result = prepare_trace_details(Severity::Info, details);
+        let matching: Vec<_> = result
+            .iter()
+            .filter(|(k, _)| k.as_bytes() == b"RustWorkload")
+            .collect();
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].1.as_bytes(), b"custom");
+    }
+
+    #[test]
+    fn caller_capitalized_rust_workload_key_is_not_duplicated() {
+        let details: &[(&str, &str)] = &[("RustWorkload", "custom")];
+        let result = prepare_trace_details(Severity::Info, details);
+        let matching: Vec<_> = result
+            .iter()
+            .filter(|(k, _)| k.as_bytes() == b"RustWorkload")
+            .collect();
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].1.as_bytes(), b"custom");
+    }
+
+    #[test]
+    fn capitalize_first_byte_uppercases_lowercase_first_byte() {
+        assert_eq!(capitalize_first_byte(b"event".to_vec()), b"Event".to_vec());
+    }
+
+    #[test]
+    fn capitalize_first_byte_leaves_already_capitalized_name_unchanged() {
+        assert_eq!(capitalize_first_byte(b"Event".to_vec()), b"Event".to_vec());
+    }
+
+    #[test]
+    fn capitalize_first_byte_leaves_empty_name_unchanged() {
+        assert_eq!(capitalize_first_byte(Vec::new()), Vec::new());
     }
 }
