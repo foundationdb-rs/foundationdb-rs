@@ -13,6 +13,7 @@
 use std::convert::TryFrom;
 use std::future::Future;
 use std::ptr::NonNull;
+use std::sync::Arc;
 
 use crate::future::*;
 use crate::{error, Database, FdbError, FdbResult};
@@ -21,14 +22,17 @@ use foundationdb_sys as fdb_sys;
 /// An opaque type that represents a Cluster in the FoundationDB C API.
 #[derive(Clone)]
 pub struct Cluster {
-    inner: NonNull<fdb_sys::FDBCluster>,
+    inner: Arc<ClusterHandle>,
 }
-unsafe impl Send for Cluster {}
-unsafe impl Sync for Cluster {}
-impl Drop for Cluster {
+struct ClusterHandle(NonNull<fdb_sys::FDBCluster>);
+// The C API permits cross-thread use of cluster handles; Arc keeps the handle alive
+// until the last Cluster clone is dropped.
+unsafe impl Send for ClusterHandle {}
+unsafe impl Sync for ClusterHandle {}
+impl Drop for ClusterHandle {
     fn drop(&mut self) {
         unsafe {
-            fdb_sys::fdb_cluster_destroy(self.inner.as_ptr());
+            fdb_sys::fdb_cluster_destroy(self.0.as_ptr());
         }
     }
 }
@@ -66,7 +70,7 @@ impl Cluster {
         &self,
     ) -> impl Future<Output = FdbResult<Database>> + Send + Sync + Unpin {
         FdbFuture::new(unsafe {
-            fdb_sys::fdb_cluster_create_database(self.inner.as_ptr(), b"DB" as *const _, 2)
+            fdb_sys::fdb_cluster_create_database(self.inner.0.as_ptr(), b"DB" as *const _, 2)
         })
     }
 }
@@ -79,8 +83,9 @@ impl TryFrom<FdbFutureHandle> for Cluster {
         error::eval(unsafe { fdb_sys::fdb_future_get_cluster(f.as_ptr(), &mut v) })?;
 
         Ok(Cluster {
-            inner: NonNull::new(v)
-                .expect("fdb_future_get_cluster to not return null if there is no error"),
+            inner: Arc::new(ClusterHandle(NonNull::new(v).expect(
+                "fdb_future_get_cluster to not return null if there is no error",
+            ))),
         })
     }
 }
