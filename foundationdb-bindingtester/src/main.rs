@@ -958,6 +958,13 @@ impl StackMachine {
             UseTransaction => {
                 let name: Bytes = self.pop_bytes().await;
                 debug!("use_transaction {name:?}");
+                if !is_db {
+                    // Popping the name may have resolved a pending future and restored the
+                    // current transaction already. Keep that newer state if it exists.
+                    self.transactions
+                        .entry(self.cur_transaction.clone())
+                        .or_insert_with(|| std::mem::replace(&mut trx, TransactionState::Dead));
+                }
                 if !self.transactions.contains_key(&name) {
                     let trx = self.check(number, db.create_trx())?;
                     self.transactions
@@ -2789,4 +2796,79 @@ fn main() {
     info!("Closing...");
 
     info!("Done.");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn step(sm: &mut StackMachine, db: &Arc<Database>, code: InstrCode) {
+        sm.run_step(
+            db.clone(),
+            0,
+            Instr {
+                code,
+                database: false,
+                snapshot: false,
+                starts_with: false,
+                selector: false,
+            },
+        )
+        .await
+        .expect("bindingtester instruction failed");
+    }
+
+    fn push_bytes(sm: &mut StackMachine, value: &[u8]) {
+        sm.push(0, Element::Bytes(Bytes::from(value.to_vec())));
+    }
+
+    async fn set(sm: &mut StackMachine, db: &Arc<Database>, key: &[u8], value: &[u8]) {
+        push_bytes(sm, value);
+        push_bytes(sm, key);
+        step(sm, db, InstrCode::Set).await;
+    }
+
+    async fn select(sm: &mut StackMachine, db: &Arc<Database>, name: &[u8]) {
+        push_bytes(sm, name);
+        step(sm, db, InstrCode::UseTransaction).await;
+    }
+
+    async fn assert_value(sm: &mut StackMachine, db: &Arc<Database>, key: &[u8], expected: &[u8]) {
+        push_bytes(sm, key);
+        step(sm, db, InstrCode::Get).await;
+        match sm.pop_element().await {
+            Element::Bytes(value) => assert_eq!(&value[..], expected),
+            value => panic!("expected bytes, got {value:?}"),
+        }
+    }
+
+    #[test]
+    fn switching_named_transactions_preserves_pending_writes() {
+        fdb::boot().expect("failed to initialize FoundationDB");
+        futures::executor::block_on(async {
+            let db = Arc::new(
+                Database::new_compat(None)
+                    .await
+                    .expect("failed to open database"),
+            );
+            let a = b"bindingtester-named-a";
+            let b = b"bindingtester-named-b";
+            let mut sm = StackMachine::new(&db, Bytes::from(a.as_ref()));
+            let key_a = format!("bindingtester/named-test/{}/a", std::process::id());
+            let key_b = format!("bindingtester/named-test/{}/b", std::process::id());
+
+            set(&mut sm, &db, key_a.as_bytes(), b"value-a").await;
+            select(&mut sm, &db, b).await;
+            assert!(sm.transactions.contains_key(&Bytes::from(a.as_ref())));
+
+            set(&mut sm, &db, key_b.as_bytes(), b"value-b").await;
+            select(&mut sm, &db, a).await;
+            assert!(sm.transactions.contains_key(&Bytes::from(b.as_ref())));
+
+            select(&mut sm, &db, a).await;
+            assert_value(&mut sm, &db, key_a.as_bytes(), b"value-a").await;
+            select(&mut sm, &db, b).await;
+            assert_value(&mut sm, &db, key_b.as_bytes(), b"value-b").await;
+        });
+    }
 }
