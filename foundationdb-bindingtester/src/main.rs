@@ -958,6 +958,13 @@ impl StackMachine {
             UseTransaction => {
                 let name: Bytes = self.pop_bytes().await;
                 debug!("use_transaction {name:?}");
+                if !is_db {
+                    // Popping the name may have resolved a pending future and restored the
+                    // current transaction already. Keep that newer state if it exists.
+                    self.transactions
+                        .entry(self.cur_transaction.clone())
+                        .or_insert_with(|| std::mem::replace(&mut trx, TransactionState::Dead));
+                }
                 if !self.transactions.contains_key(&name) {
                     let trx = self.check(number, db.create_trx())?;
                     self.transactions
