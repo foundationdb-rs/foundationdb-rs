@@ -2790,7 +2790,14 @@
 <a href="#2789" id="2789">2789</a>
 <a href="#2790" id="2790">2790</a>
 <a href="#2791" id="2791">2791</a>
-<a href="#2792" id="2792">2792</a></pre></div><pre class="rust"><code><span class="attr">#[macro_use]
+<a href="#2792" id="2792">2792</a>
+<a href="#2793" id="2793">2793</a>
+<a href="#2794" id="2794">2794</a>
+<a href="#2795" id="2795">2795</a>
+<a href="#2796" id="2796">2796</a>
+<a href="#2797" id="2797">2797</a>
+<a href="#2798" id="2798">2798</a>
+<a href="#2799" id="2799">2799</a></pre></div><pre class="rust"><code><span class="attr">#[macro_use]
 </span><span class="kw">extern crate </span>log;
 
 <span class="kw">use </span>foundationdb <span class="kw">as </span>fdb;
@@ -3750,6 +3757,13 @@
             </span>UseTransaction =&gt; {
                 <span class="kw">let </span>name: Bytes = <span class="self">self</span>.pop_bytes().<span class="kw">await</span>;
                 <span class="macro">debug!</span>(<span class="string">"use_transaction {name:?}"</span>);
+                <span class="kw">if </span>!is_db {
+                    <span class="comment">// Popping the name may have resolved a pending future and restored the
+                    // current transaction already. Keep that newer state if it exists.
+                    </span><span class="self">self</span>.transactions
+                        .entry(<span class="self">self</span>.cur_transaction.clone())
+                        .or_insert_with(|| std::mem::replace(<span class="kw-2">&amp;mut </span>trx, TransactionState::Dead));
+                }
                 <span class="kw">if </span>!<span class="self">self</span>.transactions.contains_key(<span class="kw-2">&amp;</span>name) {
                     <span class="kw">let </span>trx = <span class="self">self</span>.check(number, db.create_trx())<span class="question-mark">?</span>;
                     <span class="self">self</span>.transactions
