@@ -1986,7 +1986,8 @@
 <a href="#1985" id="1985">1985</a>
 <a href="#1986" id="1986">1986</a>
 <a href="#1987" id="1987">1987</a>
-<a href="#1988" id="1988">1988</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -2391,6 +2392,7 @@
     <span class="doccomment">/// The end of the range.
     </span><span class="kw">pub </span>end: KeySelector&lt;<span class="lifetime">'a</span>&gt;,
     <span class="doccomment">/// If non-zero, indicates the maximum number of key-value pairs to return.
+    /// `None` and `Some(0)` both mean unlimited.
     </span><span class="kw">pub </span>limit: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     <span class="doccomment">/// If non-zero, indicates a (soft) cap on the combined number of bytes of keys and values to
     /// return for each item.
@@ -2420,7 +2422,7 @@
         <span class="kw">let </span>last = kvs.last()<span class="question-mark">?</span>;
         <span class="kw">let </span>last_key = last.key();
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.limit.as_mut() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.limit.as_mut().filter(|limit| <span class="kw-2">**</span>limit != <span class="number">0</span>) {
             <span class="kw-2">*</span>limit = limit.saturating_sub(kvs.len());
             <span class="kw">if </span><span class="kw-2">*</span>limit == <span class="number">0 </span>{
                 <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -2444,7 +2446,7 @@
         <span class="kw">let </span>last = kvs.last()<span class="question-mark">?</span>;
         <span class="kw">let </span>last_key = last.parent_key();
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.limit.as_mut() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = <span class="self">self</span>.limit.as_mut().filter(|limit| <span class="kw-2">**</span>limit != <span class="number">0</span>) {
             <span class="kw-2">*</span>limit = limit.saturating_sub(kvs.len());
             <span class="kw">if </span><span class="kw-2">*</span>limit == <span class="number">0 </span>{
                 <span class="kw">return </span><span class="prelude-val">None</span>;
