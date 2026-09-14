@@ -119,12 +119,31 @@ async fn test_get_ranges_async() -> FdbResult<()> {
         let opt = RangeOption::from((begin, end));
 
         let count = trx
-            .get_ranges(opt, false)
+            .get_ranges(opt.clone(), false)
             .try_fold(0usize, |count, kvs| future::ok(count + kvs.as_ref().len()))
             .await?;
 
         assert_eq!(count, N);
         eprintln!("count: {count:?}");
+
+        let unlimited = RangeOption {
+            limit: Some(0),
+            ..opt
+        };
+        for reverse in [false, true] {
+            let opt = RangeOption {
+                reverse,
+                ..unlimited.clone()
+            };
+            let (pages, count) = trx
+                .get_ranges(opt, false)
+                .try_fold((0usize, 0usize), |(pages, count), kvs| {
+                    future::ok((pages + 1, count + kvs.len()))
+                })
+                .await?;
+            assert!(pages > 1, "expected a paginated range scan");
+            assert_eq!(count, N);
+        }
     }
 
     Ok(())
@@ -398,6 +417,19 @@ async fn test_mapped_values() -> FdbResult<()> {
     dbg!(t.get_approximate_size().await?);
 
     verify_mapped_values(blue_counter, key_values);
+
+    let unlimited = RangeOption {
+        limit: Some(0),
+        ..range_option
+    };
+    let (pages, parents) = t
+        .get_mapped_ranges(unlimited, &mapper, false)
+        .try_fold((0usize, 0usize), |(pages, parents), values| {
+            future::ok((pages + 1, parents + values.len()))
+        })
+        .await?;
+    assert!(pages > 1, "expected a paginated mapped range scan");
+    assert_eq!(parents, blue_counter as usize);
 
     Ok(())
 }

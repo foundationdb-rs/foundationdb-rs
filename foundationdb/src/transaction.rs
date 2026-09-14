@@ -403,6 +403,7 @@ pub struct RangeOption<'a> {
     /// The end of the range.
     pub end: KeySelector<'a>,
     /// If non-zero, indicates the maximum number of key-value pairs to return.
+    /// `None` and `Some(0)` both mean unlimited.
     pub limit: Option<usize>,
     /// If non-zero, indicates a (soft) cap on the combined number of bytes of keys and values to
     /// return for each item.
@@ -432,7 +433,7 @@ impl RangeOption<'_> {
         let last = kvs.last()?;
         let last_key = last.key();
 
-        if let Some(limit) = self.limit.as_mut() {
+        if let Some(limit) = self.limit.as_mut().filter(|limit| **limit != 0) {
             *limit = limit.saturating_sub(kvs.len());
             if *limit == 0 {
                 return None;
@@ -456,7 +457,7 @@ impl RangeOption<'_> {
         let last = kvs.last()?;
         let last_key = last.parent_key();
 
-        if let Some(limit) = self.limit.as_mut() {
+        if let Some(limit) = self.limit.as_mut().filter(|limit| **limit != 0) {
             *limit = limit.saturating_sub(kvs.len());
             if *limit == 0 {
                 return None;
