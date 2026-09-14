@@ -24,7 +24,7 @@ foundationdb-sys = { version = "0.11.0", path = "../foundationdb-sys", default-f
 
 [build-dependencies]
 cc = "1.2.65"
-bindgen = "0.72.1"
+bindgen = "0.73.2"
 
 [dev-dependencies]
 futures-util = "0.3.32"
