@@ -67,7 +67,7 @@ pub use crate::budget::{AttemptUsage, BudgetExceeded, BudgetKind, ClientBudget, 
 pub use crate::database::*;
 pub use crate::env::{Clock, Environment, Rng, SeededRng, WallClock};
 pub use crate::error::{FdbBindingError, RetryDecision, RetryableError};
-pub use crate::error::{FdbError, FdbResult};
+pub use crate::error::{FdbError, FdbErrorCode, FdbResult};
 pub use crate::keyselector::*;
 pub use crate::runner::{
     AttemptFailure, MetricsHooks, NativeRetryPolicy, RetryPolicy, RunnerHooks, TransactionRunner,
