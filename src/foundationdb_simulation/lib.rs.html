@@ -290,7 +290,29 @@
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a></pre></div><pre class="rust"><code><span class="attr">#![warn(missing_docs)]
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a></pre></div><pre class="rust"><code><span class="attr">#![warn(missing_docs)]
 #![doc = <span class="macro">include_str!</span>(<span class="string">"../README.md"</span>)]
 
 </span><span class="kw">use </span>std::{ptr::NonNull, sync::Arc};
@@ -407,6 +429,26 @@
     std::mem::forget(database);
 }
 
+<span class="attr">#[cfg(coverage)]
+</span><span class="kw">fn </span>write_coverage_profile() {
+    <span class="kw">unsafe extern </span><span class="string">"C" </span>{
+        <span class="kw">fn </span>__llvm_profile_reset_counters();
+        <span class="kw">fn </span>__llvm_profile_write_file() -&gt; i32;
+    }
+
+    <span class="comment">// fdbserver exits with `_exit`, so LLVM's normal process-exit hook cannot
+    // persist a profile from this dynamically loaded workload.
+    </span><span class="kw">let </span>result = <span class="kw">unsafe </span>{ __llvm_profile_write_file() };
+    <span class="kw">if </span>result == <span class="number">0 </span>{
+        <span class="comment">// Every simulator client shares the DSO's counters. Reset only after a
+        // successful snapshot so later client callbacks add, rather than repeat,
+        // counts in LLVM_PROFILE_FILE's %m-merged profile.
+        </span><span class="kw">unsafe </span>{ __llvm_profile_reset_counters() };
+    } <span class="kw">else </span>{
+        <span class="macro">eprintln!</span>(<span class="string">"failed to write LLVM coverage profile (status {result})"</span>);
+    }
+}
+
 <span class="kw">unsafe fn </span>database_new(raw_database: <span class="kw-2">*mut </span>FDBDatabase) -&gt; SimDatabase {
     <span class="kw">unsafe </span>{
         Arc::new(Database::new_from_pointer(NonNull::new_unchecked(
@@ -469,7 +511,9 @@
     <span class="kw">unsafe </span>{
         <span class="kw">let </span>workload = <span class="kw-2">&amp;*</span>(raw_workload <span class="kw">as </span><span class="kw-2">*mut </span>W);
         <span class="kw">let </span>out = Metrics::new(raw_metrics);
-        workload.get_metrics(out)
+        workload.get_metrics(out);
+        <span class="attr">#[cfg(coverage)]
+        </span>write_coverage_profile();
     }
 }
 <span class="kw">unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>workload_get_check_timeout&lt;W: RustWorkload&gt;(
