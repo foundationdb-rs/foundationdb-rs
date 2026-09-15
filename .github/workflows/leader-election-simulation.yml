@@ -25,7 +25,7 @@ jobs:
     steps:
       - name: Checkout history for push comparison
         if: github.event_name == 'push'
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -83,7 +83,7 @@ jobs:
       matrix: ${{ fromJSON(needs.select-campaign.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
