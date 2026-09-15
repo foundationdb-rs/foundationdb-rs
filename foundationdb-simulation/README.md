@@ -269,6 +269,44 @@ fn get_metrics(&self, out: Metrics) {
 }
 ```
 
+## LLVM code coverage for external workloads
+
+`cargo llvm-cov` can collect Rust coverage from an external workload and its Rust dependencies.
+The workload writes a profile after each completed `get_metrics` callback because `fdbserver`
+exits with `_exit`, which bypasses LLVM's normal process-exit profile writer. This is enabled only
+when `cargo llvm-cov` sets `cfg(coverage)`; regular builds are unchanged.
+
+This example builds the existing atomic workload into an isolated target directory, writes a copy
+of its test configuration there, and points that copy at the instrumented shared object:
+
+Install `cargo-llvm-cov` and the `llvm-tools-preview` Rust component first. The Nix shell provides
+the LLVM tools, but does not currently provide the `cargo-llvm-cov` CLI.
+
+```bash
+nix develop
+
+export CARGO_TARGET_DIR="$PWD/target/simulation-coverage"
+export CARGO_LLVM_COV_TARGET_DIR="$CARGO_TARGET_DIR"
+source <(cargo llvm-cov show-env --sh --release)
+cargo llvm-cov clean --workspace
+
+cargo build --locked --release -p foundationdb-simulation --example atomic \
+  --features embedded-fdb-include,fdb-7_4
+
+config="$CARGO_TARGET_DIR/atomic-coverage.toml"
+sed "s#libraryPath = './target/release/examples'#libraryPath = '$CARGO_TARGET_DIR/release/examples'#" \
+  foundationdb-simulation/examples/atomic/test_file_74.toml > "$config"
+
+fdbserver -r simulation -f "$config" -b on --trace-format json
+
+cargo llvm-cov report --release --html --output-dir "$CARGO_TARGET_DIR/report"
+cargo llvm-cov report --release --lcov --output-path "$CARGO_TARGET_DIR/lcov.info"
+```
+
+Keep the `LLVM_PROFILE_FILE` set by `show-env`, including its `%m` placeholder. A custom name
+without `%m` can overwrite earlier client snapshots. This prototype flushes only completed metrics
+callbacks, so a simulation failure or timeout before that callback has no profile-write guarantee.
+
 # Common Mistakes
 
 * **Compiling C++ shim outside of the Docker.** C++ ABI is extremely environment-dependent, not

@@ -1,7 +1,7 @@
 {
   description = "A dev environment for the crate foundationdb-rs";
   inputs = {
-    nixpkgs.url = "nixpkgs";
+    nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.zst";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
     fdb-overlay.url = "github:foundationdb-rs/overlay";

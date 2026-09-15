@@ -115,6 +115,26 @@ fn check_database_ref(database: SimDatabase) {
     std::mem::forget(database);
 }
 
+#[cfg(coverage)]
+fn write_coverage_profile() {
+    unsafe extern "C" {
+        fn __llvm_profile_reset_counters();
+        fn __llvm_profile_write_file() -> i32;
+    }
+
+    // fdbserver exits with `_exit`, so LLVM's normal process-exit hook cannot
+    // persist a profile from this dynamically loaded workload.
+    let result = unsafe { __llvm_profile_write_file() };
+    if result == 0 {
+        // Every simulator client shares the DSO's counters. Reset only after a
+        // successful snapshot so later client callbacks add, rather than repeat,
+        // counts in LLVM_PROFILE_FILE's %m-merged profile.
+        unsafe { __llvm_profile_reset_counters() };
+    } else {
+        eprintln!("failed to write LLVM coverage profile (status {result})");
+    }
+}
+
 unsafe fn database_new(raw_database: *mut FDBDatabase) -> SimDatabase {
     unsafe {
         Arc::new(Database::new_from_pointer(NonNull::new_unchecked(
@@ -177,7 +197,9 @@ unsafe extern "C" fn workload_get_metrics<W: RustWorkload>(
     unsafe {
         let workload = &*(raw_workload as *mut W);
         let out = Metrics::new(raw_metrics);
-        workload.get_metrics(out)
+        workload.get_metrics(out);
+        #[cfg(coverage)]
+        write_coverage_profile();
     }
 }
 unsafe extern "C" fn workload_get_check_timeout<W: RustWorkload>(
