@@ -10,34 +10,18 @@ on:
 jobs:
   msrv:
     runs-on: ubuntu-latest
-    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.85.1).
-    # cargo-msrv itself needs a current rustc to build, and it selects the
-    # toolchain to test per-check (rustup run / +version), so override the file
-    # here to install and run it on stable.
-    env:
-      RUSTUP_TOOLCHAIN: stable
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.0
 
-      - name: Setup FoundationDB
-        uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
-        with:
-          version: "7.4.3"
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-
-      - name: Install cargo-msrv
-        run: cargo install cargo-msrv
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
 
       - name: Find MSRV
-        run: cargo msrv find -- cargo check --features num-bigint,embedded-fdb-include,fdb-7_4 --no-default-features
+        run: nix develop .. -c cargo msrv find -- cargo check --features num-bigint,embedded-fdb-include,fdb-7_4 --no-default-features
         working-directory: ./foundationdb
 
       - name: Verify MSRV
-        run: cargo msrv verify -- cargo check --features num-bigint,embedded-fdb-include,fdb-7_4 --no-default-features
+        run: nix develop .. -c cargo msrv verify -- cargo check --features num-bigint,embedded-fdb-include,fdb-7_4 --no-default-features
         working-directory: ./foundationdb
 
