@@ -99,6 +99,8 @@ pub enum FdbBindingError {
     PackError(PackError),
     /// A reference to the `RetryableTransaction` has been kept
     ReferenceToTransactionKept,
+    /// All 65536 user versions have been allocated for the transaction attempt.
+    UserVersionExhausted,
     /// A custom error that layer developers can use
     ///
     /// The retry loop of [`crate::Database::run`] recovers the underlying
@@ -198,6 +200,9 @@ impl Debug for FdbBindingError {
             FdbBindingError::ReferenceToTransactionKept => {
                 write!(f, "Reference to transaction kept")
             }
+            FdbBindingError::UserVersionExhausted => {
+                write!(f, "Transaction user version allocator exhausted")
+            }
             FdbBindingError::CustomError(err) => write!(f, "{err:?}"),
             FdbBindingError::ClientBudgetExceeded(err) => write!(f, "{err}"),
             #[cfg(feature = "recipes-leader-election")]
@@ -222,6 +227,7 @@ impl std::error::Error for FdbBindingError {
             Self::CustomError(e) => Some(e.as_ref()),
             Self::ClientBudgetExceeded(e) => Some(e),
             Self::ReferenceToTransactionKept => None,
+            Self::UserVersionExhausted => None,
             #[cfg(feature = "recipes-leader-election")]
             Self::LeaderElectionError(e) => Some(e),
         }
