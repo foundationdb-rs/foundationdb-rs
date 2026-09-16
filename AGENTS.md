@@ -38,9 +38,11 @@ Run a single test: `cargo test-fdb-latest <test_name>` (append filters after `--
 
 ### Running tests against a real cluster
 
-Unit tests in `foundationdb` talk to a live cluster. Start one with Docker:
+Unit tests in `foundationdb` talk to a live cluster. Agents may reuse an
+existing configured local Docker cluster, or start and configure one with
+these commands when tests need it, without additional confirmation:
 ```bash
-docker run -p 4500:4500 --name fdb --rm -d foundationdb/foundationdb:7.4.3
+docker run -p 4500:4500 --name fdb --rm -d foundationdb/foundationdb:7.4.6
 docker exec fdb fdbcli --exec "configure new single memory"
 ```
 The cluster file must point at it (e.g. `/etc/foundationdb/fdb.cluster`).

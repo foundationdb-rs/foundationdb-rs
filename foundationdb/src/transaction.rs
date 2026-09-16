@@ -14,6 +14,7 @@ use foundationdb_sys as fdb_sys;
 use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
@@ -198,6 +199,8 @@ impl TransactionCommitted {
     /// This will not affect previously committed data.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     pub fn reset(mut self) -> Transaction {
         self.tr.reset();
         self.tr
@@ -228,7 +231,9 @@ impl TransactionCommitError {
     ///
     /// On success the transaction enters a new attempt: its
     /// [usage](Transaction::attempt_usage) restarts from zero, while its
-    /// [client budget](Transaction::set_client_budget) is kept.
+    /// [client budget](Transaction::set_client_budget) is kept. User versions
+    /// allocated by [`Transaction::allocate_user_version`] are invalid for the
+    /// new attempt, which starts allocating again at zero.
     pub fn on_error(self) -> impl Future<Output = FdbResult<Transaction>> {
         self.tr.mark_attempt_end();
         let cause = self.err;
@@ -239,6 +244,7 @@ impl TransactionCommitError {
         .map_ok(move |()| {
             self.tr.end_attempt(AttemptOutcome::Retried { cause });
             self.tr.begin_attempt_usage();
+            self.tr.reset_user_version_allocator();
             self.tr
         })
     }
@@ -262,6 +268,8 @@ impl TransactionCommitError {
     /// Reset the transaction to its initial state.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     pub fn reset(mut self) -> Transaction {
         self.tr.reset();
         self.tr
@@ -318,6 +326,8 @@ impl TransactionCancelled {
     /// Reset the transaction to its initial state.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     pub fn reset(mut self) -> Transaction {
         self.tr.reset();
         self.tr
@@ -351,6 +361,9 @@ pub struct Transaction {
     /// Client-side limits applied to the current attempt. Unlike `usage`, they
     /// are configuration: they survive `on_error` and `reset`.
     budget: Mutex<ClientBudget>,
+    /// The next user version to issue for an incomplete versionstamp in the
+    /// current transaction attempt.
+    user_version: AtomicU32,
 }
 unsafe impl Send for Transaction {}
 unsafe impl Sync for Transaction {}
@@ -553,7 +566,39 @@ impl Transaction {
             metrics: OnceLock::new(),
             usage: UsageSlot::default(),
             budget: Mutex::new(ClientBudget::default()),
+            user_version: AtomicU32::new(0),
         }
+    }
+
+    /// Allocates a user version for an incomplete [`Versionstamp`](crate::tuple::Versionstamp).
+    ///
+    /// Values start at zero and increase through `65535`. Values issued by
+    /// this allocator are unique within the current transaction attempt, across
+    /// all handles that share that transaction. Explicit user versions supplied
+    /// to `Versionstamp::incomplete` remain supported, but can collide with
+    /// allocator-issued versions or with each other.
+    ///
+    /// The allocator performs no database operations and adds no conflict
+    /// ranges. It has no reservation mechanism: allocate a value when building
+    /// the versionstamped mutation that will use it.
+    ///
+    /// `reset` and a successful `on_error` start a new transaction attempt and
+    /// restart allocation at zero. A cancelled transaction retains its issued
+    /// values until it is reset. Versions from a previous attempt therefore
+    /// must not be reused in mutations for the new attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FdbBindingError::UserVersionExhausted`] after all 65536 user
+    /// versions have been issued for this attempt.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn allocate_user_version(&self) -> Result<u16, FdbBindingError> {
+        self.user_version
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                (current <= u16::MAX as u32).then_some(current + 1)
+            })
+            .map(|current| current as u16)
+            .map_err(|_| FdbBindingError::UserVersionExhausted)
     }
 
     /// Attaches a metrics collector to this transaction and opens its first
@@ -1379,7 +1424,9 @@ impl Transaction {
     ///
     /// On success the transaction enters a new attempt: its
     /// [usage](Self::attempt_usage) restarts from zero, while its
-    /// [client budget](Self::set_client_budget) is kept.
+    /// [client budget](Self::set_client_budget) is kept. User versions
+    /// allocated by [`Self::allocate_user_version`] are invalid for the new
+    /// attempt, which starts allocating again at zero.
     pub fn on_error(
         self,
         err: FdbError,
@@ -1392,12 +1439,14 @@ impl Transaction {
         .map_ok(move |()| {
             self.end_attempt(AttemptOutcome::Retried { cause: err });
             self.begin_attempt_usage();
+            self.reset_user_version_allocator();
             self
         })
     }
 
     /// Cancels the transaction. All pending or future uses of the transaction will return a
-    /// transaction_cancelled error. The transaction can be used again after it is reset.
+    /// transaction_cancelled error. The transaction can be used again after it is reset. User
+    /// versions already allocated remain consumed until that reset starts a new attempt.
     pub fn cancel(self) -> TransactionCancelled {
         unsafe {
             fdb_sys::fdb_transaction_cancel(self.inner.as_ptr());
@@ -1682,10 +1731,17 @@ impl Transaction {
     /// This starts a new attempt: the [usage](Self::attempt_usage) restarts from
     /// zero, while the [client budget](Self::set_client_budget) is kept. On an
     /// instrumented transaction, the attempt being recorded is abandoned rather
-    /// than reported: it reached no conclusion.
+    /// than reported: it reached no conclusion. User versions allocated before
+    /// reset are invalid for the new attempt, which starts allocating again at
+    /// zero.
     pub fn reset(&mut self) {
         unsafe { fdb_sys::fdb_transaction_reset(self.inner.as_ptr()) }
         self.begin_attempt_usage();
+        self.reset_user_version_allocator();
+    }
+
+    fn reset_user_version_allocator(&self) {
+        self.user_version.store(0, Ordering::Relaxed);
     }
 
     /// Reads the conflicting key ranges from the special keyspace after a commit conflict.
