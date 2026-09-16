@@ -1987,7 +1987,63 @@
 <a href="#1986" id="1986">1986</a>
 <a href="#1987" id="1987">1987</a>
 <a href="#1988" id="1988">1988</a>
-<a href="#1989" id="1989">1989</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
+<a href="#2007" id="2007">2007</a>
+<a href="#2008" id="2008">2008</a>
+<a href="#2009" id="2009">2009</a>
+<a href="#2010" id="2010">2010</a>
+<a href="#2011" id="2011">2011</a>
+<a href="#2012" id="2012">2012</a>
+<a href="#2013" id="2013">2013</a>
+<a href="#2014" id="2014">2014</a>
+<a href="#2015" id="2015">2015</a>
+<a href="#2016" id="2016">2016</a>
+<a href="#2017" id="2017">2017</a>
+<a href="#2018" id="2018">2018</a>
+<a href="#2019" id="2019">2019</a>
+<a href="#2020" id="2020">2020</a>
+<a href="#2021" id="2021">2021</a>
+<a href="#2022" id="2022">2022</a>
+<a href="#2023" id="2023">2023</a>
+<a href="#2024" id="2024">2024</a>
+<a href="#2025" id="2025">2025</a>
+<a href="#2026" id="2026">2026</a>
+<a href="#2027" id="2027">2027</a>
+<a href="#2028" id="2028">2028</a>
+<a href="#2029" id="2029">2029</a>
+<a href="#2030" id="2030">2030</a>
+<a href="#2031" id="2031">2031</a>
+<a href="#2032" id="2032">2032</a>
+<a href="#2033" id="2033">2033</a>
+<a href="#2034" id="2034">2034</a>
+<a href="#2035" id="2035">2035</a>
+<a href="#2036" id="2036">2036</a>
+<a href="#2037" id="2037">2037</a>
+<a href="#2038" id="2038">2038</a>
+<a href="#2039" id="2039">2039</a>
+<a href="#2040" id="2040">2040</a>
+<a href="#2041" id="2041">2041</a>
+<a href="#2042" id="2042">2042</a>
+<a href="#2043" id="2043">2043</a>
+<a href="#2044" id="2044">2044</a>
+<a href="#2045" id="2045">2045</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -2003,6 +2059,7 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, Range, RangeInclusive};
 <span class="kw">use </span>std::ptr::NonNull;
+<span class="kw">use </span>std::sync::atomic::{AtomicU32, Ordering};
 <span class="kw">use </span>std::sync::{Arc, Mutex, OnceLock};
 <span class="kw">use </span>std::time::Instant;
 
@@ -2187,6 +2244,8 @@
     /// This will not affect previously committed data.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     </span><span class="kw">pub fn </span>reset(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Transaction {
         <span class="self">self</span>.tr.reset();
         <span class="self">self</span>.tr
@@ -2217,7 +2276,9 @@
     ///
     /// On success the transaction enters a new attempt: its
     /// [usage](Transaction::attempt_usage) restarts from zero, while its
-    /// [client budget](Transaction::set_client_budget) is kept.
+    /// [client budget](Transaction::set_client_budget) is kept. User versions
+    /// allocated by [`Transaction::allocate_user_version`] are invalid for the
+    /// new attempt, which starts allocating again at zero.
     </span><span class="kw">pub fn </span>on_error(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;Transaction&gt;&gt; {
         <span class="self">self</span>.tr.mark_attempt_end();
         <span class="kw">let </span>cause = <span class="self">self</span>.err;
@@ -2228,6 +2289,7 @@
         .map_ok(<span class="kw">move </span>|()| {
             <span class="self">self</span>.tr.end_attempt(AttemptOutcome::Retried { cause });
             <span class="self">self</span>.tr.begin_attempt_usage();
+            <span class="self">self</span>.tr.reset_user_version_allocator();
             <span class="self">self</span>.tr
         })
     }
@@ -2251,6 +2313,8 @@
     <span class="doccomment">/// Reset the transaction to its initial state.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     </span><span class="kw">pub fn </span>reset(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Transaction {
         <span class="self">self</span>.tr.reset();
         <span class="self">self</span>.tr
@@ -2307,6 +2371,8 @@
     <span class="doccomment">/// Reset the transaction to its initial state.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     </span><span class="kw">pub fn </span>reset(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Transaction {
         <span class="self">self</span>.tr.reset();
         <span class="self">self</span>.tr
@@ -2340,6 +2406,9 @@
     <span class="doccomment">/// Client-side limits applied to the current attempt. Unlike `usage`, they
     /// are configuration: they survive `on_error` and `reset`.
     </span>budget: Mutex&lt;ClientBudget&gt;,
+    <span class="doccomment">/// The next user version to issue for an incomplete versionstamp in the
+    /// current transaction attempt.
+    </span>user_version: AtomicU32,
 }
 <span class="kw">unsafe impl </span>Send <span class="kw">for </span>Transaction {}
 <span class="kw">unsafe impl </span>Sync <span class="kw">for </span>Transaction {}
@@ -2542,7 +2611,39 @@
             metrics: OnceLock::new(),
             usage: UsageSlot::default(),
             budget: Mutex::new(ClientBudget::default()),
+            user_version: AtomicU32::new(<span class="number">0</span>),
         }
+    }
+
+    <span class="doccomment">/// Allocates a user version for an incomplete [`Versionstamp`](crate::tuple::Versionstamp).
+    ///
+    /// Values start at zero and increase through `65535`. Values issued by
+    /// this allocator are unique within the current transaction attempt, across
+    /// all handles that share that transaction. Explicit user versions supplied
+    /// to `Versionstamp::incomplete` remain supported, but can collide with
+    /// allocator-issued versions or with each other.
+    ///
+    /// The allocator performs no database operations and adds no conflict
+    /// ranges. It has no reservation mechanism: allocate a value when building
+    /// the versionstamped mutation that will use it.
+    ///
+    /// `reset` and a successful `on_error` start a new transaction attempt and
+    /// restart allocation at zero. A cancelled transaction retains its issued
+    /// values until it is reset. Versions from a previous attempt therefore
+    /// must not be reused in mutations for the new attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FdbBindingError::UserVersionExhausted`] after all 65536 user
+    /// versions have been issued for this attempt.
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
+    </span><span class="kw">pub fn </span>allocate_user_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;u16, FdbBindingError&gt; {
+        <span class="self">self</span>.user_version
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                (current &lt;= u16::MAX <span class="kw">as </span>u32).then_some(current + <span class="number">1</span>)
+            })
+            .map(|current| current <span class="kw">as </span>u16)
+            .map_err(|<span class="kw">_</span>| FdbBindingError::UserVersionExhausted)
     }
 
     <span class="doccomment">/// Attaches a metrics collector to this transaction and opens its first
@@ -3368,7 +3469,9 @@
     ///
     /// On success the transaction enters a new attempt: its
     /// [usage](Self::attempt_usage) restarts from zero, while its
-    /// [client budget](Self::set_client_budget) is kept.
+    /// [client budget](Self::set_client_budget) is kept. User versions
+    /// allocated by [`Self::allocate_user_version`] are invalid for the new
+    /// attempt, which starts allocating again at zero.
     </span><span class="kw">pub fn </span>on_error(
         <span class="self">self</span>,
         err: FdbError,
@@ -3381,12 +3484,14 @@
         .map_ok(<span class="kw">move </span>|()| {
             <span class="self">self</span>.end_attempt(AttemptOutcome::Retried { cause: err });
             <span class="self">self</span>.begin_attempt_usage();
+            <span class="self">self</span>.reset_user_version_allocator();
             <span class="self">self
         </span>})
     }
 
     <span class="doccomment">/// Cancels the transaction. All pending or future uses of the transaction will return a
-    /// transaction_cancelled error. The transaction can be used again after it is reset.
+    /// transaction_cancelled error. The transaction can be used again after it is reset. User
+    /// versions already allocated remain consumed until that reset starts a new attempt.
     </span><span class="kw">pub fn </span>cancel(<span class="self">self</span>) -&gt; TransactionCancelled {
         <span class="kw">unsafe </span>{
             fdb_sys::fdb_transaction_cancel(<span class="self">self</span>.inner.as_ptr());
@@ -3671,10 +3776,17 @@
     /// This starts a new attempt: the [usage](Self::attempt_usage) restarts from
     /// zero, while the [client budget](Self::set_client_budget) is kept. On an
     /// instrumented transaction, the attempt being recorded is abandoned rather
-    /// than reported: it reached no conclusion.
+    /// than reported: it reached no conclusion. User versions allocated before
+    /// reset are invalid for the new attempt, which starts allocating again at
+    /// zero.
     </span><span class="kw">pub fn </span>reset(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">unsafe </span>{ fdb_sys::fdb_transaction_reset(<span class="self">self</span>.inner.as_ptr()) }
         <span class="self">self</span>.begin_attempt_usage();
+        <span class="self">self</span>.reset_user_version_allocator();
+    }
+
+    <span class="kw">fn </span>reset_user_version_allocator(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="self">self</span>.user_version.store(<span class="number">0</span>, Ordering::Relaxed);
     }
 
     <span class="doccomment">/// Reads the conflicting key ranges from the special keyspace after a commit conflict.

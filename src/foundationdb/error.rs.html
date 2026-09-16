@@ -329,7 +329,13 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -430,6 +436,8 @@
     PackError(PackError),
     <span class="doccomment">/// A reference to the `RetryableTransaction` has been kept
     </span>ReferenceToTransactionKept,
+    <span class="doccomment">/// All 65536 user versions have been allocated for the transaction attempt.
+    </span>UserVersionExhausted,
     <span class="doccomment">/// A custom error that layer developers can use
     ///
     /// The retry loop of [`crate::Database::run`] recovers the underlying
@@ -529,6 +537,9 @@
             FdbBindingError::ReferenceToTransactionKept =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"Reference to transaction kept"</span>)
             }
+            FdbBindingError::UserVersionExhausted =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"Transaction user version allocator exhausted"</span>)
+            }
             FdbBindingError::CustomError(err) =&gt; <span class="macro">write!</span>(f, <span class="string">"{err:?}"</span>),
             FdbBindingError::ClientBudgetExceeded(err) =&gt; <span class="macro">write!</span>(f, <span class="string">"{err}"</span>),
             <span class="attr">#[cfg(feature = <span class="string">"recipes-leader-election"</span>)]
@@ -553,6 +564,7 @@
             <span class="self">Self</span>::CustomError(e) =&gt; <span class="prelude-val">Some</span>(e.as_ref()),
             <span class="self">Self</span>::ClientBudgetExceeded(e) =&gt; <span class="prelude-val">Some</span>(e),
             <span class="self">Self</span>::ReferenceToTransactionKept =&gt; <span class="prelude-val">None</span>,
+            <span class="self">Self</span>::UserVersionExhausted =&gt; <span class="prelude-val">None</span>,
             <span class="attr">#[cfg(feature = <span class="string">"recipes-leader-election"</span>)]
             </span><span class="self">Self</span>::LeaderElectionError(e) =&gt; <span class="prelude-val">Some</span>(e),
         }
