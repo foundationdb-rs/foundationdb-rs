@@ -1,0 +1,300 @@
+//! Integration tests of `read_page` against a live cluster.
+//!
+//! The test enables client profiling for the whole cluster (sample rate 1.0, like
+//! `fdbcli> profile client set 1.0 default`), writes a few transactions, waits for the
+//! client to flush them, reads them back, then restores the previous profiling settings
+//! and clears the keys it wrote. Everything runs in a single test so that no other test
+//! can switch profiling off under it.
+
+use foundationdb::options::TransactionOption;
+use foundationdb::tuple::pack;
+use foundationdb::{BudgetKind, ClientBudget, Database, FdbBindingError};
+use foundationdb_profiling::{
+    Cursor, Event, Page, PageRequest, ProfiledTransaction, StopReason, read_page,
+};
+use futures_util::FutureExt;
+use std::collections::BTreeSet;
+use std::panic::AssertUnwindSafe;
+use std::time::{Duration, SystemTime};
+
+const SAMPLE_RATE_KEY: &[u8] =
+    b"\xff\xff/global_config/config/fdb_client_info/client_txn_sample_rate";
+const SIZE_LIMIT_KEY: &[u8] =
+    b"\xff\xff/global_config/config/fdb_client_info/client_txn_size_limit";
+
+/// Number of profiled transactions written by the test.
+const TXNS: usize = 5;
+/// Value size of each write, so the records span several range read batches.
+const VALUE_LEN: usize = 2048;
+
+type Id = ([u8; 10], [u8; 16]);
+
+#[tokio::test]
+async fn read_page_against_live_cluster() {
+    let db = Database::default().expect("database");
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let prefix = format!("fdbrs_profiling_test/{}_{nanos}/", std::process::id()).into_bytes();
+
+    let previous = read_profiling_config(&db).await;
+    set_profiling_config(&db, Some(pack(&1.0f64)), Some(pack(&-1i64))).await;
+
+    let result = AssertUnwindSafe(scenarios(&db, &prefix))
+        .catch_unwind()
+        .await;
+
+    set_profiling_config(&db, previous.0, previous.1).await;
+    let end = [prefix.as_slice(), b"\xff"].concat();
+    db.run(|trx, _| {
+        let (begin, end) = (prefix.clone(), end.clone());
+        async move {
+            trx.clear_range(&begin, &end);
+            Ok::<_, FdbBindingError>(())
+        }
+    })
+    .await
+    .expect("cleanup");
+
+    if let Err(panic) = result {
+        std::panic::resume_unwind(panic);
+    }
+}
+
+async fn scenarios(db: &Database, prefix: &[u8]) {
+    let start = read_version(db).await;
+    let ours = write_and_wait(db, prefix, start).await;
+    let max_version = ours.iter().map(|t| t.version).max().unwrap();
+    let end_version = max_version + 1;
+
+    // decoded contents of our transactions
+    for (i, tx) in ours.iter().enumerate() {
+        let key = test_key(prefix, i);
+        assert!(
+            matches!(tx.events.first(), Some(Event::GetVersion(_))),
+            "{tx:?}"
+        );
+        assert!(
+            tx.events
+                .iter()
+                .any(|e| matches!(e, Event::Get(g) if g.key == key))
+        );
+        let commit = tx
+            .events
+            .iter()
+            .find_map(|e| match e {
+                Event::Commit(c) => Some(c),
+                _ => None,
+            })
+            .expect("commit event");
+        assert_eq!(commit.request.mutations.len(), 1);
+        assert_eq!(commit.request.mutations[0].mutation_type, 0);
+        assert_eq!(commit.request.mutations[0].param1, key);
+        assert_eq!(commit.request.mutations[0].param2.len(), VALUE_LEN);
+    }
+
+    // one big page over a fixed window
+    let window = PageRequest {
+        cursor: Cursor::at_version(start),
+        end_version: Some(end_version),
+        max_transactions: 100_000,
+    };
+    let full = page(db, &window, None).await;
+    assert!(full.exhausted);
+    assert_eq!(full.stopped_by, None);
+    let all = ids(&full.transactions);
+    for tx in &ours {
+        assert!(all.contains(&(tx.versionstamp, tx.id)));
+    }
+    assert!(full.transactions.iter().all(|t| t.version < end_version));
+
+    // pagination with one transaction per page reaches the same set
+    let mut req = PageRequest {
+        max_transactions: 1,
+        ..window.clone()
+    };
+    let mut paged = Vec::new();
+    for _ in 0..=(all.len() + full.skipped.len() + 1) {
+        let p = page(db, &req, None).await;
+        assert!(p.transactions.len() + p.skipped.len() <= 1, "{p:?}");
+        paged.extend(p.transactions);
+        req.cursor = p.next;
+        if p.exhausted {
+            break;
+        }
+        assert_eq!(p.stopped_by, Some(StopReason::MaxTransactions));
+    }
+    assert_eq!(ids(&paged), all);
+    assert_eq!(paged.len(), all.len());
+
+    // a tiny, deterministic byte budget stops the page, and its cursor resumes it
+    let budget = ClientBudget {
+        max_bytes_read: Some(1),
+        ..ClientBudget::default()
+    };
+    let mut req = window.clone();
+    let mut budgeted = Vec::new();
+    let mut budget_stops = 0;
+    for _ in 0..1_000 {
+        let p = page(db, &req, Some(budget.clone())).await;
+        budgeted.extend(p.transactions);
+        // round trip through the persisted form
+        let restored = Cursor::from_bytes(p.next.as_bytes().to_vec()).expect("valid cursor");
+        assert_eq!(restored, p.next);
+        assert_ne!(restored, req.cursor, "no progress");
+        req.cursor = restored;
+        if p.exhausted {
+            break;
+        }
+        match p.stopped_by {
+            Some(StopReason::Budget(e)) => {
+                assert_eq!(e.kind, BudgetKind::BytesRead);
+                budget_stops += 1;
+            }
+            other => panic!("unexpected stop {other:?}"),
+        }
+    }
+    assert!(budget_stops > 0, "the window fits in one batch");
+    assert_eq!(ids(&budgeted), all);
+    assert_eq!(budgeted.len(), all.len());
+
+    // end_version is exclusive, at_version inclusive
+    let mut versions: Vec<i64> = ours.iter().map(|t| t.version).collect();
+    versions.sort();
+    let split = versions[versions.len() / 2];
+    let before = page(
+        db,
+        &PageRequest {
+            end_version: Some(split),
+            ..window.clone()
+        },
+        None,
+    )
+    .await;
+    assert!(before.exhausted);
+    assert!(before.transactions.iter().all(|t| t.version < split));
+    let after = page(
+        db,
+        &PageRequest {
+            cursor: Cursor::at_version(split),
+            ..window.clone()
+        },
+        None,
+    )
+    .await;
+    assert!(after.transactions.iter().all(|t| t.version >= split));
+    let mut both = ids(&before.transactions);
+    both.extend(ids(&after.transactions));
+    assert_eq!(both, all);
+    for tx in &ours {
+        let in_before = before.transactions.iter().any(|t| t.id == tx.id);
+        assert_eq!(in_before, tx.version < split);
+    }
+}
+
+fn test_key(prefix: &[u8], i: usize) -> Vec<u8> {
+    [prefix, format!("{i}").as_bytes()].concat()
+}
+
+/// Writes the test transactions and waits until all of them are flushed, rewriting the
+/// ones not seen yet (the new sample rate reaches the client asynchronously).
+async fn write_and_wait(db: &Database, prefix: &[u8], start: i64) -> Vec<ProfiledTransaction> {
+    let mut found: Vec<Option<ProfiledTransaction>> = vec![None; TXNS];
+    for _round in 0..6 {
+        for (i, slot) in found.iter().enumerate() {
+            if slot.is_none() {
+                let key = test_key(prefix, i);
+                db.run(|trx, _| {
+                    let key = key.clone();
+                    async move {
+                        trx.get(&key, false).await?;
+                        trx.set(&key, &[b'v'; VALUE_LEN]);
+                        Ok::<_, FdbBindingError>(())
+                    }
+                })
+                .await
+                .expect("write");
+            }
+        }
+        // the client flushes every CSI_STATUS_DELAY (10s)
+        for _ in 0..15 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let req = PageRequest {
+                cursor: Cursor::at_version(start),
+                end_version: None,
+                max_transactions: 100_000,
+            };
+            let p = page(db, &req, None).await;
+            for tx in p.transactions {
+                for (i, slot) in found.iter_mut().enumerate() {
+                    let key = test_key(prefix, i);
+                    let ours = tx
+                        .events
+                        .iter()
+                        .any(|e| matches!(e, Event::Get(g) if g.key == key));
+                    if ours && slot.is_none() {
+                        *slot = Some(tx.clone());
+                    }
+                }
+            }
+            if found.iter().all(Option::is_some) {
+                return found.into_iter().flatten().collect();
+            }
+        }
+    }
+    panic!("profiling data was not flushed: {found:?}");
+}
+
+async fn page(db: &Database, req: &PageRequest, budget: Option<ClientBudget>) -> Page {
+    db.run(|trx, _| {
+        let req = req.clone();
+        let budget = budget.clone();
+        async move {
+            trx.set_option(TransactionOption::ReadSystemKeys)?;
+            if let Some(budget) = budget {
+                trx.set_client_budget(budget);
+            }
+            Ok::<_, FdbBindingError>(read_page(&trx, &req).await?)
+        }
+    })
+    .await
+    .expect("read_page")
+}
+
+fn ids(txs: &[ProfiledTransaction]) -> BTreeSet<Id> {
+    txs.iter().map(|t| (t.versionstamp, t.id)).collect()
+}
+
+async fn read_version(db: &Database) -> i64 {
+    let trx = db.create_trx().expect("trx");
+    trx.get_read_version().await.expect("read version")
+}
+
+async fn read_profiling_config(db: &Database) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+    db.run(|trx, _| async move {
+        let rate = trx.get(SAMPLE_RATE_KEY, false).await?.map(|v| v.to_vec());
+        let size = trx.get(SIZE_LIMIT_KEY, false).await?.map(|v| v.to_vec());
+        Ok::<_, FdbBindingError>((rate, size))
+    })
+    .await
+    .expect("read profiling config")
+}
+
+/// Writes the global profiling configuration, `None` meaning `default` (what
+/// `fdbcli> profile client set default default` writes).
+async fn set_profiling_config(db: &Database, rate: Option<Vec<u8>>, size: Option<Vec<u8>>) {
+    let rate = rate.unwrap_or_else(|| pack(&f64::INFINITY));
+    let size = size.unwrap_or_else(|| pack(&-1i64));
+    db.run(|trx, _| {
+        let (rate, size) = (rate.clone(), size.clone());
+        async move {
+            trx.set_option(TransactionOption::SpecialKeySpaceEnableWrites)?;
+            trx.set(SAMPLE_RATE_KEY, &rate);
+            trx.set(SIZE_LIMIT_KEY, &size);
+            Ok::<_, FdbBindingError>(())
+        }
+    })
+    .await
+    .expect("set profiling config");
+}
