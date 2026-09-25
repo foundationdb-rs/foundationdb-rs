@@ -8,11 +8,11 @@
 
 use foundationdb::options::TransactionOption;
 use foundationdb::tuple::pack;
-use foundationdb::{BudgetKind, ClientBudget, Database, FdbBindingError};
+use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
 use foundationdb_profiling::{
-    Cursor, Event, Page, ProfileScanner, ProfiledTransaction, StopReason,
+    Cursor, Event, Page, ProfileScanner, ProfiledTransaction, ScanError, SkipReason,
 };
-use futures_util::FutureExt;
+use futures_util::{FutureExt, TryStreamExt};
 use std::collections::BTreeSet;
 use std::panic::AssertUnwindSafe;
 use std::time::{Duration, SystemTime};
@@ -97,50 +97,24 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     // one big page over a fixed window
     let window_cursor = Cursor::at_version(start);
     let window_scanner = ProfileScanner::new().end_version(end_version);
-    let full = page(db, &window_scanner, &window_cursor).await;
+    let full = page(db, &window_scanner, &window_cursor, Stop::Time).await;
     assert!(full.exhausted);
-    assert_eq!(full.stopped_by, None);
     let all = ids(&full.transactions);
     for tx in &ours {
         assert!(all.contains(&(tx.versionstamp, tx.id)));
     }
     assert!(full.transactions.iter().all(|t| t.version < end_version));
 
-    // pagination: a tiny, deterministic byte budget stops every page right after its
-    // first transaction, and the sequence of pages returns the same set, each once
-    let scanner = window_scanner.clone().budget(ClientBudget {
+    // pagination through the caller's budget: a tiny, deterministic byte budget is
+    // exceeded as soon as the first batch is read, so every page stops after its first
+    // row; and through a row count
+    let byte_budget = Stop::Budget(ClientBudget {
         max_bytes_read: Some(1),
         ..ClientBudget::default()
     });
-    let mut cursor = window_cursor.clone();
-    let mut budgeted = Vec::new();
-    let mut budget_stops = 0;
-    let mut exhausted = false;
-    for _ in 0..=(all.len() + full.skipped.len() + 2) {
-        let p = page(db, &scanner, &cursor).await;
-        assert!(p.transactions.len() <= 1, "{p:?}");
-        budgeted.extend(p.transactions);
-        // round trip through the persisted form
-        let restored = Cursor::from_bytes(p.next.as_bytes().to_vec()).expect("valid cursor");
-        assert_eq!(restored, p.next);
-        if p.exhausted {
-            exhausted = true;
-            break;
-        }
-        assert!(restored.as_bytes() > cursor.as_bytes(), "no progress");
-        cursor = restored;
-        match p.stopped_by {
-            Some(StopReason::Budget(e)) => {
-                assert_eq!(e.kind, BudgetKind::BytesRead);
-                budget_stops += 1;
-            }
-            other => panic!("unexpected stop {other:?}"),
-        }
+    for stop in [byte_budget, Stop::Rows(2), Stop::Rows(3)] {
+        paginate(db, &window_scanner, &window_cursor, stop, &all, &ours).await;
     }
-    assert!(exhausted, "pages never exhausted");
-    assert!(budget_stops > 0, "the window fits in one page");
-    assert_eq!(ids(&budgeted), all);
-    assert_eq!(budgeted.len(), all.len());
 
     // end_version is exclusive, at_version inclusive
     let mut versions: Vec<i64> = ours.iter().map(|t| t.version).collect();
@@ -150,11 +124,12 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
         db,
         &window_scanner.clone().end_version(split),
         &window_cursor,
+        Stop::Time,
     )
     .await;
     assert!(before.exhausted);
     assert!(before.transactions.iter().all(|t| t.version < split));
-    let after = page(db, &window_scanner, &Cursor::at_version(split)).await;
+    let after = page(db, &window_scanner, &Cursor::at_version(split), Stop::Time).await;
     assert!(after.transactions.iter().all(|t| t.version >= split));
     let mut both = ids(&before.transactions);
     both.extend(ids(&after.transactions));
@@ -194,7 +169,7 @@ async fn write_and_wait(db: &Database, prefix: &[u8], start: i64) -> Vec<Profile
             tokio::time::sleep(Duration::from_secs(1)).await;
             let cursor = Cursor::at_version(start);
             let scanner = ProfileScanner::new();
-            let p = page(db, &scanner, &cursor).await;
+            let p = page(db, &scanner, &cursor, Stop::Time).await;
             for tx in p.transactions {
                 for (i, slot) in found.iter_mut().enumerate() {
                     let key = test_key(prefix, i);
@@ -215,17 +190,115 @@ async fn write_and_wait(db: &Database, prefix: &[u8], start: i64) -> Vec<Profile
     panic!("profiling data was not flushed: {found:?}");
 }
 
-async fn page(db: &Database, scanner: &ProfileScanner, cursor: &Cursor) -> Page {
+/// How the caller bounds a page.
+#[derive(Debug, Clone)]
+enum Stop {
+    /// A 2 second time budget, like the crate docs example.
+    Time,
+    /// This client budget.
+    Budget(ClientBudget),
+    /// This many rows.
+    Rows(usize),
+}
+
+/// Reads one page in one `db.run`, the way the crate docs describe it.
+async fn page(db: &Database, scanner: &ProfileScanner, cursor: &Cursor, stop: Stop) -> Page {
     db.run(|trx, _| {
         let scanner = scanner.clone();
         let cursor = cursor.clone();
+        let stop = stop.clone();
         async move {
             trx.set_option(TransactionOption::ReadSystemKeys)?;
-            Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
+            let (budget, max_rows) = match stop {
+                Stop::Time => (
+                    ClientBudget {
+                        time_limit: Some(Duration::from_secs(2)),
+                        ..ClientBudget::default()
+                    },
+                    None,
+                ),
+                Stop::Budget(budget) => (budget, None),
+                Stop::Rows(rows) => (ClientBudget::default(), Some(rows)),
+            };
+            trx.set_client_budget(budget);
+            let range = scanner.range(&cursor);
+            let opt = RangeOption::from((
+                KeySelector::first_greater_or_equal(range.begin.as_slice()),
+                KeySelector::first_greater_or_equal(range.end.as_slice()),
+            ));
+            let rows = trx
+                .get_ranges_keyvalues(opt, true)
+                .map_ok(|kv| (kv.key().to_vec(), kv.value().to_vec()));
+            let mut read = 0;
+            let should_stop = || {
+                read += 1;
+                trx.check_client_budget().is_err() || max_rows.is_some_and(|max| read >= max)
+            };
+            let page = scanner
+                .read_page(&cursor, rows, should_stop)
+                .await
+                .map_err(|err| match err {
+                    ScanError::Source(err) => FdbBindingError::from(err),
+                    err => FdbBindingError::new_custom_error(Box::new(err)),
+                })?;
+            Ok::<_, FdbBindingError>(page)
         }
     })
     .await
     .expect("read_page")
+}
+
+/// Pages through the window with `stop` until exhausted, and checks that the pages
+/// return every transaction of `all` once: at most once each, all of ours (single row
+/// records) exactly once, and any other one missing only by being reported broken.
+async fn paginate(
+    db: &Database,
+    scanner: &ProfileScanner,
+    start: &Cursor,
+    stop: Stop,
+    all: &BTreeSet<Id>,
+    ours: &[ProfiledTransaction],
+) {
+    let mut cursor = start.clone();
+    let mut returned = Vec::new();
+    let mut broken = BTreeSet::new();
+    let mut stops = 0;
+    let mut exhausted = false;
+    for _ in 0..10_000 {
+        let p = page(db, scanner, &cursor, stop.clone()).await;
+        returned.extend(p.transactions);
+        for skipped in p.skipped {
+            assert_eq!(skipped.reason, SkipReason::BrokenChunks, "{stop:?}");
+            broken.insert(skipped.id);
+        }
+        // round trip through the persisted form
+        let restored = Cursor::from_bytes(p.next.as_bytes().to_vec()).expect("valid cursor");
+        assert_eq!(restored, p.next);
+        if p.exhausted {
+            exhausted = true;
+            break;
+        }
+        assert!(
+            restored.as_bytes() > cursor.as_bytes(),
+            "no progress {stop:?}"
+        );
+        cursor = restored;
+        stops += 1;
+    }
+    assert!(exhausted, "pages never exhausted {stop:?}");
+    assert!(stops > 0, "the window fits in one page {stop:?}");
+    let got = ids(&returned);
+    assert_eq!(got.len(), returned.len(), "returned twice {stop:?}");
+    for tx in ours {
+        assert!(got.contains(&(tx.versionstamp, tx.id)), "{stop:?}");
+    }
+    for id in all.difference(&got) {
+        assert!(
+            broken.contains(&id.1),
+            "{id:?} lost without a report {stop:?}"
+        );
+    }
+    assert!(got.is_subset(all), "{stop:?}");
 }
 
 fn ids(txs: &[ProfiledTransaction]) -> BTreeSet<Id> {

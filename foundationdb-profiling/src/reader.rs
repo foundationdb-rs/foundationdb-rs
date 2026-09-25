@@ -7,15 +7,16 @@
 //! PREFIX | versionstamp (10) | '/' | transaction id (16) | '/' | chunk (4, BE) | total (4, BE) | '/' | user id ...
 //! ```
 //!
-//! [`ProfileScanner::read_page`] reads a bounded range of these keys, reassembles the
-//! chunks of each transaction, decodes them with [`decode_events`] and returns a
-//! [`Page`] with a [`Cursor`] to resume from.
+//! [`ProfileScanner::read_page`] consumes the rows of [`ProfileScanner::range`], read by
+//! the caller, reassembles the chunks of each transaction, decodes them with
+//! [`decode_events`] and returns a [`Page`] with a [`Cursor`] to resume from.
 
 use crate::decode::{DecodeError, decode_events};
 use crate::event::{Event, ProtocolVersion};
-use foundationdb::{BudgetExceeded, ClientBudget, FdbError, KeySelector, RangeOption, Transaction};
+use futures_core::Stream;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::future::poll_fn;
+use std::pin::pin;
 use tracing::instrument;
 
 /// Prefix of the client profiling keyspace.
@@ -34,7 +35,7 @@ const ID_START: usize = VERSIONSTAMP_END + 1;
 const ID_END: usize = ID_START + ID_LEN;
 const CHUNK_START: usize = ID_END + 1;
 const TOTAL_START: usize = CHUNK_START + 4;
-/// Shortest key [`ProfileScanner::read_page`] can parse: everything up to the total chunk
+/// Shortest chunk key the [`Assembler`] can parse: everything up to the total chunk
 /// count.
 const MIN_KEY_LEN: usize = TOTAL_START + 4;
 
@@ -115,60 +116,72 @@ fn key_after(key: &[u8]) -> Vec<u8> {
     [key, b"\x00"].concat()
 }
 
-/// Reads pages of profiling data, each bounded by a [`ClientBudget`].
-#[derive(Debug, Clone)]
+/// Builds pages of profiling data from the rows its caller reads.
+///
+/// Holds no connection and does no I/O: the caller reads [`range`](Self::range) with its
+/// own FoundationDB client and hands the rows to [`read_page`](Self::read_page).
+#[derive(Debug, Clone, Default)]
 pub struct ProfileScanner {
-    budget: ClientBudget,
     end_version: Option<i64>,
 }
 
-impl Default for ProfileScanner {
-    fn default() -> Self {
-        ProfileScanner {
-            budget: ClientBudget {
-                time_limit: Some(Duration::from_secs(2)),
-                ..ClientBudget::default()
-            },
-            end_version: None,
-        }
-    }
+/// The key range the caller must read for one page, see [`ProfileScanner::range`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScanRange {
+    /// Inclusive begin key.
+    pub begin: Vec<u8>,
+    /// Exclusive end key.
+    pub end: Vec<u8>,
+}
+
+/// Error of [`ProfileScanner::read_page`].
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ScanError<E> {
+    /// The row stream failed. Map it back to the caller's error, for instance to the
+    /// `FdbError` of a range read so that the caller's retry loop handles it.
+    #[error(transparent)]
+    Source(E),
+    /// The stream yielded a row outside [`ProfileScanner::range`], or a key not strictly
+    /// greater than the previous one: the caller did not read the range as required.
+    #[error("profiling row {key:?} is outside the scanned range or not after the previous row")]
+    InvalidRows {
+        /// Key of the offending row.
+        key: Vec<u8>,
+    },
 }
 
 impl ProfileScanner {
-    /// A scanner with the default configuration: a 2 second wall-clock
-    /// [`budget`](Self::budget) and no [`end_version`](Self::end_version).
+    /// A scanner with no [`end_version`](Self::end_version).
     #[instrument(level = "trace")]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Replaces the whole [`ClientBudget`] bounding [`read_page`](Self::read_page). It is
-    /// the only bound of a page besides the end of its range.
-    ///
-    /// Use this to set byte limits (`max_bytes_read`, `max_bytes_written`) in addition to
-    /// or instead of the default time limit, or to give the budget a
-    /// [`Clock`](foundationdb::Clock) with [`ClientBudget::with_clock`] so its time limit
-    /// is measured deterministically, for instance under simulation. Keep `time_limit`
-    /// well under the 5 second transaction lifetime, and do not leave the budget without
-    /// any limit: a page would then read to the end of its range, and a large range can
-    /// hit `transaction_too_old`.
-    ///
-    /// [`read_page`](Self::read_page) applies this budget by calling
-    /// `trx.set_client_budget(...)`, which replaces any budget the caller may have set on
-    /// that transaction directly.
-    #[instrument(level = "trace", skip_all)]
-    pub fn budget(self, budget: ClientBudget) -> Self {
-        ProfileScanner { budget, ..self }
-    }
-
-    /// Exclusive upper bound on the record commit version read by [`read_page`](Self::read_page).
-    /// Unset (the default) reads to the end of the keyspace.
+    /// Exclusive upper bound on the record commit version read by a page. Unset (the
+    /// default) reads to the end of the keyspace.
     #[instrument(level = "trace", skip_all)]
     pub fn end_version(self, version: i64) -> Self {
         ProfileScanner {
             end_version: Some(version),
-            ..self
         }
+    }
+
+    /// The key range the caller must read for the page starting at `cursor`, and give to
+    /// [`read_page`](Self::read_page): forward, with snapshot reads and no row limit,
+    /// from `begin` (inclusive) to `end` (exclusive), both as `first_greater_or_equal`
+    /// key selectors. The range is empty when `cursor` is at or past
+    /// [`end_version`](Self::end_version).
+    #[instrument(level = "trace", skip_all)]
+    pub fn range(&self, cursor: &Cursor) -> ScanRange {
+        let begin = cursor.key().to_vec();
+        let end = match self.end_version {
+            Some(version) => version_key(version),
+            None => PROFILE_END.to_vec(),
+        };
+        // never an inverted range
+        let end = end.max(begin.clone());
+        ScanRange { begin, end }
     }
 }
 
@@ -205,17 +218,9 @@ pub struct Skipped {
 pub enum SkipReason {
     /// All chunks were read but the reassembled blob did not decode.
     Decode(DecodeError),
-    /// Chunks are missing, out of order or inconsistent, or the page stopped before they
-    /// were all read, so the blob could not be reassembled.
+    /// Chunks are missing, out of order or inconsistent, or the page was stopped before
+    /// they were all read, so the blob could not be reassembled.
     BrokenChunks,
-}
-
-/// Why [`ProfileScanner::read_page`] stopped before the end of its range.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum StopReason {
-    /// The transaction's [`ClientBudget`](foundationdb::ClientBudget) was exceeded.
-    Budget(BudgetExceeded),
 }
 
 /// Result of [`ProfileScanner::read_page`].
@@ -227,120 +232,104 @@ pub struct Page {
     pub skipped: Vec<Skipped>,
     /// Where to resume. Always valid, also to tail the keyspace once `exhausted`.
     pub next: Cursor,
-    /// Whether the end of the range (`end_version` or the end of the keyspace) was
-    /// reached.
+    /// Whether the row stream ended, that is the end of the range (`end_version` or the
+    /// end of the keyspace) was reached. `false` when the caller's stop check stopped
+    /// the page.
     pub exhausted: bool,
-    /// Why the page stopped early, `None` when `exhausted`.
-    pub stopped_by: Option<StopReason>,
 }
 
 impl ProfileScanner {
-    /// Reads one page of profiled transactions, starting at `cursor`, bounded by this
-    /// scanner's [`budget`](Self::budget).
+    /// Builds one page of profiled transactions from `rows`, the rows of
+    /// [`range(cursor)`](Self::range) read by the caller, stopping when `should_stop`
+    /// says so.
     ///
-    /// This first calls `trx.set_client_budget(...)` with this scanner's
-    /// [`budget`](Self::budget), **replacing** any budget the caller may have set on
-    /// `trx` directly: this starts a fresh accounting generation, so a retried
-    /// `db.run` attempt always gets the full allowance again. This crate still sets no
-    /// FoundationDB transaction option: the caller must set
-    /// `TransactionOption::ReadSystemKeys` (and `ReadLockAware` on a locked cluster)
-    /// itself.
+    /// `rows` must yield exactly the key-value pairs of [`range(cursor)`](Self::range),
+    /// read forward, with snapshot reads and no row limit: every row inside the range,
+    /// in strictly increasing key order. A row outside the range or out of order fails
+    /// the page with [`ScanError::InvalidRows`]; an error of the stream fails it with
+    /// [`ScanError::Source`]. The stream ending means the end of the range was reached,
+    /// and the page is [`exhausted`](Page::exhausted).
     ///
-    /// The range is read with snapshot reads, in batches ([`StreamingMode::Iterator`]).
-    /// The budget is checked with [`Transaction::check_client_budget`] after every row
-    /// that completes a transaction, and at the end of every batch but the last one.
-    /// When it is exceeded, the page stops with [`StopReason::Budget`]:
+    /// `should_stop` is where the caller bounds the page (a transaction budget, a row
+    /// count, anything): it is called after every row, and the page stops as soon as it
+    /// returns `true`, without polling `rows` again. Then:
     ///
-    /// - Right after a row that completed a transaction, [`Page::next`] points right
-    ///   after that row. A transaction still waiting for the second half of its chunks
-    ///   (the client split it across two commits, with other rows in between) is
-    ///   reported as [`SkipReason::BrokenChunks`], and its second half shows up again as
-    ///   [`SkipReason::BrokenChunks`] on the next page.
-    /// - At the end of a batch, while a transaction is incomplete (for instance one whose
-    ///   chunks span several batches), [`Page::next`] points at its first chunk and the
-    ///   transactions the page read after it are left to the next page, which reads them
-    ///   again with a fresh budget. When that would not advance past `cursor` (the budget
-    ///   cannot cover that transaction from the cursor), [`Page::next`] points right
-    ///   after the last row read and the incomplete transactions are broken as above.
-    ///
-    /// So a transaction is lost only when the page stops right after completing another
-    /// transaction that lies between the two halves of a transaction split across
-    /// commits, or when the budget cannot cover a single transaction read from the
-    /// cursor. Every stop advances the cursor.
-    /// Unless the budget carries a [`Clock`](foundationdb::Clock) (see
-    /// [`ClientBudget::with_clock`]), its time limit is measured with the wall clock,
-    /// which is not reproducible under simulation: give it a simulated clock there
-    /// instead.
+    /// - With no transaction pending (all the chunks read so far belong to complete or
+    ///   broken transactions), [`Page::next`] points right after the last row.
+    /// - Otherwise [`Page::next`] points at the first chunk of the oldest pending
+    ///   transaction, before every transaction the page completed after it, which the
+    ///   page drops and the next one reads again. Such a transaction is returned whole
+    ///   by a later page, even when its chunks were written in two commits with other
+    ///   rows in between.
+    /// - When that position is `cursor` itself (a single transaction cannot be read from
+    ///   `cursor` before the caller says stop), the pending transactions are reported as
+    ///   [`SkipReason::BrokenChunks`] and [`Page::next`] points right after the last
+    ///   row, so every stopped page advances the cursor.
     ///
     /// Each transaction is returned once over a sequence of pages that each resume from
-    /// the previous [`Page::next`]. The client may write the chunks of one transaction
-    /// in two consecutive commits (when a flush exceeds the transaction size limit), with
-    /// rows of other transactions in between: such a transaction is reassembled across
-    /// them. When the page reaches the end of its range while such a transaction is
-    /// still incomplete (its second commit is not written yet, or lies beyond
-    /// [`end_version`](Self::end_version)), [`Page::next`] points at its first chunk and
-    /// the transactions the page read after it are left to the next page, which reads
-    /// them again: a bounded read never returns such a transaction, an unbounded read
-    /// from that cursor does once it is complete.
+    /// the previous [`Page::next`]; one is lost only in the last case above. The client
+    /// may write the chunks of one transaction in two consecutive commits (when a flush
+    /// exceeds the transaction size limit), with rows of other transactions in between.
+    /// When the range ends while such a transaction is still incomplete (its second
+    /// commit is not written yet, or lies beyond [`end_version`](Self::end_version)),
+    /// [`Page::next`] also points at its first chunk: a bounded read never returns such
+    /// a transaction, an unbounded read from that cursor does once it is complete.
     ///
     /// A chunk whose earlier chunks are missing is reported as
     /// [`SkipReason::BrokenChunks`], once per transaction id and page, including chunks
     /// of a transaction that began before the cursor the scan started from
-    /// ([`Cursor::beginning`], [`Cursor::at_version`]).
-    ///
-    /// A transaction that fails to decode is reported in [`Page::skipped`] and does not
-    /// fail the page.
+    /// ([`Cursor::beginning`], [`Cursor::at_version`]). A transaction that fails to
+    /// decode is reported in [`Page::skipped`] and does not fail the page.
     ///
     /// # Errors
     ///
-    /// Only FoundationDB errors, which the caller's retry loop should handle.
-    ///
-    /// [`StreamingMode::Iterator`]: foundationdb::options::StreamingMode::Iterator
+    /// [`ScanError::Source`] with the stream's error, [`ScanError::InvalidRows`] when the
+    /// rows do not follow the contract above.
     #[instrument(
         level = "debug",
         skip_all,
         fields(
             end_version = ?self.end_version,
+            rows,
             transactions,
             skipped,
             exhausted,
         )
     )]
-    pub async fn read_page(&self, trx: &Transaction, cursor: &Cursor) -> Result<Page, FdbError> {
-        trx.set_client_budget(self.budget.clone());
-
-        let begin = cursor.key();
-        let end = match self.end_version {
-            Some(version) => version_key(version),
-            None => PROFILE_END.to_vec(),
-        };
+    pub async fn read_page<S, K, V, E>(
+        &self,
+        cursor: &Cursor,
+        rows: S,
+        mut should_stop: impl FnMut() -> bool,
+    ) -> Result<Page, ScanError<E>>
+    where
+        S: Stream<Item = Result<(K, V), E>>,
+        K: AsRef<[u8]>,
+        V: AsRef<[u8]>,
+    {
+        let range = self.range(cursor);
         let mut assembler = Assembler::new(cursor);
-        let page = if begin >= end.as_slice() {
-            assembler.finish(None)
-        } else {
-            let mut range = RangeOption::from((
-                KeySelector::first_greater_or_equal(begin),
-                KeySelector::first_greater_or_equal(end.as_slice()),
-            ));
-            let mut iteration = 1;
-            loop {
-                let batch = trx.get_range(&range, iteration, true).await?;
-                iteration += 1;
-                let next = range.next_range(&batch);
-                let rows = batch.iter().map(|kv| (kv.key(), kv.value()));
-                if let Some(stop) =
-                    assembler.feed_batch(rows, next.is_some(), || trx.check_client_budget())
-                {
-                    break assembler.finish(Some(stop));
-                }
-                match next {
-                    Some(next) => range = next,
-                    None => break assembler.finish(None),
-                }
+        let mut rows = pin!(rows);
+        let mut read = 0usize;
+        let page = loop {
+            let Some(row) = poll_fn(|cx| rows.as_mut().poll_next(cx)).await else {
+                break assembler.finish(false);
+            };
+            let (key, value) = row.map_err(ScanError::Source)?;
+            let key = key.as_ref();
+            let in_order = assembler.last_key.as_deref().is_none_or(|last| key > last);
+            if key < range.begin.as_slice() || key >= range.end.as_slice() || !in_order {
+                return Err(ScanError::InvalidRows { key: key.to_vec() });
+            }
+            assembler.push(key, value.as_ref());
+            read += 1;
+            if should_stop() {
+                break assembler.finish(true);
             }
         };
 
         let span = tracing::Span::current();
+        span.record("rows", read);
         span.record("transactions", page.transactions.len());
         span.record("skipped", page.skipped.len());
         span.record("exhausted", page.exhausted);
@@ -436,8 +425,8 @@ struct Partial {
     blob: Vec<u8>,
 }
 
-/// Builds one [`Page`] from the rows of its range, fed in key order. Pure, no I/O: the
-/// budget is a predicate given to [`Assembler::feed_batch`].
+/// Builds one [`Page`] from the rows of its range, fed in key order. Pure, no I/O:
+/// [`ProfileScanner::read_page`] feeds it the caller's rows and tells it where it stopped.
 ///
 /// A multi-chunk transaction starts at chunk 1 and its chunks come in order 1..=total,
 /// with the same id and total and non-decreasing versionstamps: the client may write them
@@ -459,15 +448,6 @@ struct Assembler {
     last_key: Option<Vec<u8>>,
 }
 
-/// Why [`Assembler::feed_batch`] stopped the page.
-#[derive(Debug)]
-struct Stop {
-    exceeded: BudgetExceeded,
-    /// Whether the budget was checked at the end of a batch, rather than right after a
-    /// row that completed a transaction.
-    at_batch_end: bool,
-}
-
 impl Assembler {
     fn new(start: &Cursor) -> Self {
         Assembler {
@@ -479,51 +459,17 @@ impl Assembler {
         }
     }
 
-    /// Feeds one batch of rows. `more` tells whether the range has rows after this batch.
-    /// `check_budget` is called after every row that completes a transaction, and at the
-    /// end of the batch when `more` and at least one row was read. Returns where the page
-    /// must stop when the budget is exceeded.
-    fn feed_batch<'a>(
-        &mut self,
-        rows: impl IntoIterator<Item = (&'a [u8], &'a [u8])>,
-        more: bool,
-        mut check_budget: impl FnMut() -> Result<(), BudgetExceeded>,
-    ) -> Option<Stop> {
-        for (key, value) in rows {
-            if self.push(key, value) {
-                if let Err(exceeded) = check_budget() {
-                    return Some(Stop {
-                        exceeded,
-                        at_batch_end: false,
-                    });
-                }
-            }
-        }
-        if more && self.last_key.is_some() {
-            if let Err(exceeded) = check_budget() {
-                return Some(Stop {
-                    exceeded,
-                    at_batch_end: true,
-                });
-            }
-        }
-        None
-    }
-
-    /// Feeds one row. Returns true when it completes a transaction.
-    fn push(&mut self, key: &[u8], value: &[u8]) -> bool {
+    /// Feeds one row.
+    fn push(&mut self, key: &[u8], value: &[u8]) {
         self.last_key = Some(key.to_vec());
         match ChunkKey::parse(key) {
             Some(parsed) => self.process(parsed, key, value),
-            None => {
-                tracing::warn!(key = ?key, "ignoring unparseable profiling key");
-                false
-            }
+            None => tracing::warn!(key = ?key, "ignoring unparseable profiling key"),
         }
     }
 
-    /// Processes a parsed row. Returns true when it completes a transaction.
-    fn process(&mut self, parsed: ChunkKey, key: &[u8], value: &[u8]) -> bool {
+    /// Processes a parsed row.
+    fn process(&mut self, parsed: ChunkKey, key: &[u8], value: &[u8]) {
         if let Some(mut partial) = self.partials.remove(&parsed.id) {
             if parsed.total == partial.total
                 && parsed.chunk == partial.next_chunk
@@ -540,13 +486,13 @@ impl Assembler {
                             blob: partial.blob,
                         },
                     });
-                    return true;
+                    return;
                 }
                 // chunk < total, so this cannot overflow
                 partial.next_chunk += 1;
                 partial.last_versionstamp = parsed.versionstamp;
                 self.partials.insert(parsed.id, partial);
-                return false;
+                return;
             }
             self.report_broken(partial.first_key, partial.versionstamp, parsed.id, key);
         }
@@ -565,7 +511,7 @@ impl Assembler {
                     blob: value.to_vec(),
                 },
             });
-            return true;
+            return;
         }
         if parsed.chunk == 1 && parsed.total > 1 {
             self.partials.insert(
@@ -583,7 +529,6 @@ impl Assembler {
         } else {
             self.report_broken(key.to_vec(), parsed.versionstamp, parsed.id, key);
         }
-        false
     }
 
     /// Reports `id` as broken, unless it already is: then `key` becomes the last row of
@@ -630,13 +575,14 @@ impl Assembler {
         (cut, dropped)
     }
 
-    /// Builds the page, stopped by `stop` or at the end of its range when `None`.
+    /// Builds the page. `stopped` tells whether the caller's check stopped it right after
+    /// its last row, rather than the end of its range.
     ///
-    /// At the end of the range, or at a stop at the end of a batch, pending transactions
-    /// are left to the next page: it resumes at the [`cut`](Self::cut) before them. A stop
-    /// right after a completing row, or at the end of a batch when that cut would not
-    /// advance past the cursor, resumes after the last row and breaks them instead.
-    fn finish(mut self, stop: Option<Stop>) -> Page {
+    /// Pending transactions are left to the next page: it resumes at the
+    /// [`cut`](Self::cut) before them and reads them again. When the page was stopped and
+    /// that cut would not advance past the cursor, it resumes after the last row and
+    /// breaks them instead. With nothing pending, it resumes after the last row.
+    fn finish(mut self, stopped: bool) -> Page {
         let mut pending: Vec<Partial> = std::mem::take(&mut self.partials).into_values().collect();
         pending.sort_by(|a, b| a.first_key.cmp(&b.first_key));
         let after_last = match &self.last_key {
@@ -645,42 +591,34 @@ impl Assembler {
         };
 
         let mut kept = vec![true; self.outputs.len()];
-        let cut = match (&stop, pending.first()) {
-            // stopped right after a completing row: no cut, see below
-            (
-                Some(Stop {
-                    at_batch_end: false,
-                    ..
-                }),
-                _,
-            )
-            | (_, None) => None,
-            (_, Some(oldest)) => {
+        let cut = match pending.first() {
+            None => None,
+            Some(oldest) => {
                 let (cut, dropped) = self.cut(oldest.first_key.clone());
-                match stop {
+                if stopped && cut.as_slice() <= self.start.key() {
                     // a cut at the cursor would not progress: break the pending ones
-                    Some(_) if cut.as_slice() <= self.start.key() => None,
-                    _ => {
-                        for &index in &dropped {
-                            kept[index] = false;
-                        }
-                        tracing::debug!(
-                            pending = pending.len(),
-                            left_to_next_page = dropped.len(),
-                            "page ended with incomplete transactions"
-                        );
-                        Some(cut)
+                    None
+                } else {
+                    for &index in &dropped {
+                        kept[index] = false;
                     }
+                    tracing::debug!(
+                        pending = pending.len(),
+                        left_to_next_page = dropped.len(),
+                        stopped,
+                        "page ended with incomplete transactions"
+                    );
+                    Some(cut)
                 }
             }
         };
         let next = match cut {
             Some(cut) => cut,
             None => {
-                // the page stops after its last row: what is still pending cannot be
-                // reassembled (at the end of the range nothing is pending here)
+                // the page resumes after its last row: what is still pending cannot be
+                // reassembled (with no cut, only a stopped page has pending ones)
                 for partial in pending {
-                    tracing::debug!("breaking incomplete transaction at budget stop");
+                    tracing::debug!("breaking incomplete transaction at a stop");
                     self.outputs.push(Output {
                         last_key: partial.first_key.clone(),
                         first_key: partial.first_key,
@@ -694,7 +632,6 @@ impl Assembler {
                 after_last
             }
         };
-        let stopped_by = stop.map(|stop| stop.exceeded);
 
         let mut transactions = Vec::new();
         let mut skipped = Vec::new();
@@ -739,8 +676,7 @@ impl Assembler {
             transactions,
             skipped,
             next: Cursor { key: next },
-            exhausted: stopped_by.is_none(),
-            stopped_by: stopped_by.map(StopReason::Budget),
+            exhausted: !stopped,
         }
     }
 }
@@ -748,8 +684,10 @@ impl Assembler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use foundationdb::BudgetKind;
+    use futures_util::{FutureExt, StreamExt, stream};
+    use std::cell::Cell;
     use std::collections::BTreeSet;
+    use std::convert::Infallible;
 
     fn vs(version: u64, batch: u16) -> [u8; 10] {
         let mut out = [0u8; 10];
@@ -774,7 +712,8 @@ mod tests {
         key
     }
 
-    type Rows = Vec<(Vec<u8>, Vec<u8>)>;
+    type Row = (Vec<u8>, Vec<u8>);
+    type Rows = Vec<Row>;
 
     /// Feeds all rows from the beginning, returns the outcomes and the first key of the
     /// oldest pending transaction.
@@ -804,78 +743,92 @@ mod tests {
         Assembled::Broken { versionstamp, id }
     }
 
-    fn exceeded() -> BudgetExceeded {
-        BudgetExceeded {
-            kind: BudgetKind::BytesRead,
-            used: 2,
-            limit: 1,
-        }
+    fn never() -> impl FnMut() -> bool {
+        || false
     }
 
-    fn never() -> impl FnMut() -> Result<(), BudgetExceeded> {
-        || Ok(())
+    fn always() -> impl FnMut() -> bool {
+        || true
     }
 
-    fn always() -> impl FnMut() -> Result<(), BudgetExceeded> {
-        || Err(exceeded())
-    }
-
-    /// Exceeded at every `k`-th check.
-    fn every(k: usize) -> impl FnMut() -> Result<(), BudgetExceeded> {
+    /// Stops at every `k`-th check.
+    fn every(k: usize) -> impl FnMut() -> bool {
         let mut checks = 0;
         move || {
             checks += 1;
-            if checks % k == 0 {
-                Err(exceeded())
-            } else {
-                Ok(())
-            }
+            checks % k == 0
         }
     }
 
-    /// Runs one page over the sorted `rows` like `read_page`, in batches of `batch` rows.
-    fn run_page(
-        rows: &Rows,
+    /// Stops after the `n`-th row of the page.
+    fn after(n: usize) -> impl FnMut() -> bool {
+        let mut checks = 0;
+        move || {
+            checks += 1;
+            checks >= n
+        }
+    }
+
+    /// Stops pseudo-randomly, about once every `m` checks, with a state shared by every
+    /// page so that consecutive pages stop at different rows.
+    fn random(state: &Cell<u64>, m: u64) -> impl FnMut() -> bool + '_ {
+        move || {
+            let next = state
+                .get()
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            state.set(next);
+            (next >> 33) % m == 0
+        }
+    }
+
+    /// Runs `read_page` over `rows`, which must be ready (no I/O in these tests).
+    fn read<E>(
+        scanner: &ProfileScanner,
         cursor: &Cursor,
-        batch: usize,
-        mut check: impl FnMut() -> Result<(), BudgetExceeded>,
-    ) -> Page {
-        let rows: Vec<&(Vec<u8>, Vec<u8>)> = rows
-            .iter()
-            .filter(|(k, _)| k.as_slice() >= cursor.key())
-            .collect();
-        let mut assembler = Assembler::new(cursor);
-        let batches: Vec<_> = rows.chunks(batch).collect();
-        for (i, b) in batches.iter().enumerate() {
-            let more = i + 1 < batches.len();
-            let rows = b.iter().map(|(k, v)| (k.as_slice(), v.as_slice()));
-            if let Some(stop) = assembler.feed_batch(rows, more, &mut check) {
-                return assembler.finish(Some(stop));
-            }
-        }
-        assembler.finish(None)
+        rows: Vec<Result<Row, E>>,
+        should_stop: impl FnMut() -> bool,
+    ) -> Result<Page, ScanError<E>> {
+        scanner
+            .read_page(cursor, stream::iter(rows), should_stop)
+            .now_or_never()
+            .expect("a ready stream completes the page in one poll")
     }
 
-    /// Runs pages until exhausted, each with a fresh `check`, returns every reported
+    /// Runs one page over the sorted `rows`, feeding the ones of its range like a caller
+    /// honoring the contract of `read_page`.
+    fn run_page(rows: &Rows, cursor: &Cursor, should_stop: impl FnMut() -> bool) -> Page {
+        let scanner = ProfileScanner::new();
+        let range = scanner.range(cursor);
+        let rows = rows
+            .iter()
+            .filter(|(k, _)| *k >= range.begin && *k < range.end)
+            .cloned()
+            .map(Ok::<_, Infallible>)
+            .collect();
+        match read(&scanner, cursor, rows, should_stop) {
+            Ok(page) => page,
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Runs pages until exhausted, each with a fresh stop check, returns every reported
     /// transaction and skip.
-    fn run_pages<C: FnMut() -> Result<(), BudgetExceeded>>(
+    fn run_pages<C: FnMut() -> bool>(
         rows: &Rows,
-        batch: usize,
-        check: impl Fn() -> C,
+        mut should_stop: impl FnMut() -> C,
     ) -> (Vec<ProfiledTransaction>, Vec<Skipped>) {
         let mut cursor = Cursor::beginning();
         let (mut txs, mut skipped) = (Vec::new(), Vec::new());
         for _ in 0..10_000 {
-            let page = run_page(rows, &cursor, batch, check());
+            let page = run_page(rows, &cursor, should_stop());
             txs.extend(page.transactions);
             skipped.extend(page.skipped);
             let next = Cursor::from_bytes(page.next.as_bytes().to_vec()).unwrap();
             assert_eq!(next, page.next);
             if page.exhausted {
-                assert_eq!(page.stopped_by, None);
                 return (txs, skipped);
             }
-            assert!(matches!(page.stopped_by, Some(StopReason::Budget(_))));
             assert!(next.key() > cursor.key(), "no progress");
             cursor = next;
         }
@@ -1112,25 +1065,97 @@ mod tests {
     }
 
     #[test]
-    fn budget_exceeded_while_straddler_is_pending_breaks_it() {
+    fn should_stop_is_called_after_every_row_and_stops_reading() {
+        let v1 = vs(1, 0);
+        let mut rows: Rows = txn(1, &[v1, v1, v1]);
+        rows.extend(txn(2, &[v1]));
+        rows.sort();
+        let mut checks = 0;
+        let page = run_page(&rows, &Cursor::beginning(), || {
+            checks += 1;
+            false
+        });
+        assert_eq!(checks, rows.len());
+        assert!(page.exhausted);
+
+        // the page stops at the first `true`, without reading further
+        let polled = Cell::new(0);
+        let stream = stream::iter(rows.clone()).map(|row| {
+            polled.set(polled.get() + 1);
+            Ok::<_, Infallible>(row)
+        });
+        let page = ProfileScanner::new()
+            .read_page(&Cursor::beginning(), stream, after(3))
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        assert_eq!(polled.get(), 3);
+        assert!(!page.exhausted);
+        assert_eq!(txn_ids(&page.transactions), vec![id(1)]);
+        assert_eq!(page.next.key(), key_after(&rows[2].0).as_slice());
+    }
+
+    #[test]
+    fn stop_with_nothing_pending_resumes_after_the_row() {
+        let mut rows: Rows = Vec::new();
+        for n in 0..3u8 {
+            rows.extend(txn(n, &[vs(1, 0)]));
+        }
+        rows.sort();
+        let page = run_page(&rows, &Cursor::beginning(), after(2));
+        assert!(!page.exhausted);
+        assert_eq!(txn_ids(&page.transactions), vec![id(0), id(1)]);
+        assert_eq!(page.next.key(), key_after(&rows[1].0).as_slice());
+    }
+
+    #[test]
+    fn stop_while_straddler_is_pending_cuts_before_it() {
+        let (v1, v2) = (vs(1, 0), vs(2, 0));
+        let mut rows: Rows = txn(0, &[v1]);
+        rows.extend(txn(1, &[v1, v2]));
+        rows.extend(txn(2, &[v1]));
+        rows.extend(txn(3, &[v2]));
+        rows.sort();
+        // id 0, id 1 chunk 1, id 2, id 1 chunk 2, id 3: stop right after id 2
+        let page = run_page(&rows, &Cursor::beginning(), after(3));
+        assert!(!page.exhausted);
+        // id 2 completed after id 1's first chunk: left to the next page
+        assert_eq!(txn_ids(&page.transactions), vec![id(0)]);
+        assert!(page.skipped.is_empty());
+        assert_eq!(page.next.key(), rows[1].0.as_slice());
+
+        // the next page returns the straddler whole, and id 2 once
+        let page = run_page(&rows, &page.next, never());
+        assert!(page.exhausted);
+        assert_eq!(txn_ids(&page.transactions), vec![id(2), id(1), id(3)]);
+        assert!(page.skipped.is_empty());
+    }
+
+    #[test]
+    fn stop_at_the_cursor_with_a_pending_record_breaks_it_and_progresses() {
         let (v1, v2) = (vs(1, 0), vs(2, 0));
         let mut rows: Rows = txn(1, &[v1, v2]);
         rows.extend(txn(2, &[v1]));
         rows.extend(txn(3, &[v2]));
         rows.sort();
         // id 1 chunk 1, id 2, id 1 chunk 2, id 3
-        let page = run_page(&rows, &Cursor::beginning(), rows.len(), always());
-        assert_eq!(page.stopped_by, Some(StopReason::Budget(exceeded())));
-        assert!(!page.exhausted);
-        assert_eq!(txn_ids(&page.transactions), vec![id(2)]);
-        assert_eq!(skipped_ids(&page.skipped), vec![id(1)]);
-        assert_eq!(page.skipped[0].reason, SkipReason::BrokenChunks);
-        assert_eq!(page.skipped[0].versionstamp, v1);
-        // stopped right after the row that completed id 2
-        assert_eq!(page.next.key(), key_after(&rows[1].0).as_slice());
+        let cursor = Cursor::from_bytes(rows[0].0.clone()).unwrap();
+        for stop in [1, 2] {
+            let page = run_page(&rows, &cursor, after(stop));
+            assert!(!page.exhausted);
+            assert_eq!(txn_ids(&page.transactions), &[id(2)][..stop - 1]);
+            assert_eq!(skipped_ids(&page.skipped), vec![id(1)]);
+            assert_eq!(page.skipped[0].reason, SkipReason::BrokenChunks);
+            assert_eq!(page.skipped[0].versionstamp, v1);
+            assert_eq!(page.next.key(), key_after(&rows[stop - 1].0).as_slice());
+        }
 
         // the rest of id 1 shows up again as broken on the next page
-        let page = run_page(&rows, &page.next, rows.len(), never());
+        let page = run_page(
+            &rows,
+            &Cursor::from_bytes(key_after(&rows[1].0)).unwrap(),
+            never(),
+        );
         assert!(page.exhausted);
         assert_eq!(txn_ids(&page.transactions), vec![id(3)]);
         assert_eq!(skipped_ids(&page.skipped), vec![id(1)]);
@@ -1138,54 +1163,34 @@ mod tests {
     }
 
     #[test]
-    fn budget_stops_only_right_after_a_completing_row() {
-        let v1 = vs(1, 0);
-        let mut rows: Rows = txn(1, &[v1, v1, v1]);
-        rows.extend(txn(2, &[v1]));
-        rows.sort();
-        let mut checks = 0;
-        let page = run_page(&rows, &Cursor::beginning(), rows.len(), || {
-            checks += 1;
-            Err(exceeded())
-        });
-        // chunks 1 and 2 of id 1 did not check the budget, chunk 3 did and stopped
-        assert_eq!(checks, 1);
-        assert_eq!(txn_ids(&page.transactions), vec![id(1)]);
-        assert!(page.skipped.is_empty());
-        assert_eq!(page.next.key(), key_after(&rows[2].0).as_slice());
-        assert!(!page.exhausted);
-    }
-
-    #[test]
-    fn lost_chunk_with_budget_exceeded_stops_at_batch_end() {
+    fn lost_chunk_is_read_again_then_broken_when_stopped_at_the_cursor() {
         let v1 = vs(1, 0);
         // id 1 never gets its third chunk
         let mut rows: Rows = txn(1, &[v1, v1, v1]);
         rows.truncate(2);
         rows.extend(txn(2, &[v1, v1, v1]));
         rows.sort();
-        // the batch end stops the page, which resumes at id 1 to read it again
-        let page = run_page(&rows, &Cursor::beginning(), 2, always());
-        assert_eq!(page.stopped_by, Some(StopReason::Budget(exceeded())));
+        // the stop leaves id 1 pending: the page resumes at it to read it again
+        let page = run_page(&rows, &Cursor::beginning(), after(2));
+        assert!(!page.exhausted);
         assert!(page.transactions.is_empty());
         assert!(page.skipped.is_empty());
         assert_eq!(page.next.key(), rows[0].0.as_slice());
 
         // from there, the cut would not advance: id 1 is broken and the page moves on
-        let page = run_page(&rows, &page.next, 2, always());
-        assert_eq!(page.stopped_by, Some(StopReason::Budget(exceeded())));
+        let page = run_page(&rows, &page.next, after(2));
+        assert!(!page.exhausted);
         assert!(page.transactions.is_empty());
         assert_eq!(skipped_ids(&page.skipped), vec![id(1)]);
         assert_eq!(page.next.key(), key_after(&rows[1].0).as_slice());
 
-        let page = run_page(&rows, &page.next, 10, never());
+        let page = run_page(&rows, &page.next, never());
         assert!(page.exhausted);
         assert_eq!(txn_ids(&page.transactions), vec![id(2)]);
 
-        // the last batch does not check the budget: the end of the range comes first,
-        // and the page resumes at the pending transaction
+        // at the end of the range, the page resumes at the pending transaction
         let lost: Rows = rows[..2].to_vec();
-        let page = run_page(&lost, &Cursor::beginning(), 10, always());
+        let page = run_page(&lost, &Cursor::beginning(), never());
         assert!(page.exhausted);
         assert!(page.skipped.is_empty());
         assert_eq!(page.next.key(), lost[0].0.as_slice());
@@ -1202,25 +1207,17 @@ mod tests {
     }
 
     #[test]
-    fn big_record_interrupted_by_budget_is_returned_whole_by_next_page() {
+    fn big_record_interrupted_by_a_stop_is_returned_whole_by_next_page() {
         let rows = big_record_rows();
-        // exceeded from the check at the end of the batch holding id 1's first chunk
-        for (batch, from) in [(1, 3), (2, 2)] {
-            let mut checks = 0;
-            let page = run_page(&rows, &Cursor::beginning(), batch, || {
-                checks += 1;
-                if checks >= from {
-                    Err(exceeded())
-                } else {
-                    Ok(())
-                }
-            });
-            assert_eq!(page.stopped_by, Some(StopReason::Budget(exceeded())));
-            assert_eq!(txn_ids(&page.transactions), vec![id(0)], "batch {batch}");
-            assert!(page.skipped.is_empty(), "batch {batch}");
-            assert_eq!(page.next.key(), rows[1].0.as_slice(), "batch {batch}");
+        // stopped on id 1's first or second chunk
+        for stop in [2, 3] {
+            let page = run_page(&rows, &Cursor::beginning(), after(stop));
+            assert!(!page.exhausted);
+            assert_eq!(txn_ids(&page.transactions), vec![id(0)], "stop {stop}");
+            assert!(page.skipped.is_empty(), "stop {stop}");
+            assert_eq!(page.next.key(), rows[1].0.as_slice(), "stop {stop}");
 
-            let page = run_page(&rows, &page.next, batch, never());
+            let page = run_page(&rows, &page.next, never());
             assert!(page.exhausted);
             assert_eq!(txn_ids(&page.transactions), vec![id(1), id(2)]);
             assert!(page.skipped.is_empty());
@@ -1228,20 +1225,20 @@ mod tests {
     }
 
     #[test]
-    fn budget_smaller_than_one_record_at_the_cursor_breaks_it_and_progresses() {
+    fn stop_before_one_record_is_read_from_the_cursor_breaks_it_and_progresses() {
         let rows = big_record_rows();
         let cursor = Cursor::from_bytes(rows[1].0.clone()).unwrap();
-        let page = run_page(&rows, &cursor, 1, always());
-        assert_eq!(page.stopped_by, Some(StopReason::Budget(exceeded())));
+        let page = run_page(&rows, &cursor, always());
+        assert!(!page.exhausted);
         assert!(page.transactions.is_empty());
         assert_eq!(skipped_ids(&page.skipped), vec![id(1)]);
         assert_eq!(page.next.key(), key_after(&rows[1].0).as_slice());
 
         // its remaining chunks are reported again, by each page that reads them
-        let page = run_page(&rows, &page.next, 1, always());
+        let page = run_page(&rows, &page.next, always());
         assert_eq!(page.next.key(), key_after(&rows[2].0).as_slice());
         assert_eq!(skipped_ids(&page.skipped), vec![id(1)]);
-        let (txs, skipped) = run_pages(&rows, 1, always);
+        let (txs, skipped) = run_pages(&rows, always);
         assert_eq!(txn_ids(&txs), vec![id(0), id(2)]);
         assert_eq!(skipped_ids(&skipped), vec![id(1); 3]);
     }
@@ -1263,29 +1260,52 @@ mod tests {
             .cloned()
             .collect();
 
-        for batch in [1, 2, written.len()] {
-            let page = run_page(&written, &Cursor::beginning(), batch, never());
-            assert!(page.exhausted);
-            // T1 completes after P's first chunk: dropped with everything after it, and
-            // the cut goes back to T1's first chunk
-            assert_eq!(txn_ids(&page.transactions), vec![id(0)]);
-            assert!(page.skipped.is_empty());
-            assert_eq!(page.next.key(), t1_first.as_slice());
+        let page = run_page(&written, &Cursor::beginning(), never());
+        assert!(page.exhausted);
+        // T1 completes after P's first chunk: dropped with everything after it, and the
+        // cut goes back to T1's first chunk
+        assert_eq!(txn_ids(&page.transactions), vec![id(0)]);
+        assert!(page.skipped.is_empty());
+        assert_eq!(page.next.key(), t1_first.as_slice());
 
-            // once P's second commit is written, the next page returns the rest once
-            let next = run_page(&rows, &page.next, batch, never());
-            assert!(next.exhausted);
-            let mut got = txn_ids(&next.transactions);
-            got.sort();
-            assert_eq!(got, vec![id(1), id(2), id(3), id(4)]);
-            assert!(next.skipped.is_empty());
+        // once P's second commit is written, the next page returns the rest once
+        let next = run_page(&rows, &page.next, never());
+        assert!(next.exhausted);
+        let mut got = txn_ids(&next.transactions);
+        got.sort();
+        assert_eq!(got, vec![id(1), id(2), id(3), id(4)]);
+        assert!(next.skipped.is_empty());
 
-            // a bounded read that never sees P's second commit keeps the same cursor
-            let again = run_page(&written, &page.next, batch, never());
-            assert!(again.exhausted);
-            assert!(again.transactions.is_empty());
-            assert_eq!(again.next, page.next);
-        }
+        // a bounded read that never sees P's second commit keeps the same cursor
+        let again = run_page(&written, &page.next, never());
+        assert!(again.exhausted);
+        assert!(again.transactions.is_empty());
+        assert_eq!(again.next, page.next);
+
+        // same through end_version, and with a stop on T1's second chunk
+        let scanner = ProfileScanner::new().end_version(3);
+        let bounded = |cursor: &Cursor, should_stop: &mut dyn FnMut() -> bool| {
+            let range = scanner.range(cursor);
+            let rows = rows
+                .iter()
+                .filter(|(k, _)| *k >= range.begin && *k < range.end)
+                .cloned()
+                .map(Ok::<_, Infallible>)
+                .collect();
+            read(&scanner, cursor, rows, should_stop).unwrap()
+        };
+        let page = bounded(&Cursor::beginning(), &mut never());
+        assert_eq!(txn_ids(&page.transactions), vec![id(0)]);
+        assert_eq!(page.next.key(), t1_first.as_slice());
+        let stop_on_t1 = written
+            .iter()
+            .position(|(k, _)| k[ID_START..ID_END] == id(1) && k[VERSIONSTAMP_START..] >= v2[..])
+            .unwrap()
+            + 1;
+        let page = bounded(&Cursor::beginning(), &mut after(stop_on_t1));
+        assert!(!page.exhausted);
+        assert_eq!(txn_ids(&page.transactions), vec![id(0)]);
+        assert_eq!(page.next.key(), t1_first.as_slice());
     }
 
     #[test]
@@ -1301,13 +1321,37 @@ mod tests {
             .filter(|(k, _)| !(k[VERSIONSTAMP_START..] >= v2[..] && k[ID_START..ID_END] == id(1)))
             .cloned()
             .collect();
-        let page = run_page(&written, &Cursor::beginning(), 10, never());
+        let page = run_page(&written, &Cursor::beginning(), never());
         // id 2's report is left to the next page, which reads its chunks again
         assert!(page.skipped.is_empty());
         assert_eq!(page.next.key(), rows[0].0.as_slice());
-        let page = run_page(&rows, &page.next, 10, never());
+        let page = run_page(&rows, &page.next, never());
         assert_eq!(txn_ids(&page.transactions), vec![id(1)]);
         assert_eq!(skipped_ids(&page.skipped), vec![id(2)]);
+    }
+
+    /// Checks that `txs` and `skipped` hold every id of `all` once: returned at most once,
+    /// otherwise reported broken.
+    fn assert_each_once(
+        all: &BTreeSet<[u8; 16]>,
+        (txs, skipped): (Vec<ProfiledTransaction>, Vec<Skipped>),
+        context: &str,
+    ) -> BTreeSet<[u8; 16]> {
+        let returned: BTreeSet<_> = txn_ids(&txs).into_iter().collect();
+        assert_eq!(returned.len(), txs.len(), "twice: {context}");
+        assert!(
+            skipped.iter().all(|s| s.reason == SkipReason::BrokenChunks),
+            "{context}"
+        );
+        let broken: BTreeSet<_> = skipped_ids(&skipped).into_iter().collect();
+        // lost only by being broken by a stop
+        assert!(returned.is_disjoint(&broken), "{context}");
+        assert_eq!(
+            &returned.union(&broken).copied().collect::<BTreeSet<_>>(),
+            all,
+            "{context}"
+        );
+        broken
     }
 
     #[test]
@@ -1326,27 +1370,27 @@ mod tests {
         rows.sort();
         let all: BTreeSet<[u8; 16]> = (1..=9).map(id).collect();
 
-        for batch in 1..=4 {
-            let (txs, skipped) = run_pages(&rows, batch, never);
-            assert!(skipped.is_empty(), "batch {batch}");
-            assert_eq!(txs.len(), all.len(), "batch {batch}");
-            assert_eq!(txn_ids(&txs).into_iter().collect::<BTreeSet<_>>(), all);
+        let (txs, skipped) = run_pages(&rows, never);
+        assert!(skipped.is_empty());
+        assert_eq!(txs.len(), all.len());
+        assert_eq!(txn_ids(&txs).into_iter().collect::<BTreeSet<_>>(), all);
 
-            for k in 1..=5 {
-                let (txs, skipped) = run_pages(&rows, batch, || every(k));
-                let returned: BTreeSet<_> = txn_ids(&txs).into_iter().collect();
-                assert_eq!(returned.len(), txs.len(), "twice: batch {batch} k {k}");
-                let broken: BTreeSet<_> = skipped_ids(&skipped).into_iter().collect();
-                assert!(
-                    skipped.iter().all(|s| s.reason == SkipReason::BrokenChunks),
-                    "batch {batch} k {k}"
-                );
-                // lost only by being broken by a budget stop
-                assert!(returned.is_disjoint(&broken), "batch {batch} k {k}");
-                assert_eq!(
-                    returned.union(&broken).copied().collect::<BTreeSet<_>>(),
-                    all,
-                    "batch {batch} k {k}"
+        for k in 1..=rows.len() {
+            assert_each_once(&all, run_pages(&rows, || every(k)), &format!("every {k}"));
+            let broken =
+                assert_each_once(&all, run_pages(&rows, || after(k)), &format!("after {k}"));
+            if k == rows.len() {
+                // a page long enough to read everything from any cursor loses nothing
+                assert!(broken.is_empty());
+            }
+        }
+        for m in 2..=6 {
+            for seed in 0..50 {
+                let state = Cell::new(seed);
+                assert_each_once(
+                    &all,
+                    run_pages(&rows, || random(&state, m)),
+                    &format!("random m {m} seed {seed}"),
                 );
             }
         }
@@ -1359,25 +1403,118 @@ mod tests {
             rows.extend(txn(n, &[vs(u64::from(n / 3), 0)]));
         }
         rows.sort();
-        for batch in 1..=4 {
-            for k in 1..=5 {
-                let (txs, skipped) = run_pages(&rows, batch, || every(k));
-                assert!(skipped.is_empty(), "batch {batch} k {k}");
-                let mut got = txn_ids(&txs);
-                got.sort();
-                assert_eq!(
-                    got,
-                    (0..9).map(id).collect::<Vec<_>>(),
-                    "batch {batch} k {k}"
-                );
+        let expected: Vec<_> = (0..9).map(id).collect();
+        for k in 1..=5 {
+            let (txs, skipped) = run_pages(&rows, || every(k));
+            assert!(skipped.is_empty(), "every {k}");
+            let mut got = txn_ids(&txs);
+            got.sort();
+            assert_eq!(got, expected, "every {k}");
+        }
+        for seed in 0..50 {
+            let state = Cell::new(seed);
+            let (txs, skipped) = run_pages(&rows, || random(&state, 3));
+            assert!(skipped.is_empty(), "seed {seed}");
+            let mut got = txn_ids(&txs);
+            got.sort();
+            assert_eq!(got, expected, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn invalid_rows_are_rejected() {
+        let scanner = ProfileScanner::new();
+        let (a, b) = (key(vs(1, 0), id(1), 1, 1), key(vs(2, 0), id(2), 1, 1));
+        let ok = |k: &Vec<u8>| Ok::<_, Infallible>((k.clone(), Vec::new()));
+        let invalid = |result: Result<Page, ScanError<Infallible>>| match result {
+            Err(ScanError::InvalidRows { key }) => key,
+            other => panic!("{other:?}"),
+        };
+        // out of order, and a repeated key
+        let rows = vec![ok(&b), ok(&a)];
+        assert_eq!(
+            invalid(read(&scanner, &Cursor::beginning(), rows, never())),
+            a
+        );
+        let rows = vec![ok(&a), ok(&a)];
+        assert_eq!(
+            invalid(read(&scanner, &Cursor::beginning(), rows, never())),
+            a
+        );
+        // before the cursor
+        let rows = vec![ok(&a)];
+        assert_eq!(
+            invalid(read(&scanner, &Cursor::at_version(2), rows, never())),
+            a
+        );
+        // at or past end_version, and outside the keyspace
+        let rows = vec![ok(&a), ok(&b)];
+        let bounded = scanner.clone().end_version(2);
+        assert_eq!(
+            invalid(read(&bounded, &Cursor::beginning(), rows, never())),
+            b
+        );
+        let rows = vec![ok(&PROFILE_END.to_vec())];
+        assert_eq!(
+            invalid(read(&scanner, &Cursor::beginning(), rows, never())),
+            PROFILE_END.to_vec()
+        );
+        let outside = b"\xff\x02/other".to_vec();
+        let rows = vec![ok(&outside)];
+        assert_eq!(
+            invalid(read(&scanner, &Cursor::beginning(), rows, never())),
+            outside
+        );
+    }
+
+    #[test]
+    fn source_error_is_propagated() {
+        let rows = vec![
+            Ok((key(vs(1, 0), id(1), 1, 1), Vec::new())),
+            Err("boom"),
+            Ok((key(vs(2, 0), id(2), 1, 1), Vec::new())),
+        ];
+        match read(&ProfileScanner::new(), &Cursor::beginning(), rows, never()) {
+            Err(ScanError::Source("boom")) => {}
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn range_is_the_cursor_to_end_version_and_never_inverted() {
+        let scanner = ProfileScanner::new();
+        let cursor = Cursor::at_version(5);
+        assert_eq!(
+            scanner.range(&cursor),
+            ScanRange {
+                begin: cursor.as_bytes().to_vec(),
+                end: PROFILE_END.to_vec(),
             }
+        );
+        let bounded = scanner.end_version(7);
+        assert_eq!(bounded.range(&cursor).end, Cursor::at_version(7).as_bytes());
+        // at or past end_version, the range is empty and the page keeps the cursor
+        for version in [7, 9] {
+            let cursor = Cursor::at_version(version);
+            let range = bounded.range(&cursor);
+            assert_eq!(range.begin, cursor.as_bytes());
+            assert_eq!(range.end, range.begin);
+            let page = read(
+                &bounded,
+                &cursor,
+                Vec::<Result<_, Infallible>>::new(),
+                always(),
+            )
+            .unwrap();
+            assert!(page.exhausted);
+            assert_eq!(page.next, cursor);
         }
     }
 
     #[test]
     fn empty_range_keeps_the_cursor() {
         let cursor = Cursor::at_version(42);
-        let page = run_page(&Vec::new(), &cursor, 1, always());
+        let page = run_page(&Vec::new(), &cursor, always());
         assert!(page.exhausted);
         assert_eq!(page.next, cursor);
     }
@@ -1390,7 +1527,7 @@ mod tests {
             (key(vs(5, 0), id(2), 2, 2), Vec::new()),
             (key(vs(5, 0), id(3), 1, 1), b"garbage".to_vec()),
         ];
-        let page = run_page(&rows, &Cursor::beginning(), 10, never());
+        let page = run_page(&rows, &Cursor::beginning(), never());
         assert_eq!(
             page.transactions,
             vec![ProfiledTransaction {

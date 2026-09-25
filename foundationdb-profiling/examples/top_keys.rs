@@ -12,13 +12,15 @@
 //! argument, otherwise the default one is used):
 //!
 //! ```text
-//! cargo run -p foundationdb-profiling --example top_keys --features embedded-fdb-include
+//! cargo run -p foundationdb-profiling --example top_keys
 //! ```
 
 use foundationdb::options::TransactionOption;
 use foundationdb::tuple::Bytes;
-use foundationdb::{Database, FdbBindingError};
-use foundationdb_profiling::{Aggregator, Cursor, ProfileScanner, SkipReason};
+use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
+use foundationdb_profiling::{Aggregator, Cursor, ProfileScanner, ScanError, SkipReason};
+use futures_util::TryStreamExt;
+use std::time::Duration;
 
 const TOP_N: usize = 10;
 const BUCKET_COUNT: usize = 10;
@@ -31,7 +33,6 @@ async fn main() {
     let db = Database::new(cluster_file.as_deref()).expect("failed to open database");
 
     let mut cursor = Cursor::beginning();
-    // Every page is bounded by the scanner's budget (2 seconds by default).
     let scanner = ProfileScanner::new();
     let mut aggregator = Aggregator::default();
     let mut read = 0usize;
@@ -43,10 +44,30 @@ async fn main() {
                 let scanner = scanner.clone();
                 let cursor = cursor.clone();
                 async move {
-                    // read_page never sets transaction options itself: that is the
+                    // This crate never sets transaction options itself: that is the
                     // caller's job, see the crate docs.
                     trx.set_option(TransactionOption::ReadSystemKeys)?;
-                    Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
+                    // Every page is bounded by this budget, checked after every row.
+                    trx.set_client_budget(ClientBudget {
+                        time_limit: Some(Duration::from_secs(2)),
+                        ..ClientBudget::default()
+                    });
+                    let range = scanner.range(&cursor);
+                    let opt = RangeOption::from((
+                        KeySelector::first_greater_or_equal(range.begin.as_slice()),
+                        KeySelector::first_greater_or_equal(range.end.as_slice()),
+                    ));
+                    let rows = trx
+                        .get_ranges_keyvalues(opt, true)
+                        .map_ok(|kv| (kv.key().to_vec(), kv.value().to_vec()));
+                    let page = scanner
+                        .read_page(&cursor, rows, || trx.check_client_budget().is_err())
+                        .await
+                        .map_err(|err| match err {
+                            ScanError::Source(err) => FdbBindingError::from(err),
+                            err => FdbBindingError::new_custom_error(Box::new(err)),
+                        })?;
+                    Ok::<_, FdbBindingError>(page)
                 }
             })
             .await

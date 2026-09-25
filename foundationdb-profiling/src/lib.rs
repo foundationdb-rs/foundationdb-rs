@@ -8,18 +8,23 @@
 //! (`\xff\x02/fdbClientInfo/client_latency/`), split in chunks keyed by versionstamp and
 //! transaction id. See the [transaction profiler documentation].
 //!
-//! This crate reads that keyspace from an application that owns its [`Database`] and
-//! retry loop: build a [`ProfileScanner`] once and call [`ProfileScanner::read_page`]
-//! with a [`Transaction`] to read one bounded page, reassemble and decode the chunks
-//! into typed [`Event`]s, and return a resumable [`Cursor`]. Only records written by
-//! 7.1+ clients are decoded (see [`decode_events`]).
+//! This crate turns that keyspace into typed [`Event`]s. It does no I/O and depends on no
+//! version of the FoundationDB bindings: the application reads the rows with its own
+//! client, in its own transaction and retry loop, and hands them to
+//! [`ProfileScanner::read_page`], which reassembles and decodes the chunks of one page,
+//! decides where the page stops, and returns a resumable [`Cursor`]. Only records
+//! written by 7.1+ clients are decoded (see [`decode_events`]).
 //!
 //! # Example
 //!
+//! With the `foundationdb` crate:
+//!
 //! ```no_run
 //! use foundationdb::options::TransactionOption;
-//! use foundationdb::{Database, FdbBindingError};
-//! use foundationdb_profiling::{Cursor, Page, ProfileScanner};
+//! use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
+//! use foundationdb_profiling::{Cursor, Page, ProfileScanner, ScanError};
+//! use futures_util::TryStreamExt;
+//! use std::time::Duration;
 //!
 //! # async fn example(db: &Database) -> Result<(), FdbBindingError> {
 //! let scanner = ProfileScanner::new();
@@ -31,7 +36,28 @@
 //!         async move {
 //!             // Options are the caller's job: this crate never sets any.
 //!             trx.set_option(TransactionOption::ReadSystemKeys)?;
-//!             Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
+//!             // Bound every page, well under the 5 second transaction lifetime.
+//!             trx.set_client_budget(ClientBudget {
+//!                 time_limit: Some(Duration::from_secs(2)),
+//!                 ..ClientBudget::default()
+//!             });
+//!             let range = scanner.range(&cursor);
+//!             let opt = RangeOption::from((
+//!                 KeySelector::first_greater_or_equal(range.begin.as_slice()),
+//!                 KeySelector::first_greater_or_equal(range.end.as_slice()),
+//!             ));
+//!             let rows = trx
+//!                 .get_ranges_keyvalues(opt, true)
+//!                 .map_ok(|kv| (kv.key().to_vec(), kv.value().to_vec()));
+//!             let page = scanner
+//!                 .read_page(&cursor, rows, || trx.check_client_budget().is_err())
+//!                 .await
+//!                 .map_err(|err| match err {
+//!                     // FoundationDB errors go back to the retry loop
+//!                     ScanError::Source(err) => FdbBindingError::from(err),
+//!                     err => FdbBindingError::new_custom_error(Box::new(err)),
+//!                 })?;
+//!             Ok::<_, FdbBindingError>(page)
 //!         }
 //!     })
 //!     .await?;
@@ -46,42 +72,55 @@
 //! See `examples/top_keys.rs` for a runnable end-to-end example that pages through the
 //! whole keyspace and prints the hottest keys, ranges and write hot spots.
 //!
-//! # What the caller must set
+//! # The caller's contract
 //!
-//! This crate never sets transaction options. On the transaction given to
-//! [`ProfileScanner::read_page`]:
+//! For each page, the caller reads exactly [`ProfileScanner::range`] of the page's
+//! cursor: forward, with snapshot reads and no row limit, both ends as
+//! `first_greater_or_equal` key selectors, and gives [`ProfileScanner::read_page`] the
+//! rows as a [`Stream`](futures_core::Stream) of `Result<(key, value), E>`. A row
+//! outside that range or out of key order fails the page with
+//! [`ScanError::InvalidRows`], and a stream error comes back as [`ScanError::Source`] so
+//! the caller can hand it to its retry loop.
 //!
-//! - `TransactionOption::ReadSystemKeys` is required, the data lives in the system
-//!   keyspace.
+//! On that transaction:
+//!
+//! - `TransactionOption::ReadSystemKeys` (or its equivalent) is required, the data lives
+//!   in the system keyspace.
 //! - `TransactionOption::ReadLockAware` is required if the cluster may be locked (for
 //!   instance a DR secondary).
 //!
-//! [`ProfileScanner::read_page`] sets its own [`ClientBudget`] on the transaction
-//! (replacing any budget the caller set directly). Configure it with
-//! [`ProfileScanner::budget`]; the default uses a 2 second `time_limit`. Keep
-//! `time_limit` well under the 5 second transaction lifetime: without a time or byte
-//! limit, a page reads to the end of its range, and a large range can hit
-//! `transaction_too_old`.
+//! # Bounding a page: the stop check
+//!
+//! The `should_stop` closure given to [`ProfileScanner::read_page`] is required, and is
+//! the only place where the caller bounds a page: a transaction budget as above, a row
+//! count, anything. [`ProfileScanner::read_page`] calls it after every row and stops as
+//! soon as it returns `true`; otherwise the page reads to the end of its range. Without
+//! a real bound, a large range can outlive the transaction and hit
+//! `transaction_too_old`. Base the check on a caller-pluggable clock rather than the
+//! wall clock when the code must be reproducible, for instance under simulation.
 //!
 //! # Paging and tailing
 //!
-//! A page has one bound, its [`ClientBudget`]: [`ProfileScanner::read_page`] checks it
-//! after every transaction it completes (and at the end of every range read batch), and
-//! stops with [`StopReason::Budget`] once it is exceeded. [`Page::next`] is always a
-//! valid place to resume from. To read a range in several transactions, loop on
-//! [`ProfileScanner::read_page`] with `cursor = page.next` until [`Page::exhausted`]:
-//! every transaction is returned once over the sequence of pages, even when the client
-//! wrote its chunks in two commits with other records in between. A record is lost
-//! (reported as [`SkipReason::BrokenChunks`]) only when a page stops right after
-//! completing another record that lies between the two halves of a record split across
-//! commits, or when the budget cannot cover a single record read from the cursor: a page
-//! stopped anywhere else resumes at the first chunk of the records it left incomplete. To tail the keyspace, persist `page.next`
-//! ([`Cursor::as_bytes`] / [`Cursor::from_bytes`]) and keep polling from it: an
-//! exhausted page's cursor picks up the records flushed after it, including the second
-//! half of a record split across two commits. [`Cursor::at_version`] starts at a commit
-//! version, and [`ProfileScanner::end_version`] bounds a page by one. A transaction whose
-//! chunks straddle `end_version` is not returned by that bounded read, the cursor stays
-//! on its first chunk.
+//! [`Page::next`] is always a valid place to resume from, and [`Page::exhausted`] tells
+//! whether the page reached the end of its range (`false` when the stop check stopped
+//! it). To read a range in several transactions, loop on [`ProfileScanner::read_page`]
+//! with `cursor = page.next` until [`Page::exhausted`]: every transaction is returned
+//! once over the sequence of pages, even when the client wrote its chunks in two commits
+//! with other records in between, and even when a page stops between them: the next
+//! page resumes at the first chunk of the oldest incomplete record. A record is lost
+//! (reported as [`SkipReason::BrokenChunks`]) only when the stop check does not let a
+//! single page read from its cursor to the end of the records that overlap it (in
+//! practice, a single record cannot be read from the cursor before the caller says
+//! stop): the records still incomplete at that stop are broken, and the page still
+//! advances.
+//!
+//! To tail the keyspace, persist `page.next` ([`Cursor::as_bytes`] /
+//! [`Cursor::from_bytes`]) and keep polling from it: an exhausted page's cursor picks up
+//! the records flushed after it, including the second half of a record split across two
+//! commits. [`Cursor::at_version`] starts at a commit version, and
+//! [`ProfileScanner::end_version`] bounds a page by one. A transaction whose chunks
+//! straddle `end_version` is not returned by that bounded read, the cursor stays on its
+//! first chunk.
 //!
 //! Note that the version of a record is the one at which the client flushed it, some time
 //! after the profiled transaction ran.
@@ -89,8 +128,8 @@
 //! # When profiling data is flushed
 //!
 //! The C++ client records a sampled transaction's events when its native transaction is
-//! destroyed. With these Rust bindings, that happens when the [`Transaction`] (or the
-//! `RetryableTransaction` of a [`Database::run`] closure) is dropped. In particular a
+//! destroyed. With the `foundationdb` Rust bindings, that happens when the `Transaction`
+//! (or the `RetryableTransaction` of a `Database::run` closure) is dropped. In particular a
 //! `TransactionCommitError` owns the transaction and keeps it alive until the error is
 //! dropped (or recovered with `on_error`), so holding on to such errors delays the
 //! profiling data of the failed transaction. The data then reaches the keyspace at the
@@ -102,10 +141,6 @@
 //! or more pages, like the Python `transaction_profiling_analyzer`.
 //!
 //! [transaction profiler documentation]: https://apple.github.io/foundationdb/transaction-profiler-analyzer.html
-//! [`Database`]: foundationdb::Database
-//! [`Database::run`]: foundationdb::Database::run
-//! [`Transaction`]: foundationdb::Transaction
-//! [`ClientBudget`]: foundationdb::ClientBudget
 
 mod aggregate;
 mod decode;
@@ -119,6 +154,6 @@ pub use event::{
     GetVersion, KeyRange, Mutation, ProtocolVersion, SpanContext,
 };
 pub use reader::{
-    Cursor, InvalidCursor, PROFILE_PREFIX, Page, ProfileScanner, ProfiledTransaction, SkipReason,
-    Skipped, StopReason,
+    Cursor, InvalidCursor, PROFILE_PREFIX, Page, ProfileScanner, ProfiledTransaction, ScanError,
+    ScanRange, SkipReason, Skipped,
 };

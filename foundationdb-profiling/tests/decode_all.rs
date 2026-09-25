@@ -17,11 +17,12 @@
 
 use foundationdb::options::{MutationType, TransactionOption};
 use foundationdb::tuple::pack;
-use foundationdb::{Database, FdbBindingError, RangeOption};
+use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
 use foundationdb_profiling::{
-    Aggregator, Cursor, Event, Mutation, Page, ProfileScanner, ProfiledTransaction, SkipReason,
+    Aggregator, Cursor, Event, Mutation, Page, ProfileScanner, ProfiledTransaction, ScanError,
+    SkipReason,
 };
-use futures_util::FutureExt;
+use futures_util::{FutureExt, TryStreamExt};
 use std::collections::BTreeMap;
 use std::panic::AssertUnwindSafe;
 use std::time::{Duration, SystemTime};
@@ -449,7 +450,7 @@ async fn scan_and_assert(db: &Database, markers: &Markers) {
     }
 }
 
-/// Reads one page with the default (2 second) time budget, like the crate docs example.
+/// Reads one page bounded by a 2 second time budget, like the crate docs example.
 async fn read_one_page(db: &Database, cursor: &Cursor) -> Page {
     let scanner = ProfileScanner::new();
     db.run(|trx, _| {
@@ -457,7 +458,26 @@ async fn read_one_page(db: &Database, cursor: &Cursor) -> Page {
         let cursor = cursor.clone();
         async move {
             trx.set_option(TransactionOption::ReadSystemKeys)?;
-            Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
+            trx.set_client_budget(ClientBudget {
+                time_limit: Some(Duration::from_secs(2)),
+                ..ClientBudget::default()
+            });
+            let range = scanner.range(&cursor);
+            let opt = RangeOption::from((
+                KeySelector::first_greater_or_equal(range.begin.as_slice()),
+                KeySelector::first_greater_or_equal(range.end.as_slice()),
+            ));
+            let rows = trx
+                .get_ranges_keyvalues(opt, true)
+                .map_ok(|kv| (kv.key().to_vec(), kv.value().to_vec()));
+            let page = scanner
+                .read_page(&cursor, rows, || trx.check_client_budget().is_err())
+                .await
+                .map_err(|err| match err {
+                    ScanError::Source(err) => FdbBindingError::from(err),
+                    err => FdbBindingError::new_custom_error(Box::new(err)),
+                })?;
+            Ok::<_, FdbBindingError>(page)
         }
     })
     .await
