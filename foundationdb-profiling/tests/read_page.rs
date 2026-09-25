@@ -1,4 +1,4 @@
-//! Integration tests of `read_page` against a live cluster.
+//! Integration tests of `ProfileScanner::read_page` against a live cluster.
 //!
 //! The test enables client profiling for the whole cluster (sample rate 1.0, like
 //! `fdbcli> profile client set 1.0 default`), writes a few transactions, waits for the
@@ -10,7 +10,7 @@ use foundationdb::options::TransactionOption;
 use foundationdb::tuple::pack;
 use foundationdb::{BudgetKind, ClientBudget, Database, FdbBindingError};
 use foundationdb_profiling::{
-    Cursor, Event, Page, PageRequest, ProfiledTransaction, StopReason, read_page,
+    Cursor, Event, Page, ProfileScanner, ProfiledTransaction, StopReason,
 };
 use futures_util::FutureExt;
 use std::collections::BTreeSet;
@@ -95,12 +95,11 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     }
 
     // one big page over a fixed window
-    let window = PageRequest {
-        cursor: Cursor::at_version(start),
-        end_version: Some(end_version),
-        max_transactions: 100_000,
-    };
-    let full = page(db, &window, None).await;
+    let window_cursor = Cursor::at_version(start);
+    let window_scanner = ProfileScanner::new()
+        .end_version(end_version)
+        .max_transactions(100_000);
+    let full = page(db, &window_scanner, &window_cursor).await;
     assert!(full.exhausted);
     assert_eq!(full.stopped_by, None);
     let all = ids(&full.transactions);
@@ -110,16 +109,14 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     assert!(full.transactions.iter().all(|t| t.version < end_version));
 
     // pagination with one transaction per page reaches the same set
-    let mut req = PageRequest {
-        max_transactions: 1,
-        ..window.clone()
-    };
+    let scanner = window_scanner.clone().max_transactions(1);
+    let mut cursor = window_cursor.clone();
     let mut paged = Vec::new();
     for _ in 0..=(all.len() + full.skipped.len() + 1) {
-        let p = page(db, &req, None).await;
+        let p = page(db, &scanner, &cursor).await;
         assert!(p.transactions.len() + p.skipped.len() <= 1, "{p:?}");
         paged.extend(p.transactions);
-        req.cursor = p.next;
+        cursor = p.next;
         if p.exhausted {
             break;
         }
@@ -129,21 +126,21 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     assert_eq!(paged.len(), all.len());
 
     // a tiny, deterministic byte budget stops the page, and its cursor resumes it
-    let budget = ClientBudget {
+    let scanner = window_scanner.clone().budget(ClientBudget {
         max_bytes_read: Some(1),
         ..ClientBudget::default()
-    };
-    let mut req = window.clone();
+    });
+    let mut cursor = window_cursor.clone();
     let mut budgeted = Vec::new();
     let mut budget_stops = 0;
     for _ in 0..1_000 {
-        let p = page(db, &req, Some(budget.clone())).await;
+        let p = page(db, &scanner, &cursor).await;
         budgeted.extend(p.transactions);
         // round trip through the persisted form
         let restored = Cursor::from_bytes(p.next.as_bytes().to_vec()).expect("valid cursor");
         assert_eq!(restored, p.next);
-        assert_ne!(restored, req.cursor, "no progress");
-        req.cursor = restored;
+        assert_ne!(restored, cursor, "no progress");
+        cursor = restored;
         if p.exhausted {
             break;
         }
@@ -165,24 +162,13 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     let split = versions[versions.len() / 2];
     let before = page(
         db,
-        &PageRequest {
-            end_version: Some(split),
-            ..window.clone()
-        },
-        None,
+        &window_scanner.clone().end_version(split),
+        &window_cursor,
     )
     .await;
     assert!(before.exhausted);
     assert!(before.transactions.iter().all(|t| t.version < split));
-    let after = page(
-        db,
-        &PageRequest {
-            cursor: Cursor::at_version(split),
-            ..window.clone()
-        },
-        None,
-    )
-    .await;
+    let after = page(db, &window_scanner, &Cursor::at_version(split)).await;
     assert!(after.transactions.iter().all(|t| t.version >= split));
     let mut both = ids(&before.transactions);
     both.extend(ids(&after.transactions));
@@ -220,12 +206,9 @@ async fn write_and_wait(db: &Database, prefix: &[u8], start: i64) -> Vec<Profile
         // the client flushes every CSI_STATUS_DELAY (10s)
         for _ in 0..15 {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            let req = PageRequest {
-                cursor: Cursor::at_version(start),
-                end_version: None,
-                max_transactions: 100_000,
-            };
-            let p = page(db, &req, None).await;
+            let cursor = Cursor::at_version(start);
+            let scanner = ProfileScanner::new().max_transactions(100_000);
+            let p = page(db, &scanner, &cursor).await;
             for tx in p.transactions {
                 for (i, slot) in found.iter_mut().enumerate() {
                     let key = test_key(prefix, i);
@@ -246,16 +229,13 @@ async fn write_and_wait(db: &Database, prefix: &[u8], start: i64) -> Vec<Profile
     panic!("profiling data was not flushed: {found:?}");
 }
 
-async fn page(db: &Database, req: &PageRequest, budget: Option<ClientBudget>) -> Page {
+async fn page(db: &Database, scanner: &ProfileScanner, cursor: &Cursor) -> Page {
     db.run(|trx, _| {
-        let req = req.clone();
-        let budget = budget.clone();
+        let scanner = scanner.clone();
+        let cursor = cursor.clone();
         async move {
             trx.set_option(TransactionOption::ReadSystemKeys)?;
-            if let Some(budget) = budget {
-                trx.set_client_budget(budget);
-            }
-            Ok::<_, FdbBindingError>(read_page(&trx, &req).await?)
+            Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
         }
     })
     .await

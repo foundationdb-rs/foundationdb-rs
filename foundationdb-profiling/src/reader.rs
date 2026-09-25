@@ -7,14 +7,15 @@
 //! PREFIX | versionstamp (10) | '/' | transaction id (16) | '/' | chunk (4, BE) | total (4, BE) | '/' | user id ...
 //! ```
 //!
-//! [`read_page`] reads a bounded range of these keys, reassembles the chunks of each
-//! transaction, decodes them with [`decode_events`] and returns a [`Page`] with a
-//! [`Cursor`] to resume from.
+//! [`ProfileScanner::read_page`] reads a bounded range of these keys, reassembles the
+//! chunks of each transaction, decodes them with [`decode_events`] and returns a
+//! [`Page`] with a [`Cursor`] to resume from.
 
 use crate::decode::{DecodeError, decode_events};
 use crate::event::{Event, ProtocolVersion};
-use foundationdb::{BudgetExceeded, FdbError, KeySelector, RangeOption, Transaction};
+use foundationdb::{BudgetExceeded, ClientBudget, FdbError, KeySelector, RangeOption, Transaction};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::time::Duration;
 use tracing::instrument;
 
 /// Prefix of the client profiling keyspace.
@@ -33,19 +34,22 @@ const ID_START: usize = VERSIONSTAMP_END + 1;
 const ID_END: usize = ID_START + ID_LEN;
 const CHUNK_START: usize = ID_END + 1;
 const TOTAL_START: usize = CHUNK_START + 4;
-/// Shortest key [`read_page`] can parse: everything up to the total chunk count.
+/// Shortest key [`ProfileScanner::read_page`] can parse: everything up to the total chunk
+/// count.
 const MIN_KEY_LEN: usize = TOTAL_START + 4;
 
-/// A pending transaction is dropped as broken once a row more than this many versions
-/// (about 10 seconds) after its first chunk was fed without completing it. The client
-/// writes the rest of a transaction in its next commit, right after the first one.
-const MAX_PENDING_VERSIONS: i64 = 10_000_000;
+/// Default [`ProfileScanner::max_pending_versions`]: a pending transaction is dropped as
+/// broken once a row more than this many versions (about 10 seconds) after its first
+/// chunk was fed without completing it. The client writes the rest of a transaction in
+/// its next commit, right after the first one.
+const DEFAULT_MAX_PENDING_VERSIONS: i64 = 10_000_000;
 
-/// A pending transaction is dropped as broken once more than this many key and value
-/// bytes were fed since its first chunk (inclusive) without completing it. The client
-/// splits a flush in commits of 0.8 times the transaction size limit (10 MB), so the
-/// continuation of a transaction is at most about two commits away from its first chunk.
-const MAX_PENDING_BYTES: u64 = 16 * 1024 * 1024;
+/// Default [`ProfileScanner::max_pending_bytes`]: a pending transaction is dropped as
+/// broken once more than this many key and value bytes were fed since its first chunk
+/// (inclusive) without completing it. The client splits a flush in commits of 0.8 times
+/// the transaction size limit (10 MB), so the continuation of a transaction is at most
+/// about two commits away from its first chunk.
+const DEFAULT_MAX_PENDING_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Version of the [`Cursor`] serialization.
 const CURSOR_FORMAT: u8 = 1;
@@ -170,18 +174,115 @@ fn version_key(version: i64) -> Vec<u8> {
     key
 }
 
-/// What [`read_page`] reads.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageRequest {
-    /// Where to start reading.
-    pub cursor: Cursor,
-    /// Exclusive upper bound on the record commit version, `None` to read to the end of
-    /// the keyspace.
-    pub end_version: Option<i64>,
-    /// Maximum number of transactions to reassemble in this page, counting both
+/// Reads pages of profiling data. Build it once and reuse it for every page of a scan:
+/// its reassembly limits must stay the same across the pages that share a cursor.
+#[derive(Debug, Clone)]
+pub struct ProfileScanner {
+    budget: ClientBudget,
+    max_transactions: usize,
+    end_version: Option<i64>,
+    max_pending_versions: i64,
+    max_pending_bytes: u64,
+}
+
+impl Default for ProfileScanner {
+    fn default() -> Self {
+        ProfileScanner {
+            budget: ClientBudget {
+                time_limit: Some(Duration::from_secs(2)),
+                ..ClientBudget::default()
+            },
+            max_transactions: 1_000,
+            end_version: None,
+            max_pending_versions: DEFAULT_MAX_PENDING_VERSIONS,
+            max_pending_bytes: DEFAULT_MAX_PENDING_BYTES,
+        }
+    }
+}
+
+impl ProfileScanner {
+    /// A scanner with the default configuration: a 2 second wall-clock [`budget`](Self::budget),
+    /// [`max_transactions`](Self::max_transactions) of 1,000, no [`end_version`](Self::end_version)
+    /// and the default reassembly limits ([`max_pending_versions`](Self::max_pending_versions),
+    /// [`max_pending_bytes`](Self::max_pending_bytes)).
+    #[instrument(level = "trace")]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Replaces the whole [`ClientBudget`] bounding [`read_page`](Self::read_page).
+    ///
+    /// Use this to set byte limits (`max_bytes_read`, `max_bytes_written`) in addition to
+    /// or instead of the default time limit, or to give the budget a
+    /// [`Clock`](foundationdb::Clock) with [`ClientBudget::with_clock`] so its time limit
+    /// is measured deterministically, for instance under simulation.
+    ///
+    /// [`read_page`](Self::read_page) applies this budget by calling
+    /// `trx.set_client_budget(...)`, which replaces any budget the caller may have set on
+    /// that transaction directly.
+    #[instrument(level = "trace", skip_all)]
+    pub fn budget(self, budget: ClientBudget) -> Self {
+        ProfileScanner { budget, ..self }
+    }
+
+    /// Maximum number of transactions to reassemble in one page, counting both
     /// [`Page::transactions`] and transactions skipped for a decode error. 0 reads
-    /// nothing.
-    pub max_transactions: usize,
+    /// nothing. Defaults to 1,000.
+    #[instrument(level = "trace", skip_all)]
+    pub fn max_transactions(self, n: usize) -> Self {
+        ProfileScanner {
+            max_transactions: n,
+            ..self
+        }
+    }
+
+    /// Exclusive upper bound on the record commit version read by [`read_page`](Self::read_page).
+    /// Unset (the default) reads to the end of the keyspace.
+    #[instrument(level = "trace", skip_all)]
+    pub fn end_version(self, version: i64) -> Self {
+        ProfileScanner {
+            end_version: Some(version),
+            ..self
+        }
+    }
+
+    /// Bounds how long a multi-chunk transaction may stay incomplete before its chunks
+    /// are dropped and reported as [`SkipReason::BrokenChunks`], in versions elapsed
+    /// since its first chunk was read (about 10,000,000 versions is about 10 seconds).
+    /// Defaults to `10_000_000`.
+    ///
+    /// The client writes the rest of a multi-chunk transaction in its next commit, right
+    /// after the first one, so a transaction is normally reassembled well within the
+    /// default.
+    ///
+    /// Changing this between pages of a scan that share a cursor can return a
+    /// transaction twice or lose it: keep it the same for every page of a scan.
+    #[instrument(level = "trace", skip_all)]
+    pub fn max_pending_versions(self, versions: i64) -> Self {
+        ProfileScanner {
+            max_pending_versions: versions,
+            ..self
+        }
+    }
+
+    /// Bounds how many key and value bytes may be read for a pending multi-chunk
+    /// transaction, measured from its first chunk (inclusive), before its chunks are
+    /// dropped and reported as [`SkipReason::BrokenChunks`]. Defaults to `16 MiB`.
+    ///
+    /// The C++ client splits a flush into commits of 0.8 times `TRANSACTION_SIZE_LIMIT`
+    /// (a client knob, `1e7` by default), so the continuation of a transaction is at
+    /// most about two commits away from its first chunk: raise this (to about twice the
+    /// commit size) when a deployment raises that knob.
+    ///
+    /// Changing this between pages of a scan that share a cursor can return a
+    /// transaction twice or lose it: keep it the same for every page of a scan.
+    #[instrument(level = "trace", skip_all)]
+    pub fn max_pending_bytes(self, bytes: u64) -> Self {
+        ProfileScanner {
+            max_pending_bytes: bytes,
+            ..self
+        }
+    }
 }
 
 /// One sampled transaction, reassembled and decoded.
@@ -222,16 +323,16 @@ pub enum SkipReason {
     BrokenChunks,
 }
 
-/// Why [`read_page`] stopped before the end of its range.
+/// Why [`ProfileScanner::read_page`] stopped before the end of its range.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StopReason {
     /// The transaction's [`ClientBudget`](foundationdb::ClientBudget) was exceeded.
     Budget(BudgetExceeded),
-    /// [`PageRequest::max_transactions`] transactions were reassembled.
+    /// [`ProfileScanner::max_transactions`] transactions were reassembled.
     MaxTransactions,
 }
 
-/// Result of [`read_page`].
+/// Result of [`ProfileScanner::read_page`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Page {
     /// Decoded transactions, in the order they completed (the key of their last chunk).
@@ -247,91 +348,111 @@ pub struct Page {
     pub stopped_by: Option<StopReason>,
 }
 
-/// Reads one bounded page of profiled transactions, starting at `req.cursor`.
-///
-/// The range is read with snapshot reads, in batches ([`StreamingMode::Iterator`]).
-/// After each batch the transaction's client budget is checked with
-/// [`Transaction::check_client_budget`]: when exceeded, the page stops with
-/// [`StopReason::Budget`]. To guarantee progress, the budget only stops a page once it
-/// read past what the previous pages read, so a page may overshoot the budget. The page
-/// also stops once `req.max_transactions` transactions are reassembled.
-///
-/// Each transaction is returned once over a sequence of pages that each resume from the
-/// previous [`Page::next`]. The client may write the chunks of one transaction in
-/// several commits (when a flush exceeds the transaction size limit), with rows of other
-/// transactions in between: such a transaction is reassembled across them, and while it
-/// is incomplete [`Page::next`] keeps pointing at its first chunk, so the next page reads
-/// it again in full. A transaction that is still incomplete once a row more than
-/// 10,000,000 versions (about 10 seconds) after its first chunk is read, or once more
-/// than 16 MiB of keys and values were read since its first chunk, is reported as
-/// [`SkipReason::BrokenChunks`], as is a chunk whose earlier chunks are missing,
-/// including chunks of a transaction that began before the cursor the scan started from
-/// ([`Cursor::beginning`], [`Cursor::at_version`]). A broken transaction whose chunks
-/// span a page boundary can be reported by both pages.
-///
-/// These bounds also bound what a page reads again: [`Page::next`] lags behind the rows
-/// already read by at most 16 MiB plus one batch, which a page can read again well within
-/// the 5 second transaction lifetime, even when its budget would stop it earlier.
-///
-/// A transaction whose later chunks lie beyond `end_version` stays incomplete: the page
-/// is `exhausted` and [`Page::next`] points at its first chunk, so a bounded read never
-/// returns it but an unbounded read from that cursor does.
-///
-/// A transaction that fails to decode is reported in [`Page::skipped`] and does not fail
-/// the page.
-///
-/// This function never sets transaction options: the caller must set
-/// `TransactionOption::ReadSystemKeys` (and `ReadLockAware` on a locked cluster).
-///
-/// # Errors
-///
-/// Only FoundationDB errors, which the caller's retry loop should handle.
-///
-/// [`StreamingMode::Iterator`]: foundationdb::options::StreamingMode::Iterator
-#[instrument(
-    level = "debug",
-    skip_all,
-    fields(
-        max_transactions = req.max_transactions,
-        end_version = ?req.end_version,
-        transactions,
-        skipped,
-        exhausted,
-    )
-)]
-pub async fn read_page(trx: &Transaction, req: &PageRequest) -> Result<Page, FdbError> {
-    let begin = req.cursor.resume();
-    let end = match req.end_version {
-        Some(version) => version_key(version),
-        None => PROFILE_END.to_vec(),
-    };
-    let mut page = PageBuilder::new(&req.cursor, req.max_transactions);
+impl ProfileScanner {
+    /// Reads one bounded page of profiled transactions, starting at `cursor`.
+    ///
+    /// This first calls `trx.set_client_budget(...)` with this scanner's
+    /// [`budget`](Self::budget), **replacing** any budget the caller may have set on
+    /// `trx` directly: this starts a fresh accounting generation, so a retried
+    /// `db.run` attempt always gets the full allowance again. This crate still sets no
+    /// FoundationDB transaction option: the caller must set
+    /// `TransactionOption::ReadSystemKeys` (and `ReadLockAware` on a locked cluster)
+    /// itself.
+    ///
+    /// The range is read with snapshot reads, in batches ([`StreamingMode::Iterator`]).
+    /// After each batch the budget is checked with [`Transaction::check_client_budget`]:
+    /// when exceeded, the page stops with [`StopReason::Budget`]. The check happens
+    /// *between* batches, never inside one, so expect an overshoot of up to one batch.
+    /// To guarantee progress, the budget only stops a page once it read past what the
+    /// previous pages read, so a page may overshoot further still. Unless the budget
+    /// carries a [`Clock`](foundationdb::Clock) (see [`ClientBudget::with_clock`]), its
+    /// time limit is measured with the wall clock, which is not reproducible under
+    /// simulation: give it a simulated clock there instead. The page also stops once
+    /// [`max_transactions`](Self::max_transactions) transactions are reassembled.
+    ///
+    /// Each transaction is returned once over a sequence of pages that each resume from
+    /// the previous [`Page::next`]. The client may write the chunks of one transaction
+    /// in several commits (when a flush exceeds the transaction size limit), with rows
+    /// of other transactions in between: such a transaction is reassembled across them,
+    /// and while it is incomplete [`Page::next`] keeps pointing at its first chunk, so
+    /// the next page reads it again in full. A transaction still incomplete once it
+    /// exceeds [`max_pending_versions`](Self::max_pending_versions) or
+    /// [`max_pending_bytes`](Self::max_pending_bytes) since its first chunk is reported
+    /// as [`SkipReason::BrokenChunks`], as is a chunk whose earlier chunks are missing,
+    /// including chunks of a transaction that began before the cursor the scan started
+    /// from ([`Cursor::beginning`], [`Cursor::at_version`]). A broken transaction whose
+    /// chunks span a page boundary can be reported by both pages.
+    ///
+    /// These bounds also bound what a page reads again: [`Page::next`] lags behind the
+    /// rows already read by at most [`max_pending_bytes`](Self::max_pending_bytes) plus
+    /// one batch, which a page can read again well within the 5 second transaction
+    /// lifetime, even when its budget would stop it earlier.
+    ///
+    /// A transaction whose later chunks lie beyond [`end_version`](Self::end_version)
+    /// stays incomplete: the page is `exhausted` and [`Page::next`] points at its first
+    /// chunk, so a bounded read never returns it but an unbounded read from that cursor
+    /// does.
+    ///
+    /// A transaction that fails to decode is reported in [`Page::skipped`] and does not
+    /// fail the page.
+    ///
+    /// # Errors
+    ///
+    /// Only FoundationDB errors, which the caller's retry loop should handle.
+    ///
+    /// [`StreamingMode::Iterator`]: foundationdb::options::StreamingMode::Iterator
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(
+            max_transactions = self.max_transactions,
+            end_version = ?self.end_version,
+            transactions,
+            skipped,
+            exhausted,
+        )
+    )]
+    pub async fn read_page(&self, trx: &Transaction, cursor: &Cursor) -> Result<Page, FdbError> {
+        trx.set_client_budget(self.budget.clone());
 
-    if req.max_transactions == 0 {
-        return Ok(page.finish(Some(StopReason::MaxTransactions)));
-    }
-    if begin >= end.as_slice() {
-        return Ok(page.finish(None));
-    }
+        let begin = cursor.resume();
+        let end = match self.end_version {
+            Some(version) => version_key(version),
+            None => PROFILE_END.to_vec(),
+        };
+        let mut page = PageBuilder::new(
+            cursor,
+            self.max_transactions,
+            self.max_pending_versions,
+            self.max_pending_bytes,
+        );
 
-    let mut range = RangeOption::from((
-        KeySelector::first_greater_or_equal(begin),
-        KeySelector::first_greater_or_equal(end.as_slice()),
-    ));
-    let mut iteration = 1;
-    loop {
-        let batch = trx.get_range(&range, iteration, true).await?;
-        iteration += 1;
-        let next = range.next_range(&batch);
-        let rows = batch.iter().map(|kv| (kv.key(), kv.value()));
-        if let Some(stopped_by) =
-            page.feed_batch(rows, next.is_some(), || trx.check_client_budget())
-        {
-            return Ok(page.finish(stopped_by));
+        if self.max_transactions == 0 {
+            return Ok(page.finish(Some(StopReason::MaxTransactions)));
         }
-        match next {
-            Some(next) => range = next,
-            None => return Ok(page.finish(None)),
+        if begin >= end.as_slice() {
+            return Ok(page.finish(None));
+        }
+
+        let mut range = RangeOption::from((
+            KeySelector::first_greater_or_equal(begin),
+            KeySelector::first_greater_or_equal(end.as_slice()),
+        ));
+        let mut iteration = 1;
+        loop {
+            let batch = trx.get_range(&range, iteration, true).await?;
+            iteration += 1;
+            let next = range.next_range(&batch);
+            let rows = batch.iter().map(|kv| (kv.key(), kv.value()));
+            if let Some(stopped_by) =
+                page.feed_batch(rows, next.is_some(), || trx.check_client_budget())
+            {
+                return Ok(page.finish(stopped_by));
+            }
+            match next {
+                Some(next) => range = next,
+                None => return Ok(page.finish(None)),
+            }
         }
     }
 }
@@ -349,9 +470,18 @@ struct PageBuilder {
 }
 
 impl PageBuilder {
-    fn new(start: &Cursor, max_transactions: usize) -> Self {
+    fn new(
+        start: &Cursor,
+        max_transactions: usize,
+        max_pending_versions: i64,
+        max_pending_bytes: u64,
+    ) -> Self {
         PageBuilder {
-            assembler: Assembler::new(start.emitted_up_to().to_vec()),
+            assembler: Assembler::new(
+                start.emitted_up_to().to_vec(),
+                max_pending_versions,
+                max_pending_bytes,
+            ),
             start: start.clone(),
             transactions: Vec::new(),
             skipped: Vec::new(),
@@ -548,10 +678,11 @@ struct Partial {
 /// in several commits, so rows of other transactions can sit in between. Anything else
 /// drops the partial buffer and reports the transaction as [`Assembled::Broken`] (once
 /// per id until a new chunk 1 of that id), as does a transaction still pending after a
-/// row more than [`MAX_PENDING_VERSIONS`] versions after its first chunk, or after more
-/// than [`MAX_PENDING_BYTES`] bytes of rows since its first chunk. Both are measured from
-/// each first chunk, so the outcome does not depend on where the scan started, as long as
-/// it started at or before that chunk.
+/// row more than [`max_pending_versions`](ProfileScanner::max_pending_versions) after its
+/// first chunk, or after more than
+/// [`max_pending_bytes`](ProfileScanner::max_pending_bytes) bytes of rows since its first
+/// chunk. Both are measured from each first chunk, so the outcome does not depend on
+/// where the scan started, as long as it started at or before that chunk.
 ///
 /// Outcomes produced by a row whose key is below `emitted_up_to` are suppressed: an
 /// earlier page, which read that row too, already reported them.
@@ -571,10 +702,14 @@ struct Assembler {
     bytes: u64,
     /// Last row fed.
     last_key: Option<Vec<u8>>,
+    /// [`ProfileScanner::max_pending_versions`] of the page being built.
+    max_pending_versions: i64,
+    /// [`ProfileScanner::max_pending_bytes`] of the page being built.
+    max_pending_bytes: u64,
 }
 
 impl Assembler {
-    fn new(emitted_up_to: Vec<u8>) -> Self {
+    fn new(emitted_up_to: Vec<u8>, max_pending_versions: i64, max_pending_bytes: u64) -> Self {
         Assembler {
             emitted_up_to,
             partials: HashMap::new(),
@@ -582,6 +717,8 @@ impl Assembler {
             broken: HashSet::new(),
             bytes: 0,
             last_key: None,
+            max_pending_versions,
+            max_pending_bytes,
         }
     }
 
@@ -603,8 +740,8 @@ impl Assembler {
 
     /// Breaks the transactions still pending after the row just fed, whose version is
     /// `version` (`None` for an unparseable key), when it is more than
-    /// [`MAX_PENDING_VERSIONS`] after their first chunk or when more than
-    /// [`MAX_PENDING_BYTES`] were fed since their first chunk.
+    /// `max_pending_versions` after their first chunk or when more than
+    /// `max_pending_bytes` were fed since their first chunk.
     ///
     /// Rows are fed in key order, so the oldest pending transaction also has the smallest
     /// first version: checking from the oldest stops at the first one within both bounds.
@@ -615,7 +752,9 @@ impl Assembler {
                 (Some(version), Some(partial)) => version.saturating_sub(partial.start_version),
                 _ => 0,
             };
-            if pending_bytes <= MAX_PENDING_BYTES && pending_versions <= MAX_PENDING_VERSIONS {
+            if pending_bytes <= self.max_pending_bytes
+                && pending_versions <= self.max_pending_versions
+            {
                 break;
             }
             self.by_start.remove(&start);
@@ -747,9 +886,27 @@ mod tests {
 
     type Rows = Vec<(Vec<u8>, Vec<u8>)>;
 
-    /// Feeds all rows from the beginning, returns the outputs and the pending first key.
+    /// Feeds all rows from the beginning with the default reassembly limits, returns the
+    /// outputs and the pending first key.
     fn reassemble(rows: &[(Vec<u8>, Vec<u8>)]) -> (Vec<Assembled>, Option<Vec<u8>>) {
-        let mut assembler = Assembler::new(PROFILE_PREFIX.to_vec());
+        reassemble_with_limits(
+            rows,
+            DEFAULT_MAX_PENDING_VERSIONS,
+            DEFAULT_MAX_PENDING_BYTES,
+        )
+    }
+
+    /// Like [`reassemble`], with custom reassembly limits.
+    fn reassemble_with_limits(
+        rows: &[(Vec<u8>, Vec<u8>)],
+        max_pending_versions: i64,
+        max_pending_bytes: u64,
+    ) -> (Vec<Assembled>, Option<Vec<u8>>) {
+        let mut assembler = Assembler::new(
+            PROFILE_PREFIX.to_vec(),
+            max_pending_versions,
+            max_pending_bytes,
+        );
         let mut out = Vec::new();
         for (k, v) in rows {
             assembler.push(k, v, &mut out);
@@ -955,7 +1112,7 @@ mod tests {
     #[test]
     fn eviction_by_version_distance() {
         let first = 5;
-        let last = first + MAX_PENDING_VERSIONS as u64;
+        let last = first + DEFAULT_MAX_PENDING_VERSIONS as u64;
         let within: Rows = vec![
             (key(vs(first, 0), id(1), 1, 2), b"a".to_vec()),
             (key(vs(last, 0), id(2), 1, 1), Vec::new()),
@@ -994,8 +1151,8 @@ mod tests {
     fn eviction_by_bytes() {
         let first = key(vs(1, 0), id(1), 1, 2);
         let klen = first.len();
-        let max = MAX_PENDING_BYTES as usize;
-        // the first chunk and one filler row add up to exactly MAX_PENDING_BYTES
+        let max = DEFAULT_MAX_PENDING_BYTES as usize;
+        // the first chunk and one filler row add up to exactly DEFAULT_MAX_PENDING_BYTES
         let rows_with = |filler: usize| -> Rows {
             vec![
                 (first.clone(), b"a".to_vec()),
@@ -1031,6 +1188,46 @@ mod tests {
             assert_eq!(!broken_of(&out).is_empty(), expected);
             assert_eq!(pending, None);
         }
+    }
+
+    #[test]
+    fn custom_max_pending_versions_changes_eviction() {
+        let (first, second) = (5u64, 6u64);
+        let rows: Rows = vec![
+            (key(vs(first, 0), id(1), 1, 2), b"a".to_vec()),
+            (key(vs(second, 0), id(2), 1, 1), Vec::new()),
+        ];
+
+        // the default limit leaves id 1 pending: one version is nothing next to
+        // DEFAULT_MAX_PENDING_VERSIONS
+        let (out, pending) = reassemble(&rows);
+        assert_eq!(out, vec![complete(vs(second, 0), id(2), b"")]);
+        assert_eq!(pending, Some(rows[0].0.clone()));
+
+        // a custom max_pending_versions of 0 evicts it as soon as a later row lands
+        let (out, pending) = reassemble_with_limits(&rows, 0, DEFAULT_MAX_PENDING_BYTES);
+        assert_eq!(broken_of(&out), vec![&broken(vs(first, 0), id(1))]);
+        assert_eq!(pending, None);
+    }
+
+    #[test]
+    fn custom_max_pending_bytes_changes_eviction() {
+        let first = key(vs(1, 0), id(1), 1, 2);
+        let rows: Rows = vec![
+            (first.clone(), b"a".to_vec()),
+            (key(vs(1, 1), id(2), 1, 1), vec![0; 100]),
+        ];
+
+        // the default limit leaves id 1 pending: about a hundred bytes is nothing next to
+        // DEFAULT_MAX_PENDING_BYTES (16 MiB)
+        let (out, pending) = reassemble(&rows);
+        assert_eq!(broken_of(&out), Vec::<&Assembled>::new());
+        assert_eq!(pending, Some(first.clone()));
+
+        // a custom max_pending_bytes smaller than the pending row evicts it
+        let (out, pending) = reassemble_with_limits(&rows, DEFAULT_MAX_PENDING_VERSIONS, 10);
+        assert_eq!(broken_of(&out), vec![&broken(vs(1, 0), id(1))]);
+        assert_eq!(pending, None);
     }
 
     #[test]
@@ -1089,7 +1286,12 @@ mod tests {
             .iter()
             .filter(|(k, _)| k.as_slice() >= cursor.resume())
             .collect();
-        let mut page = PageBuilder::new(cursor, max);
+        let mut page = PageBuilder::new(
+            cursor,
+            max,
+            DEFAULT_MAX_PENDING_VERSIONS,
+            DEFAULT_MAX_PENDING_BYTES,
+        );
         if start.is_empty() {
             return page.finish(None);
         }
@@ -1240,7 +1442,12 @@ mod tests {
     #[test]
     fn page_builder_counts_and_decodes() {
         let valid = ProtocolVersion::V7_4.0.to_le_bytes().to_vec();
-        let mut page = PageBuilder::new(&Cursor::beginning(), 2);
+        let mut page = PageBuilder::new(
+            &Cursor::beginning(),
+            2,
+            DEFAULT_MAX_PENDING_VERSIONS,
+            DEFAULT_MAX_PENDING_BYTES,
+        );
         assert!(!page.push(&key(vs(5, 0), id(1), 1, 1), &valid));
         // broken chunks do not count towards max_transactions
         assert!(!page.push(&key(vs(5, 0), id(2), 2, 2), b""));

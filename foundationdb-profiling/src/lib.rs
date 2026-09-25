@@ -9,35 +9,29 @@
 //! transaction id. See the [transaction profiler documentation].
 //!
 //! This crate reads that keyspace from an application that owns its [`Database`] and
-//! retry loop: [`read_page`] takes a [`Transaction`], reads one bounded page, reassembles
-//! and decodes the chunks into typed [`Event`]s, and returns a resumable [`Cursor`].
-//! Only records written by 7.1+ clients are decoded (see [`decode_events`]).
+//! retry loop: build a [`ProfileScanner`] once and call [`ProfileScanner::read_page`]
+//! with a [`Transaction`] to read one bounded page, reassemble and decode the chunks
+//! into typed [`Event`]s, and return a resumable [`Cursor`]. Only records written by
+//! 7.1+ clients are decoded (see [`decode_events`]).
 //!
 //! # Example
 //!
 //! ```no_run
 //! use foundationdb::options::TransactionOption;
-//! use foundationdb::{ClientBudget, Database, FdbBindingError};
-//! use foundationdb_profiling::{Cursor, Page, PageRequest, read_page};
-//! use std::time::Duration;
+//! use foundationdb::{Database, FdbBindingError};
+//! use foundationdb_profiling::{Cursor, Page, ProfileScanner};
 //!
 //! # async fn example(db: &Database) -> Result<(), FdbBindingError> {
-//! let req = PageRequest {
-//!     cursor: Cursor::beginning(),
-//!     end_version: None,
-//!     max_transactions: 1_000,
-//! };
+//! let scanner = ProfileScanner::new();
+//! let cursor = Cursor::beginning();
 //! let page: Page = db
 //!     .run(|trx, _| {
-//!         let req = req.clone();
+//!         let scanner = scanner.clone();
+//!         let cursor = cursor.clone();
 //!         async move {
 //!             // Options are the caller's job: this crate never sets any.
 //!             trx.set_option(TransactionOption::ReadSystemKeys)?;
-//!             trx.set_client_budget(ClientBudget {
-//!                 time_limit: Some(Duration::from_secs(2)),
-//!                 ..ClientBudget::default()
-//!             });
-//!             Ok::<_, FdbBindingError>(read_page(&trx, &req).await?)
+//!             Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
 //!         }
 //!     })
 //!     .await?;
@@ -54,29 +48,39 @@
 //!
 //! # What the caller must set
 //!
-//! This crate never sets transaction options. On the transaction given to [`read_page`]:
+//! This crate never sets transaction options. On the transaction given to
+//! [`ProfileScanner::read_page`]:
 //!
 //! - `TransactionOption::ReadSystemKeys` is required, the data lives in the system
 //!   keyspace.
 //! - `TransactionOption::ReadLockAware` is required if the cluster may be locked (for
 //!   instance a DR secondary).
-//! - A [`ClientBudget`] bounds a page: [`read_page`] checks it after every batch and
-//!   stops with [`StopReason::Budget`] when it is exceeded. Use a `time_limit` well under
-//!   the 5 seconds transaction lifetime, or `max_bytes_read`. Without a budget, the page
-//!   is only bounded by [`PageRequest::max_transactions`] and the end of the range, and
-//!   a large range can hit `transaction_too_old`.
+//!
+//! [`ProfileScanner::read_page`] sets its own [`ClientBudget`] on the transaction
+//! (replacing any budget the caller set directly) and stops with [`StopReason::Budget`]
+//! when it is exceeded, checked after every batch. Configure it with
+//! [`ProfileScanner::budget`]; the default uses a `time_limit` well under the 5 second
+//! transaction lifetime. Without a time or byte limit, a page is only bounded by
+//! [`ProfileScanner::max_transactions`] and the end of the range, and a large range can
+//! hit `transaction_too_old`.
 //!
 //! # Paging and tailing
 //!
 //! [`Page::next`] is always a valid place to resume from. To read a range in several
-//! transactions, loop on [`read_page`] with `cursor = page.next` until [`Page::exhausted`]:
-//! every transaction is returned once over the sequence of pages, even when the client
-//! wrote its chunks in several commits and they straddle a page boundary. To tail the
-//! keyspace, persist `page.next` ([`Cursor::as_bytes`] / [`Cursor::from_bytes`]) and keep
-//! polling from it: an exhausted page's cursor picks up the records flushed after it.
-//! [`Cursor::at_version`] starts at a commit version, and [`PageRequest::end_version`]
-//! bounds a page by one. A transaction whose chunks straddle `end_version` is not
-//! returned by that bounded read, the cursor stays on its first chunk.
+//! transactions, loop on [`ProfileScanner::read_page`] with `cursor = page.next` until
+//! [`Page::exhausted`]: every transaction is returned once over the sequence of pages,
+//! even when the client wrote its chunks in several commits and they straddle a page
+//! boundary. To tail the keyspace, persist `page.next` ([`Cursor::as_bytes`] /
+//! [`Cursor::from_bytes`]) and keep polling from it: an exhausted page's cursor picks up
+//! the records flushed after it. [`Cursor::at_version`] starts at a commit version, and
+//! [`ProfileScanner::end_version`] bounds a page by one. A transaction whose chunks
+//! straddle `end_version` is not returned by that bounded read, the cursor stays on its
+//! first chunk.
+//!
+//! Build one [`ProfileScanner`] and reuse it for every page of a scan: its reassembly
+//! limits ([`ProfileScanner::max_pending_versions`], [`ProfileScanner::max_pending_bytes`])
+//! must stay the same across the pages that share a cursor, or a transaction can be
+//! returned twice or lost.
 //!
 //! Note that the version of a record is the one at which the client flushed it, some time
 //! after the profiled transaction ran.
@@ -114,6 +118,6 @@ pub use event::{
     GetVersion, KeyRange, Mutation, ProtocolVersion, SpanContext,
 };
 pub use reader::{
-    Cursor, InvalidCursor, PROFILE_PREFIX, Page, PageRequest, ProfiledTransaction, SkipReason,
-    Skipped, StopReason, read_page,
+    Cursor, InvalidCursor, PROFILE_PREFIX, Page, ProfileScanner, ProfiledTransaction, SkipReason,
+    Skipped, StopReason,
 };

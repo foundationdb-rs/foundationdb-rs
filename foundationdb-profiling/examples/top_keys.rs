@@ -17,9 +17,8 @@
 
 use foundationdb::options::TransactionOption;
 use foundationdb::tuple::Bytes;
-use foundationdb::{ClientBudget, Database, FdbBindingError};
-use foundationdb_profiling::{Aggregator, Cursor, PageRequest, SkipReason, read_page};
-use std::time::Duration;
+use foundationdb::{Database, FdbBindingError};
+use foundationdb_profiling::{Aggregator, Cursor, ProfileScanner, SkipReason};
 
 const TOP_N: usize = 10;
 const BUCKET_COUNT: usize = 10;
@@ -32,28 +31,23 @@ async fn main() {
     let db = Database::new(cluster_file.as_deref()).expect("failed to open database");
 
     let mut cursor = Cursor::beginning();
+    // Built once and reused for every page: its reassembly limits must stay the same
+    // across the pages of this scan.
+    let scanner = ProfileScanner::new();
     let mut aggregator = Aggregator::default();
     let mut read = 0usize;
     let (mut decode_errors, mut broken_chunks) = (0usize, 0usize);
 
     loop {
-        let req = PageRequest {
-            cursor: cursor.clone(),
-            end_version: None,
-            max_transactions: 1_000,
-        };
         let page = db
             .run(|trx, _maybe_committed| {
-                let req = req.clone();
+                let scanner = scanner.clone();
+                let cursor = cursor.clone();
                 async move {
-                    // read_page never sets transaction options or a budget itself: that
-                    // is the caller's job, see the crate docs.
+                    // read_page never sets transaction options itself: that is the
+                    // caller's job, see the crate docs.
                     trx.set_option(TransactionOption::ReadSystemKeys)?;
-                    trx.set_client_budget(ClientBudget {
-                        time_limit: Some(Duration::from_secs(2)),
-                        ..ClientBudget::default()
-                    });
-                    Ok::<_, FdbBindingError>(read_page(&trx, &req).await?)
+                    Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
                 }
             })
             .await

@@ -17,10 +17,9 @@
 
 use foundationdb::options::{MutationType, TransactionOption};
 use foundationdb::tuple::pack;
-use foundationdb::{ClientBudget, Database, FdbBindingError, RangeOption};
+use foundationdb::{Database, FdbBindingError, RangeOption};
 use foundationdb_profiling::{
-    Aggregator, Cursor, Event, Mutation, Page, PageRequest, ProfiledTransaction, SkipReason,
-    read_page,
+    Aggregator, Cursor, Event, Mutation, Page, ProfileScanner, ProfiledTransaction, SkipReason,
 };
 use futures_util::FutureExt;
 use std::collections::BTreeMap;
@@ -450,22 +449,15 @@ async fn scan_and_assert(db: &Database, markers: &Markers) {
     }
 }
 
-/// Reads one page with a small time-bounded budget, like the crate docs example.
+/// Reads one page with the default (2 second) time budget, like the crate docs example.
 async fn read_one_page(db: &Database, cursor: &Cursor) -> Page {
-    let req = PageRequest {
-        cursor: cursor.clone(),
-        end_version: None,
-        max_transactions: 100_000,
-    };
+    let scanner = ProfileScanner::new().max_transactions(100_000);
     db.run(|trx, _| {
-        let req = req.clone();
+        let scanner = scanner.clone();
+        let cursor = cursor.clone();
         async move {
             trx.set_option(TransactionOption::ReadSystemKeys)?;
-            trx.set_client_budget(ClientBudget {
-                time_limit: Some(Duration::from_secs(2)),
-                ..ClientBudget::default()
-            });
-            Ok::<_, FdbBindingError>(read_page(&trx, &req).await?)
+            Ok::<_, FdbBindingError>(scanner.read_page(&trx, &cursor).await?)
         }
     })
     .await
