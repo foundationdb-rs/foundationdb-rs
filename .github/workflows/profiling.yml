@@ -37,3 +37,6 @@ jobs:
 
       - name: Run all tests of foundationdb-profiling, including the live decoder check
         run: cargo test -p foundationdb-profiling --features embedded-fdb-include -- --include-ignored
+
+      - name: Run the top_keys example against the live cluster
+        run: cargo run -p foundationdb-profiling --example top_keys --features embedded-fdb-include

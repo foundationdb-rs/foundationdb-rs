@@ -49,6 +49,9 @@
 //! # }
 //! ```
 //!
+//! See `examples/top_keys.rs` for a runnable end-to-end example that pages through the
+//! whole keyspace and prints the hottest keys, ranges and write hot spots.
+//!
 //! # What the caller must set
 //!
 //! This crate never sets transaction options. On the transaction given to [`read_page`]:
