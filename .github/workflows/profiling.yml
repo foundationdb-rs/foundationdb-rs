@@ -1,0 +1,39 @@
+name: Profiling
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  profiling:
+    name: "foundationdb-profiling against a live cluster with client profiling enabled"
+
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Install FoundationDB
+        uses: foundationdb-rs/foundationdb-actions-install@v2.3.0
+        with:
+          version: "7.4.3"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85.1"
+
+      - name: Enable client profiling cluster-wide
+        run: fdbcli --exec "profile client set 1.0 default"
+
+      - name: Generate traffic by running the foundationdb crate tests
+        run: cargo test -p foundationdb --features num-bigint,embedded-fdb-include,fdb-7_4
+
+      - name: Run all tests of foundationdb-profiling, including the live decoder check
+        run: cargo test -p foundationdb-profiling -- --include-ignored
+
+      - name: Run the top_keys example against the live cluster
+        run: cargo run -p foundationdb-profiling --example top_keys

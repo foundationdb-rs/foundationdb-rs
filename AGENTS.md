@@ -106,7 +106,8 @@ loop, transaction lifecycle, directory/tuple layers are **hand-written**.
   deterministic simulator as a cdylib. NOTE: the C-API path needs `fdbserver` >= 7.4.6
   (7.4.3/.4/.5 have an incompatible ABI); 7.1/7.3 use the C++ shim via the official Docker image.
 - **foundationdb-recipes-simulation** - example simulation workloads (leader election, etc.).
-- **foundationdb-profiling** - async helpers to fetch transaction profiling data.
+- **foundationdb-profiling** - decodes FDB client transaction profiling data; does no I/O
+  and has no fdb-rs runtime dependency, the caller reads the rows with its own bindings.
 
 ## Correctness testing (bindingtester)
 
