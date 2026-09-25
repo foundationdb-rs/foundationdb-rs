@@ -30,6 +30,7 @@ pub struct KeyRange {
 
 /// Fields shared by every event (`FdbClientLogEvents::Event`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct EventHeader {
     /// Client-side start time of the operation, in seconds since the unix epoch.
     pub start_timestamp: f64,
@@ -41,6 +42,7 @@ pub struct EventHeader {
 
 /// One profiling event of a sampled transaction.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Event {
     /// Read version acquisition (`GET_VERSION_LATENCY`).
     GetVersion(GetVersion),
@@ -76,6 +78,7 @@ impl Event {
 
 /// Read version acquisition (`EventGetVersion_V3`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct GetVersion {
     /// Common event fields.
     pub header: EventHeader,
@@ -89,6 +92,7 @@ pub struct GetVersion {
 
 /// Point read (`EventGet`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Get {
     /// Common event fields.
     pub header: EventHeader,
@@ -102,6 +106,7 @@ pub struct Get {
 
 /// Range read (`EventGetRange`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct GetRange {
     /// Common event fields.
     pub header: EventHeader,
@@ -115,6 +120,7 @@ pub struct GetRange {
 
 /// Successful commit (`EventCommit_V2`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Commit {
     /// Common event fields.
     pub header: EventHeader,
@@ -132,6 +138,7 @@ pub struct Commit {
 
 /// Failed point read (`EventGetError`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct GetError {
     /// Common event fields.
     pub header: EventHeader,
@@ -143,6 +150,7 @@ pub struct GetError {
 
 /// Failed range read (`EventGetRangeError`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct GetRangeError {
     /// Common event fields.
     pub header: EventHeader,
@@ -154,6 +162,7 @@ pub struct GetRangeError {
 
 /// Failed commit (`EventCommitError`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct CommitError {
     /// Common event fields.
     pub header: EventHeader,
@@ -165,6 +174,7 @@ pub struct CommitError {
 
 /// The serialized part of a `CommitTransactionRequest` (its `CommitTransactionRef`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct CommitRequest {
     /// Read conflict ranges.
     pub read_conflict_ranges: Vec<KeyRange>,

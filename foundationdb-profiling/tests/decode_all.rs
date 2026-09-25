@@ -370,6 +370,7 @@ fn transaction_touches_prefix_event(event: &Event, prefix: &[u8]) -> bool {
             .iter()
             .any(|m| m.param1.starts_with(prefix)),
         Event::GetVersion(_) => false,
+        _ => false,
     }
 }
 
@@ -407,6 +408,7 @@ async fn scan_and_assert(db: &Database, markers: &Markers) {
                         skipped.versionstamp, skipped.id
                     );
                 }
+                _ => {}
             }
         }
 
@@ -535,5 +537,6 @@ fn event_name(event: &Event) -> &'static str {
         Event::GetError(_) => "GetError",
         Event::GetRangeError(_) => "GetRangeError",
         Event::CommitError(_) => "CommitError",
+        _ => "Unknown",
     }
 }

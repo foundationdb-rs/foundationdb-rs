@@ -78,6 +78,7 @@ async fn main() {
             match skipped.reason {
                 SkipReason::Decode(_) => decode_errors += 1,
                 SkipReason::BrokenChunks => broken_chunks += 1,
+                _ => {}
             }
         }
 

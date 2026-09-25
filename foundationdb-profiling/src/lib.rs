@@ -140,6 +140,8 @@
 //!
 //! [transaction profiler documentation]: https://apple.github.io/foundationdb/transaction-profiler-analyzer.html
 
+#![warn(missing_docs)]
+
 mod aggregate;
 mod decode;
 mod event;

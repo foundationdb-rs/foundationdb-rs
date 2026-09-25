@@ -178,6 +178,7 @@ impl<E> ScanError<E> {
 
 impl ProfileScanner {
     /// A scanner with no [`end_version`](Self::end_version).
+    #[must_use]
     #[instrument(level = "trace")]
     pub fn new() -> Self {
         Self::default()
@@ -185,6 +186,7 @@ impl ProfileScanner {
 
     /// Exclusive upper bound on the record commit version read by a page. Unset (the
     /// default) reads to the end of the keyspace.
+    #[must_use]
     #[instrument(level = "trace", skip_all)]
     pub fn end_version(self, version: i64) -> Self {
         ProfileScanner {
@@ -212,6 +214,7 @@ impl ProfileScanner {
 
 /// One sampled transaction, reassembled and decoded.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ProfiledTransaction {
     /// Commit version of the profiling record (the first 8 bytes of `versionstamp`).
     pub version: i64,
@@ -229,6 +232,7 @@ pub struct ProfiledTransaction {
 
 /// A transaction that could not be returned.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Skipped {
     /// Versionstamp of the first chunk read of the profiling record.
     pub versionstamp: [u8; 10],
@@ -240,6 +244,7 @@ pub struct Skipped {
 
 /// Why a transaction was [`Skipped`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum SkipReason {
     /// All chunks were read but the reassembled blob did not decode.
     Decode(DecodeError),
@@ -250,6 +255,7 @@ pub enum SkipReason {
 
 /// Result of [`ProfileScanner::read_page`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Page {
     /// Decoded transactions, in the order they completed (the key of their last chunk).
     pub transactions: Vec<ProfiledTransaction>,
