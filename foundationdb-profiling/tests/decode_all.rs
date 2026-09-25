@@ -19,8 +19,7 @@ use foundationdb::options::{MutationType, TransactionOption};
 use foundationdb::tuple::pack;
 use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
 use foundationdb_profiling::{
-    Aggregator, Cursor, Event, Mutation, Page, ProfileScanner, ProfiledTransaction, ScanError,
-    SkipReason,
+    Aggregator, Cursor, Event, Mutation, Page, ProfileScanner, ProfiledTransaction, SkipReason,
 };
 use futures_util::{FutureExt, TryStreamExt};
 use std::collections::BTreeMap;
@@ -473,10 +472,7 @@ async fn read_one_page(db: &Database, cursor: &Cursor) -> Page {
             let page = scanner
                 .read_page(&cursor, rows, || trx.check_client_budget().is_err())
                 .await
-                .map_err(|err| match err {
-                    ScanError::Source(err) => FdbBindingError::from(err),
-                    err => FdbBindingError::new_custom_error(Box::new(err)),
-                })?;
+                .map_err(|err| err.into_error(FdbBindingError::new_custom_error))?;
             Ok::<_, FdbBindingError>(page)
         }
     })

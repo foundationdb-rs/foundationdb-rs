@@ -10,7 +10,7 @@ use foundationdb::options::TransactionOption;
 use foundationdb::tuple::pack;
 use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
 use foundationdb_profiling::{
-    Cursor, Event, Page, ProfileScanner, ProfiledTransaction, ScanError, SkipReason,
+    Cursor, Event, Page, ProfileScanner, ProfiledTransaction, SkipReason,
 };
 use futures_util::{FutureExt, TryStreamExt};
 use std::collections::BTreeSet;
@@ -237,10 +237,7 @@ async fn page(db: &Database, scanner: &ProfileScanner, cursor: &Cursor, stop: St
             let page = scanner
                 .read_page(&cursor, rows, should_stop)
                 .await
-                .map_err(|err| match err {
-                    ScanError::Source(err) => FdbBindingError::from(err),
-                    err => FdbBindingError::new_custom_error(Box::new(err)),
-                })?;
+                .map_err(|err| err.into_error(FdbBindingError::new_custom_error))?;
             Ok::<_, FdbBindingError>(page)
         }
     })

@@ -151,6 +151,31 @@ pub enum ScanError<E> {
     },
 }
 
+impl<E> ScanError<E> {
+    /// Converts this error into the caller's error type: a stream error through `From`,
+    /// any other error boxed and passed to `custom`.
+    ///
+    /// The boxed error does not depend on `E`: it is a [`ScanError<std::convert::Infallible>`]
+    /// carrying the same variant data.
+    ///
+    /// With fdb-rs: `.map_err(|e| e.into_error(FdbBindingError::new_custom_error))?`, so a
+    /// failed range read reaches `db.run` as the original `FdbError` and is retried.
+    #[instrument(level = "trace", skip_all)]
+    pub fn into_error<T: From<E>>(
+        self,
+        custom: impl FnOnce(Box<dyn std::error::Error + Send + Sync>) -> T,
+    ) -> T {
+        match self {
+            ScanError::Source(err) => T::from(err),
+            ScanError::InvalidRows { key } => {
+                custom(Box::new(
+                    ScanError::<std::convert::Infallible>::InvalidRows { key },
+                ))
+            }
+        }
+    }
+}
+
 impl ProfileScanner {
     /// A scanner with no [`end_version`](Self::end_version).
     #[instrument(level = "trace")]
@@ -688,6 +713,7 @@ mod tests {
     use std::cell::Cell;
     use std::collections::BTreeSet;
     use std::convert::Infallible;
+    use std::io;
 
     fn vs(version: u64, batch: u16) -> [u8; 10] {
         let mut out = [0u8; 10];
@@ -1476,6 +1502,55 @@ mod tests {
         ];
         match read(&ProfileScanner::new(), &Cursor::beginning(), rows, never()) {
             Err(ScanError::Source("boom")) => {}
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// A caller's error type, the way `FdbBindingError` looks from `into_error`'s point of
+    /// view: a `From` impl for the stream's error, and a catch-all for anything boxed.
+    #[derive(Debug)]
+    enum TargetError {
+        Source(io::Error),
+        Custom(Box<dyn std::error::Error + Send + Sync>),
+    }
+
+    impl From<io::Error> for TargetError {
+        fn from(err: io::Error) -> Self {
+            TargetError::Source(err)
+        }
+    }
+
+    #[test]
+    fn into_error_maps_source_through_from() {
+        let err: ScanError<io::Error> = ScanError::Source(io::Error::other("boom"));
+        match err.into_error(TargetError::Custom) {
+            TargetError::Source(err) => assert_eq!(err.to_string(), "boom"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn into_error_boxes_invalid_rows_for_custom() {
+        let key = b"row-key".to_vec();
+        let err: ScanError<io::Error> = ScanError::InvalidRows { key: key.clone() };
+        match err.into_error(TargetError::Custom) {
+            TargetError::Custom(boxed) => {
+                // the message is preserved, with the key readable in it
+                assert_eq!(
+                    boxed.to_string(),
+                    format!(
+                        "profiling row {key:?} is outside the scanned range or not after the previous row"
+                    )
+                );
+                // and the original variant, still carrying the key, downcasts out of it
+                match boxed
+                    .downcast_ref::<ScanError<Infallible>>()
+                    .expect("boxed error downcasts to ScanError<Infallible>")
+                {
+                    ScanError::InvalidRows { key: got } => assert_eq!(got, &key),
+                    other => panic!("{other:?}"),
+                }
+            }
             other => panic!("{other:?}"),
         }
     }

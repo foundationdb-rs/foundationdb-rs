@@ -22,7 +22,7 @@
 //! ```no_run
 //! use foundationdb::options::TransactionOption;
 //! use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
-//! use foundationdb_profiling::{Cursor, Page, ProfileScanner, ScanError};
+//! use foundationdb_profiling::{Cursor, Page, ProfileScanner};
 //! use futures_util::TryStreamExt;
 //! use std::time::Duration;
 //!
@@ -52,11 +52,9 @@
 //!             let page = scanner
 //!                 .read_page(&cursor, rows, || trx.check_client_budget().is_err())
 //!                 .await
-//!                 .map_err(|err| match err {
-//!                     // FoundationDB errors go back to the retry loop
-//!                     ScanError::Source(err) => FdbBindingError::from(err),
-//!                     err => FdbBindingError::new_custom_error(Box::new(err)),
-//!                 })?;
+//!                 // FoundationDB errors go back to the retry loop, other errors are
+//!                 // boxed as a custom error.
+//!                 .map_err(|err| err.into_error(FdbBindingError::new_custom_error))?;
 //!             Ok::<_, FdbBindingError>(page)
 //!         }
 //!     })
