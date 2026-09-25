@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["PROFILE_PREFIX"],"fn":["get_raw_datablocks"]};
+window.SIDEBAR_ITEMS = {"constant":["PROFILE_PREFIX"],"enum":["DecodeError","Event","ScanError","SkipReason"],"fn":["decode_events"],"struct":["Aggregator","Bucket","Commit","CommitError","CommitRequest","Cursor","EventHeader","Get","GetError","GetRange","GetRangeError","GetVersion","InvalidCursor","KeyCounts","KeyRange","Mutation","Page","ProfileScanner","ProfiledTransaction","ProtocolVersion","ScanRange","Skipped","SpanContext"]};

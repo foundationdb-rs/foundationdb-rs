@@ -157,251 +157,163 @@
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a></pre></div><pre class="rust"><code><span class="doccomment">//! FoundationDB natively implements transaction profiling and analyzing.
+<a href="#159" id="159">159</a></pre></div><pre class="rust"><code><span class="doccomment">//! Read FoundationDB client transaction profiling data.
 //!
-//! The transactions are sampled at the specified rate and all the events for that sampled transaction are recorded.
-//! Then at 30 second interval, the data for all the sampled transactions during that interval is flushed to the database.
-//! The sampled data is written into special key space `\xff\x02/fdbClientInfo/ - \xff\x02/fdbClientInfo0`
+//! When client profiling is enabled (`fdbcli&gt; profile client set &lt;rate&gt; &lt;size limit&gt;`),
+//! every FoundationDB client samples transactions at the given rate and records their
+//! operations (read version, gets, range reads, commits and their errors). Every
+//! `CSI_STATUS_DELAY` (10 seconds by default) the client flushes the recorded
+//! transactions into the system keyspace under [`PROFILE_PREFIX`]
+//! (`\xff\x02/fdbClientInfo/client_latency/`), split in chunks keyed by versionstamp and
+//! transaction id. See the [transaction profiler documentation].
 //!
-//! [source](https://apple.github.io/foundationdb/transaction-profiler-analyzer.html)
+//! This crate turns that keyspace into typed [`Event`]s. It does no I/O and depends on no
+//! version of the FoundationDB bindings: the application reads the rows with its own
+//! client, in its own transaction and retry loop, and hands them to
+//! [`ProfileScanner::read_page`], which reassembles and decodes the chunks of one page,
+//! decides where the page stops, and returns a resumable [`Cursor`]. Only records
+//! written by 7.1+ clients are decoded (see [`decode_events`]).
 //!
-//! Each data are recorded as chunked events. Events are referenced by the tuple (VersionStamp, TransactionId),
-//! then a header defined how much chunks defined the data block.
+//! # Example
 //!
-//! Profiling Keys look like this:
-//! ```ignore
-//!     FF               - 2 bytes \xff\x02
-//!     SSSSSSSSSS       - 10 bytes Version Stamp
-//!     RRRRRRRRRRRRRRRR - 16 bytes Transaction id
-//!     NNNN             - 4 Bytes Chunk number
-//!     TTTT             - 4 Bytes Total number of chunks
-//!```
-//! [source](https://github.com/apple/foundationdb/blob/main/contrib/transaction_profiling_analyzer/transaction_profiling_analyzer.py#L413)
+//! With the `foundationdb` crate:
 //!
-//! To get the data block, each chunk which composes the data block must be accumulated until
-//! reaching the "chunk number"
+//! ```no_run
+//! use foundationdb::options::TransactionOption;
+//! use foundationdb::{ClientBudget, Database, FdbBindingError, KeySelector, RangeOption};
+//! use foundationdb_profiling::{Cursor, Page, ProfileScanner};
+//! use futures_util::TryStreamExt;
+//! use std::time::Duration;
 //!
-//! Noted: It could have more than one event in the data block
+//! # async fn example(db: &amp;Database) -&gt; Result&lt;(), FdbBindingError&gt; {
+//! let scanner = ProfileScanner::new();
+//! let cursor = Cursor::beginning();
+//! let page: Page = db
+//!     .run(|trx, _| {
+//!         let scanner = scanner.clone();
+//!         let cursor = cursor.clone();
+//!         async move {
+//!             // Options are the caller's job: this crate never sets any.
+//!             trx.set_option(TransactionOption::ReadSystemKeys)?;
+//!             // Bound every page, well under the 5 second transaction lifetime.
+//!             trx.set_client_budget(ClientBudget {
+//!                 time_limit: Some(Duration::from_secs(2)),
+//!                 ..ClientBudget::default()
+//!             });
+//!             let range = scanner.range(&amp;cursor);
+//!             let opt = RangeOption::from((
+//!                 KeySelector::first_greater_or_equal(range.begin.as_slice()),
+//!                 KeySelector::first_greater_or_equal(range.end.as_slice()),
+//!             ));
+//!             let rows = trx
+//!                 .get_ranges_keyvalues(opt, true)
+//!                 .map_ok(|kv| (kv.key().to_vec(), kv.value().to_vec()));
+//!             let page = scanner
+//!                 .read_page(&amp;cursor, rows, || trx.check_client_budget().is_err())
+//!                 .await
+//!                 // FoundationDB errors go back to the retry loop, other errors are
+//!                 // boxed as a custom error.
+//!                 .map_err(|err| err.into_error(FdbBindingError::new_custom_error))?;
+//!             Ok::&lt;_, FdbBindingError&gt;(page)
+//!         }
+//!     })
+//!     .await?;
+//! for tx in &amp;page.transactions {
+//!     println!("{} {:?}: {} events", tx.version, tx.id, tx.events.len());
+//! }
+//! // Persist `page.next.as_bytes()` to resume from there later.
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! See `examples/top_keys.rs` for a runnable end-to-end example that pages through the
+//! whole keyspace and prints the hottest keys, ranges and write hot spots.
+//!
+//! # The caller's contract
+//!
+//! For each page, the caller reads exactly [`ProfileScanner::range`] of the page's
+//! cursor: forward, with snapshot reads and no row limit, both ends as
+//! `first_greater_or_equal` key selectors, and gives [`ProfileScanner::read_page`] the
+//! rows as a [`Stream`](futures_core::Stream) of `Result&lt;(key, value), E&gt;`. A row
+//! outside that range or out of key order fails the page with
+//! [`ScanError::InvalidRows`], and a stream error comes back as [`ScanError::Source`] so
+//! the caller can hand it to its retry loop.
+//!
+//! On that transaction:
+//!
+//! - `TransactionOption::ReadSystemKeys` (or its equivalent) is required, the data lives
+//!   in the system keyspace.
+//! - `TransactionOption::ReadLockAware` is required if the cluster may be locked (for
+//!   instance a DR secondary).
+//!
+//! # Bounding a page: the stop check
+//!
+//! The `should_stop` closure given to [`ProfileScanner::read_page`] is required, and is
+//! the only place where the caller bounds a page: a transaction budget as above, a row
+//! count, anything. [`ProfileScanner::read_page`] calls it after every row and stops as
+//! soon as it returns `true`; otherwise the page reads to the end of its range. Without
+//! a real bound, a large range can outlive the transaction and hit
+//! `transaction_too_old`. Base the check on a caller-pluggable clock rather than the
+//! wall clock when the code must be reproducible, for instance under simulation.
+//!
+//! # Paging and tailing
+//!
+//! [`Page::next`] is always a valid place to resume from, and [`Page::exhausted`] tells
+//! whether the page reached the end of its range (`false` when the stop check stopped
+//! it). To read a range in several transactions, loop on [`ProfileScanner::read_page`]
+//! with `cursor = page.next` until [`Page::exhausted`]: every transaction is returned
+//! once over the sequence of pages, even when the client wrote its chunks in two commits
+//! with other records in between, and even when a page stops between them: the next
+//! page resumes at the first chunk of the oldest incomplete record. A record is lost
+//! (reported as [`SkipReason::BrokenChunks`]) only when the stop check does not let a
+//! single page read from its cursor to the end of the records that overlap it (in
+//! practice, a single record cannot be read from the cursor before the caller says
+//! stop): the records still incomplete at that stop are broken, and the page still
+//! advances.
+//!
+//! To tail the keyspace, persist `page.next` ([`Cursor::as_bytes`] /
+//! [`Cursor::from_bytes`]) and keep polling from it: an exhausted page's cursor picks up
+//! the records flushed after it, including the second half of a record split across two
+//! commits. [`Cursor::at_version`] starts at a commit version, and
+//! [`ProfileScanner::end_version`] bounds a page by one. A transaction whose chunks
+//! straddle `end_version` is not returned by that bounded read, the cursor stays on its
+//! first chunk.
+//!
+//! Note that the version of a record is the one at which the client flushed it, some time
+//! after the profiled transaction ran.
+//!
+//! # When profiling data is flushed
+//!
+//! The C++ client records a sampled transaction's events when its native transaction is
+//! destroyed. With the `foundationdb` Rust bindings, that happens when the `Transaction`
+//! (or the `RetryableTransaction` of a `Database::run` closure) is dropped. In particular a
+//! `TransactionCommitError` owns the transaction and keeps it alive until the error is
+//! dropped (or recovered with `on_error`), so holding on to such errors delays the
+//! profiling data of the failed transaction. The data then reaches the keyspace at the
+//! client's next flush, up to `CSI_STATUS_DELAY` later.
+//!
+//! # Aggregation
+//!
+//! [`Aggregator`] counts the keys and ranges read and written by the transactions of one
+//! or more pages, like the Python `transaction_profiling_analyzer`.
+//!
+//! [transaction profiler documentation]: https://apple.github.io/foundationdb/transaction-profiler-analyzer.html
 
-</span><span class="kw">use </span><span class="kw">crate</span>::parsed_key::parse_key;
-<span class="kw">use </span><span class="kw">crate</span>::raw_transaction_profiling_block::RawTransactionProfilingBlock;
-<span class="kw">use </span>foundationdb::{FdbBindingError, RangeOption, Transaction};
-<span class="kw">use </span>futures_util::{Stream, TryStreamExt};
-<span class="kw">use </span>std::pin::pin;
+</span><span class="attr">#![warn(missing_docs)]
 
-<span class="kw">mod </span>errors;
-<span class="kw">mod </span>parse;
-<span class="kw">mod </span>parsed_key;
-<span class="kw">mod </span>raw_transaction_profiling_block;
-<span class="kw">mod </span>scanner;
+</span><span class="kw">mod </span>aggregate;
+<span class="kw">mod </span>decode;
+<span class="kw">mod </span>event;
+<span class="kw">mod </span>reader;
 
-<span class="doccomment">/// Defined by the following [pattern](https://github.com/apple/foundationdb/blob/main/contrib/transaction_profiling_analyzer/transaction_profiling_analyzer.py#L421)
-</span><span class="kw">pub const </span>PROFILE_PREFIX: <span class="kw-2">&amp;</span>[u8; <span class="number">32</span>] = <span class="string">b"\xff\x02/fdbClientInfo/client_latency/"</span>;
-
-<span class="doccomment">/// Retrieves raw profiling datablocks stored in the database within the specified read version range.
-///
-/// This function fetches raw events from the FoundationDB range key-value store. The keys are
-/// processed to parse the profiling event data. Events are grouped into chunks and consolidated
-/// into complete [RawTransactionProfilingBlock] instances. The resulting stream yields these complete profiling event
-/// data blocks. Events are referenced using a key structure which includes the transaction ID,
-/// version stamp, and a chunk identifier.
-///
-/// # Arguments
-///
-/// * `trx` - A reference to the FoundationDB `Transaction` used for fetching data.
-/// * `start_read_version` - An optional lower bound read version. If provided, only events
-///   occurring at or after this version are fetched.
-/// * `end_read_version` - An optional upper bound read version. If provided, only events
-///   occurring before this version are fetched.
-///
-/// # Returns
-///
-/// Returns an asynchronous stream (`impl Stream`) where each item of the stream is either:
-/// * A `Result&lt;DataBlock, FdbBindingError&gt;`
-///   - `DataBlock`: A complete profiling event data block.
-///   - `FdbBindingError`: An error that occurred during data retrieval or processing.
-///
-/// # Errors
-///
-/// This function will return an error in the following cases:
-/// * If the transaction (provided by `trx`) encounters issues fetching ranges.
-/// * If an error occurs during key or value parsing.
-///
-/// # Notes
-///
-/// Profiling keys follow a specific binary layout defined by the FoundationDB profiling data space:
-/// * `\xff\x02/fdbClientInfo/client_latency/` acts as the prefix for profiling events.
-/// * Events are referred to by tuple: (VersionStamp, TransactionId).
-/// * Events contain chunks, defined by a chunk number and total chunks.
-///
-/// The function ensures fully constructed events are yielded only once all their chunks are retrieved.
-///
-/// # Example
-///
-/// ```no_run
-/// use foundationdb::{Database, Transaction};
-/// use futures_util::StreamExt;
-/// use foundationdb_profiling::get_raw_datablocks;
-///
-/// async fn example_usage(trx: &amp;Transaction) {
-///     let mut stream = get_raw_datablocks(trx, Some(1), Some(10));
-///     while let Some(event) = stream.next().await {
-///         match event {
-///             Ok(data_block) =&gt; {
-///                 println!("Received a data block: {:?}", data_block);
-///             }
-///             Err(e) =&gt; {
-///                 eprintln!("Error: {:?}", e);
-///             }
-///         }
-///     }
-/// }
-/// ```
-</span><span class="kw">pub async fn </span>get_raw_datablocks(
-    trx: <span class="kw-2">&amp;</span>Transaction,
-    start_read_version: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    end_read_version: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-) -&gt; <span class="kw">impl </span>Stream&lt;Item = <span class="prelude-ty">Result</span>&lt;RawTransactionProfilingBlock, FdbBindingError&gt;&gt; + <span class="kw">use</span>&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="comment">// build the start prefix of the range
-    </span><span class="kw">let </span>start_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(start_version) = start_read_version {
-        <span class="kw">let </span><span class="kw-2">mut </span>key = PROFILE_PREFIX.to_vec();
-        key.extend_from_slice(<span class="kw-2">&amp;</span>start_version.to_be_bytes());
-        <span class="comment">// the start_version is a read version on 8 bytes
-        // to build the VersionStamp the batch version must be added
-        // as we don't know it, we append 2 0x0 bytes
-        // https://github.com/apple/foundationdb/blob/main/contrib/transaction_profiling_analyzer/transaction_profiling_analyzer.py#L463
-        </span>key.extend_from_slice(<span class="string">b"\x00\x00"</span>);
-        key
-    } <span class="kw">else </span>{
-        <span class="comment">// If there is no start_version, then the scan begins
-        // at the beginning of the Profiling Keyspace
-        </span>PROFILE_PREFIX.to_vec()
-    };
-
-    <span class="kw">let </span>end_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(end_version) = end_read_version {
-        <span class="kw">let </span><span class="kw-2">mut </span>key = PROFILE_PREFIX.to_vec();
-        key.extend_from_slice(<span class="kw-2">&amp;</span>end_version.to_be_bytes());
-        key.extend_from_slice(<span class="string">b"\x00\x00"</span>);
-        key
-    } <span class="kw">else </span>{
-        <span class="comment">// If there is no end_version, then the scan ends
-        // at the very last key of the Profiling Keyspace
-        </span><span class="kw">let </span><span class="kw-2">mut </span>key = PROFILE_PREFIX.to_vec();
-        key.extend_from_slice(<span class="string">b"\xff"</span>);
-        key
-    };
-
-    <span class="comment">// Create an async iterator which yields completed DataBlock
-    </span><span class="macro">async_stream::try_stream!</span> {
-        <span class="comment">// Get an iterator over the range inside the Profiling Keyspace
-        </span><span class="kw">let </span>profiling_events_raw_key_value_stream = trx
-        .get_ranges_keyvalues(RangeOption::from((start_key, end_key)), <span class="bool-val">true</span>);
-
-        <span class="comment">// stream must be pinned to be moveable out of the function
-        </span><span class="kw">let </span><span class="kw-2">mut </span>profiling_events_raw_key_value_stream = <span class="macro">pin!</span>(profiling_events_raw_key_value_stream);
-
-        <span class="comment">// Keeps track of the actual Datablock in progress
-        </span><span class="kw">let </span><span class="kw-2">mut </span>in_progress_datablock = <span class="prelude-val">None</span>;
-
-        <span class="kw">loop </span>{
-            <span class="comment">// Get a key/value
-            </span><span class="kw">let </span>raw_key_value = profiling_events_raw_key_value_stream
-                .try_next()
-                .<span class="kw">await
-                </span>.map_err(FdbBindingError::from)<span class="question-mark">?</span>;
-
-            <span class="comment">// Take decision on raw data
-            </span><span class="kw">match </span>raw_key_value {
-                <span class="comment">// end of the range, no more raw keys
-                </span><span class="prelude-val">None </span>=&gt; {
-                    <span class="kw">break
-                </span>}
-                <span class="comment">// available raw key
-                </span><span class="prelude-val">Some</span>(data) =&gt; {
-                    <span class="comment">// Try to parse the raw data as a ParsedKey
-                    </span><span class="kw">let </span>parsed_key = parse_key(data.key())
-                        .<span class="kw">await
-                        </span>.map_err(FdbBindingError::new_custom_error)<span class="question-mark">?</span>;
-
-                    <span class="comment">// Take decision on what doing with the ParsedKey
-                    </span><span class="kw">match </span>in_progress_datablock {
-                        <span class="comment">// No DataBlock in progress
-                        </span><span class="prelude-val">None </span>=&gt; {
-                            <span class="comment">// Create a new Datablock from current ParsedKey
-                            </span><span class="kw">let </span><span class="kw-2">mut </span>datablock = RawTransactionProfilingBlock::new(parsed_key.transaction_id, parsed_key.total_chunk);
-                            <span class="comment">// Accumulate the first data chunk
-                            </span>datablock.add_chunk(data.value());
-                            <span class="comment">// If the DataBlock is whole
-                            </span><span class="kw">if </span>datablock.is_complete() {
-                                <span class="comment">// yield a DataBlock
-                                </span><span class="kw">yield </span>datablock
-                            } <span class="kw">else </span>{
-                                <span class="comment">// Set the DataBlock as new in progress to
-                                // accumulate more data chunks
-                                </span>in_progress_datablock = <span class="prelude-val">Some</span>(datablock)
-                            }
-
-                        }
-                        <span class="comment">// If DataBlock is progressing
-                        </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event) =&gt; {
-                            <span class="comment">// Add the new data chunk
-                            </span>event.add_chunk(data.value());
-                            <span class="comment">// Yield DataBlock if complete
-                            </span><span class="kw">if </span>event.is_complete() {
-                                <span class="comment">// 'take()' reset the `in_progress_datablock` state
-                                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = in_progress_datablock.take() {
-                                    <span class="kw">yield </span>event
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+<span class="kw">pub use </span>aggregate::{Aggregator, Bucket, KeyCounts};
+<span class="kw">pub use </span>decode::{DecodeError, decode_events};
+<span class="kw">pub use </span>event::{
+    Commit, CommitError, CommitRequest, Event, EventHeader, Get, GetError, GetRange, GetRangeError,
+    GetVersion, KeyRange, Mutation, ProtocolVersion, SpanContext,
+};
+<span class="kw">pub use </span>reader::{
+    Cursor, InvalidCursor, PROFILE_PREFIX, Page, ProfileScanner, ProfiledTransaction, ScanError,
+    ScanRange, SkipReason, Skipped,
+};
 </code></pre></div></section></main></body></html>
