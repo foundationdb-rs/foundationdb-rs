@@ -96,9 +96,7 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
 
     // one big page over a fixed window
     let window_cursor = Cursor::at_version(start);
-    let window_scanner = ProfileScanner::new()
-        .end_version(end_version)
-        .max_transactions(100_000);
+    let window_scanner = ProfileScanner::new().end_version(end_version);
     let full = page(db, &window_scanner, &window_cursor).await;
     assert!(full.exhausted);
     assert_eq!(full.stopped_by, None);
@@ -108,24 +106,8 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     }
     assert!(full.transactions.iter().all(|t| t.version < end_version));
 
-    // pagination with one transaction per page reaches the same set
-    let scanner = window_scanner.clone().max_transactions(1);
-    let mut cursor = window_cursor.clone();
-    let mut paged = Vec::new();
-    for _ in 0..=(all.len() + full.skipped.len() + 1) {
-        let p = page(db, &scanner, &cursor).await;
-        assert!(p.transactions.len() + p.skipped.len() <= 1, "{p:?}");
-        paged.extend(p.transactions);
-        cursor = p.next;
-        if p.exhausted {
-            break;
-        }
-        assert_eq!(p.stopped_by, Some(StopReason::MaxTransactions));
-    }
-    assert_eq!(ids(&paged), all);
-    assert_eq!(paged.len(), all.len());
-
-    // a tiny, deterministic byte budget stops the page, and its cursor resumes it
+    // pagination: a tiny, deterministic byte budget stops every page right after its
+    // first transaction, and the sequence of pages returns the same set, each once
     let scanner = window_scanner.clone().budget(ClientBudget {
         max_bytes_read: Some(1),
         ..ClientBudget::default()
@@ -133,17 +115,20 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
     let mut cursor = window_cursor.clone();
     let mut budgeted = Vec::new();
     let mut budget_stops = 0;
-    for _ in 0..1_000 {
+    let mut exhausted = false;
+    for _ in 0..=(all.len() + full.skipped.len() + 2) {
         let p = page(db, &scanner, &cursor).await;
+        assert!(p.transactions.len() <= 1, "{p:?}");
         budgeted.extend(p.transactions);
         // round trip through the persisted form
         let restored = Cursor::from_bytes(p.next.as_bytes().to_vec()).expect("valid cursor");
         assert_eq!(restored, p.next);
-        assert_ne!(restored, cursor, "no progress");
-        cursor = restored;
         if p.exhausted {
+            exhausted = true;
             break;
         }
+        assert!(restored.as_bytes() > cursor.as_bytes(), "no progress");
+        cursor = restored;
         match p.stopped_by {
             Some(StopReason::Budget(e)) => {
                 assert_eq!(e.kind, BudgetKind::BytesRead);
@@ -152,7 +137,8 @@ async fn scenarios(db: &Database, prefix: &[u8]) {
             other => panic!("unexpected stop {other:?}"),
         }
     }
-    assert!(budget_stops > 0, "the window fits in one batch");
+    assert!(exhausted, "pages never exhausted");
+    assert!(budget_stops > 0, "the window fits in one page");
     assert_eq!(ids(&budgeted), all);
     assert_eq!(budgeted.len(), all.len());
 
@@ -207,7 +193,7 @@ async fn write_and_wait(db: &Database, prefix: &[u8], start: i64) -> Vec<Profile
         for _ in 0..15 {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let cursor = Cursor::at_version(start);
-            let scanner = ProfileScanner::new().max_transactions(100_000);
+            let scanner = ProfileScanner::new();
             let p = page(db, &scanner, &cursor).await;
             for tx in p.transactions {
                 for (i, slot) in found.iter_mut().enumerate() {

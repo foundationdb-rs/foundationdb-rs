@@ -451,7 +451,7 @@ async fn scan_and_assert(db: &Database, markers: &Markers) {
 
 /// Reads one page with the default (2 second) time budget, like the crate docs example.
 async fn read_one_page(db: &Database, cursor: &Cursor) -> Page {
-    let scanner = ProfileScanner::new().max_transactions(100_000);
+    let scanner = ProfileScanner::new();
     db.run(|trx, _| {
         let scanner = scanner.clone();
         let cursor = cursor.clone();

@@ -31,8 +31,7 @@ async fn main() {
     let db = Database::new(cluster_file.as_deref()).expect("failed to open database");
 
     let mut cursor = Cursor::beginning();
-    // Built once and reused for every page: its reassembly limits must stay the same
-    // across the pages of this scan.
+    // Every page is bounded by the scanner's budget (2 seconds by default).
     let scanner = ProfileScanner::new();
     let mut aggregator = Aggregator::default();
     let mut read = 0usize;

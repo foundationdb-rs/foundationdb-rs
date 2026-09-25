@@ -57,30 +57,31 @@
 //!   instance a DR secondary).
 //!
 //! [`ProfileScanner::read_page`] sets its own [`ClientBudget`] on the transaction
-//! (replacing any budget the caller set directly) and stops with [`StopReason::Budget`]
-//! when it is exceeded, checked after every batch. Configure it with
-//! [`ProfileScanner::budget`]; the default uses a `time_limit` well under the 5 second
-//! transaction lifetime. Without a time or byte limit, a page is only bounded by
-//! [`ProfileScanner::max_transactions`] and the end of the range, and a large range can
-//! hit `transaction_too_old`.
+//! (replacing any budget the caller set directly). Configure it with
+//! [`ProfileScanner::budget`]; the default uses a 2 second `time_limit`. Keep
+//! `time_limit` well under the 5 second transaction lifetime: without a time or byte
+//! limit, a page reads to the end of its range, and a large range can hit
+//! `transaction_too_old`.
 //!
 //! # Paging and tailing
 //!
-//! [`Page::next`] is always a valid place to resume from. To read a range in several
-//! transactions, loop on [`ProfileScanner::read_page`] with `cursor = page.next` until
-//! [`Page::exhausted`]: every transaction is returned once over the sequence of pages,
-//! even when the client wrote its chunks in several commits and they straddle a page
-//! boundary. To tail the keyspace, persist `page.next` ([`Cursor::as_bytes`] /
-//! [`Cursor::from_bytes`]) and keep polling from it: an exhausted page's cursor picks up
-//! the records flushed after it. [`Cursor::at_version`] starts at a commit version, and
-//! [`ProfileScanner::end_version`] bounds a page by one. A transaction whose chunks
-//! straddle `end_version` is not returned by that bounded read, the cursor stays on its
-//! first chunk.
-//!
-//! Build one [`ProfileScanner`] and reuse it for every page of a scan: its reassembly
-//! limits ([`ProfileScanner::max_pending_versions`], [`ProfileScanner::max_pending_bytes`])
-//! must stay the same across the pages that share a cursor, or a transaction can be
-//! returned twice or lost.
+//! A page has one bound, its [`ClientBudget`]: [`ProfileScanner::read_page`] checks it
+//! after every transaction it completes (and at the end of every range read batch), and
+//! stops with [`StopReason::Budget`] once it is exceeded. [`Page::next`] is always a
+//! valid place to resume from. To read a range in several transactions, loop on
+//! [`ProfileScanner::read_page`] with `cursor = page.next` until [`Page::exhausted`]:
+//! every transaction is returned once over the sequence of pages, even when the client
+//! wrote its chunks in two commits with other records in between. A record is lost
+//! (reported as [`SkipReason::BrokenChunks`]) only when a page stops right after
+//! completing another record that lies between the two halves of a record split across
+//! commits, or when the budget cannot cover a single record read from the cursor: a page
+//! stopped anywhere else resumes at the first chunk of the records it left incomplete. To tail the keyspace, persist `page.next`
+//! ([`Cursor::as_bytes`] / [`Cursor::from_bytes`]) and keep polling from it: an
+//! exhausted page's cursor picks up the records flushed after it, including the second
+//! half of a record split across two commits. [`Cursor::at_version`] starts at a commit
+//! version, and [`ProfileScanner::end_version`] bounds a page by one. A transaction whose
+//! chunks straddle `end_version` is not returned by that bounded read, the cursor stays
+//! on its first chunk.
 //!
 //! Note that the version of a record is the one at which the client flushed it, some time
 //! after the profiled transaction ran.
