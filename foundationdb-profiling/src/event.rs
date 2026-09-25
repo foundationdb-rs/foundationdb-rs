@@ -198,6 +198,41 @@ pub struct Mutation {
     pub param2: Vec<u8>,
 }
 
+impl Mutation {
+    /// `MutationRef::Type::SetValue`.
+    pub const SET_VALUE: u8 = 0;
+    /// `MutationRef::Type::ClearRange`.
+    pub const CLEAR_RANGE: u8 = 1;
+    /// `MutationRef::Type::AddValue`.
+    pub const ADD_VALUE: u8 = 2;
+    /// `MutationRef::Type::And`.
+    pub const AND: u8 = 6;
+    /// `MutationRef::Type::Or`.
+    pub const OR: u8 = 7;
+    /// `MutationRef::Type::Xor`.
+    pub const XOR: u8 = 8;
+    /// `MutationRef::Type::AppendIfFits`.
+    pub const APPEND_IF_FITS: u8 = 9;
+    /// `MutationRef::Type::Max`.
+    pub const MAX: u8 = 12;
+    /// `MutationRef::Type::Min`.
+    pub const MIN: u8 = 13;
+    /// `MutationRef::Type::SetVersionstampedKey`.
+    pub const SET_VERSIONSTAMPED_KEY: u8 = 14;
+    /// `MutationRef::Type::SetVersionstampedValue`.
+    pub const SET_VERSIONSTAMPED_VALUE: u8 = 15;
+    /// `MutationRef::Type::ByteMin`.
+    pub const BYTE_MIN: u8 = 16;
+    /// `MutationRef::Type::ByteMax`.
+    pub const BYTE_MAX: u8 = 17;
+    /// `MutationRef::Type::MinV2`.
+    pub const MIN_V2: u8 = 18;
+    /// `MutationRef::Type::AndV2`.
+    pub const AND_V2: u8 = 19;
+    /// `MutationRef::Type::CompareAndClear`.
+    pub const COMPARE_AND_CLEAR: u8 = 20;
+}
+
 /// Tracing span context attached to a commit (`SpanContext`).
 ///
 /// Protocol 7.1 only carries a 16 byte trace id (`Optional<UID>`): `span_id` and `flags`

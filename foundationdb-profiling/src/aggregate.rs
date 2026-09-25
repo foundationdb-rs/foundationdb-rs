@@ -6,13 +6,10 @@
 //! traffic. It does not resolve shard addresses (`ShardFinder` in the Python tool): that
 //! is a separate, caller-side concern.
 
-use crate::event::{Event, KeyRange};
+use crate::event::{Event, KeyRange, Mutation};
 use crate::reader::ProfiledTransaction;
 use std::collections::BTreeMap;
 use tracing::instrument;
-
-/// `MutationRef::Type` code for `ClearRange`.
-const MUTATION_CLEAR_RANGE: u8 = 1;
 
 /// `MutationRef::Type` codes that write a single key (`param1`): the plain and atomic
 /// mutations a client can send in a commit
@@ -22,20 +19,20 @@ const MUTATION_CLEAR_RANGE: u8 = 1;
 /// `Encrypted`), and `SetVersionstampedKey`, whose `param1` holds an unfilled versionstamp
 /// placeholder rather than the real key, so it is left out on purpose.
 const SINGLE_KEY_WRITE_TYPES: [u8; 14] = [
-    0,  // SetValue
-    2,  // AddValue
-    6,  // And
-    7,  // Or
-    8,  // Xor
-    9,  // AppendIfFits
-    12, // Max
-    13, // Min
-    15, // SetVersionstampedValue
-    16, // ByteMin
-    17, // ByteMax
-    18, // MinV2
-    19, // AndV2
-    20, // CompareAndClear
+    Mutation::SET_VALUE,
+    Mutation::ADD_VALUE,
+    Mutation::AND,
+    Mutation::OR,
+    Mutation::XOR,
+    Mutation::APPEND_IF_FITS,
+    Mutation::MAX,
+    Mutation::MIN,
+    Mutation::SET_VERSIONSTAMPED_VALUE,
+    Mutation::BYTE_MIN,
+    Mutation::BYTE_MAX,
+    Mutation::MIN_V2,
+    Mutation::AND_V2,
+    Mutation::COMPARE_AND_CLEAR,
 ];
 
 /// Counts keys and ranges read and written by recorded transactions.
@@ -71,7 +68,7 @@ impl Aggregator {
             Event::GetRange(get_range) => self.reads.insert_range(get_range.range.clone()),
             Event::Commit(commit) => {
                 for mutation in &commit.request.mutations {
-                    if mutation.mutation_type == MUTATION_CLEAR_RANGE {
+                    if mutation.mutation_type == Mutation::CLEAR_RANGE {
                         self.writes.insert_range(KeyRange {
                             begin: mutation.param1.clone(),
                             end: mutation.param2.clone(),
@@ -202,7 +199,9 @@ impl KeyCounts {
         let mut current_start: Option<Vec<u8>> = None;
         let mut current_count: u64 = 0;
         for (&start, &count) in &starts {
-            if current_count >= bucket_size {
+            // Once one more bucket would reach `n`, stop cutting: the last bucket absorbs
+            // whatever remains, so `buckets` never returns more than `n` of them.
+            if current_count >= bucket_size && out.len() + 1 < n {
                 if let Some(start) = current_start.take() {
                     out.push(Bucket {
                         start,
@@ -333,13 +332,6 @@ mod tests {
         }
     }
 
-    // A few `MutationRef::Type` codes from `fdbclient/include/fdbclient/CommitTransaction.h`,
-    // named here for readability.
-    const SET_VALUE: u8 = 0;
-    const ADD_VALUE: u8 = 2;
-    const AND: u8 = 6;
-    const SET_VERSIONSTAMPED_VALUE: u8 = 15;
-    const SET_VERSIONSTAMPED_KEY: u8 = 14;
     /// A code in the `MutationRef::Type` range that is not a client write op: server-only
     /// debug mutation, not in the allowlist.
     const NO_OP: u8 = 5;
@@ -360,8 +352,8 @@ mod tests {
                 priority: 0,
                 read_version: 0,
             }),
-            commit(vec![mutation(SET_VALUE, b"w", b"v")]),
-            commit_error(vec![mutation(SET_VALUE, b"ignored-write", b"v")]),
+            commit(vec![mutation(Mutation::SET_VALUE, b"w", b"v")]),
+            commit_error(vec![mutation(Mutation::SET_VALUE, b"ignored-write", b"v")]),
         ] {
             agg.record_event(&event);
         }
@@ -402,15 +394,15 @@ mod tests {
     fn write_mutation_types() {
         let mut agg = Aggregator::default();
         agg.record_event(&commit(vec![
-            mutation(SET_VALUE, b"set", b"v"),
-            mutation(ADD_VALUE, b"add", b"1"),
+            mutation(Mutation::SET_VALUE, b"set", b"v"),
+            mutation(Mutation::ADD_VALUE, b"add", b"1"),
             // Every other known atomic op counts too, not just SetValue/AddValue: wider
             // than the Python WriteCounter.
-            mutation(AND, b"anded", b"mask"),
-            mutation(SET_VERSIONSTAMPED_VALUE, b"svv", b"v"),
-            mutation(MUTATION_CLEAR_RANGE, b"c", b"c\x00"),
+            mutation(Mutation::AND, b"anded", b"mask"),
+            mutation(Mutation::SET_VERSIONSTAMPED_VALUE, b"svv", b"v"),
+            mutation(Mutation::CLEAR_RANGE, b"c", b"c\x00"),
             // Placeholder key (unfilled versionstamp): never counted.
-            mutation(SET_VERSIONSTAMPED_KEY, b"placeholder", b"v"),
+            mutation(Mutation::SET_VERSIONSTAMPED_KEY, b"placeholder", b"v"),
             // In the MutationRef::Type range but not a client write op: not in the
             // allowlist, ignored.
             mutation(NO_OP, b"noop", b"v"),
@@ -545,6 +537,47 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn buckets_never_returns_more_than_n() {
+        // 10 keys with 1 hit each: bucket_size = 10 / 3 = 3, which would cut a 4th bucket
+        // (3, 3, 3, 1) if the last one didn't absorb the remainder instead.
+        let mut counts = KeyCounts::default();
+        for key in [
+            b"a" as &[u8],
+            b"b",
+            b"c",
+            b"d",
+            b"e",
+            b"f",
+            b"g",
+            b"h",
+            b"i",
+            b"j",
+        ] {
+            counts.insert_key(key);
+        }
+        let buckets = counts.buckets(3);
+        assert_eq!(
+            buckets,
+            vec![
+                Bucket {
+                    start: b"a".to_vec(),
+                    count: 3
+                },
+                Bucket {
+                    start: b"d".to_vec(),
+                    count: 3
+                },
+                Bucket {
+                    start: b"g".to_vec(),
+                    count: 4
+                },
+            ]
+        );
+        let total: u64 = buckets.iter().map(|b| b.count).sum();
+        assert_eq!(total, counts.total());
     }
 
     #[test]

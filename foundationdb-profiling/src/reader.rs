@@ -36,9 +36,16 @@ const TOTAL_START: usize = CHUNK_START + 4;
 /// Shortest key [`read_page`] can parse: everything up to the total chunk count.
 const MIN_KEY_LEN: usize = TOTAL_START + 4;
 
-/// A partial transaction is dropped as broken once more than this many rows were fed
-/// since its first chunk without completing it (the cap of the Python analyzer).
-const MAX_PENDING_ROWS: u64 = 1000;
+/// A pending transaction is dropped as broken once a row more than this many versions
+/// (about 10 seconds) after its first chunk was fed without completing it. The client
+/// writes the rest of a transaction in its next commit, right after the first one.
+const MAX_PENDING_VERSIONS: i64 = 10_000_000;
+
+/// A pending transaction is dropped as broken once more than this many key and value
+/// bytes were fed since its first chunk (inclusive) without completing it. The client
+/// splits a flush in commits of 0.8 times the transaction size limit (10 MB), so the
+/// continuation of a transaction is at most about two commits away from its first chunk.
+const MAX_PENDING_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Version of the [`Cursor`] serialization.
 const CURSOR_FORMAT: u8 = 1;
@@ -254,11 +261,17 @@ pub struct Page {
 /// several commits (when a flush exceeds the transaction size limit), with rows of other
 /// transactions in between: such a transaction is reassembled across them, and while it
 /// is incomplete [`Page::next`] keeps pointing at its first chunk, so the next page reads
-/// it again in full. A transaction that is still incomplete more than 1000 rows after its
-/// first chunk is reported as [`SkipReason::BrokenChunks`], as is a chunk whose earlier
-/// chunks are missing, including chunks of a transaction that began before the cursor
-/// the scan started from ([`Cursor::beginning`], [`Cursor::at_version`]). A broken
-/// transaction whose chunks span a page boundary can be reported by both pages.
+/// it again in full. A transaction that is still incomplete once a row more than
+/// 10,000,000 versions (about 10 seconds) after its first chunk is read, or once more
+/// than 16 MiB of keys and values were read since its first chunk, is reported as
+/// [`SkipReason::BrokenChunks`], as is a chunk whose earlier chunks are missing,
+/// including chunks of a transaction that began before the cursor the scan started from
+/// ([`Cursor::beginning`], [`Cursor::at_version`]). A broken transaction whose chunks
+/// span a page boundary can be reported by both pages.
+///
+/// These bounds also bound what a page reads again: [`Page::next`] lags behind the rows
+/// already read by at most 16 MiB plus one batch, which a page can read again well within
+/// the 5 second transaction lifetime, even when its budget would stop it earlier.
 ///
 /// A transaction whose later chunks lie beyond `end_version` stays incomplete: the page
 /// is `exhausted` and [`Page::next`] points at its first chunk, so a bounded read never
@@ -522,8 +535,10 @@ struct Partial {
     /// Concatenated chunk values so far. Grows by the actual chunk lengths only, never by
     /// the untrusted total chunk count.
     blob: Vec<u8>,
-    /// Index of the row of its first chunk.
-    start_row: u64,
+    /// Commit version of its first chunk.
+    start_version: i64,
+    /// Byte offset of the row of its first chunk: bytes fed before it.
+    start_offset: u64,
 }
 
 /// Reassembles transactions from chunk rows fed in key order. Pure, no I/O.
@@ -532,9 +547,11 @@ struct Partial {
 /// with the same id and total and non-decreasing versionstamps: the client may write them
 /// in several commits, so rows of other transactions can sit in between. Anything else
 /// drops the partial buffer and reports the transaction as [`Assembled::Broken`] (once
-/// per id), as does a transaction still pending more than [`MAX_PENDING_ROWS`] rows after
-/// its first chunk. Rows are counted from each first chunk, so the outcome does not
-/// depend on where the scan started, as long as it started at or before that chunk.
+/// per id until a new chunk 1 of that id), as does a transaction still pending after a
+/// row more than [`MAX_PENDING_VERSIONS`] versions after its first chunk, or after more
+/// than [`MAX_PENDING_BYTES`] bytes of rows since its first chunk. Both are measured from
+/// each first chunk, so the outcome does not depend on where the scan started, as long as
+/// it started at or before that chunk.
 ///
 /// Outcomes produced by a row whose key is below `emitted_up_to` are suppressed: an
 /// earlier page, which read that row too, already reported them.
@@ -544,13 +561,14 @@ struct Assembler {
     emitted_up_to: Vec<u8>,
     /// Pending transactions by id.
     partials: HashMap<[u8; 16], Partial>,
-    /// Ids of the pending transactions by the row of their first chunk, oldest first.
+    /// Ids of the pending transactions by the byte offset of their first chunk, oldest
+    /// first. Offsets are unique: every row has a non-empty key.
     by_start: BTreeMap<u64, [u8; 16]>,
     /// Ids already reported (or suppressed) as broken, so that their remaining chunks are
-    /// consumed silently.
+    /// consumed silently. A new chunk 1 of the id removes it.
     broken: HashSet<[u8; 16]>,
-    /// Number of rows fed so far.
-    rows: u64,
+    /// Key and value bytes fed so far.
+    bytes: u64,
     /// Last row fed.
     last_key: Option<Vec<u8>>,
 }
@@ -562,32 +580,49 @@ impl Assembler {
             partials: HashMap::new(),
             by_start: BTreeMap::new(),
             broken: HashSet::new(),
-            rows: 0,
+            bytes: 0,
             last_key: None,
         }
     }
 
     /// Feeds one row, pushing to `out` what it completes or breaks.
     fn push(&mut self, key: &[u8], value: &[u8], out: &mut Vec<Assembled>) {
-        let row = self.rows;
-        self.rows += 1;
+        let offset = self.bytes;
+        let len = (key.len() as u64).saturating_add(value.len() as u64);
+        self.bytes = self.bytes.saturating_add(len);
         self.last_key = Some(key.to_vec());
         let emit = key >= self.emitted_up_to.as_slice();
-        self.process(row, key, value, emit, out);
-        self.evict(row, emit, out);
+        let parsed = ChunkKey::parse(key);
+        match parsed {
+            Some(parsed) => self.process(offset, parsed, key, value, emit, out),
+            None => tracing::warn!(key = ?key, "ignoring unparseable profiling key"),
+        }
+        let version = parsed.map(|p| version_of(&p.versionstamp));
+        self.evict(version, emit, out);
     }
 
-    /// Breaks the transactions still pending more than [`MAX_PENDING_ROWS`] rows after
-    /// their first chunk, `row` being the index of the row just fed.
-    fn evict(&mut self, row: u64, emit: bool, out: &mut Vec<Assembled>) {
+    /// Breaks the transactions still pending after the row just fed, whose version is
+    /// `version` (`None` for an unparseable key), when it is more than
+    /// [`MAX_PENDING_VERSIONS`] after their first chunk or when more than
+    /// [`MAX_PENDING_BYTES`] were fed since their first chunk.
+    ///
+    /// Rows are fed in key order, so the oldest pending transaction also has the smallest
+    /// first version: checking from the oldest stops at the first one within both bounds.
+    fn evict(&mut self, version: Option<i64>, emit: bool, out: &mut Vec<Assembled>) {
         while let Some((&start, &id)) = self.by_start.first_key_value() {
-            if row - start <= MAX_PENDING_ROWS {
+            let pending_bytes = self.bytes.saturating_sub(start);
+            let pending_versions = match (version, self.partials.get(&id)) {
+                (Some(version), Some(partial)) => version.saturating_sub(partial.start_version),
+                _ => 0,
+            };
+            if pending_bytes <= MAX_PENDING_BYTES && pending_versions <= MAX_PENDING_VERSIONS {
                 break;
             }
             self.by_start.remove(&start);
             if let Some(partial) = self.partials.remove(&id) {
                 tracing::debug!(
-                    pending_rows = row - start,
+                    pending_bytes,
+                    pending_versions,
                     "evicting incomplete transaction"
                 );
                 self.report_broken(partial.versionstamp, id, emit, out);
@@ -595,21 +630,18 @@ impl Assembler {
         }
     }
 
+    /// Processes a parsed row, `offset` being the bytes fed before it.
     fn process(
         &mut self,
-        row: u64,
+        offset: u64,
+        parsed: ChunkKey,
         key: &[u8],
         value: &[u8],
         emit: bool,
         out: &mut Vec<Assembled>,
     ) {
-        let Some(parsed) = ChunkKey::parse(key) else {
-            tracing::warn!(key = ?key, "ignoring unparseable profiling key");
-            return;
-        };
-
         if let Some(mut partial) = self.partials.remove(&parsed.id) {
-            self.by_start.remove(&partial.start_row);
+            self.by_start.remove(&partial.start_offset);
             if parsed.total == partial.total
                 && parsed.chunk == partial.next_chunk
                 && parsed.versionstamp >= partial.last_versionstamp
@@ -627,7 +659,7 @@ impl Assembler {
                     // chunk < total, so this cannot overflow
                     partial.next_chunk += 1;
                     partial.last_versionstamp = parsed.versionstamp;
-                    self.by_start.insert(partial.start_row, parsed.id);
+                    self.by_start.insert(partial.start_offset, parsed.id);
                     self.partials.insert(parsed.id, partial);
                 }
                 return;
@@ -635,6 +667,10 @@ impl Assembler {
             self.report_broken(partial.versionstamp, parsed.id, emit, out);
         }
 
+        if parsed.chunk == 1 && parsed.total >= 1 {
+            // a new transaction under this id, its chunks are no longer those of a broken one
+            self.broken.remove(&parsed.id);
+        }
         if parsed.chunk == 1 && parsed.total == 1 {
             if emit {
                 out.push(Assembled::Complete {
@@ -644,7 +680,7 @@ impl Assembler {
                 });
             }
         } else if parsed.chunk == 1 && parsed.total > 1 {
-            self.by_start.insert(row, parsed.id);
+            self.by_start.insert(offset, parsed.id);
             self.partials.insert(
                 parsed.id,
                 Partial {
@@ -654,7 +690,8 @@ impl Assembler {
                     total: parsed.total,
                     next_chunk: 2,
                     blob: value.to_vec(),
-                    start_row: row,
+                    start_version: version_of(&parsed.versionstamp),
+                    start_offset: offset,
                 },
             );
         } else {
@@ -894,46 +931,128 @@ mod tests {
         assert_eq!(pending, Some(k));
     }
 
+    fn broken_of(out: &[Assembled]) -> Vec<&Assembled> {
+        out.iter()
+            .filter(|o| matches!(o, Assembled::Broken { .. }))
+            .collect()
+    }
+
     #[test]
-    fn eviction_after_max_pending_rows() {
-        // a pending transaction, then single-chunk rows: it survives MAX_PENDING_ROWS rows
-        let mut rows: Rows = vec![(key(vs(0, 0), id(1), 1, 2), b"a".to_vec())];
-        for v in 1..=MAX_PENDING_ROWS {
-            rows.push((key(vs(v, 0), id(2), 1, 1), Vec::new()));
+    fn straddler_with_many_rows_in_between_completes() {
+        // two large commits put thousands of rows between chunk 1 and its continuation
+        let mut rows: Rows = vec![(key(vs(1, 0), id(1), 1, 2), b"a".to_vec())];
+        for batch in 1..=5000 {
+            rows.push((key(vs(1, batch), id(2), 1, 1), vec![0; 100]));
         }
+        rows.push((key(vs(2, 0), id(1), 2, 2), b"b".to_vec()));
         let (out, pending) = reassemble(&rows);
-        assert!(out.iter().all(|o| matches!(o, Assembled::Complete { .. })));
-        assert_eq!(pending, Some(rows[0].0.clone()));
+        assert_eq!(broken_of(&out), Vec::<&Assembled>::new());
+        assert_eq!(out.len(), 5001);
+        assert_eq!(out.last(), Some(&complete(vs(1, 0), id(1), b"ab")));
+        assert_eq!(pending, None);
+    }
+
+    #[test]
+    fn eviction_by_version_distance() {
+        let first = 5;
+        let last = first + MAX_PENDING_VERSIONS as u64;
+        let within: Rows = vec![
+            (key(vs(first, 0), id(1), 1, 2), b"a".to_vec()),
+            (key(vs(last, 0), id(2), 1, 1), Vec::new()),
+        ];
+        let (out, pending) = reassemble(&within);
+        assert_eq!(out, vec![complete(vs(last, 0), id(2), b"")]);
+        assert_eq!(pending, Some(within[0].0.clone()));
+
+        // its last chunk right at the bound still completes it
+        let mut completing = within.clone();
+        completing.push((key(vs(last, 1), id(1), 2, 2), b"b".to_vec()));
+        let (out, pending) = reassemble(&completing);
+        assert_eq!(out.last(), Some(&complete(vs(first, 0), id(1), b"ab")));
+        assert_eq!(pending, None);
+
+        // a row one version further evicts it, its late chunk is then consumed silently
+        let mut evicting = within.clone();
+        evicting.push((key(vs(last + 1, 0), id(2), 1, 1), Vec::new()));
+        evicting.push((key(vs(last + 1, 1), id(1), 2, 2), b"b".to_vec()));
+        let (out, pending) = reassemble(&evicting);
+        assert_eq!(broken_of(&out), vec![&broken(vs(first, 0), id(1))]);
+        assert_eq!(out.len(), 3);
+        assert_eq!(pending, None);
+
+        // rows before the first chunk, at earlier versions, do not change the decisions
+        for (rows, expected) in [(&completing, false), (&evicting, true)] {
+            let mut prefixed: Rows = vec![(key(vs(0, 0), id(3), 1, 1), Vec::new())];
+            prefixed.extend(rows.iter().cloned());
+            let (out, pending) = reassemble(&prefixed);
+            assert_eq!(!broken_of(&out).is_empty(), expected);
+            assert_eq!(pending, None);
+        }
+    }
+
+    #[test]
+    fn eviction_by_bytes() {
+        let first = key(vs(1, 0), id(1), 1, 2);
+        let klen = first.len();
+        let max = MAX_PENDING_BYTES as usize;
+        // the first chunk and one filler row add up to exactly MAX_PENDING_BYTES
+        let rows_with = |filler: usize| -> Rows {
+            vec![
+                (first.clone(), b"a".to_vec()),
+                (key(vs(1, 1), id(2), 1, 1), vec![0; filler]),
+            ]
+        };
+        let exact = max - 2 * klen - 1;
+
+        let (out, pending) = reassemble(&rows_with(exact));
+        assert_eq!(broken_of(&out), Vec::<&Assembled>::new());
+        assert_eq!(pending, Some(first.clone()));
 
         // its last chunk right then still completes it
-        let mut completing = rows.clone();
-        completing.push((key(vs(MAX_PENDING_ROWS + 1, 0), id(1), 2, 2), b"b".to_vec()));
+        let mut completing = rows_with(exact);
+        completing.push((key(vs(1, 2), id(1), 2, 2), b"b".to_vec()));
         let (out, pending) = reassemble(&completing);
+        assert_eq!(out.last(), Some(&complete(vs(1, 0), id(1), b"ab")));
+        assert_eq!(pending, None);
+
+        // one more byte evicts it
+        let mut evicting = rows_with(exact + 1);
+        evicting.push((key(vs(1, 2), id(1), 2, 2), b"b".to_vec()));
+        let (out, pending) = reassemble(&evicting);
+        assert_eq!(broken_of(&out), vec![&broken(vs(1, 0), id(1))]);
+        assert_eq!(out.len(), 2);
+        assert_eq!(pending, None);
+
+        // bytes read before the first chunk do not change the decisions
+        for (rows, expected) in [(&completing, false), (&evicting, true)] {
+            let mut prefixed: Rows = vec![(key(vs(0, 0), id(3), 1, 1), vec![0; max])];
+            prefixed.extend(rows.iter().cloned());
+            let (out, pending) = reassemble(&prefixed);
+            assert_eq!(!broken_of(&out).is_empty(), expected);
+            assert_eq!(pending, None);
+        }
+    }
+
+    #[test]
+    fn reused_id_that_breaks_again_is_reported_again() {
+        let (out, pending) = reassemble(&[
+            (key(vs(1, 0), id(1), 1, 3), b"a".to_vec()),
+            (key(vs(1, 0), id(1), 3, 3), b"c".to_vec()),
+            (key(vs(2, 0), id(1), 1, 3), b"a".to_vec()),
+            (key(vs(2, 0), id(1), 3, 3), b"c".to_vec()),
+            (key(vs(3, 0), id(1), 1, 1), b"x".to_vec()),
+            (key(vs(4, 0), id(1), 2, 2), b"y".to_vec()),
+        ]);
         assert_eq!(
-            out.last(),
-            Some(&complete(vs(0, 0), id(1), b"ab")),
-            "{:?}",
-            out.last()
+            out,
+            vec![
+                broken(vs(1, 0), id(1)),
+                broken(vs(2, 0), id(1)),
+                complete(vs(3, 0), id(1), b"x"),
+                broken(vs(4, 0), id(1)),
+            ]
         );
         assert_eq!(pending, None);
-
-        // one more row evicts it, and its late chunk is then consumed silently
-        rows.push((key(vs(MAX_PENDING_ROWS + 1, 0), id(2), 1, 1), Vec::new()));
-        rows.push((key(vs(MAX_PENDING_ROWS + 2, 0), id(1), 2, 2), b"b".to_vec()));
-        let (out, pending) = reassemble(&rows);
-        let broken_out: Vec<_> = out
-            .iter()
-            .filter(|o| matches!(o, Assembled::Broken { .. }))
-            .collect();
-        assert_eq!(broken_out, vec![&broken(vs(0, 0), id(1))]);
-        assert_eq!(out.len(), MAX_PENDING_ROWS as usize + 2);
-        assert_eq!(pending, None);
-
-        // rows before the first chunk do not change the decision
-        let mut prefixed: Rows = vec![([PROFILE_PREFIX.as_slice(), b"\x00"].concat(), Vec::new())];
-        prefixed.extend(completing.iter().cloned());
-        let (out, _) = reassemble(&prefixed);
-        assert_eq!(out.last(), Some(&complete(vs(0, 0), id(1), b"ab")));
     }
 
     #[test]

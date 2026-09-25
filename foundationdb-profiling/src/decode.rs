@@ -42,7 +42,8 @@ pub enum DecodeError {
         /// Offset in the blob where the key range starts.
         offset: usize,
     },
-    /// A mutation could not be normalized (bad checksum suffix or single-key clear encoding).
+    /// A mutation's checksum suffix could not be removed (`param2` shorter than the
+    /// checksum, and accumulative checksum index when present).
     #[error("malformed mutation at offset {offset}")]
     MalformedMutation {
         /// Offset in the blob where the mutation starts.
@@ -58,7 +59,6 @@ const EVENT_ERROR_GET: i32 = 4;
 const EVENT_ERROR_GET_RANGE: i32 = 5;
 const EVENT_ERROR_COMMIT: i32 = 6;
 
-const MUTATION_CLEAR_RANGE: u8 = 1;
 const CHECKSUM_FLAG_MASK: u8 = 0x80;
 const ACCUMULATIVE_CHECKSUM_INDEX_FLAG_MASK: u8 = 0x40;
 const CHECKSUM_LEN: usize = 4;
@@ -335,15 +335,21 @@ impl<'a> Reader<'a> {
             if mutation_type & ACCUMULATIVE_CHECKSUM_INDEX_FLAG_MASK != 0 {
                 suffix += ACCUMULATIVE_CHECKSUM_INDEX_LEN;
             }
-            let len = param2.len().checked_sub(suffix).ok_or(malformed.clone())?;
+            let len = param2.len().checked_sub(suffix).ok_or(malformed)?;
             param2.truncate(len);
             mutation_type &= !(CHECKSUM_FLAG_MASK | ACCUMULATIVE_CHECKSUM_INDEX_FLAG_MASK);
         }
 
-        // A single-key clear `[k, k\x00)` is written as `(ClearRange, k\x00, "")`.
-        if mutation_type == MUTATION_CLEAR_RANGE && param2.is_empty() && !param1.is_empty() {
+        // A single-key clear `[k, k\x00)` is written as `(ClearRange, k\x00, "")`. Like the
+        // C++ deserializer, a `param1` not ending in `\x00` is only traced as an error, not
+        // treated as fatal: the mutation is still expanded, dropping its last byte.
+        if mutation_type == Mutation::CLEAR_RANGE && param2.is_empty() && !param1.is_empty() {
             if param1.last() != Some(&0) {
-                return Err(malformed);
+                tracing::warn!(
+                    offset,
+                    param1 = ?param1,
+                    "single-key clear range mutation with param1 not ending in \\x00"
+                );
             }
             param2 = param1.clone();
             param1.pop();
@@ -685,11 +691,11 @@ mod tests {
     #[test]
     fn rejects_malformed_ranges_and_mutations() {
         let good_range = range_bytes(b"a", b"b");
-        let good_mutation = mutation_bytes(0, b"k", b"v");
-        let err = commit_request_of(&commit_with(&range_bytes(b"k", b""), &good_mutation));
+        let err = commit_request_of(&commit_with(
+            &range_bytes(b"k", b""),
+            &mutation_bytes(0, b"k", b"v"),
+        ));
         assert!(matches!(err, Err(DecodeError::MalformedKeyRange { .. })));
-        let err = commit_request_of(&commit_with(&good_range, &mutation_bytes(1, b"k", b"")));
-        assert!(matches!(err, Err(DecodeError::MalformedMutation { .. })));
         let err = commit_request_of(&commit_with(
             &good_range,
             &mutation_bytes(0x80, b"k", b"abc"),
@@ -700,6 +706,24 @@ mod tests {
             &mutation_bytes(0xC0, b"k", b"abcde"),
         ));
         assert!(matches!(err, Err(DecodeError::MalformedMutation { .. })));
+    }
+
+    /// Mirrors `MutationRef::serialize`: a single-key clear whose `param1` does not end in
+    /// `\x00` is only traced as an error server-side, not treated as fatal. The mutation is
+    /// still expanded, same as a well-formed single-key clear.
+    #[test]
+    fn expands_single_key_clear_with_bad_param1_instead_of_erroring() {
+        let good_range = range_bytes(b"a", b"b");
+        let req =
+            commit_request_of(&commit_with(&good_range, &mutation_bytes(1, b"k", b""))).unwrap();
+        assert_eq!(
+            req.mutations,
+            vec![Mutation {
+                mutation_type: 1,
+                param1: Vec::new(),
+                param2: b"k".to_vec(),
+            }]
+        );
     }
 
     #[test]
