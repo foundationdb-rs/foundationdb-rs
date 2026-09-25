@@ -2,8 +2,7 @@
 name = "foundationdb-profiling"
 version = "0.1.0"
 authors = [
-    "Pierre Zemb <contact@pierrezemb.fr>",
-    "Yannick Guern <dev@guern.eu>"
+    "Pierre Zemb <contact@pierrezemb.fr>"
 ]
 edition = "2024"
 rust-version = "1.85.1"
