@@ -130,23 +130,115 @@ fn next_revision(state: &DurableState) -> Result<u64> {
         .ok_or(LeaderElectionError::RevisionExhausted)
 }
 
-fn same_observation(state: &DurableState, observation: &Observation) -> bool {
-    state.owner.as_ref() == Some(observation.owner())
-        && state.revision == observation.rank().as_u64()
-        && state.lease_duration == Some(observation.lease_duration())
+/// What the polling participant locally claims about the durable state,
+/// with the time elapsed since its anchor already computed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Claim<'a> {
+    Unknown,
+    Observation {
+        owner: &'a ParticipantId,
+        rank: Rank,
+        lease_duration: Duration,
+        elapsed: Duration,
+    },
+    /// Owned by the polling participant.
+    Leadership {
+        rank: Rank,
+        lease_duration: Duration,
+        elapsed: Duration,
+    },
 }
 
-fn valid_leadership(
-    state: &DurableState,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Decision {
+    Leader(PollTransition),
+    /// `preserve` keeps the previous observation and its timer.
+    Follow {
+        preserve: bool,
+        reason: &'static str,
+    },
+}
+
+fn claim<'a>(
     participant: &ParticipantId,
-    leadership: &Leadership,
-    now: Duration,
+    local_state: &'a LocalState,
+    attempt_started_at: Duration,
+) -> Claim<'a> {
+    match local_state {
+        LocalState::Unknown => Claim::Unknown,
+        LocalState::Observation(observation) => Claim::Observation {
+            owner: observation.owner(),
+            rank: observation.rank(),
+            lease_duration: observation.lease_duration(),
+            elapsed: attempt_started_at.saturating_sub(observation.first_observed_at()),
+        },
+        // A leadership token of another participant proves nothing to this one.
+        LocalState::Leadership(leadership) if leadership.participant() != participant => {
+            Claim::Unknown
+        }
+        LocalState::Leadership(leadership) => Claim::Leadership {
+            rank: leadership.rank(),
+            lease_duration: leadership.lease_duration(),
+            elapsed: attempt_started_at.saturating_sub(leadership.last_renewed_at()),
+        },
+    }
+}
+
+fn same_record(
+    state: &DurableState,
+    owner: &ParticipantId,
+    rank: Rank,
+    lease_duration: Duration,
 ) -> bool {
-    leadership.participant() == participant
-        && state.owner.as_ref() == Some(participant)
-        && state.revision == leadership.rank().as_u64()
-        && state.lease_duration == Some(leadership.lease_duration())
-        && now.saturating_sub(leadership.last_renewed_at()) < leadership.lease_duration()
+    state.owner.as_ref() == Some(owner)
+        && state.revision == rank.as_u64()
+        && state.lease_duration == Some(lease_duration)
+}
+
+fn decide(state: &DurableState, participant: &ParticipantId, claim: &Claim) -> Decision {
+    if state.owner.is_none() {
+        return Decision::Leader(PollTransition::Acquired);
+    }
+    match *claim {
+        Claim::Leadership {
+            rank,
+            lease_duration,
+            elapsed,
+        } if same_record(state, participant, rank, lease_duration) && elapsed < lease_duration => {
+            Decision::Leader(PollTransition::Renewed)
+        }
+        Claim::Leadership { .. } => Decision::Follow {
+            preserve: false,
+            reason: "leadership_not_renewable",
+        },
+        Claim::Observation {
+            owner,
+            rank,
+            lease_duration,
+            elapsed,
+        } if same_record(state, owner, rank, lease_duration) => {
+            if elapsed >= lease_duration {
+                Decision::Leader(if owner == participant {
+                    PollTransition::Reacquired
+                } else {
+                    PollTransition::TookOver
+                })
+            } else {
+                Decision::Follow {
+                    preserve: true,
+                    reason: "observation",
+                }
+            }
+        }
+        Claim::Observation { .. } => Decision::Follow {
+            preserve: false,
+            reason: "observation",
+        },
+        Claim::Unknown => Decision::Follow {
+            preserve: false,
+            reason: "unknown",
+        },
+    }
 }
 
 fn leader_result<T>(
@@ -203,7 +295,7 @@ where
 
 fn follower_result(
     state: &DurableState,
-    previous: Option<&Observation>,
+    preserved: Option<&Observation>,
     _reason: &'static str,
 ) -> Result<PollResult> {
     let owner = state.owner.clone().ok_or_else(|| {
@@ -217,11 +309,9 @@ fn follower_result(
         )
     })?;
     let rank = Rank::from(state.revision);
-    let next_observation = match previous {
-        Some(previous) if same_observation(state, previous) => {
-            PendingNextState::preserve_observation(previous.clone())
-        }
-        Some(_) | None => PendingNextState::new_observation(owner.clone(), rank, lease_duration),
+    let next_observation = match preserved {
+        Some(preserved) => PendingNextState::preserve_observation(preserved.clone()),
+        None => PendingNextState::new_observation(owner.clone(), rank, lease_duration),
     };
 
     #[cfg(feature = "trace")]
@@ -256,57 +346,26 @@ where
     let key = state_key(subspace);
     let state = read_state(txn, &key).await?;
 
-    match local_state {
-        LocalState::Leadership(leadership)
-            if valid_leadership(&state, participant, leadership, attempt_started_at) =>
-        {
-            leader_result(
-                txn,
-                &key,
-                &state,
-                participant,
-                lease_duration,
-                attempt_started_at,
-                PollTransition::Renewed,
-            )
-        }
-        LocalState::Observation(observation) if state.owner.is_some() => {
-            if same_observation(&state, observation)
-                && attempt_started_at.saturating_sub(observation.first_observed_at())
-                    >= observation.lease_duration()
-            {
-                let transition = if observation.owner() == participant {
-                    PollTransition::Reacquired
-                } else {
-                    PollTransition::TookOver
-                };
-                leader_result(
-                    txn,
-                    &key,
-                    &state,
-                    participant,
-                    lease_duration,
-                    attempt_started_at,
-                    transition,
-                )
-            } else {
-                follower_result(&state, Some(observation), "observation")
-            }
-        }
-        LocalState::Unknown if state.owner.is_some() => follower_result(&state, None, "unknown"),
-        LocalState::Leadership(_) if state.owner.is_some() => {
-            follower_result(&state, None, "leadership_not_renewable")
-        }
-        LocalState::Observation(_) | LocalState::Unknown | LocalState::Leadership(_) => {
-            leader_result(
-                txn,
-                &key,
-                &state,
-                participant,
-                lease_duration,
-                attempt_started_at,
-                PollTransition::Acquired,
-            )
+    match decide(
+        &state,
+        participant,
+        &claim(participant, local_state, attempt_started_at),
+    ) {
+        Decision::Leader(transition) => leader_result(
+            txn,
+            &key,
+            &state,
+            participant,
+            lease_duration,
+            attempt_started_at,
+            transition,
+        ),
+        Decision::Follow { preserve, reason } => {
+            let preserved = match local_state {
+                LocalState::Observation(observation) if preserve => Some(observation),
+                _ => None,
+            };
+            follower_result(&state, preserved, reason)
         }
     }
 }
@@ -423,5 +482,211 @@ mod tests {
             decode_state(&value),
             Err(LeaderElectionError::PackError(_))
         ));
+    }
+
+    // Literal bytes: a change here breaks every durable state already written.
+    #[test]
+    fn durable_state_version_one_encoding_is_stable() {
+        let cases: [(DurableState, &[u8]); 3] = [
+            (
+                DurableState {
+                    revision: 3,
+                    owner: None,
+                    lease_duration: Some(Duration::from_secs(10)),
+                },
+                &[21, 1, 21, 3, 38, 2, 0, 39, 21, 10, 20],
+            ),
+            (
+                DurableState {
+                    revision: 7,
+                    owner: Some(ParticipantId::new("a").unwrap()),
+                    lease_duration: Some(Duration::new(10, 500)),
+                },
+                &[21, 1, 21, 7, 39, 2, 97, 0, 39, 21, 10, 22, 1, 244],
+            ),
+            (DurableState::default(), &[21, 1, 20, 38, 2, 0, 38, 20, 20]),
+        ];
+
+        for (state, bytes) in cases {
+            assert_eq!(encode_state(&state), bytes);
+            assert_eq!(decode_state(bytes).unwrap(), state);
+        }
+    }
+
+    const LEASE: Duration = Duration::from_secs(10);
+    const NANO: Duration = Duration::from_nanos(1);
+
+    fn id(value: &str) -> ParticipantId {
+        ParticipantId::new(value).unwrap()
+    }
+
+    fn owned(owner: &str) -> DurableState {
+        DurableState {
+            revision: 7,
+            owner: Some(id(owner)),
+            lease_duration: Some(LEASE),
+        }
+    }
+
+    fn observation(owner: &ParticipantId, elapsed: Duration) -> Claim<'_> {
+        Claim::Observation {
+            owner,
+            rank: Rank::from(7),
+            lease_duration: LEASE,
+            elapsed,
+        }
+    }
+
+    fn leadership(elapsed: Duration) -> Claim<'static> {
+        Claim::Leadership {
+            rank: Rank::from(7),
+            lease_duration: LEASE,
+            elapsed,
+        }
+    }
+
+    const RESET: Decision = Decision::Follow {
+        preserve: false,
+        reason: "observation",
+    };
+    const NOT_RENEWABLE: Decision = Decision::Follow {
+        preserve: false,
+        reason: "leadership_not_renewable",
+    };
+
+    #[test]
+    fn vacant_state_is_acquired_whatever_the_claim() {
+        let me = id("me");
+        let other = id("other");
+        for state in [
+            DurableState::default(),
+            DurableState {
+                revision: 7,
+                owner: None,
+                lease_duration: Some(LEASE),
+            },
+        ] {
+            for claim in [
+                Claim::Unknown,
+                observation(&other, Duration::ZERO),
+                observation(&me, LEASE),
+                leadership(Duration::ZERO),
+                leadership(LEASE),
+            ] {
+                assert_eq!(
+                    decide(&state, &me, &claim),
+                    Decision::Leader(PollTransition::Acquired)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn leadership_renews_strictly_before_lease_end() {
+        let me = id("me");
+        let state = owned("me");
+
+        assert_eq!(
+            decide(&state, &me, &leadership(LEASE - NANO)),
+            Decision::Leader(PollTransition::Renewed)
+        );
+        assert_eq!(decide(&state, &me, &leadership(LEASE)), NOT_RENEWABLE);
+    }
+
+    #[test]
+    fn changed_record_is_not_renewable() {
+        let me = id("me");
+        let changed = [
+            owned("other"),
+            DurableState {
+                revision: 8,
+                ..owned("me")
+            },
+            DurableState {
+                lease_duration: Some(LEASE + NANO),
+                ..owned("me")
+            },
+        ];
+
+        for state in changed {
+            assert_eq!(
+                decide(&state, &me, &leadership(Duration::ZERO)),
+                NOT_RENEWABLE
+            );
+        }
+    }
+
+    #[test]
+    fn unchanged_observation_is_taken_over_at_lease_end() {
+        let me = id("me");
+        let other = id("other");
+        let state = owned("other");
+
+        assert_eq!(
+            decide(&state, &me, &observation(&other, LEASE - NANO)),
+            Decision::Follow {
+                preserve: true,
+                reason: "observation",
+            }
+        );
+        assert_eq!(
+            decide(&state, &me, &observation(&other, LEASE)),
+            Decision::Leader(PollTransition::TookOver)
+        );
+    }
+
+    #[test]
+    fn own_expired_observation_is_reacquired() {
+        let me = id("me");
+
+        assert_eq!(
+            decide(&owned("me"), &me, &observation(&me, LEASE)),
+            Decision::Leader(PollTransition::Reacquired)
+        );
+    }
+
+    #[test]
+    fn changed_observation_resets_the_timer() {
+        let me = id("me");
+        let other = id("other");
+        let changed = [
+            owned("third"),
+            DurableState {
+                revision: 8,
+                ..owned("other")
+            },
+            DurableState {
+                lease_duration: Some(LEASE + NANO),
+                ..owned("other")
+            },
+        ];
+
+        for state in changed {
+            assert_eq!(decide(&state, &me, &observation(&other, LEASE)), RESET);
+        }
+    }
+
+    #[test]
+    fn unknown_follows_the_owner() {
+        assert_eq!(
+            decide(&owned("other"), &id("me"), &Claim::Unknown),
+            Decision::Follow {
+                preserve: false,
+                reason: "unknown",
+            }
+        );
+    }
+
+    #[test]
+    fn foreign_leadership_claims_nothing() {
+        let local_state = LocalState::Leadership(Leadership::new(
+            id("other"),
+            Rank::from(7),
+            LEASE,
+            Duration::ZERO,
+        ));
+
+        assert_eq!(claim(&id("me"), &local_state, LEASE), Claim::Unknown);
+        assert_eq!(claim(&id("other"), &local_state, LEASE), leadership(LEASE));
     }
 }
