@@ -251,6 +251,7 @@ impl RustWorkload for LeaderElectionWorkload {
                     self.log_subspace.clone(),
                     self.participant.clone(),
                     self.local_state.clone(),
+                    &self.participant,
                     true,
                     &self.context,
                     self.client_id,
@@ -350,6 +351,7 @@ impl RustWorkload for LeaderElectionWorkload {
                         &db,
                         election.clone(),
                         self.log_subspace.clone(),
+                        self.participant.clone(),
                         leadership,
                         simulated_now(&self.context),
                         self.client_id,
@@ -386,8 +388,14 @@ impl RustWorkload for LeaderElectionWorkload {
                 if let (Some(stale_leadership), Some(stale_rank)) =
                     (self.stale_leadership.clone(), self.stale_rank)
                 {
-                    self.exercise_stale_tokens(&db, &register, stale_leadership, stale_rank)
-                        .await;
+                    self.exercise_stale_tokens(
+                        &db,
+                        &register,
+                        self.participant.clone(),
+                        stale_leadership,
+                        stale_rank,
+                    )
+                    .await;
                 }
             }
 
@@ -766,6 +774,7 @@ impl LeaderElectionWorkload {
             self.log_subspace.clone(),
             self.participant.clone(),
             self.local_state.clone(),
+            &self.participant,
             true,
             &self.context,
             self.client_id,
@@ -818,6 +827,7 @@ impl LeaderElectionWorkload {
                 self.log_subspace.clone(),
                 self.participant.clone(),
                 self.local_state.clone(),
+                &self.participant,
                 true,
                 &self.context,
                 self.client_id,
@@ -909,8 +919,9 @@ impl LeaderElectionWorkload {
             foreign_election,
             register.clone(),
             self.log_subspace.clone(),
-            foreign,
+            foreign.clone(),
             LocalState::unknown(),
+            &foreign,
             false,
             &self.context,
             self.client_id,
@@ -954,8 +965,14 @@ impl LeaderElectionWorkload {
         delay_until(&self.context, exact).await;
         let takeover = self.poll_once(db, register, follower_duration, None).await;
         if takeover.is_some_and(|leadership| leadership.rank() > predecessor.rank()) {
-            self.exercise_stale_tokens(db, register, predecessor.clone(), predecessor.rank())
-                .await;
+            self.exercise_stale_tokens(
+                db,
+                register,
+                foreign,
+                predecessor.clone(),
+                predecessor.rank(),
+            )
+            .await;
         }
     }
 }
@@ -1059,6 +1076,7 @@ impl LeaderElectionWorkload {
             self.log_subspace.clone(),
             self.participant.clone(),
             self.local_state.clone(),
+            &self.participant,
             true,
             &self.context,
             self.client_id,
@@ -1101,6 +1119,7 @@ impl LeaderElectionWorkload {
         &mut self,
         db: &SimDatabase,
         register: &RankedRegister,
+        stale_owner: ParticipantId,
         stale_leadership: Leadership,
         stale_rank: Rank,
     ) {
@@ -1114,6 +1133,7 @@ impl LeaderElectionWorkload {
             self.log_subspace.clone(),
             self.participant.clone(),
             LocalState::Leadership(stale_leadership.clone()),
+            &stale_owner,
             false,
             &self.context,
             self.client_id,
@@ -1146,6 +1166,7 @@ impl LeaderElectionWorkload {
             db,
             election.clone(),
             self.log_subspace.clone(),
+            stale_owner,
             stale_leadership,
             simulated_now(&self.context),
             self.client_id,
@@ -1206,8 +1227,14 @@ impl LeaderElectionWorkload {
                     .await
                 {
                     if first.rank() < renewed.rank() {
-                        self.exercise_stale_tokens(&db, &register, first.clone(), first.rank())
-                            .await;
+                        self.exercise_stale_tokens(
+                            &db,
+                            &register,
+                            self.participant.clone(),
+                            first.clone(),
+                            first.rank(),
+                        )
+                        .await;
                     }
                     let resignation_election =
                         LeaderElection::new(self.election_subspace.clone(), renewal_duration)
@@ -1217,6 +1244,7 @@ impl LeaderElectionWorkload {
                         &db,
                         resignation_election,
                         self.log_subspace.clone(),
+                        self.participant.clone(),
                         renewed,
                         simulated_now(&self.context),
                         self.client_id,
@@ -1345,6 +1373,7 @@ impl LeaderElectionWorkload {
             .lease_duration()
             .saturating_add(Duration::from_secs(1));
         let leader_incarnation = self.incarnation;
+        let leader_participant = self.participant.clone();
         let Some(renewed) = self.poll_once(db, register, renewal_duration, None).await else {
             return;
         };
@@ -1360,6 +1389,7 @@ impl LeaderElectionWorkload {
             db,
             resignation_election,
             self.log_subspace.clone(),
+            leader_participant,
             renewed,
             simulated_now(&self.context),
             self.client_id,
@@ -1512,6 +1542,7 @@ async fn run_poll(
     log_subspace: Subspace,
     participant: ParticipantId,
     local_state: LocalState,
+    token_owner: &ParticipantId,
     tracks_local_state: bool,
     context: &WorkloadContext,
     client_id: i32,
@@ -1521,23 +1552,26 @@ async fn run_poll(
 ) -> Result<PollRun, FdbBindingError> {
     let payload = protected_payload(participant.as_str(), op_num);
     let configured_lease_duration = election.lease_duration();
-    let (poll, attempt_started_at, planned_adoption_delay) = db
+    // Measured once before the run: every retry attempt claims the same elapsed time.
+    let attempt_started_at = simulated_now(context);
+    let input = local_state.input(attempt_started_at);
+    let local_token = local_input(&local_state, token_owner);
+    let (poll, planned_adoption_delay) = db
         .run(|txn, _maybe_committed| {
             let election = election.clone();
             let register = register.clone();
             let log_subspace = log_subspace.clone();
             let participant = participant.clone();
             let local_state = local_state.clone();
+            let input = input.clone();
+            let local_token = local_token.clone();
             let payload = payload.clone();
-            let context = context.clone();
             async move {
-                let attempt_started_at = simulated_now(&context);
                 txn.set_option(TransactionOption::AutomaticIdempotency)?;
                 let prior =
                     durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
-                let local_token = local_input(&local_state);
                 let poll = election
-                    .poll(&txn, &participant, &local_state, attempt_started_at)
+                    .poll(&txn, &participant, &input)
                     .await
                     .map_err(FdbBindingError::from)?;
                 let transition = transition_code(poll.outcome().transition());
@@ -1588,7 +1622,7 @@ async fn run_poll(
                     write_committed,
                     if leader { &payload } else { &[] },
                 );
-                Ok::<_, FdbBindingError>((poll, attempt_started_at, planned_adoption_delay))
+                Ok::<_, FdbBindingError>((poll, planned_adoption_delay))
             }
         })
         .await?;
@@ -1602,7 +1636,7 @@ async fn run_poll(
     let adopted_at =
         simulated_now(context).max(attempt_started_at.saturating_add(Duration::from_nanos(1)));
     let transition = poll.outcome().transition();
-    let next_state = poll.into_next_state(adopted_at);
+    let next_state = local_state.adopt(attempt_started_at, adopted_at, poll.next());
     Ok(PollRun {
         leadership: next_state.leadership().cloned(),
         next_state,
@@ -1643,6 +1677,7 @@ async fn run_resign(
     db: &SimDatabase,
     election: LeaderElection,
     log_subspace: Subspace,
+    participant: ParticipantId,
     leadership: Leadership,
     now: Duration,
     client_id: i32,
@@ -1654,20 +1689,27 @@ async fn run_resign(
     db.run(|txn, _maybe_committed| {
         let election = election.clone();
         let log_subspace = log_subspace.clone();
+        let participant = participant.clone();
         let leadership = leadership.clone();
         async move {
             txn.set_option(TransactionOption::AutomaticIdempotency)?;
             let prior =
                 durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
             let result = election
-                .resign(&txn, &leadership)
+                .resign(
+                    &txn,
+                    &participant,
+                    leadership.rank(),
+                    leadership.lease_duration(),
+                )
                 .await
                 .map_err(FdbBindingError::from)?
                 .is_resigned();
             let current =
                 durable_from_public(election.state(&txn).await.map_err(FdbBindingError::from)?);
-            let actor = leadership.participant().as_str().to_owned();
-            let local_token = local_input(&LocalState::Leadership(leadership.clone()));
+            let actor = participant.as_str().to_owned();
+            let local_token =
+                local_input(&LocalState::Leadership(leadership.clone()), &participant);
             write_log(
                 &txn,
                 &log_subspace,
@@ -2593,7 +2635,8 @@ fn durable_from_public(state: ElectionState) -> DurableState {
     }
 }
 
-fn local_input(state: &LocalState) -> LocalInput {
+/// `owner` is the participant a leadership token was issued to.
+fn local_input(state: &LocalState, owner: &ParticipantId) -> LocalInput {
     match state {
         LocalState::Unknown => LocalInput::Unknown,
         LocalState::Observation(observation) => LocalInput::Observation {
@@ -2603,7 +2646,7 @@ fn local_input(state: &LocalState) -> LocalInput {
             observed_at: observation.first_observed_at(),
         },
         LocalState::Leadership(leadership) => LocalInput::Leadership {
-            participant: leadership.participant().as_str().to_owned(),
+            participant: owner.as_str().to_owned(),
             rank: leadership.rank().as_u64(),
             lease_duration: leadership.lease_duration(),
             renewed_at: leadership.last_renewed_at(),

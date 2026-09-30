@@ -22,8 +22,8 @@ mod leader_election_tests {
         options::TransactionOption,
         recipes::{
             leader_election::{
-                LeaderElection, Leadership, LocalState, ParticipantId, PollOutcome, PollResult,
-                PollTransition, ResignOutcome,
+                LeaderElection, Leadership, LocalState, NextState, ObservationTimer, ParticipantId,
+                PollInput, PollOutcome, PollResult, PollTransition, ResignOutcome,
             },
             ranked_register::{RankedRegister, RankedRegisterError, WriteResult},
         },
@@ -117,31 +117,47 @@ mod leader_election_tests {
     ) -> Result<CompletedPoll, FdbBindingError> {
         let election = election.clone();
         let participant = participant.clone();
-        let local_state = local_state.clone();
-        let time = TestTime::new(attempt_started_at);
+        let input = local_state.input(attempt_started_at);
         db.run(|txn, _| {
             let election = election.clone();
             let participant = participant.clone();
-            let local_state = local_state.clone();
-            let time = time.clone();
+            let input = input.clone();
             async move {
                 txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                let attempt_started_at = time.monotonic();
+                Ok::<_, FdbBindingError>(election.poll(&txn, &participant, &input).await?)
+            }
+        })
+        .await
+        .map(|result| CompletedPoll {
+            next_state: local_state
+                .clone()
+                .adopt(attempt_started_at, adopted_at, result.next()),
+            result,
+        })
+    }
+
+    async fn resign(
+        db: &Database,
+        election: &LeaderElection,
+        participant: &ParticipantId,
+        token: &Leadership,
+    ) -> Result<ResignOutcome, FdbBindingError> {
+        let election = election.clone();
+        let participant = participant.clone();
+        let (rank, lease_duration) = (token.rank(), token.lease_duration());
+        db.run(|txn, _| {
+            let election = election.clone();
+            let participant = participant.clone();
+            async move {
+                txn.set_option(TransactionOption::AutomaticIdempotency)?;
                 Ok::<_, FdbBindingError>(
                     election
-                        .poll(&txn, &participant, &local_state, attempt_started_at)
+                        .resign(&txn, &participant, rank, lease_duration)
                         .await?,
                 )
             }
         })
         .await
-        .map(|result| {
-            time.set(adopted_at);
-            CompletedPoll {
-                next_state: result.clone().into_next_state(time.monotonic()),
-                result,
-            }
-        })
     }
 
     async fn state(
@@ -173,22 +189,17 @@ mod leader_election_tests {
         let election = election.clone();
         let register = register.clone();
         let participant = participant.clone();
-        let local_state = local_state.clone();
+        let input = local_state.input(attempt_started_at);
         let value = value.to_vec();
-        let time = TestTime::new(attempt_started_at);
         db.run(|txn, _| {
             let election = election.clone();
             let register = register.clone();
             let participant = participant.clone();
-            let local_state = local_state.clone();
+            let input = input.clone();
             let value = value.clone();
-            let time = time.clone();
             async move {
                 txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                let attempt_started_at = time.monotonic();
-                let result = election
-                    .poll(&txn, &participant, &local_state, attempt_started_at)
-                    .await?;
+                let result = election.poll(&txn, &participant, &input).await?;
                 let write = if let PollOutcome::Leader { rank, .. } = result.outcome() {
                     register.read(&txn, *rank).await.map_err(register_error)?;
                     Some(
@@ -205,10 +216,13 @@ mod leader_election_tests {
         })
         .await
         .map(|(result, write)| {
-            time.set(adopted_at);
             (
                 CompletedPoll {
-                    next_state: result.clone().into_next_state(time.monotonic()),
+                    next_state: local_state.clone().adopt(
+                        attempt_started_at,
+                        adopted_at,
+                        result.next(),
+                    ),
                     result,
                 },
                 write,
@@ -723,18 +737,8 @@ mod leader_election_tests {
         assert_eq!(durable.owner(), Some(&alice));
         assert_eq!(durable.rank().as_u64(), 2);
 
-        let election_for_resign = election.clone();
         let renewed_token = leadership(&renewed.next_state);
-        let resigned = db
-            .run(|txn, _| {
-                let election = election_for_resign.clone();
-                let token = renewed_token.clone();
-                async move {
-                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                    Ok::<_, FdbBindingError>(election.resign(&txn, &token).await?)
-                }
-            })
-            .await?;
+        let resigned = resign(&db, &election, &alice, &renewed_token).await?;
         assert_eq!(resigned, ResignOutcome::Resigned);
 
         let reacquired_from_stale = poll(
@@ -777,18 +781,7 @@ mod leader_election_tests {
         .await?;
         let alice_token = leadership(&acquired.next_state);
 
-        let election = alice_election.clone();
-        let token = alice_token.clone();
-        let resigned = db
-            .run(|txn, _| {
-                let election = election.clone();
-                let token = token.clone();
-                async move {
-                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                    Ok::<_, FdbBindingError>(election.resign(&txn, &token).await?)
-                }
-            })
-            .await?;
+        let resigned = resign(&db, &alice_election, &alice, &alice_token).await?;
         assert_eq!(resigned, ResignOutcome::Resigned);
         let released = state(&db, &alice_election).await?;
         assert_eq!(released.owner(), None);
@@ -804,18 +797,7 @@ mod leader_election_tests {
             Duration::from_secs(1),
         )
         .await?;
-        let stale_election = alice_election.clone();
-        let stale_token = alice_token.clone();
-        let stale = db
-            .run(|txn, _| {
-                let election = stale_election.clone();
-                let token = stale_token.clone();
-                async move {
-                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                    Ok::<_, FdbBindingError>(election.resign(&txn, &token).await?)
-                }
-            })
-            .await?;
+        let stale = resign(&db, &alice_election, &alice, &alice_token).await?;
         assert_eq!(stale, ResignOutcome::Rejected);
         let durable = state(&db, &bob_election).await?;
         assert_eq!(durable.owner(), Some(&bob));
@@ -855,7 +837,9 @@ mod leader_election_tests {
         let attempts = Arc::new(AtomicUsize::new(0));
         let resignation_db = db.clone();
         let resignation_election = election.clone();
-        let resignation_token = alice_token.clone();
+        let resignation_participant = alice.clone();
+        let resignation_rank = alice_token.rank();
+        let resignation_lease_duration = alice_token.lease_duration();
         let resignation_staged = staged.clone();
         let resignation_release = release.clone();
         let resignation_attempts = attempts.clone();
@@ -863,13 +847,20 @@ mod leader_election_tests {
             resignation_db
                 .run(|txn, _| {
                     let election = resignation_election.clone();
-                    let token = resignation_token.clone();
+                    let participant = resignation_participant.clone();
                     let staged = resignation_staged.clone();
                     let release = resignation_release.clone();
                     let first_attempt = resignation_attempts.fetch_add(1, Ordering::SeqCst) == 0;
                     async move {
                         txn.set_option(TransactionOption::AutomaticIdempotency)?;
-                        let outcome = election.resign(&txn, &token).await?;
+                        let outcome = election
+                            .resign(
+                                &txn,
+                                &participant,
+                                resignation_rank,
+                                resignation_lease_duration,
+                            )
+                            .await?;
                         if first_attempt {
                             staged.wait().await;
                             release.wait().await;
@@ -934,7 +925,7 @@ mod leader_election_tests {
                     async move {
                         txn.set_option(TransactionOption::AutomaticIdempotency)?;
                         let result = election
-                            .poll(&txn, &participant, &LocalState::unknown(), Duration::ZERO)
+                            .poll(&txn, &participant, &PollInput::Unknown)
                             .await?;
                         if first_attempt {
                             staged.wait().await;
@@ -960,7 +951,7 @@ mod leader_election_tests {
                     async move {
                         txn.set_option(TransactionOption::AutomaticIdempotency)?;
                         let result = election
-                            .poll(&txn, &participant, &LocalState::unknown(), Duration::ZERO)
+                            .poll(&txn, &participant, &PollInput::Unknown)
                             .await?;
                         if first_attempt {
                             staged.wait().await;
@@ -1032,7 +1023,6 @@ mod leader_election_tests {
             let staged = staged.clone();
             let release = release.clone();
             let attempts = attempts.clone();
-            let time = time.clone();
             tokio::spawn(async move {
                 db.run(|txn, _| {
                     let election = election.clone();
@@ -1040,11 +1030,10 @@ mod leader_election_tests {
                     let staged = staged.clone();
                     let release = release.clone();
                     let first_attempt = attempts.fetch_add(1, Ordering::SeqCst) == 0;
-                    let time = time.clone();
                     async move {
                         txn.set_option(TransactionOption::AutomaticIdempotency)?;
                         let result = election
-                            .poll(&txn, &participant, &LocalState::unknown(), time.monotonic())
+                            .poll(&txn, &participant, &PollInput::Unknown)
                             .await?;
                         // A read-only transaction does not conflict-check its election read at
                         // commit. This isolated marker makes the staged attempt a write
@@ -1082,7 +1071,8 @@ mod leader_election_tests {
         assert!(attempts.load(Ordering::SeqCst) >= 2);
         assert_eq!(result.outcome().transition(), PollTransition::Followed);
         assert_eq!(result.outcome().rank().as_u64(), 2);
-        let next_state = result.into_next_state(time.monotonic());
+        let next_state =
+            LocalState::unknown().adopt(Duration::ZERO, time.monotonic(), result.next());
         let observation = next_state
             .observation()
             .expect("the committed retry must produce an observation");
@@ -1259,6 +1249,292 @@ mod leader_election_tests {
             .await?;
         assert_eq!(write_rank, current_rank);
         assert_eq!(value.as_deref(), Some(b"rank-two".as_slice()));
+        Ok(())
+    }
+
+    async fn poll_input(
+        db: &Database,
+        election: &LeaderElection,
+        participant: &ParticipantId,
+        input: &PollInput,
+    ) -> Result<PollResult, FdbBindingError> {
+        let election = election.clone();
+        let participant = participant.clone();
+        let input = input.clone();
+        db.run(|txn, _| {
+            let election = election.clone();
+            let participant = participant.clone();
+            let input = input.clone();
+            async move {
+                txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                Ok::<_, FdbBindingError>(election.poll(&txn, &participant, &input).await?)
+            }
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn retried_takeover_follows_the_changed_tuple_with_a_reset_timer()
+    -> Result<(), FdbBindingError> {
+        let db = Arc::new(crate::common::database().await?);
+        let election = setup_election(&db, "retry_takeover", Duration::from_secs(5)).await?;
+        let alice = participant("alice-retry-takeover");
+        let bob = participant("bob-retry-takeover");
+        let acquired = poll(
+            &db,
+            &election,
+            &alice,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+        )
+        .await?;
+        let observed = poll(
+            &db,
+            &election,
+            &bob,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+        )
+        .await?;
+        // Expired on the first attempt, so it stages a takeover write that
+        // conflicts with Alice's renewal and retries with the same input.
+        let input = observed.next_state.input(Duration::from_secs(5));
+        let staged = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let bob_poll = {
+            let db = db.clone();
+            let election = election.clone();
+            let participant = bob.clone();
+            let staged = staged.clone();
+            let release = release.clone();
+            let attempts = attempts.clone();
+            tokio::spawn(async move {
+                db.run(|txn, _| {
+                    let election = election.clone();
+                    let participant = participant.clone();
+                    let input = input.clone();
+                    let staged = staged.clone();
+                    let release = release.clone();
+                    let first_attempt = attempts.fetch_add(1, Ordering::SeqCst) == 0;
+                    async move {
+                        txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                        let result = election.poll(&txn, &participant, &input).await?;
+                        if first_attempt {
+                            assert_eq!(result.outcome().transition(), PollTransition::TookOver);
+                            staged.wait().await;
+                            release.wait().await;
+                        }
+                        Ok::<_, FdbBindingError>(result)
+                    }
+                })
+                .await
+            })
+        };
+
+        staged.wait().await;
+        let renewed = poll(
+            &db,
+            &election,
+            &alice,
+            &acquired.next_state,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        )
+        .await?;
+        assert_eq!(renewed.result.outcome().rank().as_u64(), 2);
+        release.wait().await;
+
+        let result = bob_poll.await.expect("bob task must not panic")?;
+        assert!(attempts.load(Ordering::SeqCst) >= 2);
+        assert!(!result.outcome().is_leader());
+        assert_eq!(result.outcome().transition(), PollTransition::Followed);
+        assert_eq!(result.outcome().rank().as_u64(), 2);
+        assert_eq!(
+            result.next(),
+            &NextState::Observation {
+                owner: alice.clone(),
+                rank: renewed.result.outcome().rank(),
+                lease_duration: Duration::from_secs(5),
+                timer: ObservationTimer::Reset,
+            }
+        );
+        let durable = state(&db, &election).await?;
+        assert_eq!(durable.owner(), Some(&alice));
+        assert_eq!(durable.rank().as_u64(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn forged_inputs_cannot_renew_take_over_or_resign() -> Result<(), FdbBindingError> {
+        let db = crate::common::database().await?;
+        let lease = Duration::from_secs(5);
+        let election = setup_election(&db, "forged_inputs", lease).await?;
+        let alice = participant("alice-forged");
+        let bob = participant("bob-forged");
+        let acquired = poll(
+            &db,
+            &election,
+            &alice,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+        )
+        .await?;
+        let renewed = poll(
+            &db,
+            &election,
+            &alice,
+            &acquired.next_state,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        )
+        .await?;
+        let current = renewed.result.outcome().rank();
+        let stale = acquired.result.outcome().rank();
+        let longer = lease + Duration::from_nanos(1);
+        let huge = Duration::from_secs(1_000_000);
+
+        let forged = [
+            // Wrong owner claiming leadership of the current record.
+            (
+                &bob,
+                PollInput::Leadership {
+                    rank: current,
+                    lease_duration: lease,
+                    elapsed: Duration::ZERO,
+                },
+            ),
+            // Superseded rank.
+            (
+                &alice,
+                PollInput::Leadership {
+                    rank: stale,
+                    lease_duration: lease,
+                    elapsed: Duration::ZERO,
+                },
+            ),
+            // Wrong duration.
+            (
+                &alice,
+                PollInput::Leadership {
+                    rank: current,
+                    lease_duration: longer,
+                    elapsed: Duration::ZERO,
+                },
+            ),
+            // Changed tuple with a huge elapsed time.
+            (
+                &bob,
+                PollInput::Observation {
+                    owner: alice.clone(),
+                    rank: stale,
+                    lease_duration: lease,
+                    elapsed: huge,
+                },
+            ),
+            (
+                &bob,
+                PollInput::Observation {
+                    owner: bob.clone(),
+                    rank: current,
+                    lease_duration: lease,
+                    elapsed: huge,
+                },
+            ),
+            (
+                &bob,
+                PollInput::Observation {
+                    owner: alice.clone(),
+                    rank: current,
+                    lease_duration: longer,
+                    elapsed: huge,
+                },
+            ),
+        ];
+        for (poller, input) in &forged {
+            let result = poll_input(&db, &election, poller, input).await?;
+            assert_eq!(
+                result.outcome().transition(),
+                PollTransition::Followed,
+                "{input:?}"
+            );
+            assert_eq!(
+                result.next(),
+                &NextState::Observation {
+                    owner: alice.clone(),
+                    rank: current,
+                    lease_duration: lease,
+                    timer: ObservationTimer::Reset,
+                },
+                "{input:?}"
+            );
+        }
+
+        let current_token = leadership(&renewed.next_state);
+        assert_eq!(
+            resign(&db, &election, &bob, &current_token).await?,
+            ResignOutcome::Rejected
+        );
+        let election_ref = election.clone();
+        let alice_ref = alice.clone();
+        let wrong_duration = db
+            .run(|txn, _| {
+                let election = election_ref.clone();
+                let alice = alice_ref.clone();
+                async move {
+                    txn.set_option(TransactionOption::AutomaticIdempotency)?;
+                    Ok::<_, FdbBindingError>(election.resign(&txn, &alice, current, longer).await?)
+                }
+            })
+            .await?;
+        assert_eq!(wrong_duration, ResignOutcome::Rejected);
+
+        let durable = state(&db, &election).await?;
+        assert_eq!(durable.owner(), Some(&alice));
+        assert_eq!(durable.rank(), current);
+        assert_eq!(durable.lease_duration(), Some(lease));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn resign_with_a_rank_superseded_by_renewal_is_rejected() -> Result<(), FdbBindingError> {
+        let db = crate::common::database().await?;
+        let election = setup_election(&db, "superseded_resign", Duration::from_secs(5)).await?;
+        let alice = participant("alice-superseded-resign");
+        let acquired = poll(
+            &db,
+            &election,
+            &alice,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+        )
+        .await?;
+        let renewed = poll(
+            &db,
+            &election,
+            &alice,
+            &acquired.next_state,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        )
+        .await?;
+
+        assert_eq!(
+            resign(&db, &election, &alice, &leadership(&acquired.next_state)).await?,
+            ResignOutcome::Rejected
+        );
+        assert_eq!(state(&db, &election).await?.owner(), Some(&alice));
+        assert_eq!(
+            resign(&db, &election, &alice, &leadership(&renewed.next_state)).await?,
+            ResignOutcome::Resigned
+        );
+        let released = state(&db, &election).await?;
+        assert_eq!(released.owner(), None);
+        assert_eq!(released.rank().as_u64(), 2);
         Ok(())
     }
 }

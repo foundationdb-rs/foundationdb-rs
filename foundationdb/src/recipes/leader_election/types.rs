@@ -86,13 +86,183 @@ mod tests {
             result => panic!("expected an oversized participant ID error, got {result:?}"),
         }
     }
+
+    const LEASE: Duration = Duration::from_secs(10);
+
+    fn secs(value: u64) -> Duration {
+        Duration::from_secs(value)
+    }
+
+    fn observed(owner: &str, rank: u64, lease_duration: Duration, at: Duration) -> LocalState {
+        LocalState::Observation(Observation::new(
+            ParticipantId::new(owner).unwrap(),
+            Rank::from(rank),
+            lease_duration,
+            at,
+        ))
+    }
+
+    fn next_observation(owner: &str, rank: u64, timer: ObservationTimer) -> NextState {
+        NextState::Observation {
+            owner: ParticipantId::new(owner).unwrap(),
+            rank: Rank::from(rank),
+            lease_duration: LEASE,
+            timer,
+        }
+    }
+
+    #[test]
+    fn input_measures_elapsed_from_the_anchor_and_saturates() {
+        let leader = LocalState::Leadership(Leadership::new(Rank::from(3), LEASE, secs(5)));
+        assert_eq!(LocalState::unknown().input(secs(9)), PollInput::Unknown);
+        assert_eq!(
+            leader.input(secs(9)),
+            PollInput::Leadership {
+                rank: Rank::from(3),
+                lease_duration: LEASE,
+                elapsed: secs(4),
+            }
+        );
+        assert_eq!(
+            observed("a", 3, LEASE, secs(5)).input(secs(2)),
+            PollInput::Observation {
+                owner: ParticipantId::new("a").unwrap(),
+                rank: Rank::from(3),
+                lease_duration: LEASE,
+                elapsed: Duration::ZERO,
+            }
+        );
+    }
+
+    #[test]
+    fn adopt_anchors_leadership_at_attempt_start() {
+        let next = NextState::Leadership {
+            rank: Rank::from(4),
+            lease_duration: LEASE,
+        };
+        for local in [LocalState::unknown(), observed("a", 3, LEASE, secs(1))] {
+            let adopted = local.adopt(secs(5), secs(9), &next);
+            let leadership = adopted.leadership().unwrap();
+            assert_eq!(leadership.rank(), Rank::from(4));
+            assert_eq!(leadership.lease_duration(), LEASE);
+            assert_eq!(leadership.last_renewed_at(), secs(5));
+        }
+    }
+
+    #[test]
+    fn adopt_anchors_a_reset_observation_after_success() {
+        let adopted = observed("a", 3, LEASE, secs(1)).adopt(
+            secs(5),
+            secs(9),
+            &next_observation("a", 3, ObservationTimer::Reset),
+        );
+        assert_eq!(adopted, observed("a", 3, LEASE, secs(9)));
+    }
+
+    #[test]
+    fn adopt_preserve_keeps_the_matching_anchor() {
+        let adopted = observed("a", 3, LEASE, secs(1)).adopt(
+            secs(5),
+            secs(9),
+            &next_observation("a", 3, ObservationTimer::Preserve),
+        );
+        assert_eq!(adopted, observed("a", 3, LEASE, secs(1)));
+    }
+
+    #[test]
+    fn adopt_preserve_falls_back_to_reset_when_self_does_not_match() {
+        let next = next_observation("a", 3, ObservationTimer::Preserve);
+        for local in [
+            LocalState::unknown(),
+            LocalState::Leadership(Leadership::new(Rank::from(3), LEASE, secs(1))),
+            observed("b", 3, LEASE, secs(1)),
+            observed("a", 2, LEASE, secs(1)),
+            observed("a", 3, LEASE + Duration::from_nanos(1), secs(1)),
+        ] {
+            assert_eq!(
+                local.adopt(secs(5), secs(9), &next),
+                observed("a", 3, LEASE, secs(9))
+            );
+        }
+    }
 }
 
-/// Caller-owned state carried between successful outer transactions.
+/// What the polling caller claims about the durable state, with the time
+/// elapsed since its anchor measured on the caller's own monotonic clock.
 ///
-/// No variant is persisted or transferable to another process incarnation. Its
-/// timing values belong to the caller's monotonic clock. Replace it only with
-/// [`PollResult::into_next_state`] after the enclosing
+/// The recipe holds no time: it only compares the claimed tuple with durable
+/// state and `elapsed` with the claimed `lease_duration`. Local callers build
+/// it with [`LocalState::input`]. A transport service relaying a remote caller
+/// builds it from the request and must authenticate that caller; the tuple
+/// check only protects against stale callers, and the received `elapsed` is
+/// trusted as is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PollInput {
+    /// The caller has not adopted any poll result. It follows any durable owner.
+    Unknown,
+    /// An exact durable owner record the caller observed and is not authorized to renew.
+    ///
+    /// Only an exact match of `owner`, `rank`, and `lease_duration` with
+    /// durable state, with `elapsed` at least `lease_duration`, permits a
+    /// takeover (or a reacquisition when `owner` is the polling participant).
+    Observation {
+        owner: ParticipantId,
+        rank: Rank,
+        lease_duration: Duration,
+        elapsed: Duration,
+    },
+    /// The durable owner record the polling participant claims to hold.
+    ///
+    /// The owner is the participant passed to
+    /// [`super::LeaderElection::poll`]. It renews only on an exact durable
+    /// match with `elapsed` strictly below `lease_duration`.
+    Leadership {
+        rank: Rank,
+        lease_duration: Duration,
+        elapsed: Duration,
+    },
+}
+
+/// Whether a follower's observation timer restarts or keeps running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObservationTimer {
+    /// The observed record is new or changed: anchor a fresh timer once the
+    /// enclosing transaction is known to have committed.
+    Reset,
+    /// The observed record is exactly the one claimed by the input: keep the
+    /// existing anchor.
+    Preserve,
+}
+
+/// The clock-free state a caller carries to its next poll.
+///
+/// It holds no time. The caller anchors it on its own monotonic clock, see
+/// [`LocalState::adopt`] for the anchoring rules.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NextState {
+    /// The polling participant staged itself as owner of this exact record.
+    ///
+    /// `lease_duration` is the polling handle's configured duration, which is
+    /// the one persisted with `rank`.
+    Leadership {
+        rank: Rank,
+        lease_duration: Duration,
+    },
+    /// The exact durable owner record observed by this poll.
+    Observation {
+        owner: ParticipantId,
+        rank: Rank,
+        lease_duration: Duration,
+        timer: ObservationTimer,
+    },
+}
+
+/// Optional caller-owned helper holding the local anchors between polls.
+///
+/// No variant is persisted or transferable to another process incarnation.
+/// Its anchors are readings of the caller's monotonic clock. Build each
+/// poll's [`PollInput`] with [`Self::input`], then replace it with
+/// [`Self::adopt`] only after the enclosing
 /// [`Database::run`](crate::Database::run) succeeds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocalState {
@@ -110,58 +280,86 @@ pub enum LocalState {
     Leadership(Leadership),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum PendingNextState {
-    PreservedObservation(Observation),
-    NewObservation {
-        owner: ParticipantId,
-        rank: Rank,
-        lease_duration: Duration,
-    },
-    Leadership(Leadership),
-}
-
-impl PendingNextState {
-    pub(super) fn preserve_observation(observation: Observation) -> Self {
-        Self::PreservedObservation(observation)
-    }
-
-    pub(super) fn new_observation(
-        owner: ParticipantId,
-        rank: Rank,
-        lease_duration: Duration,
-    ) -> Self {
-        Self::NewObservation {
-            owner,
-            rank,
-            lease_duration,
-        }
-    }
-
-    pub(super) fn leadership(leadership: Leadership) -> Self {
-        Self::Leadership(leadership)
-    }
-
-    fn into_local_state(self, adopted_at: Duration) -> LocalState {
-        // A new observation starts its timer only after the outer transaction
-        // commits; a preserved observation retains the timer already adopted.
-        match self {
-            Self::PreservedObservation(observation) => LocalState::Observation(observation),
-            Self::NewObservation {
-                owner,
-                rank,
-                lease_duration,
-            } => LocalState::Observation(Observation::new(owner, rank, lease_duration, adopted_at)),
-            Self::Leadership(leadership) => LocalState::Leadership(leadership),
-        }
-    }
-}
-
 impl LocalState {
     /// Returns the initial state for a caller that has not adopted a poll result.
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug"))]
     pub fn unknown() -> Self {
         Self::Unknown
+    }
+
+    /// Returns the poll input claiming this state, with elapsed time measured to `now`.
+    ///
+    /// `now` is a reading of the caller's monotonic clock taken before the
+    /// enclosing [`Database::run`](crate::Database::run). Keep the same input
+    /// for every retry attempt of that run. Elapsed time saturates at zero if
+    /// `now` precedes the anchor.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn input(&self, now: Duration) -> PollInput {
+        match self {
+            Self::Unknown => PollInput::Unknown,
+            Self::Observation(observation) => PollInput::Observation {
+                owner: observation.owner.clone(),
+                rank: observation.rank,
+                lease_duration: observation.lease_duration,
+                elapsed: now.saturating_sub(observation.first_observed_at),
+            },
+            Self::Leadership(leadership) => PollInput::Leadership {
+                rank: leadership.rank,
+                lease_duration: leadership.lease_duration,
+                elapsed: now.saturating_sub(leadership.last_renewed_at),
+            },
+        }
+    }
+
+    /// Anchors a committed poll's [`NextState`] and returns the state for the next poll.
+    ///
+    /// Call it only after the enclosing [`Database::run`](crate::Database::run)
+    /// succeeds. `attempt_started_at` is the reading passed to [`Self::input`]
+    /// for that run and `adopted_at` a fresh reading taken after it succeeded.
+    ///
+    /// - Leadership is anchored at `attempt_started_at`, before the durable
+    ///   read, so read, retry, and commit delay only shorten local validity.
+    /// - A reset observation is anchored at `adopted_at`, so its timer starts
+    ///   only once its durable read is known to have committed.
+    /// - A preserved observation keeps this state's anchor when this state is
+    ///   the same observation, and otherwise falls back to a reset.
+    #[cfg_attr(
+        feature = "trace",
+        tracing::instrument(level = "debug", skip(self, next))
+    )]
+    pub fn adopt(
+        self,
+        attempt_started_at: Duration,
+        adopted_at: Duration,
+        next: &NextState,
+    ) -> Self {
+        match next {
+            NextState::Leadership {
+                rank,
+                lease_duration,
+            } => Self::Leadership(Leadership::new(*rank, *lease_duration, attempt_started_at)),
+            NextState::Observation {
+                owner,
+                rank,
+                lease_duration,
+                timer,
+            } => match self {
+                Self::Observation(observation)
+                    if *timer == ObservationTimer::Preserve
+                        && observation.owner == *owner
+                        && observation.rank == *rank
+                        && observation.lease_duration == *lease_duration =>
+                {
+                    Self::Observation(observation)
+                }
+                _ => Self::Observation(Observation::new(
+                    owner.clone(),
+                    *rank,
+                    *lease_duration,
+                    adopted_at,
+                )),
+            },
+        }
     }
 
     /// Returns the adopted observation, if this caller is following an owner.
@@ -254,40 +452,25 @@ impl Observation {
 
 /// The exact durable owner record a caller may attempt to renew before local expiry.
 ///
-/// It is caller-local evidence, not a lease granted by a durable clock: a poll
-/// must still verify the participant, rank, and persisted duration against
-/// durable state. A later successful leader poll, including renewal by this
-/// same participant, supersedes this token's fencing rank.
+/// It is caller-local evidence held by [`LocalState`] for the participant that
+/// polled, not a lease granted by a durable clock: a poll must still verify
+/// the participant, rank, and persisted duration against durable state. A
+/// later successful leader poll, including renewal by this same participant,
+/// supersedes this token's fencing rank.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Leadership {
-    participant: ParticipantId,
     rank: Rank,
     lease_duration: Duration,
     last_renewed_at: Duration,
 }
 
 impl Leadership {
-    pub(crate) fn new(
-        participant: ParticipantId,
-        rank: Rank,
-        lease_duration: Duration,
-        last_renewed_at: Duration,
-    ) -> Self {
+    pub(crate) fn new(rank: Rank, lease_duration: Duration, last_renewed_at: Duration) -> Self {
         Self {
-            participant,
             rank,
             lease_duration,
             last_renewed_at,
         }
-    }
-
-    /// Returns the process incarnation this token identifies as owner.
-    ///
-    /// A renewal attempt additionally requires this to match the participant
-    /// passed to [`super::LeaderElection::poll`].
-    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
-    pub fn participant(&self) -> &ParticipantId {
-        &self.participant
     }
 
     /// Returns this token's durable revision as a fencing rank.
@@ -308,7 +491,7 @@ impl Leadership {
         self.lease_duration
     }
 
-    /// Returns the caller-clock time supplied at the successful poll attempt's start.
+    /// Returns the caller-clock reading taken before the successful poll's run.
     ///
     /// A renewal is locally eligible only while elapsed time from this value is
     /// less than [`Self::lease_duration`]. It must be compared only with the
@@ -335,8 +518,8 @@ pub enum PollOutcome {
     },
     /// A durable owner was observed, but no leadership transition was staged.
     ///
-    /// The fields form the exact record used to produce the next
-    /// [`LocalState::Observation`].
+    /// The fields form the exact record carried by
+    /// [`NextState::Observation`].
     Follower {
         owner: ParticipantId,
         rank: Rank,
@@ -421,7 +604,7 @@ impl PollOutcome {
     /// Returns the observed persisted lease duration when following.
     ///
     /// This duration is relevant to a later poll only with the matching
-    /// [`Observation`] adopted by [`PollResult::into_next_state`].
+    /// observation carried by [`PollResult::next`].
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn lease_duration(&self) -> Option<Duration> {
         match self {
@@ -436,20 +619,17 @@ impl PollOutcome {
 /// Keep this value inside the transaction callback until the enclosing
 /// [`Database::run`](crate::Database::run) succeeds. Before then, the
 /// transaction can retry, be cancelled, or fail to commit. On success, inspect
-/// [`Self::outcome`] and consume it with [`Self::into_next_state`] to carry
-/// caller-local validity into the next attempt.
+/// [`Self::outcome`] and carry [`Self::next`] into the next poll, for example
+/// with [`LocalState::adopt`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PollResult {
     outcome: PollOutcome,
-    pending_next_state: PendingNextState,
+    next: NextState,
 }
 
 impl PollResult {
-    pub(super) fn new(outcome: PollOutcome, pending_next_state: PendingNextState) -> Self {
-        Self {
-            outcome,
-            pending_next_state,
-        }
+    pub(super) fn new(outcome: PollOutcome, next: NextState) -> Self {
+        Self { outcome, next }
     }
 
     /// Returns the role and fencing rank prepared by this transaction attempt.
@@ -460,22 +640,21 @@ impl PollResult {
         &self.outcome
     }
 
-    /// Consumes this result and returns the caller-local state for the next attempt.
+    /// Returns the clock-free state to carry into the next poll.
     ///
-    /// `adopted_at` must be read from the caller's monotonic clock after the
-    /// enclosing [`Database::run`](crate::Database::run) succeeds. It timestamps only a new or reset
-    /// observation; an unchanged observation and leadership token retain their
-    /// original attempt-local timestamps.
+    /// Adopt it only after the enclosing [`Database::run`](crate::Database::run)
+    /// succeeds, anchoring it on the caller's clock as described by
+    /// [`LocalState::adopt`].
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
-    pub fn into_next_state(self, adopted_at: Duration) -> LocalState {
-        self.pending_next_state.into_local_state(adopted_at)
+    pub fn next(&self) -> &NextState {
+        &self.next
     }
 }
 
 /// A read-only snapshot of durable state for diagnostics and observability.
 ///
 /// It makes no liveness, expiry, or leadership-validity claim. Use
-/// [`super::LeaderElection::poll`] with caller-owned [`LocalState`] for
+/// [`super::LeaderElection::poll`] with a caller-owned [`PollInput`] for
 /// protocol decisions instead of deriving authority from this snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElectionState {
@@ -529,7 +708,7 @@ impl ElectionState {
 /// the enclosing [`Database::run`](crate::Database::run) succeeds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResignOutcome {
-    /// The matching [`Leadership`] token staged a release in the current transaction.
+    /// The exact claimed owner record staged a release in the current transaction.
     Resigned,
     /// The durable owner, revision, or persisted duration no longer matched.
     ///

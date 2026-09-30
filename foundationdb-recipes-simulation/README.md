@@ -49,10 +49,12 @@ swarm defaults. Setup traces and metrics report the selected profile and the
 effective operation count and lease base. The `swarm_profile` metric maps
 standard, contention, and suspicion to 0, 1, and 2 respectively.
 
-Each `db.run` attempt obtains `attempt_started_at` from simulated monotonic time
-as its first action, then sets `AutomaticIdempotency` and calls `poll`. After a
-successful outer run, follower observations are adopted with a fresh simulated
-time. Failed poll and resign paths discard local state and rotate to a fresh
+Each poll reads `attempt_started_at` from simulated monotonic time once, before
+`db.run`, and builds its `PollInput` with `LocalState::input`, so every retry
+attempt claims the same elapsed time. Each attempt sets `AutomaticIdempotency`
+and calls `poll`. After a successful outer run, `LocalState::adopt` anchors
+leadership at `attempt_started_at` and a new or reset follower observation at a
+fresh simulated time. Failed poll and resign paths discard local state and rotate to a fresh
 caller incarnation. Time is never persisted or used to order commits.
 
 Clients autonomously select a weighted mix of normal polls and adversarial
@@ -62,7 +64,7 @@ swarm bitset enables optional operation families. The delayed-adoption family
 selects sub-lease, exact-lease, and over-lease simulated delays from the
 workload RNG before `db.run`. It delays only a new or reset follower
 observation, using its persisted lease duration, after a successful run and
-before calling `PollResult::into_next_state`. Every leader poll co-commits
+before calling `LocalState::adopt`. Every leader poll co-commits
 `RankedRegister::read(rank)`, protected `write(rank, payload)`, and its
 operation log entry. Leadership alone is not authority.
 
