@@ -711,9 +711,9 @@ mod tests {
             lease_duration: Duration,
             attempt_started_at: Duration,
             transition: PollTransition,
-        ) -> (PollOutcome, PendingNextState) {
-            let rank = Rank::from(next_revision(state).unwrap());
-            (
+        ) -> Result<(PollOutcome, PendingNextState)> {
+            let rank = Rank::from(next_revision(state)?);
+            Ok((
                 PollOutcome::Leader { rank, transition },
                 PendingNextState::Leadership(Leadership {
                     participant: participant.clone(),
@@ -721,13 +721,13 @@ mod tests {
                     lease_duration,
                     last_renewed_at: attempt_started_at,
                 }),
-            )
+            ))
         }
 
         fn follower_result(
             state: &DurableState,
             previous: Option<&Observation>,
-        ) -> (PollOutcome, PendingNextState) {
+        ) -> Result<(PollOutcome, PendingNextState)> {
             let owner = state.owner.clone().unwrap();
             let lease_duration = state.lease_duration.unwrap();
             let rank = Rank::from(state.revision);
@@ -741,14 +741,14 @@ mod tests {
                     lease_duration,
                 },
             };
-            (
+            Ok((
                 PollOutcome::Follower {
                     owner,
                     rank,
                     lease_duration,
                 },
                 next_observation,
-            )
+            ))
         }
 
         pub(super) fn step(
@@ -758,7 +758,7 @@ mod tests {
             local_state: &LocalState,
             attempt_started_at: Duration,
             adopted_at: Duration,
-        ) -> (PollOutcome, LocalState) {
+        ) -> Result<(PollOutcome, LocalState)> {
             let (outcome, pending) = match local_state {
                 LocalState::Leadership(leadership)
                     if valid_leadership(state, participant, leadership, attempt_started_at) =>
@@ -803,8 +803,8 @@ mod tests {
                         PollTransition::Acquired,
                     )
                 }
-            };
-            (outcome, pending.into_local_state(adopted_at))
+            }?;
+            Ok((outcome, pending.into_local_state(adopted_at)))
         }
     }
 
@@ -862,7 +862,7 @@ mod tests {
         let anchors: Vec<Duration> = (0..=5).map(secs).collect();
 
         let mut states = Vec::new();
-        for revision in 0..=3_u64 {
+        for revision in (0..=3).chain([u64::MAX - 1, u64::MAX]) {
             for owner in [None, Some(id("a")), Some(id("b"))] {
                 for lease_duration in durations {
                     let state = match (revision, &owner) {
@@ -882,9 +882,10 @@ mod tests {
         }
 
         let mut cases = 0_usize;
+        let mut exhausted = 0_usize;
         for participant in &participants {
             let mut locals = vec![legacy::LocalState::Unknown];
-            for rank in (0..=3).map(Rank::from) {
+            for rank in (0..=3).chain([u64::MAX - 1, u64::MAX]).map(Rank::from) {
                 for lease_duration in durations {
                     for &anchor in &anchors {
                         for owner in &participants {
@@ -912,7 +913,7 @@ mod tests {
                     for handle_lease in durations {
                         for now in (0..=6).map(secs) {
                             let adopted_at = now + secs(1);
-                            let (legacy_outcome, legacy_next) = legacy::step(
+                            let legacy = legacy::step(
                                 state,
                                 handle_lease,
                                 participant,
@@ -920,15 +921,28 @@ mod tests {
                                 now,
                                 adopted_at,
                             );
-                            let (result, written) =
-                                step(state, participant, handle_lease, &new_local.input(now))
-                                    .unwrap();
-                            let new_next = new_local.clone().adopt(now, adopted_at, result.next());
-
+                            let new = step(state, participant, handle_lease, &new_local.input(now));
                             let context = format!(
                                 "state {state:?}, participant {participant:?}, local {local:?}, \
                                  handle lease {handle_lease:?}, now {now:?}"
                             );
+                            let ((legacy_outcome, legacy_next), (result, written)) =
+                                match (legacy, new) {
+                                    (Ok(legacy), Ok(new)) => (legacy, new),
+                                    (
+                                        Err(LeaderElectionError::RevisionExhausted),
+                                        Err(LeaderElectionError::RevisionExhausted),
+                                    ) => {
+                                        exhausted += 1;
+                                        cases += 1;
+                                        continue;
+                                    }
+                                    (legacy, new) => {
+                                        panic!("{context}: legacy {legacy:?}, new {new:?}")
+                                    }
+                                };
+                            let new_next = new_local.clone().adopt(now, adopted_at, result.next());
+
                             assert_eq!(result.outcome(), &legacy_outcome, "{context}");
                             assert!(same_local(&new_next, &legacy_next), "{context}");
                             let expected_written =
@@ -945,5 +959,6 @@ mod tests {
             }
         }
         assert!(cases > 100_000, "only {cases} cases");
+        assert!(exhausted > 0, "revision exhaustion was not exercised");
     }
 }

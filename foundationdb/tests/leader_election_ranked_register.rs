@@ -1368,12 +1368,13 @@ mod leader_election_tests {
     }
 
     #[tokio::test]
-    async fn forged_inputs_cannot_renew_take_over_or_resign() -> Result<(), FdbBindingError> {
+    async fn stale_or_mismatched_inputs_cannot_renew_take_over_or_resign()
+    -> Result<(), FdbBindingError> {
         let db = crate::common::database().await?;
         let lease = Duration::from_secs(5);
-        let election = setup_election(&db, "forged_inputs", lease).await?;
-        let alice = participant("alice-forged");
-        let bob = participant("bob-forged");
+        let election = setup_election(&db, "mismatched_inputs", lease).await?;
+        let alice = participant("alice-mismatched");
+        let bob = participant("bob-mismatched");
         let acquired = poll(
             &db,
             &election,
@@ -1397,7 +1398,7 @@ mod leader_election_tests {
         let longer = lease + Duration::from_nanos(1);
         let huge = Duration::from_secs(1_000_000);
 
-        let forged = [
+        let mismatched = [
             // Wrong owner claiming leadership of the current record.
             (
                 &bob,
@@ -1454,7 +1455,7 @@ mod leader_election_tests {
                 },
             ),
         ];
-        for (poller, input) in &forged {
+        for (poller, input) in &mismatched {
             let result = poll_input(&db, &election, poller, input).await?;
             assert_eq!(
                 result.outcome().transition(),
@@ -1535,6 +1536,40 @@ mod leader_election_tests {
         let released = state(&db, &election).await?;
         assert_eq!(released.owner(), None);
         assert_eq!(released.rank().as_u64(), 2);
+        Ok(())
+    }
+
+    /// Elapsed time is caller-reported and trusted: the recipe cannot detect an
+    /// inflated elapsed time on the exact current tuple. Honest reporting is a
+    /// protocol precondition, not something the tuple check enforces.
+    #[tokio::test]
+    async fn exact_tuple_with_caller_reported_elapsed_is_trusted() -> Result<(), FdbBindingError> {
+        let db = crate::common::database().await?;
+        let lease = Duration::from_secs(5);
+        let election = setup_election(&db, "trusted_elapsed", lease).await?;
+        let alice = participant("alice-trusted-elapsed");
+        let bob = participant("bob-trusted-elapsed");
+        let acquired = poll(
+            &db,
+            &election,
+            &alice,
+            &LocalState::unknown(),
+            Duration::ZERO,
+            Duration::ZERO,
+        )
+        .await?;
+
+        let input = PollInput::Observation {
+            owner: alice.clone(),
+            rank: acquired.result.outcome().rank(),
+            lease_duration: lease,
+            elapsed: Duration::from_secs(1_000_000),
+        };
+        let result = poll_input(&db, &election, &bob, &input).await?;
+        assert_eq!(result.outcome().transition(), PollTransition::TookOver);
+        let durable = state(&db, &election).await?;
+        assert_eq!(durable.owner(), Some(&bob));
+        assert_eq!(durable.rank().as_u64(), 2);
         Ok(())
     }
 }

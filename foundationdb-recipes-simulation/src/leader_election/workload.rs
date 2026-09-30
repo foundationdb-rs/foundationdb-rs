@@ -50,6 +50,9 @@ const PROBABILISTIC_WITNESS_COUNT: usize = 7;
 // `WorkloadContext::now()` crosses the simulator's f64 boundary. Preserve the replay's exact
 // state eligibility checks while accepting its demonstrated one-nanosecond round-trip loss.
 const SIMULATED_TIME_ROUND_TRIP_TOLERANCE: Duration = Duration::from_nanos(1);
+// Flow fires a timer once `at <= now + INetwork::TIME_EPS` (100ns), so a simulated delay can
+// complete up to that much before `now() + delay`.
+const SIMULATED_TIMER_EPSILON: Duration = Duration::from_nanos(100);
 // The deterministic completion tail must renew before its lease can expire under any simulator
 // time jump. Its one-second renewal reaches `Duration::MAX` while remaining strictly larger.
 const COMPLETION_RENEWAL_BASE_LEASE_DURATION: Duration = Duration::new(u64::MAX - 1, 999_999_999);
@@ -118,6 +121,8 @@ pub struct LeaderElectionWorkload {
     participant: ParticipantId,
     incarnation: u64,
     local_state: LocalState,
+    /// Post-success reading of the run that produced `local_state`.
+    local_post_run_at: Option<Duration>,
     last_leadership: Option<Leadership>,
     stale_leadership: Option<Leadership>,
     stale_rank: Option<Rank>,
@@ -177,6 +182,7 @@ impl SingleRustWorkload for LeaderElectionWorkload {
             participant,
             incarnation: 0,
             local_state: LocalState::unknown(),
+            local_post_run_at: None,
             last_leadership: None,
             stale_leadership: None,
             stale_rank: None,
@@ -252,6 +258,7 @@ impl RustWorkload for LeaderElectionWorkload {
                     self.participant.clone(),
                     self.local_state.clone(),
                     &self.participant,
+                    self.local_post_run_at,
                     true,
                     &self.context,
                     self.client_id,
@@ -268,6 +275,7 @@ impl RustWorkload for LeaderElectionWorkload {
                             self.record_delayed_adoption(delay);
                         }
                         self.local_state = poll.next_state;
+                        self.local_post_run_at = Some(poll.post_run_at);
                         if let Some(leadership) = poll.leadership {
                             if let Some(previous) = self
                                 .last_leadership
@@ -353,6 +361,7 @@ impl RustWorkload for LeaderElectionWorkload {
                         self.log_subspace.clone(),
                         self.participant.clone(),
                         leadership,
+                        self.local_post_run_at,
                         simulated_now(&self.context),
                         self.client_id,
                         self.incarnation,
@@ -363,6 +372,7 @@ impl RustWorkload for LeaderElectionWorkload {
                     {
                         Ok(true) => {
                             self.local_state = LocalState::unknown();
+                            self.local_post_run_at = None;
                             self.force_foreign_takeover(
                                 &db,
                                 &register,
@@ -775,6 +785,7 @@ impl LeaderElectionWorkload {
             self.participant.clone(),
             self.local_state.clone(),
             &self.participant,
+            self.local_post_run_at,
             true,
             &self.context,
             self.client_id,
@@ -786,6 +797,7 @@ impl LeaderElectionWorkload {
         let initial_poll_failed = match initial_race_poll {
             Ok(poll) => {
                 self.local_state = poll.next_state;
+                self.local_post_run_at = Some(poll.post_run_at);
                 false
             }
             Err(error) => {
@@ -828,6 +840,7 @@ impl LeaderElectionWorkload {
                 self.participant.clone(),
                 self.local_state.clone(),
                 &self.participant,
+                self.local_post_run_at,
                 true,
                 &self.context,
                 self.client_id,
@@ -839,6 +852,7 @@ impl LeaderElectionWorkload {
             match race_poll {
                 Ok(poll) => {
                     self.local_state = poll.next_state;
+                    self.local_post_run_at = Some(poll.post_run_at);
                     let stale_write_op = self.next_op_num();
                     match run_stale_write(
                         db,
@@ -922,6 +936,7 @@ impl LeaderElectionWorkload {
             foreign.clone(),
             LocalState::unknown(),
             &foreign,
+            None,
             false,
             &self.context,
             self.client_id,
@@ -942,6 +957,8 @@ impl LeaderElectionWorkload {
         };
 
         self.local_state = LocalState::unknown();
+
+        self.local_post_run_at = None;
         let _ = self
             .poll_once(db, register, follower_duration, adoption_delay)
             .await;
@@ -1054,6 +1071,7 @@ impl LeaderElectionWorkload {
         ))
         .expect("generated incarnation ID is non-empty");
         self.local_state = LocalState::unknown();
+        self.local_post_run_at = None;
         self.last_leadership = None;
         self.stale_leadership = None;
         self.stale_rank = None;
@@ -1077,6 +1095,7 @@ impl LeaderElectionWorkload {
             self.participant.clone(),
             self.local_state.clone(),
             &self.participant,
+            self.local_post_run_at,
             true,
             &self.context,
             self.client_id,
@@ -1091,6 +1110,7 @@ impl LeaderElectionWorkload {
                     self.record_delayed_adoption(delay);
                 }
                 self.local_state = poll.next_state;
+                self.local_post_run_at = Some(poll.post_run_at);
                 if let Some(leadership) = poll.leadership {
                     if let Some(previous) = self
                         .last_leadership
@@ -1134,6 +1154,7 @@ impl LeaderElectionWorkload {
             self.participant.clone(),
             LocalState::Leadership(stale_leadership.clone()),
             &stale_owner,
+            None,
             false,
             &self.context,
             self.client_id,
@@ -1168,6 +1189,7 @@ impl LeaderElectionWorkload {
             self.log_subspace.clone(),
             stale_owner,
             stale_leadership,
+            None,
             simulated_now(&self.context),
             self.client_id,
             self.incarnation,
@@ -1246,6 +1268,7 @@ impl LeaderElectionWorkload {
                         self.log_subspace.clone(),
                         self.participant.clone(),
                         renewed,
+                        self.local_post_run_at,
                         simulated_now(&self.context),
                         self.client_id,
                         self.incarnation,
@@ -1256,6 +1279,7 @@ impl LeaderElectionWorkload {
                     {
                         Ok(true) => {
                             self.local_state = LocalState::unknown();
+                            self.local_post_run_at = None;
                             self.force_foreign_takeover(
                                 &db,
                                 &register,
@@ -1391,6 +1415,7 @@ impl LeaderElectionWorkload {
             self.log_subspace.clone(),
             leader_participant,
             renewed,
+            None,
             simulated_now(&self.context),
             self.client_id,
             leader_incarnation,
@@ -1412,6 +1437,8 @@ impl LeaderElectionWorkload {
 
 struct PollRun {
     next_state: LocalState,
+    /// Reading taken right after the successful run, before any adoption delay.
+    post_run_at: Duration,
     leadership: Option<Leadership>,
     transition: PollTransition,
     adoption_delay: Option<AdoptionDelay>,
@@ -1543,6 +1570,7 @@ async fn run_poll(
     participant: ParticipantId,
     local_state: LocalState,
     token_owner: &ParticipantId,
+    prior_post_run_at: Option<Duration>,
     tracks_local_state: bool,
     context: &WorkloadContext,
     client_id: i32,
@@ -1614,6 +1642,7 @@ async fn run_poll(
                     attempt_started_at,
                     configured_lease_duration,
                     planned_adoption_delay,
+                    prior_post_run_at,
                     transition,
                     leader,
                     requested_write_rank,
@@ -1626,6 +1655,7 @@ async fn run_poll(
             }
         })
         .await?;
+    let post_run_at = simulated_now(context);
     let adoption_delay = match (adoption_delay, planned_adoption_delay) {
         (Some(delay), Some(duration)) => match context.delay(duration).await {
             Ok(()) => Some(delay),
@@ -1640,6 +1670,7 @@ async fn run_poll(
     Ok(PollRun {
         leadership: next_state.leadership().cloned(),
         next_state,
+        post_run_at,
         transition,
         adoption_delay,
     })
@@ -1679,6 +1710,7 @@ async fn run_resign(
     log_subspace: Subspace,
     participant: ParticipantId,
     leadership: Leadership,
+    prior_post_run_at: Option<Duration>,
     now: Duration,
     client_id: i32,
     incarnation: u64,
@@ -1725,6 +1757,7 @@ async fn run_resign(
                 now,
                 configured_lease_duration,
                 None,
+                prior_post_run_at,
                 TRANSITION_NONE,
                 result,
                 0,
@@ -1773,6 +1806,7 @@ async fn run_observer(
                 false,
                 now,
                 configured_lease_duration,
+                None,
                 None,
                 TRANSITION_NONE,
                 true,
@@ -1838,6 +1872,7 @@ async fn run_stale_write(
                 now,
                 configured_lease_duration,
                 None,
+                None,
                 TRANSITION_NONE,
                 write.is_committed(),
                 stale_rank.as_u64(),
@@ -1868,6 +1903,7 @@ fn write_log(
     attempt_started_at: Duration,
     configured_lease_duration: Duration,
     planned_adoption_delay: Option<Duration>,
+    prior_post_run_at: Option<Duration>,
     transition: i64,
     result: bool,
     requested_write_rank: u64,
@@ -1891,7 +1927,10 @@ fn write_log(
         tracks_local_state,
         duration_wire(attempt_started_at),
         duration_wire(configured_lease_duration),
-        optional_duration_wire(planned_adoption_delay),
+        (
+            optional_duration_wire(planned_adoption_delay),
+            optional_duration_wire(prior_post_run_at),
+        ),
         transition,
         result,
         (
@@ -1924,7 +1963,7 @@ fn decode_log_entry(
         tracks_local_state,
         attempt_started_at,
         configured_lease_duration,
-        planned_adoption_delay,
+        (planned_adoption_delay, prior_post_run_at),
         transition,
         result,
         (
@@ -1950,6 +1989,7 @@ fn decode_log_entry(
         attempt_started_at: duration_from_wire(attempt_started_at)?,
         configured_lease_duration: duration_from_wire(configured_lease_duration)?,
         planned_adoption_delay: optional_duration_from_wire(planned_adoption_delay)?,
+        prior_post_run_at: optional_duration_from_wire(prior_post_run_at)?,
         transition,
         result,
         requested_write_rank,
@@ -1964,6 +2004,7 @@ type DurationWire = (u64, u32);
 type OptionalDurationWire = (bool, u64, u32);
 type DurableWire = (u64, bool, String, bool, u64, u32);
 type LocalWire = (i64, bool, String, u64, bool, u64, u32, u64, u32);
+type AdoptionWire = (OptionalDurationWire, OptionalDurationWire);
 type ProtectedWire = (u64, u64, bool, Vec<u8>, bool, Vec<u8>);
 type LogWire = (
     i64,
@@ -1974,7 +2015,7 @@ type LogWire = (
     bool,
     DurationWire,
     DurationWire,
-    OptionalDurationWire,
+    AdoptionWire,
     i64,
     bool,
     ProtectedWire,
@@ -2434,7 +2475,16 @@ fn validate_local_input(
                     *not_before,
                     planned_adoption_delay.unwrap_or_default(),
                 )
-                && *observed_at <= entry.attempt_started_at =>
+                && *observed_at <= entry.attempt_started_at
+                && entry.prior_post_run_at.is_some_and(|post_run_at| {
+                    post_run_at >= *not_before
+                        && post_run_at <= entry.attempt_started_at
+                        && *observed_at >= post_run_at
+                        && *observed_at
+                            >= post_run_at
+                                .saturating_add(planned_adoption_delay.unwrap_or_default())
+                                .saturating_sub(SIMULATED_TIMER_EPSILON)
+                }) =>
             {
                 Ok(planned_adoption_delay.is_some_and(|delay| delay > *lease_duration))
             }

@@ -189,9 +189,14 @@
 //!   this is expected.
 //! - [`NextState::Leadership`](crate::recipes::leader_election::NextState::Leadership)
 //!   carries the relaying handle's lease duration, which is the one persisted.
-//! - The service trusts the received elapsed time and must authenticate the
-//!   participant. The tuple check only protects against stale callers, not
-//!   against a caller impersonating another participant.
+//! - Honest elapsed reporting is a protocol precondition. The exact-tuple
+//!   check only rejects stale or mismatched callers: a caller, even an
+//!   authenticated one, that reports an inflated elapsed time for the exact
+//!   current tuple can take over early. The service must also authenticate
+//!   the participant, since the tuple check does not stop a caller
+//!   impersonating another participant. A service that does not trust its
+//!   callers must enforce timing itself, for example by anchoring on its own
+//!   clock instead of relaying the reported elapsed time.
 //!
 //! ## Caller responsibilities
 //!

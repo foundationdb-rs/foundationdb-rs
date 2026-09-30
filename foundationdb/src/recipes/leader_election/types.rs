@@ -193,9 +193,13 @@ mod tests {
 /// The recipe holds no time: it only compares the claimed tuple with durable
 /// state and `elapsed` with the claimed `lease_duration`. Local callers build
 /// it with [`LocalState::input`]. A transport service relaying a remote caller
-/// builds it from the request and must authenticate that caller; the tuple
-/// check only protects against stale callers, and the received `elapsed` is
-/// trusted as is.
+/// builds it from the request and must authenticate that caller.
+///
+/// Honest `elapsed` reporting is a protocol precondition: the exact-tuple
+/// check only rejects stale or mismatched callers. A caller, even an
+/// authenticated one, that inflates `elapsed` for the exact current tuple can
+/// take over early. A service that does not trust its callers must enforce
+/// timing itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PollInput {
     /// The caller has not adopted any poll result. It follows any durable owner.
@@ -376,9 +380,10 @@ impl LocalState {
 
     /// Returns the adopted local leadership token, if any.
     ///
-    /// The returned token is input to a later [`super::LeaderElection::poll`]
-    /// or [`super::LeaderElection::resign`] call, not proof that the caller
-    /// remains the durable owner.
+    /// It is not proof that the caller remains the durable owner. Poll with
+    /// [`Self::input`]. To resign, pass this caller's own participant with
+    /// [`Leadership::rank`] and [`Leadership::lease_duration`] to
+    /// [`super::LeaderElection::resign`].
     #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
     pub fn leadership(&self) -> Option<&Leadership> {
         match self {
