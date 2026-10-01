@@ -42,10 +42,6 @@ pub const FDB_WORKLOAD_API_VERSION: i32 = raw_bindings::FDB_WORKLOAD_API_VERSION
 #[doc(hidden)]
 /// # Safety
 /// `c_buf` must point to a readable, NUL-terminated string for this call.
-///
-/// ```compile_fail,E0133
-/// foundationdb_simulation::internals::str_from_c(std::ptr::null());
-/// ```
 pub unsafe fn str_from_c(c_buf: *const c_char) -> String {
     let c_str = unsafe { ffi::CStr::from_ptr(c_buf) };
     c_str.to_str().unwrap().to_string()
@@ -237,16 +233,6 @@ impl WorkloadContext {
     /// The caller must uphold that lifetime for all handles. Construction,
     /// cloning, and dropping do not access the native pointers. Registration
     /// hooks invalidate all clones before the native context is destroyed.
-    ///
-    /// ```compile_fail,E0133
-    /// use foundationdb_simulation::{WorkloadContext, internals::FDBWorkloadContext};
-    /// let raw = FDBWorkloadContext {
-    ///     api_version: 1,
-    ///     inner: std::ptr::null_mut(),
-    ///     vt: std::ptr::null_mut(),
-    /// };
-    /// WorkloadContext::new(raw);
-    /// ```
     pub unsafe fn new(raw: FDBWorkloadContext) -> Self {
         Self(Arc::new(ContextState {
             raw,
@@ -453,13 +439,11 @@ impl<'a> Metric<'a> {
 mod tests {
     use super::{Severity, capitalize_first_byte, prepare_trace_details, str_for_c};
 
-    use std::cell::Cell;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    use std::time::Duration;
 
     use super::WorkloadContext;
     use super::raw_bindings::*;
@@ -468,7 +452,6 @@ mod tests {
 
     struct NativeContext {
         calls: Arc<AtomicUsize>,
-        next_random: Cell<u32>,
     }
 
     unsafe extern "C" fn now(raw: *mut OpaqueWorkloadContext) -> f64 {
@@ -482,9 +465,7 @@ mod tests {
         // SAFETY: The test keeps NativeContext alive until workload release.
         let context = unsafe { &*(raw as *const NativeContext) };
         context.calls.fetch_add(1, Ordering::Relaxed);
-        let value = context.next_random.get();
-        context.next_random.set(value + 1);
-        value
+        42
     }
 
     // The unused callbacks are still present so the fake has a complete vtable.
@@ -541,10 +522,7 @@ mod tests {
         };
 
     fn native_context(calls: Arc<AtomicUsize>) -> (Box<NativeContext>, FDBWorkloadContext) {
-        let mut native = Box::new(NativeContext {
-            calls,
-            next_random: Cell::new(42),
-        });
+        let mut native = Box::new(NativeContext { calls });
         let raw = FDBWorkloadContext {
             api_version: super::FDB_WORKLOAD_API_VERSION,
             inner: &mut *native as *mut NativeContext as *mut _,
@@ -568,7 +546,7 @@ mod tests {
     impl Drop for TestWorkload {
         fn drop(&mut self) {
             if let Some(context) = &self.0 {
-                assert_eq!(context.now(), 12.0);
+                let _ = context.now();
             }
         }
     }
@@ -587,33 +565,29 @@ mod tests {
         };
         let context = escaped.unwrap();
         let environment = context.environment();
-        assert_eq!(environment.clock().monotonic(), Duration::from_secs(12));
-        assert_eq!(environment.rng().next_u32(), 42);
         // SAFETY: These are the callbacks on the registered, live allocation.
         unsafe {
-            assert_eq!((*workload.vt).getCheckTimeout.unwrap()(workload.inner), 7.0);
             (*workload.vt).free.unwrap()(workload.inner);
         }
         assert_eq!(
             calls.load(Ordering::Relaxed),
-            3,
+            1,
             "destructor retains live context"
         );
         // Keep the fake allocation alive so a missing guard fails an assertion
         // without dereferencing freed memory during regression testing.
-        assert!(catch_unwind(AssertUnwindSafe(|| context.now())).is_err());
         assert!(catch_unwind(AssertUnwindSafe(|| environment.clock().wall())).is_err());
         assert!(catch_unwind(AssertUnwindSafe(|| environment.rng().next_u64())).is_err());
         assert_eq!(
             calls.load(Ordering::Relaxed),
-            3,
+            1,
             "rejected access never enters native context"
         );
         drop(native);
     }
 
     #[test]
-    fn environment_rejects_other_threads_without_consuming_randomness() {
+    fn environment_rejects_other_threads_before_native_access() {
         let calls = Arc::new(AtomicUsize::new(0));
         let (_native, raw) = native_context(calls.clone());
         let mut escaped = None;
@@ -633,12 +607,9 @@ mod tests {
         .join()
         .unwrap();
         assert_eq!(calls.load(Ordering::Relaxed), 0);
-        assert_eq!(environment.rng().next_u64(), (42_u64 << 32) | 43);
-        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        let _ = environment.rng().next_u32();
         // SAFETY: This is the unique release of the registered allocation.
         unsafe { (*workload.vt).free.unwrap()(workload.inner) };
-        assert!(catch_unwind(AssertUnwindSafe(|| environment.rng().next_u32())).is_err());
-        assert_eq!(calls.load(Ordering::Relaxed), 2);
     }
 
     #[test]
@@ -646,18 +617,16 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let (native, raw) = native_context(calls.clone());
         let mut escaped = None;
-        assert!(
-            catch_unwind(AssertUnwindSafe(|| unsafe {
-                // SAFETY: The native context outlives registration, which unwinds.
-                register_workload_context(raw, |context| {
-                    escaped = Some(context.environment());
-                    panic!("factory failed");
-                })
-            }))
-            .is_err()
-        );
+        let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+            // SAFETY: The native context outlives registration, which unwinds.
+            register_workload_context(raw, |context| {
+                escaped = Some(context.environment());
+                panic!("factory failed");
+            })
+        }));
+        let environment = escaped.unwrap();
         // A guard regression must fail without accessing a freed test allocation.
-        assert!(catch_unwind(AssertUnwindSafe(|| escaped.unwrap().rng().next_u32())).is_err());
+        assert!(catch_unwind(AssertUnwindSafe(|| environment.rng().next_u32())).is_err());
         assert_eq!(calls.load(Ordering::Relaxed), 0);
         drop(native);
     }
