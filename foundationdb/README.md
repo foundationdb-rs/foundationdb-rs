@@ -127,19 +127,6 @@ async fn hello_world() -> foundationdb::FdbResult<()> {
 }
 ```
 
-## Integer option compatibility
-
-Integer payloads in `NetworkOption`, `DatabaseOption`, and `TransactionOption`
-use `i64`, matching the FoundationDB C API. This allows values such as a 3-GiB
-`NetworkOption::TraceRollSize` without narrowing to 32 bits. Each option still
-has its own valid range, documented on the variant.
-
-This changes the public payload type from `i32` to `i64`. Unsuffixed integer
-literals continue to work. Widen explicitly typed `i32` values with
-`i64::from(value)` when constructing an option, and update annotations when
-matching its payload. Negative sentinel values, such as `RetryLimit(-1)`,
-remain signed and retain their existing meaning.
-
 ## Additional notes
 
 ### The class-scheduling tutorial
