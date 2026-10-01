@@ -2833,7 +2833,101 @@
 <a href="#2832" id="2832">2832</a>
 <a href="#2833" id="2833">2833</a>
 <a href="#2834" id="2834">2834</a>
-<a href="#2835" id="2835">2835</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
+<a href="#2835" id="2835">2835</a>
+<a href="#2836" id="2836">2836</a>
+<a href="#2837" id="2837">2837</a>
+<a href="#2838" id="2838">2838</a>
+<a href="#2839" id="2839">2839</a>
+<a href="#2840" id="2840">2840</a>
+<a href="#2841" id="2841">2841</a>
+<a href="#2842" id="2842">2842</a>
+<a href="#2843" id="2843">2843</a>
+<a href="#2844" id="2844">2844</a>
+<a href="#2845" id="2845">2845</a>
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a>
+<a href="#2848" id="2848">2848</a>
+<a href="#2849" id="2849">2849</a>
+<a href="#2850" id="2850">2850</a>
+<a href="#2851" id="2851">2851</a>
+<a href="#2852" id="2852">2852</a>
+<a href="#2853" id="2853">2853</a>
+<a href="#2854" id="2854">2854</a>
+<a href="#2855" id="2855">2855</a>
+<a href="#2856" id="2856">2856</a>
+<a href="#2857" id="2857">2857</a>
+<a href="#2858" id="2858">2858</a>
+<a href="#2859" id="2859">2859</a>
+<a href="#2860" id="2860">2860</a>
+<a href="#2861" id="2861">2861</a>
+<a href="#2862" id="2862">2862</a>
+<a href="#2863" id="2863">2863</a>
+<a href="#2864" id="2864">2864</a>
+<a href="#2865" id="2865">2865</a>
+<a href="#2866" id="2866">2866</a>
+<a href="#2867" id="2867">2867</a>
+<a href="#2868" id="2868">2868</a>
+<a href="#2869" id="2869">2869</a>
+<a href="#2870" id="2870">2870</a>
+<a href="#2871" id="2871">2871</a>
+<a href="#2872" id="2872">2872</a>
+<a href="#2873" id="2873">2873</a>
+<a href="#2874" id="2874">2874</a>
+<a href="#2875" id="2875">2875</a>
+<a href="#2876" id="2876">2876</a>
+<a href="#2877" id="2877">2877</a>
+<a href="#2878" id="2878">2878</a>
+<a href="#2879" id="2879">2879</a>
+<a href="#2880" id="2880">2880</a>
+<a href="#2881" id="2881">2881</a>
+<a href="#2882" id="2882">2882</a>
+<a href="#2883" id="2883">2883</a>
+<a href="#2884" id="2884">2884</a>
+<a href="#2885" id="2885">2885</a>
+<a href="#2886" id="2886">2886</a>
+<a href="#2887" id="2887">2887</a>
+<a href="#2888" id="2888">2888</a>
+<a href="#2889" id="2889">2889</a>
+<a href="#2890" id="2890">2890</a>
+<a href="#2891" id="2891">2891</a>
+<a href="#2892" id="2892">2892</a>
+<a href="#2893" id="2893">2893</a>
+<a href="#2894" id="2894">2894</a>
+<a href="#2895" id="2895">2895</a>
+<a href="#2896" id="2896">2896</a>
+<a href="#2897" id="2897">2897</a>
+<a href="#2898" id="2898">2898</a>
+<a href="#2899" id="2899">2899</a>
+<a href="#2900" id="2900">2900</a>
+<a href="#2901" id="2901">2901</a>
+<a href="#2902" id="2902">2902</a>
+<a href="#2903" id="2903">2903</a>
+<a href="#2904" id="2904">2904</a>
+<a href="#2905" id="2905">2905</a>
+<a href="#2906" id="2906">2906</a>
+<a href="#2907" id="2907">2907</a>
+<a href="#2908" id="2908">2908</a>
+<a href="#2909" id="2909">2909</a>
+<a href="#2910" id="2910">2910</a>
+<a href="#2911" id="2911">2911</a>
+<a href="#2912" id="2912">2912</a>
+<a href="#2913" id="2913">2913</a>
+<a href="#2914" id="2914">2914</a>
+<a href="#2915" id="2915">2915</a>
+<a href="#2916" id="2916">2916</a>
+<a href="#2917" id="2917">2917</a>
+<a href="#2918" id="2918">2918</a>
+<a href="#2919" id="2919">2919</a>
+<a href="#2920" id="2920">2920</a>
+<a href="#2921" id="2921">2921</a>
+<a href="#2922" id="2922">2922</a>
+<a href="#2923" id="2923">2923</a>
+<a href="#2924" id="2924">2924</a>
+<a href="#2925" id="2925">2925</a>
+<a href="#2926" id="2926">2926</a>
+<a href="#2927" id="2927">2927</a>
+<a href="#2928" id="2928">2928</a>
+<a href="#2929" id="2929">2929</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -2885,6 +2979,10 @@
 <span class="comment">// `WorkloadContext::now()` crosses the simulator's f64 boundary. Preserve the replay's exact
 // state eligibility checks while accepting its demonstrated one-nanosecond round-trip loss.
 </span><span class="kw">const </span>SIMULATED_TIME_ROUND_TRIP_TOLERANCE: Duration = Duration::from_nanos(<span class="number">1</span>);
+<span class="comment">// Flow fires a timer once `at &lt;= now + INetwork::TIME_EPS` (100ns, see FoundationDB
+// flow/include/flow/network.h and the timer loop in flow/include/flow/TaskQueue.h), so a
+// simulated delay can complete up to that much before `now() + delay`.
+</span><span class="kw">const </span>SIMULATED_TIMER_EPSILON: Duration = Duration::from_nanos(<span class="number">100</span>);
 <span class="comment">// The deterministic completion tail must renew before its lease can expire under any simulator
 // time jump. Its one-second renewal reaches `Duration::MAX` while remaining strictly larger.
 </span><span class="kw">const </span>COMPLETION_RENEWAL_BASE_LEASE_DURATION: Duration = Duration::new(u64::MAX - <span class="number">1</span>, <span class="number">999_999_999</span>);
@@ -2953,6 +3051,8 @@
     participant: ParticipantId,
     incarnation: u64,
     local_state: LocalState,
+    <span class="doccomment">/// Post-success reading of the run that produced `local_state`.
+    </span>local_post_run_at: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     last_leadership: <span class="prelude-ty">Option</span>&lt;Leadership&gt;,
     stale_leadership: <span class="prelude-ty">Option</span>&lt;Leadership&gt;,
     stale_rank: <span class="prelude-ty">Option</span>&lt;Rank&gt;,
@@ -3012,6 +3112,7 @@
             participant,
             incarnation: <span class="number">0</span>,
             local_state: LocalState::unknown(),
+            local_post_run_at: <span class="prelude-val">None</span>,
             last_leadership: <span class="prelude-val">None</span>,
             stale_leadership: <span class="prelude-val">None</span>,
             stale_rank: <span class="prelude-val">None</span>,
@@ -3086,6 +3187,8 @@
                     <span class="self">self</span>.log_subspace.clone(),
                     <span class="self">self</span>.participant.clone(),
                     <span class="self">self</span>.local_state.clone(),
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.participant,
+                    <span class="self">self</span>.local_post_run_at,
                     <span class="bool-val">true</span>,
                     <span class="kw-2">&amp;</span><span class="self">self</span>.context,
                     <span class="self">self</span>.client_id,
@@ -3102,6 +3205,7 @@
                             <span class="self">self</span>.record_delayed_adoption(delay);
                         }
                         <span class="self">self</span>.local_state = poll.next_state;
+                        <span class="self">self</span>.local_post_run_at = <span class="prelude-val">Some</span>(poll.post_run_at);
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(leadership) = poll.leadership {
                             <span class="kw">if let </span><span class="prelude-val">Some</span>(previous) = <span class="self">self
                                 </span>.last_leadership
@@ -3185,7 +3289,9 @@
                         <span class="kw-2">&amp;</span>db,
                         election.clone(),
                         <span class="self">self</span>.log_subspace.clone(),
+                        <span class="self">self</span>.participant.clone(),
                         leadership,
+                        <span class="self">self</span>.local_post_run_at,
                         simulated_now(<span class="kw-2">&amp;</span><span class="self">self</span>.context),
                         <span class="self">self</span>.client_id,
                         <span class="self">self</span>.incarnation,
@@ -3196,6 +3302,7 @@
                     </span>{
                         <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; {
                             <span class="self">self</span>.local_state = LocalState::unknown();
+                            <span class="self">self</span>.local_post_run_at = <span class="prelude-val">None</span>;
                             <span class="self">self</span>.force_foreign_takeover(
                                 <span class="kw-2">&amp;</span>db,
                                 <span class="kw-2">&amp;</span>register,
@@ -3221,8 +3328,14 @@
                 <span class="kw">if let </span>(<span class="prelude-val">Some</span>(stale_leadership), <span class="prelude-val">Some</span>(stale_rank)) =
                     (<span class="self">self</span>.stale_leadership.clone(), <span class="self">self</span>.stale_rank)
                 {
-                    <span class="self">self</span>.exercise_stale_tokens(<span class="kw-2">&amp;</span>db, <span class="kw-2">&amp;</span>register, stale_leadership, stale_rank)
-                        .<span class="kw">await</span>;
+                    <span class="self">self</span>.exercise_stale_tokens(
+                        <span class="kw-2">&amp;</span>db,
+                        <span class="kw-2">&amp;</span>register,
+                        <span class="self">self</span>.participant.clone(),
+                        stale_leadership,
+                        stale_rank,
+                    )
+                    .<span class="kw">await</span>;
                 }
             }
 
@@ -3601,6 +3714,8 @@
             <span class="self">self</span>.log_subspace.clone(),
             <span class="self">self</span>.participant.clone(),
             <span class="self">self</span>.local_state.clone(),
+            <span class="kw-2">&amp;</span><span class="self">self</span>.participant,
+            <span class="self">self</span>.local_post_run_at,
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span><span class="self">self</span>.context,
             <span class="self">self</span>.client_id,
@@ -3612,6 +3727,7 @@
         <span class="kw">let </span>initial_poll_failed = <span class="kw">match </span>initial_race_poll {
             <span class="prelude-val">Ok</span>(poll) =&gt; {
                 <span class="self">self</span>.local_state = poll.next_state;
+                <span class="self">self</span>.local_post_run_at = <span class="prelude-val">Some</span>(poll.post_run_at);
                 <span class="bool-val">false
             </span>}
             <span class="prelude-val">Err</span>(error) =&gt; {
@@ -3653,6 +3769,8 @@
                 <span class="self">self</span>.log_subspace.clone(),
                 <span class="self">self</span>.participant.clone(),
                 <span class="self">self</span>.local_state.clone(),
+                <span class="kw-2">&amp;</span><span class="self">self</span>.participant,
+                <span class="self">self</span>.local_post_run_at,
                 <span class="bool-val">true</span>,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.context,
                 <span class="self">self</span>.client_id,
@@ -3664,6 +3782,7 @@
             <span class="kw">match </span>race_poll {
                 <span class="prelude-val">Ok</span>(poll) =&gt; {
                     <span class="self">self</span>.local_state = poll.next_state;
+                    <span class="self">self</span>.local_post_run_at = <span class="prelude-val">Some</span>(poll.post_run_at);
                     <span class="kw">let </span>stale_write_op = <span class="self">self</span>.next_op_num();
                     <span class="kw">match </span>run_stale_write(
                         db,
@@ -3744,8 +3863,10 @@
             foreign_election,
             register.clone(),
             <span class="self">self</span>.log_subspace.clone(),
-            foreign,
+            foreign.clone(),
             LocalState::unknown(),
+            <span class="kw-2">&amp;</span>foreign,
+            <span class="prelude-val">None</span>,
             <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span><span class="self">self</span>.context,
             <span class="self">self</span>.client_id,
@@ -3766,6 +3887,8 @@
         };
 
         <span class="self">self</span>.local_state = LocalState::unknown();
+
+        <span class="self">self</span>.local_post_run_at = <span class="prelude-val">None</span>;
         <span class="kw">let _ </span>= <span class="self">self
             </span>.poll_once(db, register, follower_duration, adoption_delay)
             .<span class="kw">await</span>;
@@ -3789,8 +3912,14 @@
         delay_until(<span class="kw-2">&amp;</span><span class="self">self</span>.context, exact).<span class="kw">await</span>;
         <span class="kw">let </span>takeover = <span class="self">self</span>.poll_once(db, register, follower_duration, <span class="prelude-val">None</span>).<span class="kw">await</span>;
         <span class="kw">if </span>takeover.is_some_and(|leadership| leadership.rank() &gt; predecessor.rank()) {
-            <span class="self">self</span>.exercise_stale_tokens(db, register, predecessor.clone(), predecessor.rank())
-                .<span class="kw">await</span>;
+            <span class="self">self</span>.exercise_stale_tokens(
+                db,
+                register,
+                foreign,
+                predecessor.clone(),
+                predecessor.rank(),
+            )
+            .<span class="kw">await</span>;
         }
     }
 }
@@ -3872,6 +4001,7 @@
         ))
         .expect(<span class="string">"generated incarnation ID is non-empty"</span>);
         <span class="self">self</span>.local_state = LocalState::unknown();
+        <span class="self">self</span>.local_post_run_at = <span class="prelude-val">None</span>;
         <span class="self">self</span>.last_leadership = <span class="prelude-val">None</span>;
         <span class="self">self</span>.stale_leadership = <span class="prelude-val">None</span>;
         <span class="self">self</span>.stale_rank = <span class="prelude-val">None</span>;
@@ -3894,6 +4024,8 @@
             <span class="self">self</span>.log_subspace.clone(),
             <span class="self">self</span>.participant.clone(),
             <span class="self">self</span>.local_state.clone(),
+            <span class="kw-2">&amp;</span><span class="self">self</span>.participant,
+            <span class="self">self</span>.local_post_run_at,
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span><span class="self">self</span>.context,
             <span class="self">self</span>.client_id,
@@ -3908,6 +4040,7 @@
                     <span class="self">self</span>.record_delayed_adoption(delay);
                 }
                 <span class="self">self</span>.local_state = poll.next_state;
+                <span class="self">self</span>.local_post_run_at = <span class="prelude-val">Some</span>(poll.post_run_at);
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(leadership) = poll.leadership {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(previous) = <span class="self">self
                         </span>.last_leadership
@@ -3936,6 +4069,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         db: <span class="kw-2">&amp;</span>SimDatabase,
         register: <span class="kw-2">&amp;</span>RankedRegister,
+        stale_owner: ParticipantId,
         stale_leadership: Leadership,
         stale_rank: Rank,
     ) {
@@ -3949,6 +4083,8 @@
             <span class="self">self</span>.log_subspace.clone(),
             <span class="self">self</span>.participant.clone(),
             LocalState::Leadership(stale_leadership.clone()),
+            <span class="kw-2">&amp;</span>stale_owner,
+            <span class="prelude-val">None</span>,
             <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span><span class="self">self</span>.context,
             <span class="self">self</span>.client_id,
@@ -3981,7 +4117,9 @@
             db,
             election.clone(),
             <span class="self">self</span>.log_subspace.clone(),
+            stale_owner,
             stale_leadership,
+            <span class="prelude-val">None</span>,
             simulated_now(<span class="kw-2">&amp;</span><span class="self">self</span>.context),
             <span class="self">self</span>.client_id,
             <span class="self">self</span>.incarnation,
@@ -4041,8 +4179,14 @@
                     .<span class="kw">await
                 </span>{
                     <span class="kw">if </span>first.rank() &lt; renewed.rank() {
-                        <span class="self">self</span>.exercise_stale_tokens(<span class="kw-2">&amp;</span>db, <span class="kw-2">&amp;</span>register, first.clone(), first.rank())
-                            .<span class="kw">await</span>;
+                        <span class="self">self</span>.exercise_stale_tokens(
+                            <span class="kw-2">&amp;</span>db,
+                            <span class="kw-2">&amp;</span>register,
+                            <span class="self">self</span>.participant.clone(),
+                            first.clone(),
+                            first.rank(),
+                        )
+                        .<span class="kw">await</span>;
                     }
                     <span class="kw">let </span>resignation_election =
                         LeaderElection::new(<span class="self">self</span>.election_subspace.clone(), renewal_duration)
@@ -4052,7 +4196,9 @@
                         <span class="kw-2">&amp;</span>db,
                         resignation_election,
                         <span class="self">self</span>.log_subspace.clone(),
+                        <span class="self">self</span>.participant.clone(),
                         renewed,
+                        <span class="self">self</span>.local_post_run_at,
                         simulated_now(<span class="kw-2">&amp;</span><span class="self">self</span>.context),
                         <span class="self">self</span>.client_id,
                         <span class="self">self</span>.incarnation,
@@ -4063,6 +4209,7 @@
                     </span>{
                         <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; {
                             <span class="self">self</span>.local_state = LocalState::unknown();
+                            <span class="self">self</span>.local_post_run_at = <span class="prelude-val">None</span>;
                             <span class="self">self</span>.force_foreign_takeover(
                                 <span class="kw-2">&amp;</span>db,
                                 <span class="kw-2">&amp;</span>register,
@@ -4180,6 +4327,7 @@
             .lease_duration()
             .saturating_add(Duration::from_secs(<span class="number">1</span>));
         <span class="kw">let </span>leader_incarnation = <span class="self">self</span>.incarnation;
+        <span class="kw">let </span>leader_participant = <span class="self">self</span>.participant.clone();
         <span class="kw">let </span><span class="prelude-val">Some</span>(renewed) = <span class="self">self</span>.poll_once(db, register, renewal_duration, <span class="prelude-val">None</span>).<span class="kw">await else </span>{
             <span class="kw">return</span>;
         };
@@ -4195,7 +4343,9 @@
             db,
             resignation_election,
             <span class="self">self</span>.log_subspace.clone(),
+            leader_participant,
             renewed,
+            <span class="prelude-val">None</span>,
             simulated_now(<span class="kw-2">&amp;</span><span class="self">self</span>.context),
             <span class="self">self</span>.client_id,
             leader_incarnation,
@@ -4217,6 +4367,8 @@
 
 <span class="kw">struct </span>PollRun {
     next_state: LocalState,
+    <span class="doccomment">/// Reading taken right after the successful run, before any adoption delay.
+    </span>post_run_at: Duration,
     leadership: <span class="prelude-ty">Option</span>&lt;Leadership&gt;,
     transition: PollTransition,
     adoption_delay: <span class="prelude-ty">Option</span>&lt;AdoptionDelay&gt;,
@@ -4347,6 +4499,8 @@
     log_subspace: Subspace,
     participant: ParticipantId,
     local_state: LocalState,
+    token_owner: <span class="kw-2">&amp;</span>ParticipantId,
+    prior_post_run_at: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     tracks_local_state: bool,
     context: <span class="kw-2">&amp;</span>WorkloadContext,
     client_id: i32,
@@ -4356,23 +4510,26 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;PollRun, FdbBindingError&gt; {
     <span class="kw">let </span>payload = protected_payload(participant.as_str(), op_num);
     <span class="kw">let </span>configured_lease_duration = election.lease_duration();
-    <span class="kw">let </span>(poll, attempt_started_at, planned_adoption_delay) = db
+    <span class="comment">// Measured once before the run: every retry attempt claims the same elapsed time.
+    </span><span class="kw">let </span>attempt_started_at = simulated_now(context);
+    <span class="kw">let </span>input = local_state.input(attempt_started_at);
+    <span class="kw">let </span>local_token = local_input(<span class="kw-2">&amp;</span>local_state, token_owner);
+    <span class="kw">let </span>(poll, planned_adoption_delay) = db
         .run(|txn, _maybe_committed| {
             <span class="kw">let </span>election = election.clone();
             <span class="kw">let </span>register = register.clone();
             <span class="kw">let </span>log_subspace = log_subspace.clone();
             <span class="kw">let </span>participant = participant.clone();
             <span class="kw">let </span>local_state = local_state.clone();
+            <span class="kw">let </span>input = input.clone();
+            <span class="kw">let </span>local_token = local_token.clone();
             <span class="kw">let </span>payload = payload.clone();
-            <span class="kw">let </span>context = context.clone();
             <span class="kw">async move </span>{
-                <span class="kw">let </span>attempt_started_at = simulated_now(<span class="kw-2">&amp;</span>context);
                 txn.set_option(TransactionOption::AutomaticIdempotency)<span class="question-mark">?</span>;
                 <span class="kw">let </span>prior =
                     durable_from_public(election.state(<span class="kw-2">&amp;</span>txn).<span class="kw">await</span>.map_err(FdbBindingError::from)<span class="question-mark">?</span>);
-                <span class="kw">let </span>local_token = local_input(<span class="kw-2">&amp;</span>local_state);
                 <span class="kw">let </span>poll = election
-                    .poll(<span class="kw-2">&amp;</span>txn, <span class="kw-2">&amp;</span>participant, <span class="kw-2">&amp;</span>local_state, attempt_started_at)
+                    .poll(<span class="kw-2">&amp;</span>txn, <span class="kw-2">&amp;</span>participant, <span class="kw-2">&amp;</span>input)
                     .<span class="kw">await
                     </span>.map_err(FdbBindingError::from)<span class="question-mark">?</span>;
                 <span class="kw">let </span>transition = transition_code(poll.outcome().transition());
@@ -4415,6 +4572,7 @@
                     attempt_started_at,
                     configured_lease_duration,
                     planned_adoption_delay,
+                    prior_post_run_at,
                     transition,
                     leader,
                     requested_write_rank,
@@ -4423,10 +4581,11 @@
                     write_committed,
                     <span class="kw">if </span>leader { <span class="kw-2">&amp;</span>payload } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>[] },
                 );
-                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, FdbBindingError&gt;((poll, attempt_started_at, planned_adoption_delay))
+                <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, FdbBindingError&gt;((poll, planned_adoption_delay))
             }
         })
         .<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>post_run_at = simulated_now(context);
     <span class="kw">let </span>adoption_delay = <span class="kw">match </span>(adoption_delay, planned_adoption_delay) {
         (<span class="prelude-val">Some</span>(delay), <span class="prelude-val">Some</span>(duration)) =&gt; <span class="kw">match </span>context.delay(duration).<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Some</span>(delay),
@@ -4437,10 +4596,11 @@
     <span class="kw">let </span>adopted_at =
         simulated_now(context).max(attempt_started_at.saturating_add(Duration::from_nanos(<span class="number">1</span>)));
     <span class="kw">let </span>transition = poll.outcome().transition();
-    <span class="kw">let </span>next_state = poll.into_next_state(adopted_at);
+    <span class="kw">let </span>next_state = local_state.adopt(attempt_started_at, adopted_at, poll.next());
     <span class="prelude-val">Ok</span>(PollRun {
         leadership: next_state.leadership().cloned(),
         next_state,
+        post_run_at,
         transition,
         adoption_delay,
     })
@@ -4478,7 +4638,9 @@
     db: <span class="kw-2">&amp;</span>SimDatabase,
     election: LeaderElection,
     log_subspace: Subspace,
+    participant: ParticipantId,
     leadership: Leadership,
+    prior_post_run_at: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     now: Duration,
     client_id: i32,
     incarnation: u64,
@@ -4489,20 +4651,27 @@
     db.run(|txn, _maybe_committed| {
         <span class="kw">let </span>election = election.clone();
         <span class="kw">let </span>log_subspace = log_subspace.clone();
+        <span class="kw">let </span>participant = participant.clone();
         <span class="kw">let </span>leadership = leadership.clone();
         <span class="kw">async move </span>{
             txn.set_option(TransactionOption::AutomaticIdempotency)<span class="question-mark">?</span>;
             <span class="kw">let </span>prior =
                 durable_from_public(election.state(<span class="kw-2">&amp;</span>txn).<span class="kw">await</span>.map_err(FdbBindingError::from)<span class="question-mark">?</span>);
             <span class="kw">let </span>result = election
-                .resign(<span class="kw-2">&amp;</span>txn, <span class="kw-2">&amp;</span>leadership)
+                .resign(
+                    <span class="kw-2">&amp;</span>txn,
+                    <span class="kw-2">&amp;</span>participant,
+                    leadership.rank(),
+                    leadership.lease_duration(),
+                )
                 .<span class="kw">await
                 </span>.map_err(FdbBindingError::from)<span class="question-mark">?
                 </span>.is_resigned();
             <span class="kw">let </span>current =
                 durable_from_public(election.state(<span class="kw-2">&amp;</span>txn).<span class="kw">await</span>.map_err(FdbBindingError::from)<span class="question-mark">?</span>);
-            <span class="kw">let </span>actor = leadership.participant().as_str().to_owned();
-            <span class="kw">let </span>local_token = local_input(<span class="kw-2">&amp;</span>LocalState::Leadership(leadership.clone()));
+            <span class="kw">let </span>actor = participant.as_str().to_owned();
+            <span class="kw">let </span>local_token =
+                local_input(<span class="kw-2">&amp;</span>LocalState::Leadership(leadership.clone()), <span class="kw-2">&amp;</span>participant);
             write_log(
                 <span class="kw-2">&amp;</span>txn,
                 <span class="kw-2">&amp;</span>log_subspace,
@@ -4518,6 +4687,7 @@
                 now,
                 configured_lease_duration,
                 <span class="prelude-val">None</span>,
+                prior_post_run_at,
                 TRANSITION_NONE,
                 result,
                 <span class="number">0</span>,
@@ -4566,6 +4736,7 @@
                 <span class="bool-val">false</span>,
                 now,
                 configured_lease_duration,
+                <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
                 TRANSITION_NONE,
                 <span class="bool-val">true</span>,
@@ -4631,6 +4802,7 @@
                 now,
                 configured_lease_duration,
                 <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
                 TRANSITION_NONE,
                 write.is_committed(),
                 stale_rank.as_u64(),
@@ -4661,6 +4833,7 @@
     attempt_started_at: Duration,
     configured_lease_duration: Duration,
     planned_adoption_delay: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    prior_post_run_at: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     transition: i64,
     result: bool,
     requested_write_rank: u64,
@@ -4684,7 +4857,10 @@
         tracks_local_state,
         duration_wire(attempt_started_at),
         duration_wire(configured_lease_duration),
-        optional_duration_wire(planned_adoption_delay),
+        (
+            optional_duration_wire(planned_adoption_delay),
+            optional_duration_wire(prior_post_run_at),
+        ),
         transition,
         result,
         (
@@ -4717,7 +4893,7 @@
         tracks_local_state,
         attempt_started_at,
         configured_lease_duration,
-        planned_adoption_delay,
+        (planned_adoption_delay, prior_post_run_at),
         transition,
         result,
         (
@@ -4743,6 +4919,7 @@
         attempt_started_at: duration_from_wire(attempt_started_at)<span class="question-mark">?</span>,
         configured_lease_duration: duration_from_wire(configured_lease_duration)<span class="question-mark">?</span>,
         planned_adoption_delay: optional_duration_from_wire(planned_adoption_delay)<span class="question-mark">?</span>,
+        prior_post_run_at: optional_duration_from_wire(prior_post_run_at)<span class="question-mark">?</span>,
         transition,
         result,
         requested_write_rank,
@@ -4757,6 +4934,7 @@
 <span class="kw">type </span>OptionalDurationWire = (bool, u64, u32);
 <span class="kw">type </span>DurableWire = (u64, bool, String, bool, u64, u32);
 <span class="kw">type </span>LocalWire = (i64, bool, String, u64, bool, u64, u32, u64, u32);
+<span class="kw">type </span>AdoptionWire = (OptionalDurationWire, OptionalDurationWire);
 <span class="kw">type </span>ProtectedWire = (u64, u64, bool, Vec&lt;u8&gt;, bool, Vec&lt;u8&gt;);
 <span class="kw">type </span>LogWire = (
     i64,
@@ -4767,7 +4945,7 @@
     bool,
     DurationWire,
     DurationWire,
-    OptionalDurationWire,
+    AdoptionWire,
     i64,
     bool,
     ProtectedWire,
@@ -5227,7 +5405,16 @@
                     <span class="kw-2">*</span>not_before,
                     planned_adoption_delay.unwrap_or_default(),
                 )
-                &amp;&amp; <span class="kw-2">*</span>observed_at &lt;= entry.attempt_started_at =&gt;
+                &amp;&amp; <span class="kw-2">*</span>observed_at &lt;= entry.attempt_started_at
+                &amp;&amp; entry.prior_post_run_at.is_some_and(|post_run_at| {
+                    post_run_at &gt;= <span class="kw-2">*</span>not_before
+                        &amp;&amp; post_run_at &lt;= entry.attempt_started_at
+                        &amp;&amp; <span class="kw-2">*</span>observed_at &gt;= post_run_at
+                        &amp;&amp; <span class="kw-2">*</span>observed_at
+                            &gt;= post_run_at
+                                .saturating_add(planned_adoption_delay.unwrap_or_default())
+                                .saturating_sub(SIMULATED_TIMER_EPSILON)
+                }) =&gt;
             {
                 <span class="prelude-val">Ok</span>(planned_adoption_delay.is_some_and(|delay| delay &gt; <span class="kw-2">*</span>lease_duration))
             }
@@ -5428,7 +5615,8 @@
     }
 }
 
-<span class="kw">fn </span>local_input(state: <span class="kw-2">&amp;</span>LocalState) -&gt; LocalInput {
+<span class="doccomment">/// `owner` is the participant a leadership token was issued to.
+</span><span class="kw">fn </span>local_input(state: <span class="kw-2">&amp;</span>LocalState, owner: <span class="kw-2">&amp;</span>ParticipantId) -&gt; LocalInput {
     <span class="kw">match </span>state {
         LocalState::Unknown =&gt; LocalInput::Unknown,
         LocalState::Observation(observation) =&gt; LocalInput::Observation {
@@ -5438,7 +5626,7 @@
             observed_at: observation.first_observed_at(),
         },
         LocalState::Leadership(leadership) =&gt; LocalInput::Leadership {
-            participant: leadership.participant().as_str().to_owned(),
+            participant: owner.as_str().to_owned(),
             rank: leadership.rank().as_u64(),
             lease_duration: leadership.lease_duration(),
             renewed_at: leadership.last_renewed_at(),

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["LeaderElectionError","LocalState","PollOutcome","PollTransition","ResignOutcome"],"struct":["ElectionState","LeaderElection","Leadership","Observation","ParticipantId","PollResult"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"enum":["LeaderElectionError","LocalState","NextState","ObservationTimer","PollInput","PollOutcome","PollTransition","ResignOutcome"],"struct":["ElectionState","LeaderElection","Leadership","Observation","ParticipantId","PollResult"],"type":["Result"]};

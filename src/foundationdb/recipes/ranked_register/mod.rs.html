@@ -280,8 +280,7 @@
 <a href="#279" id="279">279</a>
 <a href="#280" id="280">280</a>
 <a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
+<a href="#282" id="282">282</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -392,22 +391,21 @@
 //! )?;
 //! let register = RankedRegister::new(Subspace::all().subspace(&amp;"my-state"));
 //! let participant = ParticipantId::new("process-incarnation")?;
-//! let local_state = LocalState::unknown();
+//! let mut local_state = LocalState::unknown();
 //! let env = Environment::default();
 //!
 //! // The application owns retries, options, scheduling, and local observation.
+//! // Measure elapsed time once, before the run, and reuse it on every retry.
+//! let now = env.clock().monotonic();
+//! let input = local_state.input(now);
 //! let result = db.run(|txn, _maybe_committed| {
 //!     let election = election.clone();
 //!     let register = register.clone();
 //!     let participant = participant.clone();
-//!     let local_state = local_state.clone();
-//!     let env = env.clone();
+//!     let input = input.clone();
 //!     async move {
 //!         txn.set_option(TransactionOption::AutomaticIdempotency)?;
-//!         let attempt_started_at = env.clock().monotonic();
-//!         let poll = election
-//!             .poll(&amp;txn, &amp;participant, &amp;local_state, attempt_started_at)
-//!             .await?;
+//!         let poll = election.poll(&amp;txn, &amp;participant, &amp;input).await?;
 //!         if let PollOutcome::Leader { rank, .. } = poll.outcome() {
 //!             register
 //!                 .read(&amp;txn, *rank)
@@ -425,7 +423,7 @@
 //!     }
 //! }).await?;
 //! // Adopt this only after db.run succeeded.
-//! let local_state = result.into_next_state(env.clock().monotonic());
+//! local_state = local_state.adopt(now, env.clock().monotonic(), result.next());
 //! # let _ = local_state;
 //! # Ok(())
 //! # }

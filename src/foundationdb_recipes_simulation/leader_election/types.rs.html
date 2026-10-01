@@ -84,7 +84,10 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -156,6 +159,9 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) attempt_started_at: Duration,
     <span class="kw">pub</span>(<span class="kw">crate</span>) configured_lease_duration: Duration,
     <span class="kw">pub</span>(<span class="kw">crate</span>) planned_adoption_delay: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    <span class="doccomment">/// Post-success reading of the run that produced `local_input`, taken
+    /// before any adoption delay. Logged by the next tracked operation.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) prior_post_run_at: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) transition: i64,
     <span class="kw">pub</span>(<span class="kw">crate</span>) result: bool,
     <span class="kw">pub</span>(<span class="kw">crate</span>) requested_write_rank: u64,
