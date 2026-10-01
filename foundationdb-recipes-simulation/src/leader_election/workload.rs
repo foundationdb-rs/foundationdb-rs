@@ -50,8 +50,9 @@ const PROBABILISTIC_WITNESS_COUNT: usize = 7;
 // `WorkloadContext::now()` crosses the simulator's f64 boundary. Preserve the replay's exact
 // state eligibility checks while accepting its demonstrated one-nanosecond round-trip loss.
 const SIMULATED_TIME_ROUND_TRIP_TOLERANCE: Duration = Duration::from_nanos(1);
-// Flow fires a timer once `at <= now + INetwork::TIME_EPS` (100ns), so a simulated delay can
-// complete up to that much before `now() + delay`.
+// Flow fires a timer once `at <= now + INetwork::TIME_EPS` (100ns, see FoundationDB
+// flow/include/flow/network.h and the timer loop in flow/include/flow/TaskQueue.h), so a
+// simulated delay can complete up to that much before `now() + delay`.
 const SIMULATED_TIMER_EPSILON: Duration = Duration::from_nanos(100);
 // The deterministic completion tail must renew before its lease can expire under any simulator
 // time jump. Its one-second renewal reaches `Duration::MAX` while remaining strictly larger.
