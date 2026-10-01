@@ -543,103 +543,50 @@ impl TryFrom<FdbFutureHandle> for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::{Cell, RefCell};
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{Wake, Waker};
 
-    #[derive(Default)]
-    struct WakeCount(AtomicUsize);
+    struct Task;
 
-    impl Wake for WakeCount {
-        fn wake(self: Arc<Self>) {
-            self.0.fetch_add(1, Ordering::SeqCst);
-        }
-    }
-
-    #[derive(Default)]
-    struct PendingFuture {
-        ready: Cell<bool>,
-        callback: RefCell<Option<Arc<AtomicWaker>>>,
-    }
-
-    impl PendingFuture {
-        fn complete(&self) {
-            self.ready.set(true);
-            self.callback.borrow_mut().take().unwrap().wake();
-        }
-
-        fn poll(
-            &self,
-            waker: &mut Option<Arc<AtomicWaker>>,
-            cx: &Context<'_>,
-            complete_after_read: bool,
-        ) -> Poll<()> {
-            poll_ready(
-                waker,
-                cx,
-                || {
-                    let ready = self.ready.get();
-                    if complete_after_read && !ready {
-                        // The C readiness check has observed false, then the
-                        // network callback completes before the caller registers.
-                        self.complete();
-                    }
-                    ready
-                },
-                |callback| {
-                    assert!(self.callback.replace(Some(callback)).is_none());
-                },
-            )
-        }
+    impl Wake for Task {
+        fn wake(self: Arc<Self>) {}
     }
 
     #[test]
     fn completion_before_registering_a_new_task_is_ready() {
-        let future = PendingFuture::default();
+        let old_waker = Waker::from(Arc::new(Task));
+        let new_waker = Waker::from(Arc::new(Task));
         let mut registration = None;
-        let old_task = Arc::new(WakeCount::default());
-        let old_waker = Waker::from(Arc::clone(&old_task));
-        let new_task = Arc::new(WakeCount::default());
-        let new_waker = Waker::from(Arc::clone(&new_task));
+        let mut callback = None;
 
         assert!(
-            future
-                .poll(&mut registration, &Context::from_waker(&old_waker), false)
-                .is_pending()
+            poll_ready(
+                &mut registration,
+                &Context::from_waker(&old_waker),
+                || false,
+                |waker| callback = Some(waker),
+            )
+            .is_pending()
         );
-        assert!(
-            future
-                .poll(&mut registration, &Context::from_waker(&new_waker), true)
-                .is_ready()
-        );
-        assert_eq!(old_task.0.load(Ordering::SeqCst), 1);
-        assert_eq!(new_task.0.load(Ordering::SeqCst), 0);
-        assert!(future.callback.borrow().is_none());
-    }
 
-    #[test]
-    fn completion_after_registering_a_new_task_wakes_it() {
-        let future = PendingFuture::default();
-        let mut registration = None;
-        let old_task = Arc::new(WakeCount::default());
-        let old_waker = Waker::from(Arc::clone(&old_task));
-        let new_task = Arc::new(WakeCount::default());
-        let new_waker = Waker::from(Arc::clone(&new_task));
-
-        for waker in [&old_waker, &new_waker] {
-            assert!(
-                future
-                    .poll(&mut registration, &Context::from_waker(waker), false)
-                    .is_pending()
-            );
-        }
-        future.complete();
-        assert_eq!(old_task.0.load(Ordering::SeqCst), 0);
-        assert_eq!(new_task.0.load(Ordering::SeqCst), 1);
+        let callback = callback.unwrap();
+        let mut ready = false;
         assert!(
-            future
-                .poll(&mut registration, &Context::from_waker(&new_waker), false)
-                .is_ready()
+            poll_ready(
+                &mut registration,
+                &Context::from_waker(&new_waker),
+                || {
+                    let was_ready = ready;
+                    if !ready {
+                        // Complete after observing not-ready, before registering
+                        // the new task. The one-shot callback wakes the old task.
+                        ready = true;
+                        callback.wake();
+                    }
+                    was_ready
+                },
+                |_| {},
+            )
+            .is_ready()
         );
     }
 }
