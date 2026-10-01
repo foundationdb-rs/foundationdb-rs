@@ -122,9 +122,12 @@ impl Database {
         &self,
     ) -> impl Future<Output = FdbResult<crate::future::FdbSlice>> + Send + Sync + Unpin + use<>
     {
-        crate::future::FdbFuture::new(unsafe {
-            fdb_sys::fdb_database_get_client_status(self.inner.as_ptr())
-        })
+        // SAFETY: The C API returns a fresh, owned future containing a byte string.
+        unsafe {
+            crate::future::FdbFuture::new(fdb_sys::fdb_database_get_client_status(
+                self.inner.as_ptr(),
+            ))
+        }
     }
 }
 

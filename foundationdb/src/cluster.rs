@@ -46,7 +46,8 @@ impl Cluster {
             .as_ref()
             .map(|path| path.as_ptr())
             .unwrap_or(std::ptr::null());
-        let f = FdbFuture::new(unsafe { fdb_sys::fdb_create_cluster(path_ptr) });
+        // SAFETY: The C API returns a fresh, owned future containing a cluster.
+        let f = unsafe { FdbFuture::new(fdb_sys::fdb_create_cluster(path_ptr)) };
         drop(path_str);
         f
     }
@@ -69,9 +70,14 @@ impl Cluster {
     pub fn create_database(
         &self,
     ) -> impl Future<Output = FdbResult<Database>> + Send + Sync + Unpin {
-        FdbFuture::new(unsafe {
-            fdb_sys::fdb_cluster_create_database(self.inner.0.as_ptr(), b"DB" as *const _, 2)
-        })
+        // SAFETY: The C API returns a fresh, owned future containing a database.
+        unsafe {
+            FdbFuture::new(fdb_sys::fdb_cluster_create_database(
+                self.inner.0.as_ptr(),
+                b"DB" as *const _,
+                2,
+            ))
+        }
     }
 }
 
