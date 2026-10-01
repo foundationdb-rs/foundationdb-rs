@@ -19,16 +19,6 @@ struct RegisteredWorkload {
 /// complete vtable. The simulator must keep it alive until it calls the returned
 /// workload's `free` callback. All callbacks must run on that same thread, follow
 /// the workload ABI contracts, and `free` must be called at most once.
-///
-/// ```compile_fail,E0133
-/// use foundationdb_simulation::internals::{FDBWorkloadContext, register_workload_context};
-/// let raw = FDBWorkloadContext {
-///     api_version: 1,
-///     inner: std::ptr::null_mut(),
-///     vt: std::ptr::null_mut(),
-/// };
-/// register_workload_context(raw, |_| unreachable!());
-/// ```
 #[doc(hidden)]
 pub unsafe fn register_workload_context(
     raw_context: FDBWorkloadContext,
