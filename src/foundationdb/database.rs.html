@@ -683,12 +683,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::error::RetryableError;
 <span class="kw">use </span>futures::prelude::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Wrapper around the boolean representing whether the
-/// previous transaction is still on fly
-/// This wrapper prevents the boolean to be copy and force it
-/// to be moved instead.
-/// This pretty handy when you don't want to see the `Database::run` closure
-/// capturing the environment.
+<span class="doccomment">/// Whether any earlier attempt in this run may have committed.
+///
+/// Once true, this remains true for every subsequent attempt, even if later
+/// attempts fail with errors that are known not to have committed.
+/// Convert it to a boolean with `bool::from` when checking the flag.
 </span><span class="kw">pub struct </span>MaybeCommitted(bool);
 
 <span class="kw">impl </span>MaybeCommitted {
@@ -993,8 +992,8 @@
     /// As with other client/server databases, in some failure scenarios a client may be unable to determine
     /// whether a transaction succeeded. You should make sure your closure is idempotent.
     ///
-    /// The closure will notify the user in case of a maybe_committed transaction in a previous run
-    ///  with the `MaybeCommitted` provided in the closure.
+    /// The closure receives a [`MaybeCommitted`] flag indicating whether any earlier attempt
+    /// in this run may have committed. Once true, it stays true for all subsequent attempts.
     ///
     /// This one can be used as boolean with
     /// ```ignore
@@ -1112,8 +1111,9 @@
     /// # Warning: Maybe committed transactions
     ///
     /// As with other client/server databases, in some failure scenarios a client may be unable to determine
-    /// whether a transaction succeeded. The closure will be notified of a maybe_committed transaction
-    /// in a previous run with the `MaybeCommitted` provided in the closure.
+    /// whether a transaction succeeded. The closure receives a [`MaybeCommitted`] flag indicating
+    /// whether any earlier attempt in this run may have committed. Once true, it stays true for
+    /// all subsequent attempts.
     </span><span class="attr">#[cfg_attr(
         feature = <span class="string">"trace"</span>,
         tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, closure))

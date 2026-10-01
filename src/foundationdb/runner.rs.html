@@ -851,10 +851,7 @@
 <a href="#850" id="850">850</a>
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2026 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#853" id="853">853</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2026 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
@@ -1341,9 +1338,9 @@
 /// * [`RetryDecision::Retry`] does the same with code 1020 (`not_committed`),
 ///   which is retryable by definition.
 ///
-/// A policy cannot corrupt the
-/// [`MaybeCommitted`] flag handed to the closure: it is
-/// computed from the original error before the policy is consulted.
+/// A policy cannot clear the [`MaybeCommitted`] flag handed to the closure:
+/// it accumulates the original errors from all attempts before the policy is
+/// consulted.
 ///
 /// # Example: cap the number of attempts
 ///
@@ -1502,13 +1499,10 @@
 
                 Attempt::ClosureFailed { transaction, error } =&gt; {
                     <span class="kw">let </span>proposed = error.retry_decision();
-                    <span class="comment">// maybe_committed is computed from the original error only,
-                    // before the policy is consulted: a previous maybe-committed
-                    // attempt must stay visible to the closure whatever the
-                    // policy decides. The synthetic 1020 of `Retry` leaves it
-                    // untouched on purpose.
+                    <span class="comment">// Later failures cannot resolve an earlier uncertain commit.
+                    // Preserve it regardless of the policy's replacement error.
                     </span><span class="kw">if let </span>RetryDecision::Fdb(fdb_err) = proposed {
-                        maybe_committed = fdb_err.is_maybe_committed();
+                        maybe_committed |= fdb_err.is_maybe_committed();
                     }
 
                     <span class="kw">let </span>fdb_err =
@@ -1538,7 +1532,7 @@
                 }
 
                 Attempt::CommitFailed(commit_error) =&gt; {
-                    maybe_committed = commit_error.is_maybe_committed();
+                    maybe_committed |= commit_error.is_maybe_committed();
                     <span class="kw">let </span>proposed = RetryDecision::Fdb(<span class="kw-2">*</span>commit_error);
 
                     <span class="comment">// Fires before the policy is consulted: a hook reading the

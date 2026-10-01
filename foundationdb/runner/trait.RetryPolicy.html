@@ -19,9 +19,9 @@ which judges retryability and applies the backoff.</li>
 <li><a href="../enum.RetryDecision.html#variant.Retry" title="variant foundationdb::RetryDecision::Retry"><code>RetryDecision::Retry</code></a> does the same with code 1020 (<code>not_committed</code>),
 which is retryable by definition.</li>
 </ul>
-<p>A policy cannot corrupt the
-<a href="../struct.MaybeCommitted.html" title="struct foundationdb::MaybeCommitted"><code>MaybeCommitted</code></a> flag handed to the closure: it is
-computed from the original error before the policy is consulted.</p>
+<p>A policy cannot clear the <a href="../struct.MaybeCommitted.html" title="struct foundationdb::MaybeCommitted"><code>MaybeCommitted</code></a> flag handed to the closure:
+it accumulates the original errors from all attempts before the policy is
+consulted.</p>
 <h2 id="example-cap-the-number-of-attempts"><a class="doc-anchor" href="#example-cap-the-number-of-attempts">§</a>Example: cap the number of attempts</h2>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>foundationdb::runner::{AttemptFailure, RetryPolicy};
 <span class="kw">use </span>foundationdb::{FdbBindingError, RetryDecision};
