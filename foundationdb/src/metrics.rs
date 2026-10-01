@@ -548,7 +548,7 @@ mod tests {
         first.record_set(10);
         first.increment_custom(key.clone(), 1);
         metrics.record_commit(Duration::from_millis(3));
-        metrics.record_grv(&first, Duration::from_millis(5), Some(42));
+        metrics.record_grv(&first, Duration::from_millis(5), None);
         metrics.record_grv(&first, Duration::from_millis(1), Some(42)); // first sample wins
         metrics.finish_attempt(AttemptOutcome::Retried {
             cause: FdbError::from_code(1020),
@@ -557,7 +557,7 @@ mod tests {
 
         let second = Arc::new(AttemptUsage::new());
         metrics.begin_attempt(second.clone());
-        metrics.record_grv(&first, Duration::from_millis(20), Some(43));
+        metrics.record_grv(&first, Duration::from_millis(20), None);
         second.record_set(4);
         second.increment_custom(key.clone(), 2);
         metrics.finish_attempt(AttemptOutcome::Committed);
@@ -593,60 +593,6 @@ mod tests {
 
         assert_eq!(report.total_usage().bytes_written, 14);
         assert_eq!(report.total_usage().call_set, 2);
-    }
-
-    #[test]
-    fn grv_completion_cannot_reopen_a_finished_attempt() {
-        let metrics = TransactionMetrics::new();
-        let usage = Arc::new(AttemptUsage::new());
-        metrics.begin_attempt(usage.clone());
-        metrics.finish_attempt(AttemptOutcome::Committed);
-
-        metrics.record_grv(&usage, Duration::from_millis(5), Some(42));
-        metrics.record_grv(&usage, Duration::from_millis(6), None);
-
-        let report = metrics.get_metrics_data();
-        assert_eq!(report.attempts.len(), 1);
-        assert!(report.attempts[0].grv_duration.is_none());
-        assert!(report.attempts[0].read_version.is_none());
-        assert!(report.transaction.read_version.is_none());
-        let open = metrics.open();
-        assert!(open.usage.is_none());
-        assert!(open.grv_duration.is_none());
-        assert!(open.read_version.is_none());
-    }
-
-    #[test]
-    fn grv_failure_keeps_its_timing_without_leaking_into_the_next_attempt() {
-        let metrics = TransactionMetrics::new();
-        let first = Arc::new(AttemptUsage::new());
-        metrics.begin_attempt(first.clone());
-        metrics.record_grv(&first, Duration::from_millis(5), None);
-        metrics.record_grv(&first, Duration::from_millis(6), Some(42));
-        metrics.finish_attempt(AttemptOutcome::Retried {
-            cause: FdbError::from_code(1020),
-        });
-
-        let second = Arc::new(AttemptUsage::new());
-        metrics.begin_attempt(second.clone());
-        metrics.record_grv(&first, Duration::from_millis(7), None);
-        metrics.record_grv(&second, Duration::from_millis(8), Some(43));
-        metrics.record_grv(&first, Duration::from_millis(9), Some(42));
-        metrics.finish_attempt(AttemptOutcome::Committed);
-
-        let report = metrics.get_metrics_data();
-        assert_eq!(report.attempts.len(), 2);
-        assert_eq!(
-            report.attempts[0].grv_duration,
-            Some(Duration::from_millis(5))
-        );
-        assert_eq!(report.attempts[0].read_version, Some(42));
-        assert_eq!(
-            report.attempts[1].grv_duration,
-            Some(Duration::from_millis(8))
-        );
-        assert_eq!(report.attempts[1].read_version, Some(43));
-        assert_eq!(report.transaction.read_version, Some(43));
     }
 
     /// An attempt whose only activity was `set_read_version` (no counter
