@@ -109,22 +109,21 @@
 //! )?;
 //! let register = RankedRegister::new(Subspace::all().subspace(&"my-state"));
 //! let participant = ParticipantId::new("process-incarnation")?;
-//! let local_state = LocalState::unknown();
+//! let mut local_state = LocalState::unknown();
 //! let env = Environment::default();
 //!
 //! // The application owns retries, options, scheduling, and local observation.
+//! // Measure elapsed time once, before the run, and reuse it on every retry.
+//! let now = env.clock().monotonic();
+//! let input = local_state.input(now);
 //! let result = db.run(|txn, _maybe_committed| {
 //!     let election = election.clone();
 //!     let register = register.clone();
 //!     let participant = participant.clone();
-//!     let local_state = local_state.clone();
-//!     let env = env.clone();
+//!     let input = input.clone();
 //!     async move {
 //!         txn.set_option(TransactionOption::AutomaticIdempotency)?;
-//!         let attempt_started_at = env.clock().monotonic();
-//!         let poll = election
-//!             .poll(&txn, &participant, &local_state, attempt_started_at)
-//!             .await?;
+//!         let poll = election.poll(&txn, &participant, &input).await?;
 //!         if let PollOutcome::Leader { rank, .. } = poll.outcome() {
 //!             register
 //!                 .read(&txn, *rank)
@@ -142,7 +141,7 @@
 //!     }
 //! }).await?;
 //! // Adopt this only after db.run succeeded.
-//! let local_state = result.into_next_state(env.clock().monotonic());
+//! local_state = local_state.adopt(now, env.clock().monotonic(), result.next());
 //! # let _ = local_state;
 //! # Ok(())
 //! # }

@@ -70,6 +70,9 @@ pub(crate) struct LogEntry {
     pub(crate) attempt_started_at: Duration,
     pub(crate) configured_lease_duration: Duration,
     pub(crate) planned_adoption_delay: Option<Duration>,
+    /// Post-success reading of the run that produced `local_input`, taken
+    /// before any adoption delay. Logged by the next tracked operation.
+    pub(crate) prior_post_run_at: Option<Duration>,
     pub(crate) transition: i64,
     pub(crate) result: bool,
     pub(crate) requested_write_rank: u64,
