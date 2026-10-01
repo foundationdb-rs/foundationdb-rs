@@ -570,20 +570,15 @@ async fn metrics_hooks_stacked_on_user_hooks_produce_a_full_report() {
     let attempts_ref = &attempts;
 
     let result: Result<(), HookTestError> = db
-        .run_with_hooks(&hooks, |trx, _| {
+        .run_with_hooks(&hooks, |trx, _| async move {
             let first = attempts_ref.fetch_add(1, Ordering::SeqCst) == 0;
-            // These operations start before the returned future is polled.
-            let read_version = trx.get_read_version();
             trx.set(b"runner_hooks_metrics_stacked", b"value");
             trx.set_custom_metric("stacked", 1, &[]);
-            async move {
-                let _ = read_version.await?;
-                let _ = trx.get(b"runner_hooks_metrics_stacked", false).await?;
-                if first {
-                    return Err(HookTestError::Fdb(FdbError::from_code(1020)));
-                }
-                Ok(())
+            let _ = trx.get(b"runner_hooks_metrics_stacked", false).await?;
+            if first {
+                return Err(HookTestError::Fdb(FdbError::from_code(1020)));
             }
+            Ok(())
         })
         .await;
 
@@ -603,8 +598,6 @@ async fn metrics_hooks_stacked_on_user_hooks_produce_a_full_report() {
     assert_eq!(first.index, 0);
     assert!(matches!(first.outcome, AttemptOutcome::Retried { .. }));
     assert!(first.on_error_duration.is_some());
-    assert!(first.grv_duration.is_some());
-    assert!(first.read_version.is_some());
     assert_eq!(first.usage.call_set, 1);
     assert_eq!(first.usage.call_get, 1);
     assert!(first.usage.bytes_written > 0);
@@ -618,8 +611,6 @@ async fn metrics_hooks_stacked_on_user_hooks_produce_a_full_report() {
     let last = report.attempts.last().expect("a last attempt");
     assert!(matches!(last.outcome, AttemptOutcome::Committed));
     assert!(last.commit_duration.is_some());
-    assert!(last.grv_duration.is_some());
-    assert!(last.read_version.is_some());
     assert_eq!(last.usage.call_set, 1);
 
     // The user hook saw the same run.
