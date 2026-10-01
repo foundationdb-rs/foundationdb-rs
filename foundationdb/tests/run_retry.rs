@@ -233,6 +233,71 @@ async fn run_reports_maybe_committed_from_the_closure_error() {
     );
 }
 
+/// A later `transaction_too_old` cannot resolve an earlier uncertain commit.
+#[tokio::test]
+async fn run_keeps_maybe_committed_after_later_closure_errors() {
+    let db = common::database().await.expect("failed to open database");
+    let attempt = AtomicU8::new(0);
+    let attempt_ref = &attempt;
+
+    let result: Result<(), RetryTestError> = db
+        .run(|trx, maybe_committed| async move {
+            let attempt = attempt_ref.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(bool::from(maybe_committed), attempt != 0);
+            match attempt {
+                0 => Err(RetryTestError::from(FdbError::from_code(1021))),
+                1 => Err(RetryTestError::from(FdbError::from_code(1007))),
+                _ => {
+                    trx.set(b"run_retry_sticky_closure", b"ok");
+                    Ok(())
+                }
+            }
+        })
+        .await;
+
+    assert!(result.is_ok(), "both errors must be retried: {result:?}");
+    assert_eq!(attempt.load(Ordering::SeqCst), 3);
+}
+
+/// A commit conflict cannot resolve an earlier uncertain commit either.
+#[tokio::test]
+async fn run_keeps_maybe_committed_after_commit_conflicts() {
+    let db = common::database().await.expect("failed to open database");
+    let db_ref = &db;
+    let attempt = AtomicU8::new(0);
+    let attempt_ref = &attempt;
+    let key = b"run_retry_sticky_commit";
+
+    let result: Result<(), RetryTestError> = db
+        .run(|trx, maybe_committed| async move {
+            let attempt = attempt_ref.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(bool::from(maybe_committed), attempt != 0);
+            if attempt == 0 {
+                return Err(RetryTestError::from(FdbError::from_code(1021)));
+            }
+            if attempt == 1 {
+                trx.get(key, false).await?;
+                // Commit a write after the outer transaction's read to force
+                // its commit, rather than its closure, to fail with a conflict.
+                db_ref
+                    .run(|other, _| async move {
+                        other.set(key, b"conflict");
+                        Ok::<_, FdbBindingError>(())
+                    })
+                    .await?;
+            }
+            trx.set(key, b"ok");
+            Ok(())
+        })
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "the commit conflict must be retried: {result:?}"
+    );
+    assert_eq!(attempt.load(Ordering::SeqCst), 3);
+}
+
 /// A [`RetryPolicy`] rewriting the decision cannot clear `MaybeCommitted`: the
 /// flag is computed from the original error, before the policy is consulted.
 #[tokio::test]
