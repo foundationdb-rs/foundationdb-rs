@@ -534,7 +534,7 @@
                 }
                 FdbOptionTy::Int =&gt; {
                     <span class="macro">writeln!</span>(w, <span class="string">"(v) =&gt; {{"</span>)<span class="question-mark">?</span>;
-                    <span class="macro">writeln!</span>(w, <span class="string">"{TAB4}let data: [u8;8] = i64::to_ne_bytes(v as i64);"</span>,)<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(w, <span class="string">"{TAB4}let data: [u8;8] = v.to_ne_bytes();"</span>,)<span class="question-mark">?</span>;
                     <span class="macro">writeln!</span>(
                         w,
                         <span class="string">"{TAB4}fdb_sys::{fn_name}({args}, data.as_ptr() as *const u8, 8)"
@@ -653,7 +653,7 @@
 
     <span class="kw">fn </span>get_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
         <span class="kw">match </span><span class="self">self</span>.param_type {
-            FdbOptionTy::Int =&gt; <span class="prelude-val">Some</span>(<span class="string">"i32"</span>),
+            FdbOptionTy::Int =&gt; <span class="prelude-val">Some</span>(<span class="string">"i64"</span>),
             FdbOptionTy::Str =&gt; <span class="prelude-val">Some</span>(<span class="string">"String"</span>),
             FdbOptionTy::Bytes =&gt; <span class="prelude-val">Some</span>(<span class="string">"Vec&lt;u8&gt;"</span>),
             FdbOptionTy::Empty =&gt; <span class="prelude-val">None</span>,

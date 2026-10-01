@@ -948,11 +948,11 @@
     <span class="doccomment">/// max size of a single trace output file
     ///
     /// Sets the maximum size in bytes of a single trace output file. This value should be in the range ``[0, INT64_MAX]``. If the value is set to 0, there is no limit on individual file size. The default is a maximum size of 10,485,760 bytes.
-    </span>TraceRollSize(i32),
+    </span>TraceRollSize(i64),
     <span class="doccomment">/// max total size of trace files
     ///
     /// Sets the maximum size of all the trace output files put together. This value should be in the range ``[0, INT64_MAX]``. If the value is set to 0, there is no limit on the total size of the files. The default is a maximum size of 104,857,600 bytes. If the default roll size is used, this means that a maximum of 10 trace files will be written at a time.
-    </span>TraceMaxLogsSize(i32),
+    </span>TraceMaxLogsSize(i64),
     <span class="doccomment">/// value of the LogGroup attribute
     ///
     /// Sets the 'LogGroup' attribute with the specified value for all events in the trace output files. The default log group is 'default'.
@@ -1010,11 +1010,11 @@
     <span class="doccomment">/// probability expressed as a percentage between 0 and 100
     ///
     /// Set the probability of a BUGGIFY section being active for the current execution.  Only applies to code paths first traversed AFTER this option is changed.
-    </span>BuggifySectionActivatedProbability(i32),
+    </span>BuggifySectionActivatedProbability(i64),
     <span class="doccomment">/// probability expressed as a percentage between 0 and 100
     ///
     /// Set the probability of an active BUGGIFY section being fired
-    </span>BuggifySectionFiredProbability(i32),
+    </span>BuggifySectionFiredProbability(i64),
     <span class="doccomment">/// ca bundle
     ///
     /// Set the ca bundle
@@ -1046,7 +1046,7 @@
     <span class="doccomment">/// Number of client threads to be spawned.  Each cluster will be serviced by a single client thread.
     ///
     /// Spawns multiple worker threads for each version of the client that is loaded.  Setting this to a number greater than one implies disable_local_client.
-    </span>ClientThreadsPerVersion(i32),
+    </span>ClientThreadsPerVersion(i64),
     <span class="doccomment">/// path to client library
     ///
     /// Adds an external client library to be used with a future version protocol. This option can be used testing purposes only!
@@ -1072,11 +1072,11 @@
     <span class="doccomment">/// probability expressed as a percentage between 0 and 100
     ///
     /// Set the probability of a CLIENT_BUGGIFY section being active for the current execution.
-    </span>ClientBuggifySectionActivatedProbability(i32),
+    </span>ClientBuggifySectionActivatedProbability(i64),
     <span class="doccomment">/// probability expressed as a percentage between 0 and 100
     ///
     /// Set the probability of an active CLIENT_BUGGIFY section being fired. A section will only fire if it was activated
-    </span>ClientBuggifySectionFiredProbability(i32),
+    </span>ClientBuggifySectionFiredProbability(i64),
     <span class="doccomment">/// Distributed tracer type. Choose from none, log_file, or network_lossy
     ///
     /// Set a tracer to run on the client. Should be set to the same value as the tracer set on the server.
@@ -1154,11 +1154,11 @@
 
             }
             NetworkOption::TraceRollSize(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::TraceMaxLogsSize(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::TraceLogGroup(<span class="kw-2">ref </span>v) =&gt; {
@@ -1214,11 +1214,11 @@
             NetworkOption::BuggifyEnable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::BuggifyDisable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::BuggifySectionActivatedProbability(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::BuggifySectionFiredProbability(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::TLSCaBytes(<span class="kw-2">ref </span>v) =&gt; {
@@ -1246,7 +1246,7 @@
             }
             NetworkOption::DisableLocalClient =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ClientThreadsPerVersion(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::FutureVersionClientLibrary(<span class="kw-2">ref </span>v) =&gt; {
@@ -1263,11 +1263,11 @@
             NetworkOption::ClientBuggifyEnable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ClientBuggifyDisable =&gt; fdb_sys::fdb_network_set_option(code, std::ptr::null(), <span class="number">0</span>),
             NetworkOption::ClientBuggifySectionActivatedProbability(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::ClientBuggifySectionFiredProbability(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_network_set_option(code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             NetworkOption::DistributedClientTracer(<span class="kw-2">ref </span>v) =&gt; {
@@ -1288,11 +1288,11 @@
     <span class="doccomment">/// Max location cache entries
     ///
     /// Set the size of the client location cache. Raising this value can boost performance in very large databases where clients access data in a near-random pattern. Defaults to 100000.
-    </span>LocationCacheSize(i32),
+    </span>LocationCacheSize(i64),
     <span class="doccomment">/// Max outstanding watches
     ///
     /// Set the maximum number of watches allowed to be outstanding on a database connection. Increasing this number could result in increased resource usage. Reducing this number will not cancel any outstanding watches. Defaults to 10000 and cannot be larger than 1000000.
-    </span>MaxWatches(i32),
+    </span>MaxWatches(i64),
     <span class="doccomment">/// Hexadecimal ID
     ///
     /// Specify the machine ID that was passed to fdbserver processes running on the same machine as this client, for better location-aware load balancing.
@@ -1308,23 +1308,23 @@
     <span class="doccomment">/// Maximum length of escaped key and value fields.
     ///
     /// Sets the maximum escaped length of key and value fields to be logged to the trace file via the LOG_TRANSACTION option. This sets the ``transaction_logging_max_field_length`` option of each transaction created by this database. See the transaction option description for more information.
-    </span>TransactionLoggingMaxFieldLength(i32),
+    </span>TransactionLoggingMaxFieldLength(i64),
     <span class="doccomment">/// value in milliseconds of timeout
     ///
     /// Set a timeout in milliseconds which, when elapsed, will cause each transaction automatically to be cancelled. This sets the ``timeout`` option of each transaction created by this database. See the transaction option description for more information. Using this option requires that the API version is 610 or higher.
-    </span>TransactionTimeout(i32),
+    </span>TransactionTimeout(i64),
     <span class="doccomment">/// number of times to retry
     ///
     /// Set a maximum number of retries after which additional calls to ``onError`` will throw the most recently seen error code. This sets the ``retry_limit`` option of each transaction created by this database. See the transaction option description for more information.
-    </span>TransactionRetryLimit(i32),
+    </span>TransactionRetryLimit(i64),
     <span class="doccomment">/// value in milliseconds of maximum delay
     ///
     /// Set the maximum amount of backoff delay incurred in the call to ``onError`` if the error is retryable. This sets the ``max_retry_delay`` option of each transaction created by this database. See the transaction option description for more information.
-    </span>TransactionMaxRetryDelay(i32),
+    </span>TransactionMaxRetryDelay(i64),
     <span class="doccomment">/// value in bytes
     ///
     /// Set the maximum transaction size in bytes. This sets the ``size_limit`` option on each transaction created by this database. See the transaction option description for more information.
-    </span>TransactionSizeLimit(i32),
+    </span>TransactionSizeLimit(i64),
     <span class="doccomment">/// The read version will be committed, and usually will be the latest committed, but might not be the latest committed in the event of a simultaneous fault and misbehaving clock.
     </span>TransactionCausalReadRisky,
     <span class="doccomment">/// Deprecated. Addresses returned by get_addresses_for_key include the port when enabled. As of api version 630, this option is enabled by default and setting this has no effect.
@@ -1342,7 +1342,7 @@
     <span class="doccomment">/// integer between 0 and 100 expressing the probability a client will verify it can't read stale data
     ///
     /// Enables verification of causal read risky by checking whether clients are able to read stale data when they detect a recovery, and logging an error if so.
-    </span>TestCausalReadRisky(i32),
+    </span>TestCausalReadRisky(i64),
 }
 <span class="kw">impl </span>DatabaseOption {
     <span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fdb_sys::FDBDatabaseOption {
@@ -1372,11 +1372,11 @@
         <span class="kw">let </span>code = <span class="self">self</span>.code();
         <span class="kw">let </span>err = <span class="kw">unsafe </span>{ <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             DatabaseOption::LocationCacheSize(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::MaxWatches(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::MachineId(<span class="kw-2">ref </span>v) =&gt; {
@@ -1390,23 +1390,23 @@
             DatabaseOption::SnapshotRywEnable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::SnapshotRywDisable =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::TransactionLoggingMaxFieldLength(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::TransactionTimeout(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::TransactionRetryLimit(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::TransactionMaxRetryDelay(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::TransactionSizeLimit(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             DatabaseOption::TransactionCausalReadRisky =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1417,7 +1417,7 @@
             DatabaseOption::TransactionReportConflictingKeys =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::UseConfigDatabase =&gt; fdb_sys::fdb_database_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             DatabaseOption::TestCausalReadRisky(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_database_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
         } };
@@ -1484,25 +1484,25 @@
     <span class="doccomment">/// Maximum length of escaped key and value fields.
     ///
     /// Sets the maximum escaped length of key and value fields to be logged to the trace file via the LOG_TRANSACTION option, after which the field will be truncated. A negative value disables truncation.
-    </span>TransactionLoggingMaxFieldLength(i32),
+    </span>TransactionLoggingMaxFieldLength(i64),
     <span class="doccomment">/// Sets an identifier for server tracing of this transaction. When committed, this identifier triggers logging when each part of the transaction authority encounters it, which is helpful in diagnosing slowness in misbehaving clusters. The identifier is randomly generated. When there is also a debug_transaction_identifier, both IDs are logged together.
     </span>ServerRequestTracing,
     <span class="doccomment">/// value in milliseconds of timeout
     ///
     /// Set a timeout in milliseconds which, when elapsed, will cause the transaction automatically to be cancelled. Valid parameter values are ``[0, INT_MAX]``. If set to 0, will disable all timeouts. All pending and any future uses of the transaction will throw an exception. The transaction can be used again after it is reset. Prior to API version 610, like all other transaction options, the timeout must be reset after a call to ``onError``. If the API version is 610 or greater, the timeout is not reset after an ``onError`` call. This allows the user to specify a longer timeout on specific transactions than the default timeout specified through the ``transaction_timeout`` database option without the shorter database timeout cancelling transactions that encounter a retryable error. Note that at all API versions, it is safe and legal to set the timeout each time the transaction begins, so most code written assuming the older behavior can be upgraded to the newer behavior without requiring any modification, and the caller is not required to implement special logic in retry loops to only conditionally set this option.
-    </span>Timeout(i32),
+    </span>Timeout(i64),
     <span class="doccomment">/// number of times to retry
     ///
     /// Set a maximum number of retries after which additional calls to ``onError`` will throw the most recently seen error code. Valid parameter values are ``[-1, INT_MAX]``. If set to -1, will disable the retry limit. Prior to API version 610, like all other transaction options, the retry limit must be reset after a call to ``onError``. If the API version is 610 or greater, the retry limit is not reset after an ``onError`` call. Note that at all API versions, it is safe and legal to set the retry limit each time the transaction begins, so most code written assuming the older behavior can be upgraded to the newer behavior without requiring any modification, and the caller is not required to implement special logic in retry loops to only conditionally set this option.
-    </span>RetryLimit(i32),
+    </span>RetryLimit(i64),
     <span class="doccomment">/// value in milliseconds of maximum delay
     ///
     /// Set the maximum amount of backoff delay incurred in the call to ``onError`` if the error is retryable. Defaults to 1000 ms. Valid parameter values are ``[0, INT_MAX]``. If the maximum retry delay is less than the current retry delay of the transaction, then the current retry delay will be clamped to the maximum retry delay. Prior to API version 610, like all other transaction options, the maximum retry delay must be reset after a call to ``onError``. If the API version is 610 or greater, the retry limit is not reset after an ``onError`` call. Note that at all API versions, it is safe and legal to set the maximum retry delay each time the transaction begins, so most code written assuming the older behavior can be upgraded to the newer behavior without requiring any modification, and the caller is not required to implement special logic in retry loops to only conditionally set this option.
-    </span>MaxRetryDelay(i32),
+    </span>MaxRetryDelay(i64),
     <span class="doccomment">/// value in bytes
     ///
     /// Set the transaction size limit in bytes. The size is calculated by combining the sizes of all keys and values written or mutated, all key ranges cleared, and all read and write conflict ranges. (In other words, it includes the total size of all data included in the request to the cluster to commit the transaction.) Large transactions can cause performance problems on FoundationDB clusters, so setting this limit to a smaller value than the default can help prevent the client from accidentally degrading the cluster's performance. This value must be at least 32 and cannot be set to higher than 10,000,000, the default transaction size limit.
-    </span>SizeLimit(i32),
+    </span>SizeLimit(i64),
     <span class="doccomment">/// Automatically assign a random 16 byte idempotency id for this transaction. Prevents commits from failing with ``commit_unknown_result``. WARNING: If you are also using the multiversion client or transaction timeouts, if either cluster_version_changed or transaction_timed_out was thrown during a commit, then that commit may have already succeeded or may succeed in the future. This feature is in development and not ready for general use.
     </span>AutomaticIdempotency,
     <span class="doccomment">/// Snapshot read operations will see the results of writes done in the same transaction. This is the default behavior.
@@ -1550,7 +1550,7 @@
     <span class="doccomment">/// Number of storage replicas over which the load balancer consistency check is done.
     ///
     /// Specifies the number of storage server replica results that the load balancer needs to compare when enable_replica_consistency_check option is set.
-    </span>ConsistencyCheckRequiredReplicas(i32),
+    </span>ConsistencyCheckRequiredReplicas(i64),
 }
 <span class="kw">impl </span>TransactionOption {
     <span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fdb_sys::FDBTransactionOption {
@@ -1647,24 +1647,24 @@
             }
             TransactionOption::LogTransaction =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::TransactionLoggingMaxFieldLength(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             TransactionOption::ServerRequestTracing =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::Timeout(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             TransactionOption::RetryLimit(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             TransactionOption::MaxRetryDelay(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             TransactionOption::SizeLimit(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
             TransactionOption::AutomaticIdempotency =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
@@ -1698,7 +1698,7 @@
             }
             TransactionOption::EnableReplicaConsistencyCheck =&gt; fdb_sys::fdb_transaction_set_option(target, code, std::ptr::null(), <span class="number">0</span>),
             TransactionOption::ConsistencyCheckRequiredReplicas(v) =&gt; {
-                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = i64::to_ne_bytes(v <span class="kw">as </span>i64);
+                <span class="kw">let </span>data: [u8;<span class="number">8</span>] = v.to_ne_bytes();
                 fdb_sys::fdb_transaction_set_option(target, code, data.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="number">8</span>)
             }
         } };
