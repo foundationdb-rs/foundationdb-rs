@@ -268,8 +268,7 @@
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2022 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#270" id="270">270</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2022 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -290,7 +289,6 @@
 <span class="kw">use crate</span>::{error, KeySelector};
 <span class="kw">use crate</span>::{FdbError, FdbResult};
 <span class="kw">use </span>foundationdb_sys <span class="kw">as </span>fdb_sys;
-<span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>std::ops::Deref;
@@ -388,12 +386,12 @@
 
     <span class="doccomment">/// Retrieves the beginning of the range as a [`KeySelector`]
     </span><span class="kw">pub fn </span>begin_selector(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; KeySelector&lt;<span class="lifetime">'_</span>&gt; {
-        KeySelector::new(Cow::from(<span class="self">self</span>.begin_range()), <span class="bool-val">false</span>, <span class="number">0</span>)
+        KeySelector::first_greater_or_equal(<span class="self">self</span>.begin_range())
     }
 
     <span class="doccomment">/// Retrieves the end of the range as a [`KeySelector`]
     </span><span class="kw">pub fn </span>end_selector(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; KeySelector&lt;<span class="lifetime">'_</span>&gt; {
-        KeySelector::new(Cow::from(<span class="self">self</span>.end_range()), <span class="bool-val">false</span>, <span class="number">0</span>)
+        KeySelector::first_greater_or_equal(<span class="self">self</span>.end_range())
     }
 
     <span class="doccomment">/// retrieves the associated slice of [`FdbKeyValue`]
