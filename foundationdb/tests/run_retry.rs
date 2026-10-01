@@ -177,7 +177,7 @@ async fn run_retry_decision_honors_retry_limit() {
         matches!(result, Err(RetryTestError::NeedsRetry)),
         "exhaustion must return the original typed error, got {result:?}"
     );
-    assert_eq!(attempt.load(Ordering::SeqCst) as i32, retry_limit + 1);
+    assert_eq!(i64::from(attempt.load(Ordering::SeqCst)), retry_limit + 1);
 }
 
 /// An error with no FdbError in its chain is fatal: the closure runs exactly
