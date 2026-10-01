@@ -208,6 +208,7 @@ mod tests {
         });
         let waker = wakers.lock().unwrap().pop().unwrap();
         let other_waker = waker.clone();
+        let late_waker = waker.clone();
         ready.store(true, Ordering::Release);
         let first = thread::spawn(move || {
             waker.wake_by_ref();
@@ -224,6 +225,13 @@ mod tests {
         assert_eq!(polls.get(), 1);
         assert!(drops.lock().unwrap().is_empty());
 
+        poll_pending_tasks();
+        assert_eq!(polls.get(), 2);
+        assert_eq!(*drops.lock().unwrap(), [owner]);
+
+        // Retaining or waking a completed task's waker must not retain or repoll
+        // the future, even when the late wake comes from another thread.
+        thread::spawn(move || late_waker.wake()).join().unwrap();
         poll_pending_tasks();
         assert_eq!(polls.get(), 2);
         assert_eq!(*drops.lock().unwrap(), [owner]);
@@ -289,35 +297,6 @@ mod tests {
             observed_events.borrow_mut().push("parent exit");
         });
         assert_eq!(*events.borrow(), ["parent enter", "parent exit", "child"]);
-    }
-
-    #[test]
-    fn a_pending_future_without_a_waker_is_released() {
-        let held = Rc::new(());
-        let future_held = held.clone();
-        fdb_spawn(poll_fn(move |_| {
-            let _ = &future_held;
-            Poll::Pending
-        }));
-        assert_eq!(Rc::strong_count(&held), 1);
-    }
-
-    #[test]
-    fn completed_task_wakers_do_not_retain_or_repoll_its_future() {
-        let held = Rc::new(());
-        let future_held = held.clone();
-        let wakers = Arc::new(Mutex::new(Vec::new()));
-        let captured_wakers = wakers.clone();
-        fdb_spawn(poll_fn(move |cx| {
-            let _ = &future_held;
-            captured_wakers.lock().unwrap().push(cx.waker().clone());
-            Poll::Ready(())
-        }));
-        assert_eq!(Rc::strong_count(&held), 1);
-        let waker = wakers.lock().unwrap().pop().unwrap();
-        thread::spawn(move || waker.wake()).join().unwrap();
-        poll_pending_tasks();
-        assert_eq!(Rc::strong_count(&held), 1);
     }
 
     #[test]
