@@ -428,8 +428,12 @@ impl DirectoryLayer {
                 let allocator = self.allocator.allocate(trx).await?;
                 let subspace = self.content_subspace.subspace(&allocator);
 
-                // checking range
-                let mut range_option = RangeOption::from(subspace.range());
+                // A directory owns every key with its raw prefix, including the
+                // prefix itself and 0xff suffixes excluded by tuple ranges.
+                let mut range_option = RangeOption::from((
+                    subspace.bytes().to_vec(),
+                    strinc(subspace.bytes().to_vec()),
+                ));
                 range_option.limit = Some(1);
 
                 let result = trx
