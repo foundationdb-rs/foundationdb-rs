@@ -183,7 +183,11 @@ pub fn pack<T: TuplePack>(v: &T) -> Vec<u8> {
     v.pack_to_vec()
 }
 
-/// Pack value and returns the packed buffer
+/// Pack a value using the versionstamp offset encoding for API 520 and later.
+///
+/// If the tuple contains an incomplete versionstamp, the result has a four-byte
+/// offset suffix. It is not a legacy API 510 mutation operand. Complete stamps
+/// are packed normally, without an offset suffix.
 ///
 /// # Panics
 ///

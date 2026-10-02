@@ -103,7 +103,10 @@ impl Subspace {
     }
 
     /// Returns the key encoding the specified Tuple with the prefix of this Subspace
-    /// prepended, with a versionstamp.
+    /// prepended, with a versionstamp offset for API 520 and later.
+    ///
+    /// Incomplete stamps append a four-byte offset; this is not a legacy API 510
+    /// mutation operand. Complete stamps are packed without an offset suffix.
     pub fn pack_with_versionstamp<T: TuplePack>(&self, t: &T) -> Vec<u8> {
         let mut output = self.prefix.clone();
         let mut versionstamp_offset = self.versionstamp_offset;
