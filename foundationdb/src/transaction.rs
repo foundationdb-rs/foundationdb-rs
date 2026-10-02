@@ -941,6 +941,16 @@ impl Transaction {
     /// If a transaction uses both an atomic operation and a strictly serializable read on the same
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
+    ///
+    /// Versionstamped operands are forwarded unchanged and must match the selected
+    /// runtime API, including when the client was initialized outside this crate.
+    /// Before API 520, `SetVersionstampedKey` consumes a two-byte offset suffix and
+    /// `SetVersionstampedValue` replaces the first ten bytes without an offset
+    /// suffix. API 520 and later use a four-byte offset suffix for both mutations.
+    /// Use [`crate::tuple::pack_with_versionstamp_for_key`] or
+    /// [`crate::tuple::Subspace::pack_with_versionstamp_for_key`] for tuple keys.
+    /// Tuple values containing an incomplete versionstamp require API 520 or later:
+    /// stamping at byte zero would overwrite the tuple's type code.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, key, param))
