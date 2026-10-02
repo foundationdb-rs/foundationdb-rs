@@ -55,3 +55,15 @@ async fn timekeeper() {
         .expect("Unable to get hint version");
     assert!(result.is_none());
 }
+
+#[tokio::test]
+async fn timekeeper_propagates_read_errors() -> Result<(), foundationdb::FdbBindingError> {
+    let database = foundationdb::Database::new_compat(None).await?;
+    let trx = database.create_trx()?;
+    trx.set_read_version(1);
+    let error = hint_version_from_timestamp(&trx, 0, HintMode::AfterTimestamp, true)
+        .await
+        .expect_err("an expired read must not be treated as a missing timestamp");
+    assert_eq!(error.get_fdb_error().unwrap().code(), 1007);
+    Ok(())
+}
