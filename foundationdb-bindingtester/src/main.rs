@@ -523,6 +523,33 @@ impl TransactionState {
     }
 }
 
+async fn directory_operation<D, T, F>(
+    db: &Database,
+    transaction: &TransactionState,
+    is_db: bool,
+    data: D,
+    operation: F,
+) -> Result<T, FdbBindingError>
+where
+    F: for<'a> Fn(&'a Transaction, &'a D) -> future::LocalBoxFuture<'a, Result<T, DirectoryError>>,
+{
+    if is_db {
+        // Retry only the directory operation and commit. Stack arguments have already
+        // been popped, and the caller publishes the result once this succeeds.
+        db.run(|txn, _| {
+            let data = &data;
+            let operation = &operation;
+            async move { operation(&txn, data).await.map_err(FdbBindingError::from) }
+        })
+        .await
+    } else {
+        let TransactionState::Transaction(txn) = transaction else {
+            panic!("could not find an active transaction");
+        };
+        operation(txn, &data).await.map_err(FdbBindingError::from)
+    }
+}
+
 struct StackMachine {
     prefix: Bytes<'static>,
 
@@ -729,7 +756,7 @@ impl StackMachine {
         }
     }
 
-    fn push_directory_err(&mut self, code: &InstrCode, number: usize, err: DirectoryError) {
+    fn push_directory_err(&mut self, code: &InstrCode, number: usize, err: impl std::fmt::Debug) {
         debug!("[{number}] DIRECTORY_ERROR during {code:?}: {err:?}");
         self.push(number, Element::Tuple(vec![ERROR_DIRECTORY.clone()]));
 
@@ -1785,17 +1812,6 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 debug!(
                     "creating path {:?} with layer {:?} and prefix {:?} using directory at index {}",
                     path.first().unwrap(),
@@ -1804,14 +1820,23 @@ impl StackMachine {
                     self.directory_index,
                 );
 
-                match directory
-                    .create(
-                        txn,
-                        path.first().unwrap(),
-                        prefix.as_deref(),
-                        layer.as_deref(),
-                    )
-                    .await
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, path, prefix, layer),
+                    |txn, (directory, path, prefix, layer)| {
+                        directory
+                            .create(
+                                txn,
+                                path.first().unwrap(),
+                                prefix.as_deref(),
+                                layer.as_deref(),
+                            )
+                            .boxed_local()
+                    },
+                )
+                .await
                 {
                     Ok(directory_subspace) => {
                         debug!(
@@ -1820,10 +1845,6 @@ impl StackMachine {
                         );
                         self.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(directory_subspace));
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
@@ -1848,17 +1869,6 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 debug!(
                     "opening path {:?} with layer {:?} with index {}",
                     path.first().unwrap(),
@@ -1866,9 +1876,18 @@ impl StackMachine {
                     self.directory_index
                 );
 
-                match directory
-                    .open(txn, path.first().unwrap(), layer.as_deref())
-                    .await
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, path, layer),
+                    |txn, (directory, path, layer)| {
+                        directory
+                            .open(txn, path.first().unwrap(), layer.as_deref())
+                            .boxed_local()
+                    },
+                )
+                .await
                 {
                     Ok(directory_subspace) => {
                         debug!(
@@ -1877,11 +1896,6 @@ impl StackMachine {
                         );
                         self.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(directory_subspace));
-
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
@@ -1908,26 +1922,24 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 debug!(
                     "create_or_open path {:?} with layer {:?} with index {}",
                     path.first().unwrap(),
                     layer,
                     self.directory_index
                 );
-                match directory
-                    .create_or_open(txn, path.first().unwrap(), None, layer.as_deref())
-                    .await
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, path, layer),
+                    |txn, (directory, path, layer)| {
+                        directory
+                            .create_or_open(txn, path.first().unwrap(), None, layer.as_deref())
+                            .boxed_local()
+                    },
+                )
+                .await
                 {
                     Ok(directory_subspace) => {
                         debug!(
@@ -1937,10 +1949,6 @@ impl StackMachine {
                         );
                         self.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(directory_subspace));
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => self.push_directory_err(&instr.code, number, e),
                 };
@@ -1990,17 +1998,6 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 debug!(
                     "moving {:?} to {:?} using directory at index {}",
                     paths.first().unwrap(),
@@ -2008,9 +2005,18 @@ impl StackMachine {
                     self.directory_index
                 );
 
-                match directory
-                    .move_to(txn, paths.first().unwrap(), paths.get(1).unwrap())
-                    .await
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, paths),
+                    |txn, (directory, paths)| {
+                        directory
+                            .move_to(txn, paths.first().unwrap(), paths.get(1).unwrap())
+                            .boxed_local()
+                    },
+                )
+                .await
                 {
                     Ok(s) => {
                         debug!(
@@ -2020,10 +2026,6 @@ impl StackMachine {
                         );
                         self.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(s));
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
@@ -2042,22 +2044,20 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 debug!("moving directory {:?} to {:?}", self.directory_index, paths);
 
-                match directory
-                    .move_directory(txn, paths.first().expect("popped tuple has no item"))
-                    .await
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, paths),
+                    |txn, (directory, paths)| {
+                        directory
+                            .move_directory(txn, paths.first().expect("popped tuple has no item"))
+                            .boxed_local()
+                    },
+                )
+                .await
                 {
                     Ok(s) => {
                         debug!(
@@ -2067,10 +2067,6 @@ impl StackMachine {
                         );
                         self.directory_stack
                             .push(DirectoryStackItem::DirectoryOutput(s));
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
@@ -2091,34 +2087,30 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 let paths = paths.first().expect("could not retrieve a path");
                 debug!(
                     "removing path {:?} using directory at index {}",
                     paths, self.directory_index
                 );
-                match directory.remove(txn, paths).await {
-                    Ok(deleted) => {
-                        if !deleted {
-                            self.push_directory_err(
-                                &instr.code,
-                                number,
-                                DirectoryError::Other(String::from("directory does not exists")),
-                            );
-                        } else if is_db {
-                            local_trx.commit().await.expect("could not commit");
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, paths),
+                    |txn, (directory, paths)| {
+                        async move {
+                            if directory.remove(txn, paths).await? {
+                                Ok(())
+                            } else {
+                                Err(DirectoryError::DirectoryDoesNotExists)
+                            }
                         }
-                    }
+                        .boxed_local()
+                    },
+                )
+                .await
+                {
+                    Ok(()) => {}
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
                     }
@@ -2138,24 +2130,17 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 let paths = paths.first().expect("could not retrieve a path");
-                match directory.remove_if_exists(txn, paths).await {
-                    Ok(_) => {
-                        if is_db {
-                            local_trx.commit().await.expect("could not commit");
-                        }
-                    }
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, paths),
+                    |txn, (directory, paths)| directory.remove_if_exists(txn, paths).boxed_local(),
+                )
+                .await
+                {
+                    Ok(_) => {}
                     Err(err) => self.push_directory_err(&instr.code, number, err),
                 };
             }
@@ -2181,20 +2166,15 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db
-                    .create_trx()
-                    .expect("could not create a local transaction");
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
-                match directory.list(txn, &paths).await {
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, &paths),
+                    |txn, (directory, paths)| directory.list(txn, paths).boxed_local(),
+                )
+                .await
+                {
                     Ok(children) => {
                         let mut elements: Vec<Element> = vec![];
                         debug!(
@@ -2210,10 +2190,6 @@ impl StackMachine {
                         }
                         let tuple = Element::Tuple(elements);
                         self.push(number, Element::Bytes(Bytes::from(tuple.pack_to_vec())));
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
@@ -2235,25 +2211,18 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let local_trx = db.create_trx().unwrap();
-                let txn = match is_db {
-                    true => &local_trx,
-                    false => match trx {
-                        TransactionState::Transaction(ref t) => t,
-                        _ => {
-                            panic!("could not find an active transaction");
-                        }
-                    },
-                };
-
                 let paths = paths.first().expect("could not retrieve a path");
-                match directory.exists(txn, paths).await {
+                match directory_operation(
+                    &db,
+                    &trx,
+                    is_db,
+                    (directory, paths),
+                    |txn, (directory, paths)| directory.exists(txn, paths).boxed_local(),
+                )
+                .await
+                {
                     Ok(exists) => {
                         self.push(number, Element::Int(i64::from(exists)));
-                        if is_db {
-                            debug!("commiting local trx");
-                            local_trx.commit().await.expect("could not commit");
-                        }
                     }
                     Err(e) => {
                         self.push_directory_err(&instr.code, number, e);
