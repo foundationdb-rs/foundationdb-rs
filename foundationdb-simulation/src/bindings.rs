@@ -112,7 +112,13 @@ pub struct Metric<'a> {
     pub val: f64,
     /// Indicates if the value represents an average or not
     pub avg: bool,
-    /// C++ string formatter of the metric
+    /// C `printf` format for one `double`, defaulting to `%.3g`.
+    ///
+    /// Supported formats contain exactly one `a`, `A`, `e`, `E`, `f`, `F`, `g`,
+    /// or `G` conversion, with optional `-`, `+`, space, `#`, and `0` flags and
+    /// decimal width and precision no greater than `i32::MAX`. Literal text and
+    /// `%%` are allowed. Length modifiers, positional arguments, `*`, and other
+    /// conversions are rejected by [`Metrics::push`] before entering native code.
     pub fmt: Option<&'a str>,
 }
 
@@ -321,6 +327,65 @@ impl Drop for Promise {
     }
 }
 
+// Native metric formatting passes exactly one double to printf. Keep this
+// grammar narrow so neither the conversion nor width/precision consumes a
+// differently typed or additional variadic argument.
+fn valid_metric_format(format: &str) -> bool {
+    fn decimal(input: &mut &[u8]) -> bool {
+        let mut value = 0_i32;
+        while let Some((&digit, rest)) = input.split_first() {
+            if !digit.is_ascii_digit() {
+                break;
+            }
+            let Some(next) = value
+                .checked_mul(10)
+                .and_then(|value| value.checked_add(i32::from(digit - b'0')))
+            else {
+                return false;
+            };
+            value = next;
+            *input = rest;
+        }
+        true
+    }
+
+    let mut input = format.as_bytes();
+    let mut conversion = false;
+    while let Some((&byte, rest)) = input.split_first() {
+        input = rest;
+        if byte != b'%' {
+            continue;
+        }
+        if input.first() == Some(&b'%') {
+            input = &input[1..];
+            continue;
+        }
+        if conversion {
+            return false;
+        }
+        while matches!(input.first(), Some(b'-' | b'+' | b' ' | b'#' | b'0')) {
+            input = &input[1..];
+        }
+        if !decimal(&mut input) {
+            return false;
+        }
+        if input.first() == Some(&b'.') {
+            input = &input[1..];
+            if !decimal(&mut input) {
+                return false;
+            }
+        }
+        match input.split_first() {
+            Some((b'a' | b'A' | b'e' | b'E' | b'f' | b'F' | b'g' | b'G', rest)) => {
+                conversion = true;
+                input = rest;
+            }
+            _ => return false,
+        }
+    }
+    conversion
+}
+
 impl Metrics {
     pub(crate) fn new(raw: FDBMetrics) -> Self {
         Self(raw)
@@ -329,10 +394,19 @@ impl Metrics {
     pub fn reserve(&mut self, n: usize) {
         with! { self.0 => reserve(n as i32) }
     }
-    /// Push a [Metric] entry in the underlying C++ sink
+    /// Push a [Metric] entry in the underlying C++ sink.
+    ///
+    /// # Panics
+    /// Panics before calling the native sink if [`Metric::fmt`] does not follow
+    /// its supported single-double format grammar.
     pub fn push(&mut self, metric: Metric) {
+        let format = metric.fmt.unwrap_or("%.3g");
+        assert!(
+            valid_metric_format(format),
+            "invalid metric format: {format:?}"
+        );
         let key_storage = str_for_c(metric.key);
-        let fmt_storage = str_for_c(metric.fmt.unwrap_or("%.3g"));
+        let fmt_storage = str_for_c(format);
         with! {
             self.0 => push(FDBMetric {
                 key: key_storage.as_ptr(),
@@ -385,6 +459,46 @@ impl<'a> Metric<'a> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn metric_formats_consume_exactly_one_double() {
+        for format in [
+            "%.3g",
+            "%a",
+            "%A",
+            "%e",
+            "%E",
+            "%f",
+            "%F",
+            "%G",
+            "load=%-+#010.3f%%",
+            "% .f",
+        ] {
+            assert!(super::valid_metric_format(format), "rejected {format:?}");
+        }
+        for format in [
+            "",
+            "%%",
+            "%n",
+            "%s",
+            "%d",
+            "%p",
+            "%Lf",
+            "%lf",
+            "%1$f",
+            "%*f",
+            "%.*f",
+            "%f %g",
+            "%f%",
+            "%",
+            "%.2.3f",
+            "%2147483648f",
+            "%.2147483648f",
+            "%g\0%n",
+        ] {
+            assert!(!super::valid_metric_format(format), "accepted {format:?}");
+        }
+    }
+
     use super::{Severity, capitalize_first_byte, prepare_trace_details, str_for_c};
 
     #[test]
