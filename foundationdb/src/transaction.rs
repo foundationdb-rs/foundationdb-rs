@@ -942,29 +942,20 @@ impl Transaction {
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
     ///
-    /// # Panics
-    ///
-    /// `SetVersionstampedKey` and `SetVersionstampedValue` require runtime API 520
-    /// or later. Earlier APIs use different key and value encodings, which this
-    /// binding does not support; both mutations panic before reaching the native
-    /// client, including when given manually encoded operands. The runtime API
-    /// must have been selected through this crate's [`crate::api::FdbApiBuilder`];
-    /// an unknown version selected externally through the C API is also rejected.
+    /// Versionstamped operands are forwarded unchanged and must match the selected
+    /// runtime API, including when the client was initialized outside this crate.
+    /// Before API 520, `SetVersionstampedKey` consumes a two-byte offset suffix and
+    /// `SetVersionstampedValue` replaces the first ten bytes without an offset
+    /// suffix. API 520 and later use a four-byte offset suffix for both mutations.
+    /// Use [`crate::tuple::pack_with_versionstamp_for_key`] or
+    /// [`crate::tuple::Subspace::pack_with_versionstamp_for_key`] for tuple keys.
+    /// Tuple values containing an incomplete versionstamp require API 520 or later:
+    /// stamping at byte zero would overwrite the tuple's type code.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, key, param))
     )]
     pub fn atomic_op(&self, key: &[u8], param: &[u8], op_type: options::MutationType) {
-        if matches!(
-            op_type,
-            options::MutationType::SetVersionstampedKey
-                | options::MutationType::SetVersionstampedValue
-        ) {
-            assert!(
-                crate::api::selected_api_version() >= 520,
-                "versionstamped mutations require runtime API 520 or later"
-            );
-        }
         unsafe {
             fdb_sys::fdb_transaction_atomic_op(
                 self.inner.as_ptr(),
