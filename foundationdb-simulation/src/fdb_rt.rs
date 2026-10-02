@@ -108,7 +108,9 @@ pub fn poll_pending_tasks() {
         // or destruction: either can synchronously wake or spawn another task.
         match notification {
             Notification::Ready(notification) => {
-                notification.queued.store(false, Ordering::Release);
+                // A coalesced wake may publish writes without taking the queue
+                // lock. Acquire those writes before polling the future.
+                notification.queued.swap(false, Ordering::AcqRel);
                 let id = notification.id;
                 let future = EXECUTOR.with_borrow_mut(|executor| executor.tasks.remove(&id));
                 if let Some(mut future) = future {
