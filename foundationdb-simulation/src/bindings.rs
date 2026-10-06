@@ -100,8 +100,30 @@ macro_rules! details {
 pub struct WorkloadContext(FDBWorkloadContext);
 /// Wrapper around the C FDBPromise
 pub struct Promise(FDBPromise);
-/// Wrapper around the C FDBMetrics
-pub struct Metrics(FDBMetrics);
+/// A metrics sink borrowed for one [`crate::RustWorkload::get_metrics`] callback.
+///
+/// The native sink is destroyed after the callback returns, so workloads cannot
+/// retain it for later use:
+///
+/// ```compile_fail,E0521
+/// use std::cell::RefCell;
+/// use foundationdb_simulation::{Metrics, RustWorkload, SimDatabase};
+///
+/// struct RetainingWorkload {
+///     saved: RefCell<Option<Metrics<'static>>>,
+/// }
+///
+/// impl RustWorkload for RetainingWorkload {
+///     async fn setup(&mut self, _: SimDatabase) {}
+///     async fn start(&mut self, _: SimDatabase) {}
+///     async fn check(&mut self, _: SimDatabase) {}
+///     fn get_metrics(&self, out: Metrics<'_>) {
+///         *self.saved.borrow_mut() = Some(out);
+///     }
+///     fn get_check_timeout(&self) -> f64 { 1.0 }
+/// }
+/// ```
+pub struct Metrics<'callback>(&'callback mut FDBMetrics);
 
 /// A single metric entry
 #[derive(Clone)]
@@ -329,8 +351,8 @@ impl Drop for Promise {
     }
 }
 
-impl Metrics {
-    pub(crate) fn new(raw: FDBMetrics) -> Self {
+impl<'callback> Metrics<'callback> {
+    pub(crate) fn new(raw: &'callback mut FDBMetrics) -> Self {
         Self(raw)
     }
     /// Call std::vector::reserve on the underlying C++ sink
