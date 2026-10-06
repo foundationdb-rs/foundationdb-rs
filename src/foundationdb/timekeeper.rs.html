@@ -95,12 +95,7 @@
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a></pre></div><pre class="rust"><code><span class="doccomment">//! There is a key range called TimeKeeper in the system key space which stores a rolling history window
+<a href="#97" id="97">97</a></pre></div><pre class="rust"><code><span class="doccomment">//! There is a key range called TimeKeeper in the system key space which stores a rolling history window
 //! of time to version mappings, with one data point every 10 seconds.
 //! It is not exposed via any user-facing API, though of course the data can be read by a user.
 //! It is not an official database feature and should not be relied on for anything where accuracy
@@ -114,11 +109,10 @@
 //!
 //! [source](https://forums.foundationdb.org/t/versionstamp-as-absolute-time/2442/3)
 
-</span><span class="kw">use </span><span class="kw">crate</span>::future::FdbValue;
-<span class="kw">use </span><span class="kw">crate</span>::options::TransactionOption;
-<span class="kw">use crate</span>::{FdbBindingError, FdbResult, KeySelector, RangeOption, Transaction};
+</span><span class="kw">use </span><span class="kw">crate</span>::options::TransactionOption;
+<span class="kw">use crate</span>::{FdbBindingError, KeySelector, RangeOption, Transaction};
 <span class="kw">use </span>foundationdb_tuple::{pack, unpack};
-<span class="kw">use </span>futures::StreamExt;
+<span class="kw">use </span>futures::TryStreamExt;
 
 <span class="doccomment">/// Timekeeper keys are stored in a special keyspace
 /// Can be found in the [Java implementation](https://github.com/FoundationDB/fdb-record-layer/blob/main/fdb-extensions/src/main/java/com/apple/foundationdb/system/SystemKeyspace.java#L80)
@@ -188,14 +182,10 @@
     </span>range.limit = <span class="prelude-val">Some</span>(<span class="number">1</span>);
 
     <span class="comment">// We get the first key matching our start range bound
-    </span><span class="kw">let </span>results = trx
-        .get_ranges_keyvalues(range, snapshot)
-        .take(<span class="number">1</span>)
-        .collect::&lt;Vec&lt;FdbResult&lt;FdbValue&gt;&gt;&gt;()
-        .<span class="kw">await</span>;
+    </span><span class="kw">let </span>result = trx.get_ranges_keyvalues(range, snapshot).try_next().<span class="kw">await</span><span class="question-mark">?</span>;
 
     <span class="comment">// If any result then the value found will be the read version ID
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(kv)) = results.first() {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(kv) = result {
         <span class="kw">let </span>version = unpack(kv.value()).map_err(FdbBindingError::PackError)<span class="question-mark">?</span>;
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(version));
     }
