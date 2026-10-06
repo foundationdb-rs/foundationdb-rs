@@ -248,8 +248,16 @@ impl WorkloadContext {
     pub fn get_process_id(&self) -> u64 {
         with! { self.0 => getProcessID() }
     }
-    /// Set the process id of the workload
-    pub fn set_process_id(&self, id: u64) {
+    /// Switch the simulator's current process using a native process handle.
+    ///
+    /// # Safety
+    /// During simulation, `id` must be an unchanged handle previously obtained
+    /// from [`Self::get_process_id`] in the same simulator instance, and its
+    /// native process must remain alive while selected. It is a pointer-valued
+    /// handle, not an arbitrary numeric process identifier. The caller must
+    /// ensure intervening operations are valid for that process and restore the
+    /// previous process before yielding, returning, or unwinding.
+    pub unsafe fn set_process_id(&self, id: u64) {
         with! { self.0 => setProcessID(id) }
     }
     /// Get the current simulated time in seconds (starts at zero)
