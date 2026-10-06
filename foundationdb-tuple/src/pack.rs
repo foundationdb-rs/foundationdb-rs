@@ -10,6 +10,23 @@ pub enum VersionstampOffset {
     OneIncomplete { offset: u32 },
     MultipleIncomplete,
 }
+impl VersionstampOffset {
+    pub(crate) fn append_key_offset(self, output: &mut Vec<u8>, api_version: i32) {
+        match self {
+            Self::OneIncomplete { offset } if api_version < 520 => {
+                let offset = u16::try_from(offset)
+                    .expect("versionstamp key offset does not fit in u16 before API 520");
+                output.extend_from_slice(&offset.to_le_bytes());
+            }
+            Self::OneIncomplete { offset } => output.extend_from_slice(&offset.to_le_bytes()),
+            Self::MultipleIncomplete => {
+                panic!("versionstamp key cannot contain multiple incomplete versionstamps");
+            }
+            Self::None { .. } => {}
+        }
+    }
+}
+
 impl std::ops::AddAssign<u32> for VersionstampOffset {
     fn add_assign(&mut self, r: u32) {
         if let VersionstampOffset::None { size } = self {
@@ -66,7 +83,8 @@ pub trait TuplePack {
         vec
     }
 
-    /// Pack value and returns the packed buffer
+    /// Pack a value with a four-byte versionstamp offset for API 520 and later.
+    /// For keys under an earlier runtime API, use [`pack_with_versionstamp_for_key`].
     ///
     /// # Panics
     ///
@@ -89,7 +107,9 @@ pub trait TuplePack {
         self.pack_root(output).expect(PACK_ERR_MSG)
     }
 
-    /// Pack value into the given buffer
+    /// Pack a value into the buffer with a four-byte versionstamp offset for API
+    /// 520 and later. For legacy keys, use [`pack_with_versionstamp_for_key`] or
+    /// [`Subspace::pack_with_versionstamp_for_key`] with the buffer as a prefix.
     ///
     /// # Panics
     ///
