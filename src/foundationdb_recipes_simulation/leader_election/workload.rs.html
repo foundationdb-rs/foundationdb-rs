@@ -3528,7 +3528,7 @@
         }
     }
 
-    <span class="kw">fn </span>get_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>out: Metrics) {
+    <span class="kw">fn </span>get_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>out: Metrics&lt;<span class="lifetime">'_</span>&gt;) {
         out.extend([
             Metric::val(<span class="string">"swarm_profile"</span>, <span class="self">self</span>.profile.metric_value()),
             Metric::val(<span class="string">"operation_count"</span>, <span class="self">self</span>.operation_count <span class="kw">as </span>f64),

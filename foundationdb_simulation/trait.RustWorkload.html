@@ -5,7 +5,7 @@
     async fn <a href="#tymethod.setup" class="fn">setup</a>(&amp;mut self, db: <a class="type" href="type.SimDatabase.html" title="type foundationdb_simulation::SimDatabase">SimDatabase</a>);
 <span class="item-spacer"></span>    async fn <a href="#tymethod.start" class="fn">start</a>(&amp;mut self, db: <a class="type" href="type.SimDatabase.html" title="type foundationdb_simulation::SimDatabase">SimDatabase</a>);
 <span class="item-spacer"></span>    async fn <a href="#tymethod.check" class="fn">check</a>(&amp;mut self, db: <a class="type" href="type.SimDatabase.html" title="type foundationdb_simulation::SimDatabase">SimDatabase</a>);
-<span class="item-spacer"></span>    fn <a href="#tymethod.get_metrics" class="fn">get_metrics</a>(&amp;self, out: <a class="struct" href="struct.Metrics.html" title="struct foundationdb_simulation::Metrics">Metrics</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_metrics" class="fn">get_metrics</a>(&amp;self, out: <a class="struct" href="struct.Metrics.html" title="struct foundationdb_simulation::Metrics">Metrics</a>&lt;'_&gt;);
 <span class="item-spacer"></span>    fn <a href="#tymethod.get_check_timeout" class="fn">get_check_timeout</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.85.1/std/primitive.f64.html">f64</a>;
 
     // Provided method
@@ -29,11 +29,11 @@ A workload should run any consistency/correctness tests during this phase.</p>
 <ul>
 <li><code>db</code> - The simulated database.</li>
 </ul>
-</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_metrics" class="method"><a class="src rightside" href="../src/foundationdb_simulation/lib.rs.html#61">Source</a><h4 class="code-header">fn <a href="#tymethod.get_metrics" class="fn">get_metrics</a>(&amp;self, out: <a class="struct" href="struct.Metrics.html" title="struct foundationdb_simulation::Metrics">Metrics</a>)</h4></section></summary><div class="docblock"><p>If a workload collects metrics (like latencies or throughput numbers), these should be reported back here.
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_metrics" class="method"><a class="src rightside" href="../src/foundationdb_simulation/lib.rs.html#61">Source</a><h4 class="code-header">fn <a href="#tymethod.get_metrics" class="fn">get_metrics</a>(&amp;self, out: <a class="struct" href="struct.Metrics.html" title="struct foundationdb_simulation::Metrics">Metrics</a>&lt;'_&gt;)</h4></section></summary><div class="docblock"><p>If a workload collects metrics (like latencies or throughput numbers), these should be reported back here.
 The multitester (or test orchestrator) will collect all metrics from all test clients and it will aggregate them.</p>
 <h5 id="arguments-3"><a class="doc-anchor" href="#arguments-3">§</a>Arguments</h5>
 <ul>
-<li><code>out</code> - A metric sink</li>
+<li><code>out</code> - A metric sink borrowed for this callback</li>
 </ul>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_check_timeout" class="method"><a class="src rightside" href="../src/foundationdb_simulation/lib.rs.html#64">Source</a><h4 class="code-header">fn <a href="#tymethod.get_check_timeout" class="fn">get_check_timeout</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.85.1/std/primitive.f64.html">f64</a></h4></section></summary><div class="docblock"><p>Set the check timeout in simulated seconds for this workload.</p>
 </div></details></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.wrap" class="method"><a class="src rightside" href="../src/foundationdb_simulation/lib.rs.html#77-84">Source</a><h4 class="code-header">fn <a href="#method.wrap" class="fn">wrap</a>(self) -&gt; <a class="type" href="type.WrappedWorkload.html" title="type foundationdb_simulation::WrappedWorkload">WrappedWorkload</a></h4></section></summary><div class="docblock"><p>Wrap the underlying Rust type so it can be passed to the C API</p>

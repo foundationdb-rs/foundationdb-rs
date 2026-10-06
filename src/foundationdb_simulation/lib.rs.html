@@ -371,8 +371,8 @@
     ///
     /// # Arguments
     ///
-    /// * `out` - A metric sink
-    </span><span class="kw">fn </span>get_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, out: Metrics);
+    /// * `out` - A metric sink borrowed for this callback
+    </span><span class="kw">fn </span>get_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, out: Metrics&lt;<span class="lifetime">'_</span>&gt;);
 
     <span class="doccomment">/// Set the check timeout in simulated seconds for this workload.
     </span><span class="kw">fn </span>get_check_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64;
@@ -506,11 +506,11 @@
 }
 <span class="kw">unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>workload_get_metrics&lt;W: RustWorkload&gt;(
     raw_workload: <span class="kw-2">*mut </span>OpaqueWorkload,
-    raw_metrics: FDBMetrics,
+    <span class="kw-2">mut </span>raw_metrics: FDBMetrics,
 ) {
     <span class="kw">unsafe </span>{
         <span class="kw">let </span>workload = <span class="kw-2">&amp;*</span>(raw_workload <span class="kw">as </span><span class="kw-2">*mut </span>W);
-        <span class="kw">let </span>out = Metrics::new(raw_metrics);
+        <span class="kw">let </span>out = Metrics::new(<span class="kw-2">&amp;mut </span>raw_metrics);
         workload.get_metrics(out);
         <span class="attr">#[cfg(coverage)]
         </span>write_coverage_profile();
