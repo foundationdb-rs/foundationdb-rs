@@ -2051,7 +2051,27 @@
 <a href="#2050" id="2050">2050</a>
 <a href="#2051" id="2051">2051</a>
 <a href="#2052" id="2052">2052</a>
-<a href="#2053" id="2053">2053</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
+<a href="#2058" id="2058">2058</a>
+<a href="#2059" id="2059">2059</a>
+<a href="#2060" id="2060">2060</a>
+<a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
+<a href="#2064" id="2064">2064</a>
+<a href="#2065" id="2065">2065</a>
+<a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
+<a href="#2072" id="2072">2072</a>
+<a href="#2073" id="2073">2073</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -3490,21 +3510,41 @@
     /// [client budget](Self::set_client_budget) is kept. User versions
     /// allocated by [`Self::allocate_user_version`] are invalid for the new
     /// attempt, which starts allocating again at zero.
+    ///
+    /// On failure, the transaction is dropped. Use [`Self::on_error_with_transaction`]
+    /// to retain ownership on both success and failure.
     </span><span class="kw">pub fn </span>on_error(
         <span class="self">self</span>,
         err: FdbError,
     ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;Transaction&gt;&gt; + Send + Sync + Unpin {
+        <span class="self">self</span>.on_error_with_transaction(err)
+            .map(|(transaction, result)| result.map(|()| transaction))
+    }
+
+    <span class="doccomment">/// Applies the same retry and backoff behavior as [`Self::on_error`], returning
+    /// ownership of the transaction even when the error cannot be retried.
+    ///
+    /// On success, the returned transaction has been reset for a new attempt.
+    /// On failure, it retains the state left by the native error handler, which
+    /// may be canceled. Call [`Self::reset`] before using it for another attempt.
+    /// This method does not replace or explicitly reset the failed transaction.
+    </span><span class="kw">pub fn </span>on_error_with_transaction(
+        <span class="self">self</span>,
+        err: FdbError,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = (Transaction, FdbResult&lt;()&gt;)&gt; + Send + Sync + Unpin {
         <span class="self">self</span>.mark_attempt_end();
 
         FdbFuture::&lt;()&gt;::new(<span class="kw">unsafe </span>{
             fdb_sys::fdb_transaction_on_error(<span class="self">self</span>.inner.as_ptr(), err.code())
         })
-        .map_ok(<span class="kw">move </span>|()| {
-            <span class="self">self</span>.end_attempt(AttemptOutcome::Retried { cause: err });
-            <span class="self">self</span>.begin_attempt_usage();
-            <span class="self">self</span>.reset_user_version_allocator();
-            <span class="self">self
-        </span>})
+        .map(<span class="kw">move </span>|result| {
+            <span class="kw">if </span>result.is_ok() {
+                <span class="self">self</span>.end_attempt(AttemptOutcome::Retried { cause: err });
+                <span class="self">self</span>.begin_attempt_usage();
+                <span class="self">self</span>.reset_user_version_allocator();
+            }
+            (<span class="self">self</span>, result)
+        })
     }
 
     <span class="doccomment">/// Cancels the transaction. All pending or future uses of the transaction will return a

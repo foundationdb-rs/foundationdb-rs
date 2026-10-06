@@ -2797,7 +2797,50 @@
 <a href="#2796" id="2796">2796</a>
 <a href="#2797" id="2797">2797</a>
 <a href="#2798" id="2798">2798</a>
-<a href="#2799" id="2799">2799</a></pre></div><pre class="rust"><code><span class="attr">#[macro_use]
+<a href="#2799" id="2799">2799</a>
+<a href="#2800" id="2800">2800</a>
+<a href="#2801" id="2801">2801</a>
+<a href="#2802" id="2802">2802</a>
+<a href="#2803" id="2803">2803</a>
+<a href="#2804" id="2804">2804</a>
+<a href="#2805" id="2805">2805</a>
+<a href="#2806" id="2806">2806</a>
+<a href="#2807" id="2807">2807</a>
+<a href="#2808" id="2808">2808</a>
+<a href="#2809" id="2809">2809</a>
+<a href="#2810" id="2810">2810</a>
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
+<a href="#2821" id="2821">2821</a>
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a>
+<a href="#2827" id="2827">2827</a>
+<a href="#2828" id="2828">2828</a>
+<a href="#2829" id="2829">2829</a>
+<a href="#2830" id="2830">2830</a>
+<a href="#2831" id="2831">2831</a>
+<a href="#2832" id="2832">2832</a>
+<a href="#2833" id="2833">2833</a>
+<a href="#2834" id="2834">2834</a>
+<a href="#2835" id="2835">2835</a>
+<a href="#2836" id="2836">2836</a>
+<a href="#2837" id="2837">2837</a>
+<a href="#2838" id="2838">2838</a>
+<a href="#2839" id="2839">2839</a>
+<a href="#2840" id="2840">2840</a>
+<a href="#2841" id="2841">2841</a>
+<a href="#2842" id="2842">2842</a></pre></div><pre class="rust"><code><span class="attr">#[macro_use]
 </span><span class="kw">extern crate </span>log;
 
 <span class="kw">use </span>foundationdb <span class="kw">as </span>fdb;
@@ -3784,16 +3827,13 @@
                 <span class="kw">let </span>trx_id = <span class="self">self</span>.next_trx_id();
                 <span class="kw">let </span>f = trx
                     .take(trx_id)
-                    .on_error(error)
-                    .map(|res| <span class="kw">match </span>res {
-                        <span class="prelude-val">Ok</span>(trx) =&gt; StackResult {
-                            state: trx_name.map(|n| (n, TransactionState::Transaction(trx))),
-                            data: <span class="prelude-val">Ok</span>(RESULT_NOT_PRESENT.clone().into_owned()),
-                        },
-                        <span class="prelude-val">Err</span>(err) =&gt; StackResult::from(err),
+                    .on_error_with_transaction(error)
+                    .map(|(trx, result)| StackResult {
+                        state: trx_name.map(|n| (n, TransactionState::Transaction(trx))),
+                        data: result.map(|()| RESULT_NOT_PRESENT.clone().into_owned()),
                     })
                     .boxed_local();
-                <span class="self">self</span>.push_fut(number, <span class="number">0</span>, f);
+                <span class="self">self</span>.push_fut(number, trx_id, f);
                 pending = <span class="bool-val">true</span>;
             }
 
@@ -5595,5 +5635,51 @@
     <span class="macro">info!</span>(<span class="string">"Closing..."</span>);
 
     <span class="macro">info!</span>(<span class="string">"Done."</span>);
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="attr">#[test]
+    #[ignore = <span class="string">"requires a running FoundationDB cluster"</span>]
+    </span><span class="kw">fn </span>on_error_restores_transaction_before_next_instruction() {
+        futures::executor::block_on(<span class="kw">async </span>{
+            <span class="kw">let </span>db = Arc::new(Database::new_compat(<span class="prelude-val">None</span>).<span class="kw">await</span>.expect(<span class="string">"cannot open fdb"</span>));
+            <span class="kw">let </span><span class="kw-2">mut </span>sm = StackMachine::new(<span class="kw-2">&amp;</span>db, Bytes::from(<span class="string">b"on-error-reuse"</span>.as_slice()));
+            <span class="kw">let </span>key = <span class="string">b"on-error-reuse"</span>.as_slice();
+            <span class="kw">let </span>instructions = [
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"NEW_TRANSACTION"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"PUSH"</span>, <span class="number">1020</span>)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"ON_ERROR"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"GET_READ_VERSION"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"PUSH"</span>, <span class="number">2000</span>)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"ON_ERROR"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"WAIT_FUTURE"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"PUSH"</span>, key)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"GET"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"WAIT_FUTURE"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"RESET"</span>,)),
+                pack(<span class="kw-2">&amp;</span>(<span class="string">"GET_READ_VERSION"</span>,)),
+            ];
+
+            <span class="kw">for </span>(number, instruction) <span class="kw">in </span>instructions.iter().enumerate() {
+                sm.run_step(db.clone(), number, Instr::from(instruction))
+                    .<span class="kw">await
+                    </span>.expect(<span class="string">"instruction failed"</span>);
+            }
+
+            <span class="kw">let </span>error = Element::Bytes(pack(<span class="kw-2">&amp;</span>(<span class="string">b"ERROR"</span>.as_slice(), <span class="string">b"2000"</span>.as_slice())).into());
+            <span class="kw">let </span>cancelled = Element::Bytes(pack(<span class="kw-2">&amp;</span>(<span class="string">b"ERROR"</span>.as_slice(), <span class="string">b"1025"</span>.as_slice())).into());
+            <span class="macro">assert_eq!</span>(sm.stack.len(), <span class="number">5</span>);
+            <span class="macro">assert_eq!</span>(sm.stack[<span class="number">0</span>].data.as_ref(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>RESULT_NOT_PRESENT));
+            <span class="macro">assert_eq!</span>(sm.stack[<span class="number">1</span>].data.as_ref(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>GOT_READ_VERSION));
+            <span class="macro">assert_eq!</span>(sm.stack[<span class="number">2</span>].data.as_ref(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>error));
+            <span class="comment">// A failed on_error cancels the native transaction at API &gt;= 610.
+            // A replacement transaction or implicit reset would hide this state.
+            </span><span class="macro">assert_eq!</span>(sm.stack[<span class="number">3</span>].data.as_ref(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>cancelled));
+            <span class="macro">assert_eq!</span>(sm.stack[<span class="number">4</span>].data.as_ref(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>GOT_READ_VERSION));
+        });
+    }
 }
 </code></pre></div></section></main></body></html>
