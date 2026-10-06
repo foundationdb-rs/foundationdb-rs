@@ -2043,7 +2043,15 @@
 <a href="#2042" id="2042">2042</a>
 <a href="#2043" id="2043">2043</a>
 <a href="#2044" id="2044">2044</a>
-<a href="#2045" id="2045">2045</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
+<a href="#2045" id="2045">2045</a>
+<a href="#2046" id="2046">2046</a>
+<a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2018 foundationdb-rs developers, https://github.com/Clikengo/foundationdb-rs/graphs/contributors
 // Copyright 2013-2018 Apple, Inc and the FoundationDB project authors.
 //
 // Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
@@ -2986,6 +2994,16 @@
     /// If a transaction uses both an atomic operation and a strictly serializable read on the same
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
+    ///
+    /// Versionstamped operands are forwarded unchanged and must match the selected
+    /// runtime API, including when the client was initialized outside this crate.
+    /// Before API 520, `SetVersionstampedKey` consumes a two-byte offset suffix and
+    /// `SetVersionstampedValue` replaces the first ten bytes without an offset
+    /// suffix. API 520 and later use a four-byte offset suffix for both mutations.
+    /// Use [`crate::tuple::pack_with_versionstamp_for_key`] or
+    /// [`crate::tuple::Subspace::pack_with_versionstamp_for_key`] for tuple keys.
+    /// Tuple values containing an incomplete versionstamp require API 520 or later:
+    /// stamping at byte zero would overwrite the tuple's type code.
     </span><span class="attr">#[cfg_attr(
         feature = <span class="string">"trace"</span>,
         tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, key, param))
@@ -3684,23 +3702,21 @@
     /// reported committed before that call.
     ///
     /// On an instrumented transaction, the version is recorded in the metrics of
-    /// the current attempt. It is only ever recorded when this method is called:
-    /// the binding never fetches a read version on its own.
+    /// the issuing attempt. A future polled after that attempt ends does not
+    /// update the report. The binding never fetches a read version on its own.
     </span><span class="kw">pub fn </span>get_read_version(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
     ) -&gt; <span class="kw">impl </span>Future&lt;Output = FdbResult&lt;i64&gt;&gt; + Send + Sync + Unpin + <span class="kw">use</span>&lt;&gt; {
-        <span class="kw">let </span>metrics = <span class="self">self</span>.metrics().cloned();
-        <span class="kw">let </span>started_at = metrics.as_ref().map(|<span class="kw">_</span>| Instant::now());
+        <span class="kw">let </span>recording = <span class="self">self
+            </span>.metrics()
+            .map(|metrics| (metrics.clone(), <span class="self">self</span>.usage(), Instant::now()));
 
         FdbFuture::&lt;i64&gt;::new(<span class="kw">unsafe </span>{
             fdb_sys::fdb_transaction_get_read_version(<span class="self">self</span>.inner.as_ptr())
         })
         .map(<span class="kw">move </span>|result| {
-            <span class="kw">if let </span>(<span class="prelude-val">Some</span>(metrics), <span class="prelude-val">Some</span>(started_at)) = (<span class="kw-2">&amp;</span>metrics, started_at) {
-                metrics.record_grv(started_at.elapsed());
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(version) = result {
-                    metrics.set_read_version(version);
-                }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((metrics, usage, started_at)) = recording {
+                metrics.record_grv(<span class="kw-2">&amp;</span>usage, started_at.elapsed(), result.as_ref().ok().copied());
             }
             result
         })

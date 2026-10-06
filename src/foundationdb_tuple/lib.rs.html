@@ -695,7 +695,74 @@
 <a href="#694" id="694">694</a>
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of the official tuple layer typecodes
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of the official tuple layer typecodes
 //!
 //! The official specification can be found [here](https://github.com/apple/foundationdb/blob/master/design/tuple.md).
 
@@ -880,13 +947,48 @@
     v.pack_to_vec()
 }
 
-<span class="doccomment">/// Pack value and returns the packed buffer
+<span class="doccomment">/// Pack a value using the versionstamp offset encoding for API 520 and later.
+///
+/// If the tuple contains an incomplete versionstamp, the result has a four-byte
+/// offset suffix. For keys under an earlier runtime API, use
+/// [`pack_with_versionstamp_for_key`]. Tuple values with incomplete stamps require
+/// API 520 or later; earlier APIs stamp at byte zero, overwriting the tuple's type
+/// code. Complete stamps are packed normally, without an offset suffix.
 ///
 /// # Panics
 ///
 /// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
 </span><span class="kw">pub fn </span>pack_with_versionstamp&lt;T: TuplePack&gt;(v: <span class="kw-2">&amp;</span>T) -&gt; Vec&lt;u8&gt; {
     v.pack_to_vec_with_versionstamp()
+}
+
+<span class="doccomment">/// Pack a tuple key for the explicitly selected runtime API version.
+///
+/// An incomplete versionstamp appends a two-byte little-endian offset before API
+/// 520, or a four-byte offset at API 520 and later. The version must match the
+/// runtime API selected by the application, which can differ from its headers or
+/// client library version. This function does not inspect client initialization.
+/// Tuples with no incomplete stamp are packed normally, without a suffix.
+///
+/// This is a key operand for `SetVersionstampedKey`, not a legacy
+/// `SetVersionstampedValue` operand: before API 520, values are stamped at byte
+/// zero and cannot preserve the tuple's type code.
+///
+/// # Panics
+///
+/// Panics if there are multiple incomplete stamps, the encoded size does not fit
+/// in `u32`, or a legacy key's stamp offset does not fit in `u16`.
+///
+/// ```
+/// use foundationdb_tuple::{pack_with_versionstamp_for_key, Versionstamp};
+/// let key = pack_with_versionstamp_for_key(&amp;("event", Versionstamp::incomplete(0)), 510);
+/// assert_eq!(&amp;key[key.len() - 2..], &amp;8_u16.to_le_bytes());
+/// ```
+</span><span class="kw">pub fn </span>pack_with_versionstamp_for_key&lt;T: TuplePack&gt;(v: <span class="kw-2">&amp;</span>T, api_version: i32) -&gt; Vec&lt;u8&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>output = Vec::new();
+    <span class="kw">let </span>offset = pack_into(v, <span class="kw-2">&amp;mut </span>output);
+    offset.append_key_offset(<span class="kw-2">&amp;mut </span>output, api_version);
+    output
 }
 
 <span class="doccomment">/// Pack value into the given buffer
@@ -898,7 +1000,9 @@
     v.pack_into_vec(output)
 }
 
-<span class="doccomment">/// Pack value into the given buffer
+<span class="doccomment">/// Pack a value into the buffer with a four-byte versionstamp offset for API
+/// 520 and later. For legacy keys, use [`pack_with_versionstamp_for_key`] or
+/// [`Subspace::pack_with_versionstamp_for_key`] with the buffer as a prefix.
 ///
 /// # Panics
 ///
@@ -1390,6 +1494,36 @@
                     </span>[..]
             )
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>versionstamp_key_encoding_matches_runtime_api() {
+        <span class="kw">let </span>tuple = (<span class="string">"foo"</span>, Versionstamp::incomplete(<span class="number">657</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>legacy = pack(<span class="kw-2">&amp;</span>tuple);
+        legacy.extend_from_slice(<span class="kw-2">&amp;</span><span class="number">6_u16</span>.to_le_bytes());
+        <span class="macro">assert_eq!</span>(pack_with_versionstamp_for_key(<span class="kw-2">&amp;</span>tuple, <span class="number">510</span>), legacy);
+        <span class="kw">for </span>api_version <span class="kw">in </span>[<span class="number">520</span>, <span class="number">740</span>] {
+            <span class="macro">assert_eq!</span>(
+                pack_with_versionstamp_for_key(<span class="kw-2">&amp;</span>tuple, api_version),
+                pack_with_versionstamp(<span class="kw-2">&amp;</span>tuple)
+            );
+        }
+        <span class="kw">for </span>api_version <span class="kw">in </span>[<span class="number">510</span>, <span class="number">520</span>, <span class="number">740</span>] {
+            <span class="kw">let </span>complete = (<span class="string">"foo"</span>, Versionstamp::complete([<span class="number">7</span>; <span class="number">10</span>], <span class="number">657</span>));
+            <span class="macro">assert_eq!</span>(
+                pack_with_versionstamp_for_key(<span class="kw-2">&amp;</span>complete, api_version),
+                pack(<span class="kw-2">&amp;</span>complete)
+            );
+            <span class="macro">assert_eq!</span>(
+                pack_with_versionstamp_for_key(<span class="kw-2">&amp;</span><span class="string">"foo"</span>, api_version),
+                pack(<span class="kw-2">&amp;</span><span class="string">"foo"</span>)
+            );
+            <span class="kw">let </span>multiple = (Versionstamp::incomplete(<span class="number">0</span>), (Versionstamp::incomplete(<span class="number">1</span>),));
+            <span class="macro">assert!</span>(
+                std::panic::catch_unwind(|| pack_with_versionstamp_for_key(<span class="kw-2">&amp;</span>multiple, api_version))
+                    .is_err()
+            );
+        }
     }
 }
 </code></pre></div></section></main></body></html>
