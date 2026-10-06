@@ -508,7 +508,15 @@
 <a href="#507" id="507">507</a>
 <a href="#508" id="508">508</a>
 <a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a></pre></div><pre class="rust"><code><span class="doccomment">//! Wrapper module
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a></pre></div><pre class="rust"><code><span class="doccomment">//! Wrapper module
 //!
 //! This module defines all C and Rust structures.
 //! It also provides bindings and wrappers to map behavior from Rust to C.
@@ -758,8 +766,16 @@
     </span><span class="kw">pub fn </span>get_process_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="macro">with!</span> { <span class="self">self</span>.<span class="number">0 </span>=&gt; getProcessID() }
     }
-    <span class="doccomment">/// Set the process id of the workload
-    </span><span class="kw">pub fn </span>set_process_id(<span class="kw-2">&amp;</span><span class="self">self</span>, id: u64) {
+    <span class="doccomment">/// Switch the simulator's current process using a native process handle.
+    ///
+    /// # Safety
+    /// During simulation, `id` must be an unchanged handle previously obtained
+    /// from [`Self::get_process_id`] in the same simulator instance, and its
+    /// native process must remain alive while selected. It is a pointer-valued
+    /// handle, not an arbitrary numeric process identifier. The caller must
+    /// ensure intervening operations are valid for that process and restore the
+    /// previous process before yielding, returning, or unwinding.
+    </span><span class="kw">pub unsafe fn </span>set_process_id(<span class="kw-2">&amp;</span><span class="self">self</span>, id: u64) {
         <span class="macro">with!</span> { <span class="self">self</span>.<span class="number">0 </span>=&gt; setProcessID(id) }
     }
     <span class="doccomment">/// Get the current simulated time in seconds (starts at zero)
