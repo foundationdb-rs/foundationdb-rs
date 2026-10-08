@@ -47,6 +47,40 @@ foundationdb-rs is the Rust client for FoundationDB, layered over `libfdb_c`.
   last years. Trevor Clinkenbeard has recently contributed a large set of soundness and
   spec-compliance fixes.
 
+## Evidence from the FoundationDB issue tracker
+
+Rust users already show up on apple/foundationdb, and today they have to be sent elsewhere:
+
+- [#11544](https://github.com/apple/foundationdb/issues/11544) (2024): a question about
+  `ReportConflictingKeys` from foundationdb-rs. Answer: "Maybe ask it in `foundationdb-rs`
+  repo. Currently we are not supporting Rust."
+- [#13057](https://github.com/apple/foundationdb/issues/13057) (2026): a build failure of
+  the FoundationDB backend of Stalwart (a Rust mail server). Answer: "Do not think we are
+  supporting Rust at this stage."
+- [#200](https://github.com/apple/foundationdb/issues/200) (2018): "Would there be interest
+  in including [Rust bindings] within the FoundationDB repository?" It was moved to the
+  forums with two open questions (in-tree or not, and a community plan), never answered.
+
+The Rust bindings already feed fixes and findings back into FoundationDB:
+
+- [#5937](https://github.com/apple/foundationdb/issues/5937): a typo in `fdb.options`
+  found by the Rust options generator, fixed on main and backported.
+- [#3439](https://github.com/apple/foundationdb/issues/3439): C API functions not gated by
+  `FDB_API_VERSION`, found while preparing the Rust binding for 6.3.
+- [#11298](https://github.com/apple/foundationdb/issues/11298): the C++ external workload
+  ABI depended on the compiler used to build fdbserver, found while integrating
+  foundationdb-rs into simulation. It led to the C workload API
+  ([#11288](https://github.com/apple/foundationdb/pull/11288)).
+- [#11500](https://github.com/apple/foundationdb/issues/11500): a Record Layer hang
+  reproduced deterministically by a Rust workload in simulation, with a failing seed.
+- [#895](https://github.com/apple/foundationdb/issues/895): a directory layer concurrency
+  issue raised from a foundationdb-rs discussion.
+
+Living outside the project also costs coordination:
+[#6691](https://github.com/apple/foundationdb/issues/6691) (waiting for release assets to
+run the bindingtester on 7.x) and [#10639](https://github.com/apple/foundationdb/issues/10639)
+(learning through a packaging bug that `release-7.2` was abandoned).
+
 ## Where we are
 
 The Rust binding coming into apple/foundationdb is foundationdb-rs, the project I have
