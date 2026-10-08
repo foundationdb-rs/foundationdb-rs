@@ -49,13 +49,23 @@ foundationdb-rs is the Rust client for FoundationDB, layered over `libfdb_c`.
 
 ## Where we are
 
-- Trevor opened [apple/foundationdb#14187](https://github.com/apple/foundationdb/pull/14187)
-  ("Import core Rust bindings and C ABI simulator support"), a draft. It imports a squashed
-  snapshot of foundationdb-rs `f0eda232` (2026-09-25) into `bindings/rust`, with provenance
-  recorded in `bindings/rust/UPSTREAM.md`.
-- It keeps the six client and tester crates plus minimal C ABI simulator support. It leaves
-  out recipes, client budget/accounting, custom retry policies and runner hooks, profiling,
-  Timekeeper, simulation tracing, the legacy C++ workload bridge, and the Nix/Docker tooling.
+The Rust binding coming into apple/foundationdb is foundationdb-rs, the project I have
+maintained since reviving it in 2021, not a new codebase, and this import is its next step.
+Trevor Clinkenbeard recently contributed to it, with a large set of soundness and
+spec-compliance fixes, and with a prototype of the in-tree integration in
+[apple/foundationdb#14187](https://github.com/apple/foundationdb/pull/14187) (CMake,
+bindingtester, CI, a C client change). Production users increasingly rely on Rust bindings,
+and an official home makes sense for them. As maintainer, I will land the pending fixes in
+foundationdb-rs, cut a release so current users get them, then open the import from that
+release tag, reusing the integration from #14187, and keep maintaining the binding
+upstream. That keeps one owner and one history behind the binding.
+
+What #14187 shows about the integration:
+
+- It imports a snapshot of foundationdb-rs `f0eda232` (2026-09-25) into `bindings/rust`,
+  with provenance recorded in `bindings/rust/UPSTREAM.md`.
+- It scopes the import to the core client and tester crates plus minimal C ABI simulator
+  support. Section 2 discusses what else should come in.
 - It also touches the C client (`bindings/c/fdb_c.h`, `bindings/c/fdb_c.cpp`) so that several
   Rust libraries loaded in one process can share the selected API version.
 - Rust is opt-in in CMake (`BUILD_RUST_BINDING=OFF` by default). The only Rust CI that runs
@@ -109,7 +119,8 @@ Proposed split:
 
 Simulation is one of the strongest arguments for the Rust bindings: Rust application code
 runs inside the FDB deterministic simulator, with the same fault injection as fdbserver
-itself. We propose to import it fully, not only the minimal C ABI adapter from #14187.
+itself. We propose to import the simulation crates fully, extending the C ABI support
+prototyped in #14187.
 
 7. **Beyond the spec.** The Rust client has APIs other bindings do not have: runner hooks,
    typed retry policies, client-side transaction budgets, metrics, a pluggable clock.
@@ -121,7 +132,7 @@ itself. We propose to import it fully, not only the minimal C ABI adapter from #
    keeps `fdb_transaction_on_error` as the single retry governor. The pluggable clock is different: it exists so that client code
    stays deterministic under the FDB simulator (time comes from the simulation, not the
    wall clock), because simulation is how Clever Cloud tests its FDB-based systems.
-   #14187 drops them. Are such extensions acceptable in an official binding? Our proposal:
+   #14187 scoped them out, pending this discussion. Are such extensions acceptable in an official binding? Our proposal:
    keep them in the core crate.
 8. **No break for current users.** If the extensions are dropped, users moving from 0.x to
    the first upstream release lose APIs they use today. Keeping them makes the first
