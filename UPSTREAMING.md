@@ -138,7 +138,8 @@ What #14187 shows about the integration:
 5. **API parity.** Is reaching API 800 (and native CDC) a condition for merging, or a
    follow-up? Our proposal: a follow-up, and the first feature developed in-tree.
 6. **Existing Rust in the tree.** Should `bindings/c/test/workloads/RustWorkload` be
-   replaced by `foundationdb-simulation`? Its own code says it should be.
+   replaced by `foundationdb-simulation`? Its own code points at foundationdb-rs for the
+   database wrapper it lacks.
 
 ### 2. Scope
 
@@ -233,11 +234,14 @@ prototyped in #14187.
     each hardcodes its branch's header version, and `libfdb_c` rejects a newer header.
     The Rust crate selects the header version through a cargo feature, so one crate built
     from `main` already serves 7.3, 7.4 and 8.0 users. Our proposal: Rust lives on `main`
-    only (as Swift does), is not maintained on release branches, ships patch releases
+    only (Swift is also integrated from a single `main` branch, though it does not publish
+    releases yet), is not maintained on release branches, ships patch releases
     independently of server releases, and proves compatibility with a CI matrix against
-    supported server versions. Binding backports are rare anyway (11 binding commits on
-    `release-7.4` since its cut, mostly build fixes). When FDB cuts `release-X.Y`, we add
-    its header and an `fdb-X_Y` feature on `main`. Is that acceptable?
+    supported server versions. Binding backports are rare anyway (about 15 binding commits
+    on `release-7.4` since its cut, almost all Python packaging and build fixes). When FDB
+    cuts `release-X.Y`, we add its header and an `fdb-X_Y` feature on `main`. If accepted,
+    the Rust GitHub Actions workflow from #14187 should trigger on `main` only (it currently
+    also targets `release-*`). Is that acceptable?
 26. **Release notes and docs.** Release notes in the Sphinx release notes, or our
     generated `CHANGELOG.md` files? API docs on docs.rs only, or an `api-rust.rst` page?
 
@@ -278,4 +282,4 @@ Actions on our side, not questions:
 | Version | FDB version (pseudo-versions) | FDB version | FDB version | no releases | own semver |
 | Generated options | committed, staleness ctest | generated at build | generated at build | committed | generated at build |
 | Bindingtester | Joshua | Joshua | Joshua (reference) | Joshua | GitHub Actions, hourly |
-| Built in CodeBuild | yes | yes | yes | yes (Swift 6.1) | no |
+| Built in CodeBuild | yes | yes | yes | toolchain in build image (Swift 6.1) | no |
