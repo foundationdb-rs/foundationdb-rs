@@ -1293,7 +1293,7 @@
                     <span class="kw">return </span><span class="prelude-val">Err</span>(DirectoryError::Version(msg));
                 }
 
-                <span class="kw">if </span>minor &gt; MINOR_VERSION {
+                <span class="kw">if </span>minor &gt; MINOR_VERSION &amp;&amp; allow_creation {
                     <span class="kw">let </span>msg = <span class="macro">format!</span>(
                         <span class="string">"directory with version {major}.{minor}.{patch} is read-only when opened using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"
                     </span>);
