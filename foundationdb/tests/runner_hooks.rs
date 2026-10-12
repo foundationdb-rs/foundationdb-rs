@@ -290,12 +290,19 @@ async fn tuple_hooks_fire_left_to_right_in_lifecycle_order() {
     let attempts_ref = &attempts;
 
     let result: Result<(), HookTestError> = db
-        .run_with_hooks(&hooks, |trx, _| async move {
-            if attempts_ref.fetch_add(1, Ordering::SeqCst) == 0 {
-                return Err(HookTestError::Fdb(FdbError::from_code(1020)));
+        .run_with_hooks(&hooks, |trx, _| {
+            let attempt = attempts_ref.fetch_add(1, Ordering::SeqCst);
+            events
+                .lock()
+                .expect("events mutex")
+                .push(format!("closure:{attempt}"));
+            async move {
+                if attempt == 0 {
+                    return Err(HookTestError::Fdb(FdbError::from_code(1020)));
+                }
+                trx.set(b"runner_hooks_tuple", b"ok");
+                Ok(())
             }
-            trx.set(b"runner_hooks_tuple", b"ok");
-            Ok(())
         })
         .await;
 
@@ -306,6 +313,7 @@ async fn tuple_hooks_fire_left_to_right_in_lifecycle_order() {
         vec![
             "a:attempt_start:0",
             "b:attempt_start:0",
+            "closure:0",
             "a:closure_error:1020:0",
             "b:closure_error:1020:0",
             "a:error_duration:0",
@@ -314,6 +322,7 @@ async fn tuple_hooks_fire_left_to_right_in_lifecycle_order() {
             "b:retry:0",
             "a:attempt_start:1",
             "b:attempt_start:1",
+            "closure:1",
             "a:before_commit:1",
             "b:before_commit:1",
             "a:commit_success:1",
