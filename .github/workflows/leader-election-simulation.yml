@@ -32,7 +32,7 @@ jobs:
       - name: Detect relevant changes
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           # On pushes to main, compare with the main commit before this push.
           # This input is ignored for pull requests, which use the REST API.
