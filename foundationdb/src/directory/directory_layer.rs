@@ -408,10 +408,10 @@ impl DirectoryLayer {
         if let Some(fdb_key_value) = fdb_value {
             let previous_prefix: Vec<Element> = self.node_subspace.unpack(fdb_key_value.key())?;
 
-            if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
-                if key.starts_with(previous_prefix) {
-                    return Ok(Some(self.node_with_prefix(previous_prefix)));
-                };
+            if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first()
+                && key.starts_with(previous_prefix)
+            {
+                return Ok(Some(self.node_with_prefix(previous_prefix)));
             };
         }
         Ok(None)

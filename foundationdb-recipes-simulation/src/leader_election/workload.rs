@@ -353,41 +353,40 @@ impl RustWorkload for LeaderElectionWorkload {
             if self.swarm & OPTIONAL_RESIGN != 0
                 && operation_weight >= self.normal_weight + self.adversarial_weight / 3
                 && operation_weight < self.normal_weight + 2 * self.adversarial_weight / 3
+                && let Some(leadership) = self.local_state.leadership().cloned()
             {
-                if let Some(leadership) = self.local_state.leadership().cloned() {
-                    let op_num = self.next_op_num();
-                    match run_resign(
-                        &db,
-                        election.clone(),
-                        self.log_subspace.clone(),
-                        self.participant.clone(),
-                        leadership,
-                        self.local_post_run_at,
-                        simulated_now(&self.context),
-                        self.client_id,
-                        self.incarnation,
-                        true,
-                        op_num,
-                    )
-                    .await
-                    {
-                        Ok(true) => {
-                            self.local_state = LocalState::unknown();
-                            self.local_post_run_at = None;
-                            self.force_foreign_takeover(
-                                &db,
-                                &register,
-                                election.lease_duration(),
-                                (self.swarm & OPTIONAL_DELAYED_ADOPTION != 0)
-                                    .then_some(AdoptionDelay::Longer),
-                            )
-                            .await;
-                        }
-                        Ok(false) => {}
-                        Err(error) => {
-                            self.run_diagnostic("ResignRunFailed", op_num, error);
-                            self.replace_incarnation("resign-error");
-                        }
+                let op_num = self.next_op_num();
+                match run_resign(
+                    &db,
+                    election.clone(),
+                    self.log_subspace.clone(),
+                    self.participant.clone(),
+                    leadership,
+                    self.local_post_run_at,
+                    simulated_now(&self.context),
+                    self.client_id,
+                    self.incarnation,
+                    true,
+                    op_num,
+                )
+                .await
+                {
+                    Ok(true) => {
+                        self.local_state = LocalState::unknown();
+                        self.local_post_run_at = None;
+                        self.force_foreign_takeover(
+                            &db,
+                            &register,
+                            election.lease_duration(),
+                            (self.swarm & OPTIONAL_DELAYED_ADOPTION != 0)
+                                .then_some(AdoptionDelay::Longer),
+                        )
+                        .await;
+                    }
+                    Ok(false) => {}
+                    Err(error) => {
+                        self.run_diagnostic("ResignRunFailed", op_num, error);
+                        self.replace_incarnation("resign-error");
                     }
                 }
             }
@@ -395,19 +394,17 @@ impl RustWorkload for LeaderElectionWorkload {
             if operation_weight >= self.normal_weight + 2 * self.adversarial_weight / 3
                 && operation_weight < self.normal_weight + 4 * self.adversarial_weight / 5
                 && !self.stale_actions_completed
-            {
-                if let (Some(stale_leadership), Some(stale_rank)) =
+                && let (Some(stale_leadership), Some(stale_rank)) =
                     (self.stale_leadership.clone(), self.stale_rank)
-                {
-                    self.exercise_stale_tokens(
-                        &db,
-                        &register,
-                        self.participant.clone(),
-                        stale_leadership,
-                        stale_rank,
-                    )
-                    .await;
-                }
+            {
+                self.exercise_stale_tokens(
+                    &db,
+                    &register,
+                    self.participant.clone(),
+                    stale_leadership,
+                    stale_rank,
+                )
+                .await;
             }
 
             if operation_weight >= self.normal_weight + self.adversarial_weight {
@@ -419,19 +416,18 @@ impl RustWorkload for LeaderElectionWorkload {
                 );
             }
 
-            if round % 3 == 0 {
-                if let Err(error) =
+            if round % 3 == 0
+                && let Err(error) =
                     continuous_snapshot_check(&db, election.clone(), register.clone()).await
-                {
-                    if error.get_fdb_error().is_some() {
-                        self.run_diagnostic("ContinuousSnapshotFailed", self.op_num, error);
-                    } else {
-                        self.protocol_error(
-                            "ContinuousSnapshotInvariantFailed",
-                            self.op_num,
-                            "one-transaction public snapshot violated structural invariants",
-                        );
-                    }
+            {
+                if error.get_fdb_error().is_some() {
+                    self.run_diagnostic("ContinuousSnapshotFailed", self.op_num, error);
+                } else {
+                    self.protocol_error(
+                        "ContinuousSnapshotInvariantFailed",
+                        self.op_num,
+                        "one-transaction public snapshot violated structural invariants",
+                    );
                 }
             }
 
@@ -2238,17 +2234,15 @@ fn replay_poll(
             lease_duration,
             observed_at,
         } = &entry.local_input
+            && election.owner.as_deref() == Some(owner)
+            && election.rank == *rank
+            && election.lease_duration == Some(*lease_duration)
         {
-            if election.owner.as_deref() == Some(owner)
-                && election.rank == *rank
-                && election.lease_duration == Some(*lease_duration)
-            {
-                let elapsed = entry.attempt_started_at.saturating_sub(*observed_at);
-                match elapsed.cmp(lease_duration) {
-                    std::cmp::Ordering::Equal => witnesses.saw_exact_expiry = true,
-                    std::cmp::Ordering::Greater => witnesses.saw_after_expiry = true,
-                    std::cmp::Ordering::Less => {}
-                }
+            let elapsed = entry.attempt_started_at.saturating_sub(*observed_at);
+            match elapsed.cmp(lease_duration) {
+                std::cmp::Ordering::Equal => witnesses.saw_exact_expiry = true,
+                std::cmp::Ordering::Greater => witnesses.saw_after_expiry = true,
+                std::cmp::Ordering::Less => {}
             }
         }
         *election = expected;
@@ -2267,16 +2261,14 @@ fn replay_poll(
             lease_duration,
             observed_at,
         } = &entry.local_input
+            && election.owner.as_deref() == Some(owner)
+            && election.rank == *rank
+            && election.lease_duration == Some(*lease_duration)
+            && entry.attempt_started_at.saturating_sub(*observed_at) < *lease_duration
         {
-            if election.owner.as_deref() == Some(owner)
-                && election.rank == *rank
-                && election.lease_duration == Some(*lease_duration)
-                && entry.attempt_started_at.saturating_sub(*observed_at) < *lease_duration
-            {
-                witnesses.saw_before_expiry = true;
-                if delayed_observation {
-                    witnesses.saw_delayed_observation_adoption = true;
-                }
+            witnesses.saw_before_expiry = true;
+            if delayed_observation {
+                witnesses.saw_delayed_observation_adoption = true;
             }
         }
         if let LocalInput::Leadership {
@@ -2285,33 +2277,30 @@ fn replay_poll(
             lease_duration,
             renewed_at,
         } = &entry.local_input
+            && participant == &entry.actor
         {
-            if participant == &entry.actor {
-                witnesses.saw_stale_renew = true;
-                if election.owner.as_deref() == Some(entry.actor.as_str())
-                    && election.rank == *rank
-                    && election.lease_duration == Some(*lease_duration)
-                    && entry.attempt_started_at.saturating_sub(*renewed_at) >= *lease_duration
-                {
-                    witnesses.saw_after_expiry = true;
-                }
-                if *rank < election.rank {
-                    witnesses.saw_stale_renew_after_advance = true;
-                }
+            witnesses.saw_stale_renew = true;
+            if election.owner.as_deref() == Some(entry.actor.as_str())
+                && election.rank == *rank
+                && election.lease_duration == Some(*lease_duration)
+                && entry.attempt_started_at.saturating_sub(*renewed_at) >= *lease_duration
+            {
+                witnesses.saw_after_expiry = true;
+            }
+            if *rank < election.rank {
+                witnesses.saw_stale_renew_after_advance = true;
             }
         }
     }
-    if !leader {
-        if let Some(changed_rank) = witnesses.renewal_with_new_duration_rank {
-            if election.rank == changed_rank
-                && matches!(
-                    &entry.local_input,
-                    LocalInput::Unknown | LocalInput::Leadership { .. }
-                )
-            {
-                witnesses.saw_follower_duration_reset = true;
-            }
-        }
+    if !leader
+        && let Some(changed_rank) = witnesses.renewal_with_new_duration_rank
+        && election.rank == changed_rank
+        && matches!(
+            &entry.local_input,
+            LocalInput::Unknown | LocalInput::Leadership { .. }
+        )
+    {
+        witnesses.saw_follower_duration_reset = true;
     }
     record_race_takeover(entry, witnesses)?;
     Ok(())
@@ -2422,10 +2411,9 @@ fn replay_resign(
             lease_duration,
             ..
         } = &entry.local_input
+            && entry.attempt_started_at.saturating_sub(*renewed_at) > *lease_duration
         {
-            if entry.attempt_started_at.saturating_sub(*renewed_at) > *lease_duration {
-                witnesses.saw_delayed_stale_resign = true;
-            }
+            witnesses.saw_delayed_stale_resign = true;
         }
         if witnesses
             .last_takeover_rank
