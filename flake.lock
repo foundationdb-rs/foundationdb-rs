@@ -9,15 +9,16 @@
       "locked": {
         "lastModified": 1782312007,
         "narHash": "sha256-DFr5o8fjyldBE0T3kgyeFVCBnZ/LD0OAEVycFeC0kJ0=",
-        "owner": "foundationdb-rs",
-        "repo": "overlay",
+        "ref": "refs/heads/main",
         "rev": "d25f5f89b413efa1b04c0966623042f830409960",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/foundationdb-rs/overlay"
       },
       "original": {
-        "owner": "foundationdb-rs",
-        "repo": "overlay",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/foundationdb-rs/overlay"
       }
     },
     "nixpkgs": {
@@ -49,15 +50,16 @@
       "locked": {
         "lastModified": 1789457514,
         "narHash": "sha256-Aggle++fTyAifBy+QBPxjM+obO5iepKW/8MDxQtgGvI=",
-        "owner": "oxalica",
-        "repo": "rust-overlay",
+        "ref": "refs/heads/master",
         "rev": "89e99bf0778a8f2cd18c9360c3f19c1ee47fc739",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/oxalica/rust-overlay"
       },
       "original": {
-        "owner": "oxalica",
-        "repo": "rust-overlay",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/oxalica/rust-overlay"
       }
     }
   },
