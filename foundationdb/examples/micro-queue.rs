@@ -60,6 +60,9 @@ impl MicroQueue {
 
     /// Get the last index in the queue.
     ///
+    /// Uses a snapshot read with `limit=1, reverse=true` to efficiently find
+    /// the highest index without scanning the whole queue.
+    ///
     /// # Errors
     ///
     /// * If client failed to get [`FdbValues`](foundationdb::future::FdbValues)
@@ -68,10 +71,22 @@ impl MicroQueue {
     async fn last_index(&self) -> Result<usize, FdbBindingError> {
         self.db
             .run(|trx, _maybe_committed| async move {
-                Ok(trx
-                    .get_ranges_keyvalues(self.queue.range().into(), true)
-                    .count()
-                    .await)
+                let mut stream = trx.get_ranges_keyvalues(
+                    RangeOption {
+                        limit: Some(1),
+                        reverse: true,
+                        ..RangeOption::from(&self.queue)
+                    },
+                    true,
+                );
+                if let Some(kv) = stream.next().await {
+                    let (index,): (usize,) = self.queue.unpack(kv?.key()).map_err(|e| {
+                        FdbBindingError::new_custom_error(Box::new(e))
+                    })?;
+                    Ok(index)
+                } else {
+                    Ok(0)
+                }
             })
             .await
     }
@@ -108,7 +123,7 @@ impl MicroQueue {
             .await
     }
 
-    /// Get the top element of the queue.
+    /// Get the first (lowest-index) element of the queue.
     ///
     /// # Errors
     ///
@@ -117,11 +132,14 @@ impl MicroQueue {
     async fn first_item(&self) -> Result<Option<FdbValue>, FdbBindingError> {
         self.db
             .run(|trx, _maybe_committed| async move {
-                trx.get_ranges_keyvalues(RangeOption::from(&self.queue).rev(), true)
-                    .next()
-                    .await
-                    .transpose()
-                    .map_err(Into::into)
+                let mut stream = trx.get_ranges_keyvalues(
+                    RangeOption {
+                        limit: Some(1),
+                        ..RangeOption::from(&self.queue)
+                    },
+                    false,
+                );
+                stream.next().await.transpose().map_err(Into::into)
             })
             .await
     }
