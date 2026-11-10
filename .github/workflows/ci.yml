@@ -117,6 +117,12 @@ jobs:
   audit:
     name: Cargo audit
     runs-on: ubuntu-latest
+    # rustsec/audit-check reports warnings (unsound/unmaintained advisories) as a
+    # check run. Without checks: write the create call is rejected and the
+    # follow-up update fails with "Not Found", turning any warning into a red job.
+    permissions:
+      contents: read
+      checks: write
     # rustsec/audit-check builds cargo-audit, which needs a current rustc; the
     # checked-in rust-toolchain.toml would otherwise force it onto the MSRV.
     env:
