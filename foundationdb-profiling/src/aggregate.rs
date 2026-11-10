@@ -215,13 +215,13 @@ impl KeyCounts {
                 current_start = Some(start.to_vec());
             }
         }
-        if current_count > 0 {
-            if let Some(start) = current_start {
-                out.push(Bucket {
-                    start,
-                    count: current_count,
-                });
-            }
+        if current_count > 0
+            && let Some(start) = current_start
+        {
+            out.push(Bucket {
+                start,
+                count: current_count,
+            });
         }
         out
     }

@@ -7,7 +7,7 @@ Thank you for your interest in contributing to the FoundationDB Rust client! Thi
 ### Prerequisites
 
 You'll need:
-- Rust 1.85.1 or later
+- Rust 1.89.0 or later
 - FoundationDB client libraries (for runtime, not required for compilation with our setup)
 
 ### Quick Development Setup

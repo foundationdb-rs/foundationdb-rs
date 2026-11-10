@@ -827,11 +827,11 @@ impl StackMachine {
                     Some((trx_id, ..)) => trx_id == id,
                     _ => false,
                 });
-                if let Some(stack_item) = stack_item {
-                    if let Some((name, state)) = stack_item.await_fut().await {
-                        assert_eq!(name, self.cur_transaction);
-                        trx = state;
-                    }
+                if let Some(stack_item) = stack_item
+                    && let Some((name, state)) = stack_item.await_fut().await
+                {
+                    assert_eq!(name, self.cur_transaction);
+                    trx = state;
                 }
             }
             (trx, Some(&self.cur_transaction))
@@ -1160,10 +1160,10 @@ impl StackMachine {
                             let key = kv.key();
                             let value = kv.value();
                             debug!(" - {:?} {:?}", Bytes::from(key), Bytes::from(value));
-                            if let Some(ref prefix) = prefix {
-                                if !key.starts_with(prefix) {
-                                    continue;
-                                }
+                            if let Some(ref prefix) = prefix
+                                && !key.starts_with(prefix)
+                            {
+                                continue;
                             }
                             pack_into(&Bytes::from(key), &mut out);
                             pack_into(&Bytes::from(value), &mut out);

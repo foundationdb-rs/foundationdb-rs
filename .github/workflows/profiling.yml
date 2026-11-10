@@ -24,7 +24,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.85.1"
+          toolchain: "1.89.0"
 
       - name: Enable client profiling cluster-wide
         run: fdbcli --exec "profile client set 1.0 default"
