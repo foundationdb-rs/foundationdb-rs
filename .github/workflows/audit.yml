@@ -12,7 +12,7 @@ jobs:
       contents: read
       checks: write
       issues: write
-    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.85.1),
+    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.89.0),
     # but the latest cargo-audit needs a newer rustc to build. Override the
     # file here to install and run it on stable (same trick as msrv.yml).
     env:
