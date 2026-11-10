@@ -90,7 +90,10 @@ pub trait Directory {
     ///
     /// # Warning
     ///
-    /// If you need to create several paths with the same prefix, you **must** use several transactions(See [this link](https://github.com/apple/foundationdb/issues/895#issuecomment-436704180) for context)
+    /// Creating several paths with the same prefix **concurrently** within the same transaction
+    /// is unsafe and may race. Serial calls (fully awaiting each `create_or_open` before issuing
+    /// the next) within the same transaction are safe. Alternatively, use separate transactions.
+    /// See [this link](https://github.com/apple/foundationdb/issues/895#issuecomment-436704180) for context.
     async fn create_or_open(
         &self,
         txn: &Transaction,
@@ -103,7 +106,10 @@ pub trait Directory {
     ///
     /// # Warning
     ///
-    /// If you need to create several paths with the same prefix, you **must** use several transactions(See [this link](https://github.com/apple/foundationdb/issues/895#issuecomment-436704180) for context)
+    /// Creating several paths with the same prefix **concurrently** within the same transaction
+    /// is unsafe and may race. Serial calls (fully awaiting each `create` before issuing the
+    /// next) within the same transaction are safe. Alternatively, use separate transactions.
+    /// See [this link](https://github.com/apple/foundationdb/issues/895#issuecomment-436704180) for context.
     async fn create(
         &self,
         txn: &Transaction,
