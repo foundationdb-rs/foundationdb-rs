@@ -5,9 +5,27 @@ use foundationdb::options::NetworkOption;
 // process, so a second test in this binary would race it.
 #[test]
 fn test_network_lifecycle() {
+    // Integer options use the C API's full signed 64-bit domain. These values
+    // must reach the client without truncating to a negative 32-bit integer.
+    FdbApiBuilder::default()
+        .build()
+        .expect("failed to select fdb api")
+        .set_option(NetworkOption::TraceRollSize(3 * 1024 * 1024 * 1024))
+        .expect("trace roll size above i32::MAX must be accepted")
+        .set_option(NetworkOption::TraceMaxLogsSize(i64::MAX))
+        .expect("maximum signed 64-bit trace log size must be accepted");
+
     // boot is safe and idempotent
     let _guard1 = foundationdb::boot().expect("failed to boot fdb");
     let _guard2 = foundationdb::boot().expect("boot must be idempotent");
+
+    // Negative integer sentinels must retain their sign in the native payload.
+    futures::executor::block_on(foundationdb::Database::new_compat(None))
+        .expect("failed to create database")
+        .create_trx()
+        .expect("failed to create transaction")
+        .set_option(foundationdb::options::TransactionOption::RetryLimit(-1))
+        .expect("unlimited retry sentinel must be accepted");
 
     // re-selecting the same api version is Ok, a different one fails with 2201
     let builder = FdbApiBuilder::default()

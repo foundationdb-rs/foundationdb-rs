@@ -27,6 +27,9 @@ cd "${fdb_builddir:?}/foundationdb"
 # https://github.com/foundationdb-rs/foundationdb-rs/issues/42
 ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 584458794
 
+# Database-level directory operations must retry concurrent commit conflicts.
+./bindings/bindingtester/bindingtester.py --num-ops 100 --api-version 610 --test-name directory_hca --concurrency 5 rust --seed 3179331380
+
 START=1
 END=${1-1}
 for i in $(eval echo "{$START..$END}")

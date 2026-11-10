@@ -473,9 +473,7 @@ impl FdbKeyValue {
     pub fn value(&self) -> &[u8] {
         // This cast to `*const u8` isn't unnecessary in all configurations.
         #[allow(clippy::unnecessary_cast)]
-        unsafe {
-            std::slice::from_raw_parts(self.0.value as *const u8, self.0.value_length as usize)
-        }
+        from_raw_fdb_slice(self.0.value as *const u8, self.0.value_length as usize)
     }
 }
 

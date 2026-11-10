@@ -165,7 +165,7 @@ capi::FDBWorkloadContext wrap(FDBWorkloadContext* context) {
 		.delay = delay,
 	};
 	return capi::FDBWorkloadContext{
-		.api_version = FDB_API_VERSION,
+		.api_version = FDB_WORKLOAD_API_VERSION,
 		.inner = (capi::OpaqueWorkloadContext*)context,
 		.vt = &vt,
 	};

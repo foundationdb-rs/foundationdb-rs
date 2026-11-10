@@ -6,7 +6,7 @@ this repository. Claude Code loads it via `@AGENTS.md` from `CLAUDE.md`.
 ## What this is
 
 `foundationdb-rs` is a futures-based Rust client for FoundationDB layered over the FDB C API.
-It is a Cargo workspace (resolver 2, Rust edition 2024, MSRV 1.85.1) supporting many FDB API
+It is a Cargo workspace (resolver 2, Rust edition 2024, MSRV 1.89.0) supporting many FDB API
 versions (5.1 through 7.4) from a single codebase via cargo features.
 
 ## Build / test / lint
@@ -38,9 +38,11 @@ Run a single test: `cargo test-fdb-latest <test_name>` (append filters after `--
 
 ### Running tests against a real cluster
 
-Unit tests in `foundationdb` talk to a live cluster. Start one with Docker:
+Unit tests in `foundationdb` talk to a live cluster. Agents may reuse an
+existing configured local Docker cluster, or start and configure one with
+these commands when tests need it, without additional confirmation:
 ```bash
-docker run -p 4500:4500 --name fdb --rm -d foundationdb/foundationdb:7.4.3
+docker run -p 4500:4500 --name fdb --rm -d foundationdb/foundationdb:7.4.6
 docker exec fdb fdbcli --exec "configure new single memory"
 ```
 The cluster file must point at it (e.g. `/etc/foundationdb/fdb.cluster`).
@@ -51,9 +53,9 @@ The cluster file must point at it (e.g. `/etc/foundationdb/fdb.cluster`).
 venv for the bindingtester, and release tooling. Env vars (LIBCLANG_PATH, FDB_CLIENT_LIB_PATH,
 etc.) are set by `flake.nix`.
 
-The Rust toolchain is pinned to the workspace MSRV (`1.85.1`) via `rust-toolchain.toml`, which
+The Rust toolchain is pinned to the workspace MSRV (`1.89.0`) via `rust-toolchain.toml`, which
 `flake.nix` reads (`fromRustupToolchainFile`). So `nix develop` (and any local rustup) builds
-at MSRV, catching version-too-new features (e.g. let-chains, stable in 1.88) before CI does.
+at MSRV, catching features stabilized after the MSRV before CI does.
 
 ## Feature flags (API version selection)
 
@@ -104,7 +106,8 @@ loop, transaction lifecycle, directory/tuple layers are **hand-written**.
   deterministic simulator as a cdylib. NOTE: the C-API path needs `fdbserver` >= 7.4.6
   (7.4.3/.4/.5 have an incompatible ABI); 7.1/7.3 use the C++ shim via the official Docker image.
 - **foundationdb-recipes-simulation** - example simulation workloads (leader election, etc.).
-- **foundationdb-profiling** - async helpers to fetch transaction profiling data.
+- **foundationdb-profiling** - decodes FDB client transaction profiling data; does no I/O
+  and has no fdb-rs runtime dependency, the caller reads the rows with its own bindings.
 
 ## Correctness testing (bindingtester)
 

@@ -6,22 +6,64 @@
 // copied, modified, or distributed except according to those terms.
 use byteorder::ByteOrder;
 use foundationdb::*;
+use futures::FutureExt;
 use futures::future::*;
 
 mod common;
 
+fn set_test_options(trx: &Transaction) -> FdbResult<()> {
+    trx.set_option(options::TransactionOption::RetryLimit(10))?;
+    trx.set_option(options::TransactionOption::Timeout(30_000))
+}
+
 async fn atomic_add(db: &Database, key: &[u8], value: i64) -> FdbResult<()> {
-    let trx = db.create_trx()?;
+    db.transact_boxed(
+        (key, value.to_le_bytes()),
+        |trx, (key, value)| {
+            async move {
+                set_test_options(trx)?;
+                trx.atomic_op(key, value, options::MutationType::Add);
+                Ok(())
+            }
+            .boxed()
+        },
+        // Atomic addition is not idempotent: retry definite failures, but
+        // propagate commit_unknown_result instead of possibly adding twice.
+        TransactOption::default(),
+    )
+    .await
+}
 
-    let val = {
-        let mut buf = [0u8; 8];
-        byteorder::LE::write_i64(&mut buf, value);
-        buf
-    };
-    trx.atomic_op(key, &val, options::MutationType::Add);
+async fn clear_key(db: &Database, key: &[u8]) -> FdbResult<()> {
+    db.transact_boxed(
+        key,
+        |trx, key| {
+            async move {
+                set_test_options(trx)?;
+                trx.clear(key);
+                Ok(())
+            }
+            .boxed()
+        },
+        TransactOption::default(),
+    )
+    .await
+}
 
-    trx.commit().await?;
-    Ok(())
+async fn read_counter(db: &Database, key: &[u8]) -> FdbResult<i64> {
+    db.transact_boxed(
+        key,
+        |trx, key| {
+            async move {
+                set_test_options(trx)?;
+                let value = trx.get(key, false).await?.expect("value should exist");
+                Ok(byteorder::LE::read_i64(&value))
+            }
+            .boxed()
+        },
+        TransactOption::default(),
+    )
+    .await
 }
 
 #[tokio::test]
@@ -31,11 +73,7 @@ async fn test_atomic() -> FdbResult<()> {
     let db = common::database().await?;
 
     println!("clear!");
-    {
-        let trx = db.create_trx()?;
-        trx.clear(KEY);
-        trx.commit().await?;
-    }
+    clear_key(&db, KEY).await?;
 
     println!("concurrent!");
     {
@@ -49,13 +87,6 @@ async fn test_atomic() -> FdbResult<()> {
     }
 
     println!("check!");
-    {
-        let trx = db.create_trx()?;
-        let value = trx.get(KEY, false).await?.expect("value should exists");
-        let v: i64 = byteorder::LE::read_i64(&value);
-        if v != 0 {
-            panic!("expected 0, found {v}");
-        }
-    }
+    assert_eq!(read_counter(&db, KEY).await?, 0);
     Ok(())
 }

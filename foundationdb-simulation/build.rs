@@ -3,6 +3,8 @@ use std::{env, path::PathBuf};
 extern crate cc;
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(coverage)");
+
     let bindings = bindgen::Builder::default()
         .header("src/headers/CWorkload.h")
         .generate()

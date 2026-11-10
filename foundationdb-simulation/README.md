@@ -118,7 +118,7 @@ pub trait RustWorkload {
     async fn setup(&mut self, db: SimDatabase);
     async fn start(&mut self, db: SimDatabase);
     async fn check(&mut self, db: SimDatabase);
-    fn get_metrics(&self, out: Metrics);
+    fn get_metrics(&self, out: Metrics<'_>);
     fn get_check_timeout(&self) -> f64;
 }
 ```
@@ -190,7 +190,15 @@ impl SingleRustWorkload for MyWorkload {
 ### Tracing
 
 Use `WorkloadContext::trace` to log messages with a given severity and a map of string "details".
-A severity of `Severity::Error` will automatically stop the `fdbserver` process.
+A severity of `Severity::Error` will automatically stop the `fdbserver` process. The event
+name's first character is uppercased automatically, matching FDB's convention for event types.
+
+Every call to `trace` automatically adds a `RustWorkload="1"` detail to the event (unless you
+already supplied one), so a runner can grep all Rust-origin trace lines with a single token.
+When you trace with `Severity::Error`, the crate also adds a `RustFailure="1"` detail (unless
+you already supplied one). This lets a runner parsing the `fdbserver` trace logs distinguish a
+failure detected by the Rust workload from an FDB-internal Sev40 event, which will never carry
+this field.
 
 ```rust
 impl RustWorkload for MyWorkload {
@@ -253,13 +261,51 @@ At the end of the simulation, the `get_metrics` method is called for each client
 Implement this method to report results.
 
 ```rust
-fn get_metrics(&self, out: Metrics) {
+fn get_metrics(&self, out: Metrics<'_>) {
     // val metrics are summed across all clients
     out.push(Metric::val("total_ops", self.ops as f64));
     // avg metrics are averaged across all clients
     out.push(Metric::avg("avg_latency", self.latency / self.ops.max(1) as f64));
 }
 ```
+
+## LLVM code coverage for external workloads
+
+`cargo llvm-cov` can collect Rust coverage from an external workload and its Rust dependencies.
+The workload writes a profile after each completed `get_metrics` callback because `fdbserver`
+exits with `_exit`, which bypasses LLVM's normal process-exit profile writer. This is enabled only
+when `cargo llvm-cov` sets `cfg(coverage)`; regular builds are unchanged.
+
+This example builds the existing atomic workload into an isolated target directory, writes a copy
+of its test configuration there, and points that copy at the instrumented shared object:
+
+Install `cargo-llvm-cov` and the `llvm-tools-preview` Rust component first. The Nix shell provides
+the LLVM tools, but does not currently provide the `cargo-llvm-cov` CLI.
+
+```bash
+nix develop
+
+export CARGO_TARGET_DIR="$PWD/target/simulation-coverage"
+export CARGO_LLVM_COV_TARGET_DIR="$CARGO_TARGET_DIR"
+source <(cargo llvm-cov show-env --sh --release)
+cargo llvm-cov clean --workspace
+
+cargo build --locked --release -p foundationdb-simulation --example atomic \
+  --features embedded-fdb-include,fdb-7_4
+
+config="$CARGO_TARGET_DIR/atomic-coverage.toml"
+sed "s#libraryPath = './target/release/examples'#libraryPath = '$CARGO_TARGET_DIR/release/examples'#" \
+  foundationdb-simulation/examples/atomic/test_file_74.toml > "$config"
+
+fdbserver -r simulation -f "$config" -b on --trace-format json
+
+cargo llvm-cov report --release --html --output-dir "$CARGO_TARGET_DIR/report"
+cargo llvm-cov report --release --lcov --output-path "$CARGO_TARGET_DIR/lcov.info"
+```
+
+Keep the `LLVM_PROFILE_FILE` set by `show-env`, including its `%m` placeholder. A custom name
+without `%m` can overwrite earlier client snapshots. This prototype flushes only completed metrics
+callbacks, so a simulation failure or timeout before that callback has no profile-write guarantee.
 
 # Common Mistakes
 

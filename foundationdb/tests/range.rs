@@ -119,12 +119,31 @@ async fn test_get_ranges_async() -> FdbResult<()> {
         let opt = RangeOption::from((begin, end));
 
         let count = trx
-            .get_ranges(opt, false)
+            .get_ranges(opt.clone(), false)
             .try_fold(0usize, |count, kvs| future::ok(count + kvs.as_ref().len()))
             .await?;
 
         assert_eq!(count, N);
         eprintln!("count: {count:?}");
+
+        let unlimited = RangeOption {
+            limit: Some(0),
+            ..opt
+        };
+        for reverse in [false, true] {
+            let opt = RangeOption {
+                reverse,
+                ..unlimited.clone()
+            };
+            let (pages, count) = trx
+                .get_ranges(opt, false)
+                .try_fold((0usize, 0usize), |(pages, count), kvs| {
+                    future::ok((pages + 1, count + kvs.len()))
+                })
+                .await?;
+            assert!(pages > 1, "expected a paginated range scan");
+            assert_eq!(count, N);
+        }
     }
 
     Ok(())
@@ -313,6 +332,18 @@ async fn test_mapped_value() -> FdbResult<()> {
         .get_mapped_range(&range_option, &mapper, 1024, false)
         .await?;
 
+    // Neighboring records surround each interior child range, so a shifted
+    // selector would include the previous record and omit the last child key.
+    for mapped_key_value in &mapped_key_values {
+        let child_range = RangeOption::from((
+            mapped_key_value.begin_selector(),
+            mapped_key_value.end_selector(),
+        ));
+        let child_values = t.get_range(&child_range, 1, false).await?;
+        assert!(!child_values.more());
+        assert_eq!(child_values.as_ref(), mapped_key_value.key_values());
+    }
+
     verify_mapped_values(blue_counter, vec![mapped_key_values]);
 
     Ok(())
@@ -398,6 +429,19 @@ async fn test_mapped_values() -> FdbResult<()> {
     dbg!(t.get_approximate_size().await?);
 
     verify_mapped_values(blue_counter, key_values);
+
+    let unlimited = RangeOption {
+        limit: Some(0),
+        ..range_option
+    };
+    let (pages, parents) = t
+        .get_mapped_ranges(unlimited, &mapper, false)
+        .try_fold((0usize, 0usize), |(pages, parents), values| {
+            future::ok((pages + 1, parents + values.len()))
+        })
+        .await?;
+    assert!(pages > 1, "expected a paginated mapped range scan");
+    assert_eq!(parents, blue_counter as usize);
 
     Ok(())
 }

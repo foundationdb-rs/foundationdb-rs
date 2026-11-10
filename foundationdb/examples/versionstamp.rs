@@ -1,5 +1,5 @@
 use foundationdb::{
-    Database, FdbResult, RangeOption, options,
+    Database, FdbBindingError, FdbError, RangeOption, options,
     tuple::{Subspace, Versionstamp, pack, pack_with_versionstamp, unpack},
 };
 use futures::StreamExt;
@@ -24,7 +24,7 @@ async fn main() {
         .expect("failed to run versionstamp example");
 }
 
-async fn run_versionstamp_key_example() -> FdbResult<()> {
+async fn run_versionstamp_key_example() -> Result<(), FdbBindingError> {
     println!("running example for setting versionstamped keys");
     // Using versionstamps in order to create a sequential path.
     let db = Database::default()?;
@@ -35,65 +35,37 @@ async fn run_versionstamp_key_example() -> FdbResult<()> {
     let (from, to) = subspace.range();
     let trx_clear = db.create_trx()?;
     trx_clear.clear_range(&from, &to);
-    trx_clear.commit().await?;
+    trx_clear.commit().await.map_err(FdbError::from)?;
 
-    // We can create two interleaved transactions, each creating a versionstamped key.
-    // The first to commit will be the one to get the lowest versionstamp value.
-    let trx_1 = db.create_trx()?;
+    // Handles cloned from the runner transaction share one user-version allocator.
+    // Explicit Versionstamp::incomplete(42) remains supported, but can collide.
+    db.run(|trx, _| {
+        let subspace = subspace.clone();
+        async move {
+            let component_a = trx.clone();
+            let component_b = trx.clone();
 
-    // versionstamps allow user ordering too, which can be set as the user version when creating an
-    // incomplete versionstamp. While these two keys will be committed in the same transaction,
-    // the versionstamp ordering is guaranteed to give us the expected order.
-    let key_1_1 = subspace.pack_with_versionstamp(&("prefix", &Versionstamp::incomplete(2)));
-    let key_1_2 = subspace.pack_with_versionstamp(&("prefix", &Versionstamp::incomplete(1)));
+            // Allocate inside the retry closure because retries restart allocation at zero.
+            for (component, value) in [
+                (&component_a, "component_a_1"),
+                (&component_b, "component_b_1"),
+                (&component_a, "component_a_2"),
+            ] {
+                let versionstamp = Versionstamp::incomplete(component.allocate_user_version()?);
+                let key = subspace.pack_with_versionstamp(&("prefix", &versionstamp));
+                component.atomic_op(
+                    &key,
+                    &pack(&value),
+                    options::MutationType::SetVersionstampedKey,
+                );
+            }
 
-    let value_1_1 = "value_1_1";
-    let value_1_2 = "value_1_2";
+            Ok::<_, FdbBindingError>(())
+        }
+    })
+    .await?;
 
-    // Creating versionstamped keys is an atomic op.
-    trx_1.atomic_op(
-        &key_1_1,
-        &pack(&value_1_1),
-        options::MutationType::SetVersionstampedKey,
-    );
-    trx_1.atomic_op(
-        &key_1_2,
-        &pack(&value_1_2),
-        options::MutationType::SetVersionstampedKey,
-    );
-
-    // We can create a second set of kvs in a new transaction
-    let trx_2 = db.create_trx()?;
-
-    let key_2_1 = subspace.pack_with_versionstamp(&("prefix", &Versionstamp::incomplete(1)));
-    let key_2_2 = subspace.pack_with_versionstamp(&("prefix", &Versionstamp::incomplete(2)));
-
-    let value_2_1 = "value_2_1";
-    let value_2_2 = "value_2_2";
-
-    // Creating versionstamped keys is an atomic op.
-    trx_2.atomic_op(
-        &key_2_1,
-        &pack(&value_2_1),
-        options::MutationType::SetVersionstampedKey,
-    );
-    trx_2.atomic_op(
-        &key_2_2,
-        &pack(&value_2_2),
-        options::MutationType::SetVersionstampedKey,
-    );
-
-    // The order in which we commit will determine the final ordering.
-    // Committing the second transaction first will give us the expected order.
-    trx_2.commit().await?;
-
-    trx_1.commit().await?;
-
-    // Reading the keys back will give us the expected order.
-    // value_2_1
-    // value_2_2
-    // value_1_2
-    // value_1_1
+    // The three keys share one 10-byte transaction version and have user versions 0, 1, and 2.
 
     let trx = db.create_trx()?;
     let range = RangeOption::from((from, to));
@@ -114,7 +86,7 @@ async fn run_versionstamp_key_example() -> FdbResult<()> {
     Ok(())
 }
 
-async fn run_versionstamp_value_example() -> FdbResult<()> {
+async fn run_versionstamp_value_example() -> Result<(), FdbBindingError> {
     println!("running example for setting versionstamped values");
     // You can use versionstamps in values too, for example to point to a versionstamped key.
     let db = Database::default()?;
@@ -125,29 +97,35 @@ async fn run_versionstamp_value_example() -> FdbResult<()> {
     let (from, to) = subspace.range();
     let trx_clear = db.create_trx()?;
     trx_clear.clear_range(&from, &to);
-    trx_clear.commit().await?;
+    trx_clear.commit().await.map_err(FdbError::from)?;
 
     // In our transaction we will create a versionstamped key, and then reference it in another
     // known "index" key.
-    let trx = db.create_trx()?;
-
-    let key_tuple = ("data", &Versionstamp::incomplete(0));
-    let key = subspace.pack_with_versionstamp(&key_tuple);
-    let value = "some value";
-
-    trx.atomic_op(
-        &key,
-        &pack(&value),
-        options::MutationType::SetVersionstampedKey,
-    );
-
     let index_key = subspace.pack(&"index");
-    trx.atomic_op(
-        &index_key,
-        &pack_with_versionstamp(&key_tuple),
-        options::MutationType::SetVersionstampedValue,
-    );
-    trx.commit().await?;
+    db.run(|trx, _| {
+        let subspace = subspace.clone();
+        let index_key = index_key.clone();
+        async move {
+            // Reuse one allocated stamp for the data key and its index reference.
+            let versionstamp = Versionstamp::incomplete(trx.allocate_user_version()?);
+            let key_tuple = ("data", &versionstamp);
+            let key = subspace.pack_with_versionstamp(&key_tuple);
+
+            trx.atomic_op(
+                &key,
+                &pack(&"some value"),
+                options::MutationType::SetVersionstampedKey,
+            );
+            trx.atomic_op(
+                &index_key,
+                &pack_with_versionstamp(&key_tuple),
+                options::MutationType::SetVersionstampedValue,
+            );
+
+            Ok::<_, FdbBindingError>(())
+        }
+    })
+    .await?;
 
     // Now we created our versionstamped key and a reference to it.
     // We can read the index key and get the versionstamped key back.

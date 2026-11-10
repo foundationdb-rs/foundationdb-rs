@@ -14,6 +14,7 @@ use foundationdb_sys as fdb_sys;
 use std::fmt;
 use std::ops::{Deref, Range, RangeInclusive};
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
@@ -198,6 +199,8 @@ impl TransactionCommitted {
     /// This will not affect previously committed data.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     pub fn reset(mut self) -> Transaction {
         self.tr.reset();
         self.tr
@@ -228,7 +231,9 @@ impl TransactionCommitError {
     ///
     /// On success the transaction enters a new attempt: its
     /// [usage](Transaction::attempt_usage) restarts from zero, while its
-    /// [client budget](Transaction::set_client_budget) is kept.
+    /// [client budget](Transaction::set_client_budget) is kept. User versions
+    /// allocated by [`Transaction::allocate_user_version`] are invalid for the
+    /// new attempt, which starts allocating again at zero.
     pub fn on_error(self) -> impl Future<Output = FdbResult<Transaction>> {
         self.tr.mark_attempt_end();
         let cause = self.err;
@@ -239,6 +244,7 @@ impl TransactionCommitError {
         .map_ok(move |()| {
             self.tr.end_attempt(AttemptOutcome::Retried { cause });
             self.tr.begin_attempt_usage();
+            self.tr.reset_user_version_allocator();
             self.tr
         })
     }
@@ -262,6 +268,8 @@ impl TransactionCommitError {
     /// Reset the transaction to its initial state.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     pub fn reset(mut self) -> Transaction {
         self.tr.reset();
         self.tr
@@ -318,6 +326,8 @@ impl TransactionCancelled {
     /// Reset the transaction to its initial state.
     ///
     /// This is similar to dropping the transaction and creating a new one.
+    /// User versions allocated before reset are invalid for the new attempt,
+    /// which starts allocating again at zero.
     pub fn reset(mut self) -> Transaction {
         self.tr.reset();
         self.tr
@@ -351,6 +361,9 @@ pub struct Transaction {
     /// Client-side limits applied to the current attempt. Unlike `usage`, they
     /// are configuration: they survive `on_error` and `reset`.
     budget: Mutex<ClientBudget>,
+    /// The next user version to issue for an incomplete versionstamp in the
+    /// current transaction attempt.
+    user_version: AtomicU32,
 }
 unsafe impl Send for Transaction {}
 unsafe impl Sync for Transaction {}
@@ -403,6 +416,7 @@ pub struct RangeOption<'a> {
     /// The end of the range.
     pub end: KeySelector<'a>,
     /// If non-zero, indicates the maximum number of key-value pairs to return.
+    /// `None` and `Some(0)` both mean unlimited.
     pub limit: Option<usize>,
     /// If non-zero, indicates a (soft) cap on the combined number of bytes of keys and values to
     /// return for each item.
@@ -432,7 +446,7 @@ impl RangeOption<'_> {
         let last = kvs.last()?;
         let last_key = last.key();
 
-        if let Some(limit) = self.limit.as_mut() {
+        if let Some(limit) = self.limit.as_mut().filter(|limit| **limit != 0) {
             *limit = limit.saturating_sub(kvs.len());
             if *limit == 0 {
                 return None;
@@ -456,7 +470,7 @@ impl RangeOption<'_> {
         let last = kvs.last()?;
         let last_key = last.parent_key();
 
-        if let Some(limit) = self.limit.as_mut() {
+        if let Some(limit) = self.limit.as_mut().filter(|limit| **limit != 0) {
             *limit = limit.saturating_sub(kvs.len());
             if *limit == 0 {
                 return None;
@@ -552,7 +566,39 @@ impl Transaction {
             metrics: OnceLock::new(),
             usage: UsageSlot::default(),
             budget: Mutex::new(ClientBudget::default()),
+            user_version: AtomicU32::new(0),
         }
+    }
+
+    /// Allocates a user version for an incomplete [`Versionstamp`](crate::tuple::Versionstamp).
+    ///
+    /// Values start at zero and increase through `65535`. Values issued by
+    /// this allocator are unique within the current transaction attempt, across
+    /// all handles that share that transaction. Explicit user versions supplied
+    /// to `Versionstamp::incomplete` remain supported, but can collide with
+    /// allocator-issued versions or with each other.
+    ///
+    /// The allocator performs no database operations and adds no conflict
+    /// ranges. It has no reservation mechanism: allocate a value when building
+    /// the versionstamped mutation that will use it.
+    ///
+    /// `reset` and a successful `on_error` start a new transaction attempt and
+    /// restart allocation at zero. A cancelled transaction retains its issued
+    /// values until it is reset. Versions from a previous attempt therefore
+    /// must not be reused in mutations for the new attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FdbBindingError::UserVersionExhausted`] after all 65536 user
+    /// versions have been issued for this attempt.
+    #[cfg_attr(feature = "trace", tracing::instrument(level = "debug", skip(self)))]
+    pub fn allocate_user_version(&self) -> Result<u16, FdbBindingError> {
+        self.user_version
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                (current <= u16::MAX as u32).then_some(current + 1)
+            })
+            .map(|current| current as u16)
+            .map_err(|_| FdbBindingError::UserVersionExhausted)
     }
 
     /// Attaches a metrics collector to this transaction and opens its first
@@ -895,6 +941,16 @@ impl Transaction {
     /// If a transaction uses both an atomic operation and a strictly serializable read on the same
     /// key, the benefits of using the atomic operation (for both conflict checking and performance)
     /// are lost.
+    ///
+    /// Versionstamped operands are forwarded unchanged and must match the selected
+    /// runtime API, including when the client was initialized outside this crate.
+    /// Before API 520, `SetVersionstampedKey` consumes a two-byte offset suffix and
+    /// `SetVersionstampedValue` replaces the first ten bytes without an offset
+    /// suffix. API 520 and later use a four-byte offset suffix for both mutations.
+    /// Use [`crate::tuple::pack_with_versionstamp_for_key`] or
+    /// [`crate::tuple::Subspace::pack_with_versionstamp_for_key`] for tuple keys.
+    /// Tuple values containing an incomplete versionstamp require API 520 or later:
+    /// stamping at byte zero would overwrite the tuple's type code.
     #[cfg_attr(
         feature = "trace",
         tracing::instrument(level = "debug", skip(self, key, param))
@@ -1378,25 +1434,49 @@ impl Transaction {
     ///
     /// On success the transaction enters a new attempt: its
     /// [usage](Self::attempt_usage) restarts from zero, while its
-    /// [client budget](Self::set_client_budget) is kept.
+    /// [client budget](Self::set_client_budget) is kept. User versions
+    /// allocated by [`Self::allocate_user_version`] are invalid for the new
+    /// attempt, which starts allocating again at zero.
+    ///
+    /// On failure, the transaction is dropped. Use [`Self::on_error_with_transaction`]
+    /// to retain ownership on both success and failure.
     pub fn on_error(
         self,
         err: FdbError,
     ) -> impl Future<Output = FdbResult<Transaction>> + Send + Sync + Unpin {
+        self.on_error_with_transaction(err)
+            .map(|(transaction, result)| result.map(|()| transaction))
+    }
+
+    /// Applies the same retry and backoff behavior as [`Self::on_error`], returning
+    /// ownership of the transaction even when the error cannot be retried.
+    ///
+    /// On success, the returned transaction has been reset for a new attempt.
+    /// On failure, it retains the state left by the native error handler, which
+    /// may be canceled. Call [`Self::reset`] before using it for another attempt.
+    /// This method does not replace or explicitly reset the failed transaction.
+    pub fn on_error_with_transaction(
+        self,
+        err: FdbError,
+    ) -> impl Future<Output = (Transaction, FdbResult<()>)> + Send + Sync + Unpin {
         self.mark_attempt_end();
 
         FdbFuture::<()>::new(unsafe {
             fdb_sys::fdb_transaction_on_error(self.inner.as_ptr(), err.code())
         })
-        .map_ok(move |()| {
-            self.end_attempt(AttemptOutcome::Retried { cause: err });
-            self.begin_attempt_usage();
-            self
+        .map(move |result| {
+            if result.is_ok() {
+                self.end_attempt(AttemptOutcome::Retried { cause: err });
+                self.begin_attempt_usage();
+                self.reset_user_version_allocator();
+            }
+            (self, result)
         })
     }
 
     /// Cancels the transaction. All pending or future uses of the transaction will return a
-    /// transaction_cancelled error. The transaction can be used again after it is reset.
+    /// transaction_cancelled error. The transaction can be used again after it is reset. User
+    /// versions already allocated remain consumed until that reset starts a new attempt.
     pub fn cancel(self) -> TransactionCancelled {
         unsafe {
             fdb_sys::fdb_transaction_cancel(self.inner.as_ptr());
@@ -1589,23 +1669,21 @@ impl Transaction {
     /// reported committed before that call.
     ///
     /// On an instrumented transaction, the version is recorded in the metrics of
-    /// the current attempt. It is only ever recorded when this method is called:
-    /// the binding never fetches a read version on its own.
+    /// the issuing attempt. A future polled after that attempt ends does not
+    /// update the report. The binding never fetches a read version on its own.
     pub fn get_read_version(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
-        let metrics = self.metrics().cloned();
-        let started_at = metrics.as_ref().map(|_| Instant::now());
+        let recording = self
+            .metrics()
+            .map(|metrics| (metrics.clone(), self.usage(), Instant::now()));
 
         FdbFuture::<i64>::new(unsafe {
             fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr())
         })
         .map(move |result| {
-            if let (Some(metrics), Some(started_at)) = (&metrics, started_at) {
-                metrics.record_grv(started_at.elapsed());
-                if let Ok(version) = result {
-                    metrics.set_read_version(version);
-                }
+            if let Some((metrics, usage, started_at)) = recording {
+                metrics.record_grv(&usage, started_at.elapsed(), result.as_ref().ok().copied());
             }
             result
         })
@@ -1681,10 +1759,17 @@ impl Transaction {
     /// This starts a new attempt: the [usage](Self::attempt_usage) restarts from
     /// zero, while the [client budget](Self::set_client_budget) is kept. On an
     /// instrumented transaction, the attempt being recorded is abandoned rather
-    /// than reported: it reached no conclusion.
+    /// than reported: it reached no conclusion. User versions allocated before
+    /// reset are invalid for the new attempt, which starts allocating again at
+    /// zero.
     pub fn reset(&mut self) {
         unsafe { fdb_sys::fdb_transaction_reset(self.inner.as_ptr()) }
         self.begin_attempt_usage();
+        self.reset_user_version_allocator();
+    }
+
+    fn reset_user_version_allocator(&self) {
+        self.user_version.store(0, Ordering::Relaxed);
     }
 
     /// Reads the conflicting key ranges from the special keyspace after a commit conflict.

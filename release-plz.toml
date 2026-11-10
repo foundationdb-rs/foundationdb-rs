@@ -61,9 +61,6 @@ changelog_update = false
 
 [[package]]
 name = "foundationdb-profiling"
-publish = false
-git_release_enable = false
-changelog_update = false
 
 [[package]]
 name = "foundationdb-recipes-simulation"

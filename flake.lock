@@ -9,29 +9,29 @@
       "locked": {
         "lastModified": 1782312007,
         "narHash": "sha256-DFr5o8fjyldBE0T3kgyeFVCBnZ/LD0OAEVycFeC0kJ0=",
-        "owner": "foundationdb-rs",
-        "repo": "overlay",
+        "ref": "refs/heads/main",
         "rev": "d25f5f89b413efa1b04c0966623042f830409960",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/foundationdb-rs/overlay"
       },
       "original": {
-        "owner": "foundationdb-rs",
-        "repo": "overlay",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/foundationdb-rs/overlay"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1782175435,
-        "narHash": "sha256-EMzXKmnOtBQ2MnvpiNOm7E+kOMvdPrIKaeg52Tip2Uk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "89570f24e97e614aa34aa9ab1c927b6578a43775",
-        "type": "github"
+        "lastModified": 1789370336,
+        "narHash": "sha256-obwZbWHP7htCIoq2Z0g/uTMcEgN6yqcMNIcOMe6P2qI=",
+        "rev": "c7def046b9a883d46974757852106483d741586f",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1073483.c7def046b9a8/nixexprs.tar.zst"
       },
       "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
+        "type": "tarball",
+        "url": "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.zst"
       }
     },
     "root": {
@@ -48,17 +48,18 @@
         ]
       },
       "locked": {
-        "lastModified": 1782271078,
-        "narHash": "sha256-Ukpyd+syDTr+ky+nI+SbUnWySfiqNRzA3gzFZYWepeg=",
-        "owner": "oxalica",
-        "repo": "rust-overlay",
-        "rev": "b7286019daa89e4e192c8913c3ec7002976034d0",
-        "type": "github"
+        "lastModified": 1789457514,
+        "narHash": "sha256-Aggle++fTyAifBy+QBPxjM+obO5iepKW/8MDxQtgGvI=",
+        "ref": "refs/heads/master",
+        "rev": "89e99bf0778a8f2cd18c9360c3f19c1ee47fc739",
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/oxalica/rust-overlay"
       },
       "original": {
-        "owner": "oxalica",
-        "repo": "rust-overlay",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/oxalica/rust-overlay"
       }
     }
   },

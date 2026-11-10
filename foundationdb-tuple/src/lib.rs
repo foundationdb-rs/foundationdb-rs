@@ -183,13 +183,48 @@ pub fn pack<T: TuplePack>(v: &T) -> Vec<u8> {
     v.pack_to_vec()
 }
 
-/// Pack value and returns the packed buffer
+/// Pack a value using the versionstamp offset encoding for API 520 and later.
+///
+/// If the tuple contains an incomplete versionstamp, the result has a four-byte
+/// offset suffix. For keys under an earlier runtime API, use
+/// [`pack_with_versionstamp_for_key`]. Tuple values with incomplete stamps require
+/// API 520 or later; earlier APIs stamp at byte zero, overwriting the tuple's type
+/// code. Complete stamps are packed normally, without an offset suffix.
 ///
 /// # Panics
 ///
 /// Panics if there is multiple versionstamp present or if the encoded data size doesn't fit in `u32`.
 pub fn pack_with_versionstamp<T: TuplePack>(v: &T) -> Vec<u8> {
     v.pack_to_vec_with_versionstamp()
+}
+
+/// Pack a tuple key for the explicitly selected runtime API version.
+///
+/// An incomplete versionstamp appends a two-byte little-endian offset before API
+/// 520, or a four-byte offset at API 520 and later. The version must match the
+/// runtime API selected by the application, which can differ from its headers or
+/// client library version. This function does not inspect client initialization.
+/// Tuples with no incomplete stamp are packed normally, without a suffix.
+///
+/// This is a key operand for `SetVersionstampedKey`, not a legacy
+/// `SetVersionstampedValue` operand: before API 520, values are stamped at byte
+/// zero and cannot preserve the tuple's type code.
+///
+/// # Panics
+///
+/// Panics if there are multiple incomplete stamps, the encoded size does not fit
+/// in `u32`, or a legacy key's stamp offset does not fit in `u16`.
+///
+/// ```
+/// use foundationdb_tuple::{pack_with_versionstamp_for_key, Versionstamp};
+/// let key = pack_with_versionstamp_for_key(&("event", Versionstamp::incomplete(0)), 510);
+/// assert_eq!(&key[key.len() - 2..], &8_u16.to_le_bytes());
+/// ```
+pub fn pack_with_versionstamp_for_key<T: TuplePack>(v: &T, api_version: i32) -> Vec<u8> {
+    let mut output = Vec::new();
+    let offset = pack_into(v, &mut output);
+    offset.append_key_offset(&mut output, api_version);
+    output
 }
 
 /// Pack value into the given buffer
@@ -201,7 +236,9 @@ pub fn pack_into<T: TuplePack>(v: &T, output: &mut Vec<u8>) -> VersionstampOffse
     v.pack_into_vec(output)
 }
 
-/// Pack value into the given buffer
+/// Pack a value into the buffer with a four-byte versionstamp offset for API
+/// 520 and later. For legacy keys, use [`pack_with_versionstamp_for_key`] or
+/// [`Subspace::pack_with_versionstamp_for_key`] with the buffer as a prefix.
 ///
 /// # Panics
 ///
@@ -693,5 +730,35 @@ mod tests {
                     [..]
             )
         );
+    }
+
+    #[test]
+    fn versionstamp_key_encoding_matches_runtime_api() {
+        let tuple = ("foo", Versionstamp::incomplete(657));
+        let mut legacy = pack(&tuple);
+        legacy.extend_from_slice(&6_u16.to_le_bytes());
+        assert_eq!(pack_with_versionstamp_for_key(&tuple, 510), legacy);
+        for api_version in [520, 740] {
+            assert_eq!(
+                pack_with_versionstamp_for_key(&tuple, api_version),
+                pack_with_versionstamp(&tuple)
+            );
+        }
+        for api_version in [510, 520, 740] {
+            let complete = ("foo", Versionstamp::complete([7; 10], 657));
+            assert_eq!(
+                pack_with_versionstamp_for_key(&complete, api_version),
+                pack(&complete)
+            );
+            assert_eq!(
+                pack_with_versionstamp_for_key(&"foo", api_version),
+                pack(&"foo")
+            );
+            let multiple = (Versionstamp::incomplete(0), (Versionstamp::incomplete(1),));
+            assert!(
+                std::panic::catch_unwind(|| pack_with_versionstamp_for_key(&multiple, api_version))
+                    .is_err()
+            );
+        }
     }
 }

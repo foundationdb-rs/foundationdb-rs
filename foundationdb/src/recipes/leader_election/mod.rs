@@ -24,23 +24,28 @@
 //! expiry. A released record retains its revision and duration, while a
 //! never-created record has revision zero and no duration.
 //!
-//! [`Leadership`](crate::recipes::leader_election::Leadership) and
-//! [`Observation`](crate::recipes::leader_election::Observation) are caller-local
-//! state. A leadership token may renew only while elapsed time on that caller's
-//! clock is below the duration stored in its exact durable revision. A follower
-//! waits the duration stored in its exact observation, never this handle's
-//! configured duration.
-//! If the observed owner, revision, or duration changes, the caller starts a
-//! new observation window. If it is unchanged, the original observation time
-//! is retained.
+//! The recipe holds no time either. Each poll receives a
+//! [`PollInput`](crate::recipes::leader_election::PollInput): the exact owner
+//! record the caller last saw, plus the time elapsed since its anchor, measured
+//! by the caller on its own monotonic clock. A claimed leadership may renew
+//! only while that elapsed time is below the duration stored in its exact
+//! durable revision. A follower waits the duration stored in its exact
+//! observation, never this handle's configured duration. If the observed
+//! owner, revision, or duration changes, the result asks the caller to reset
+//! its observation timer; if it is unchanged, the caller keeps its anchor.
 //!
-//! Clocks are never persisted or compared across processes. They only measure
-//! elapsed time for the caller that recorded them. On process restart, use a
-//! fresh [`ParticipantId`](crate::recipes::leader_election::ParticipantId) and
-//! begin again with
-//! [`LocalState::Unknown`](crate::recipes::leader_election::LocalState::Unknown),
+//! Clocks are never persisted or compared across processes: whoever holds an
+//! anchor measures elapsed time on its own clock. Participants need clocks
+//! running at similar rates, not synchronized clocks. On process restart, use
+//! a fresh [`ParticipantId`](crate::recipes::leader_election::ParticipantId)
+//! and begin again with
+//! [`PollInput::Unknown`](crate::recipes::leader_election::PollInput::Unknown),
 //! so the new incarnation observes the durable state and waits anew before
 //! attempting takeover.
+//!
+//! [`LocalState`](crate::recipes::leader_election::LocalState) is an optional
+//! helper that holds the anchors of a local caller and builds its inputs. Use
+//! it unless you are a transport service relaying remote callers.
 //!
 //! ## Cutover from v0.11 durable state
 //!
@@ -58,22 +63,25 @@
 //! ## Poll lifecycle
 //!
 //! Call [`LeaderElection::poll`](crate::recipes::leader_election::LeaderElection::poll)
-//! inside the closure passed to
-//! [`Database::run`](crate::Database::run). Read `attempt_started_at` from the
-//! caller's monotonic clock immediately before each `poll` call, including
-//! every retry attempt. It controls renewal and takeover eligibility and stamps
-//! new leadership, so time spent reading, retrying, or committing only shortens
-//! local validity.
+//! inside the closure passed to [`Database::run`](crate::Database::run). The
+//! recommended loop with [`LocalState`](crate::recipes::leader_election::LocalState):
 //!
-//! A returned [`PollResult`](crate::recipes::leader_election::PollResult) is
-//! only prepared state. Adopt it with
-//! [`PollResult::into_next_state`](crate::recipes::leader_election::PollResult::into_next_state)
-//! after the outer `Database::run` succeeds. Use a fresh `adopted_at` reading
-//! then: it starts timing for a new or reset observation only after its durable
-//! read is known to have committed. An unchanged observation and a new
-//! leadership token retain their original attempt-local times. This prevents
-//! retries, cancellation, and unknown commits from authorizing work based on
-//! uncommitted caller-local state.
+//! 1. Read `now` from the caller's monotonic clock once, before `Database::run`.
+//! 2. Build `input = local.input(now)` and clone it into the closure, so every
+//!    retry attempt claims the same tuple and elapsed time.
+//! 3. Call `poll` inside the closure, with the protected work of a leader
+//!    outcome in the same transaction.
+//! 4. After `Database::run` succeeds, and only then, replace the state with
+//!    `local = local.adopt(now, clock.monotonic(), result.next())`.
+//!
+//! [`LocalState::adopt`](crate::recipes::leader_election::LocalState::adopt)
+//! applies the anchoring rules. Leadership is anchored at the reading taken
+//! before the attempt, so time spent reading, retrying, or committing only
+//! shortens local validity. A reset observation is anchored at the fresh
+//! post-success reading, so it starts timing only after its durable read is
+//! known to have committed. A preserved observation keeps its anchor. This
+//! prevents retries, cancellation, and unknown commits from authorizing work
+//! based on uncommitted caller-local state.
 //!
 //! The poll transaction reads and, for a leadership transition, writes the
 //! same durable key. FoundationDB conflict resolution serializes competing
@@ -131,8 +139,8 @@
 //!    produces [`PollOutcome::Leader`](crate::recipes::leader_election::PollOutcome::Leader)
 //!    with [`PollTransition::Acquired`](crate::recipes::leader_election::PollTransition::Acquired).
 //!    After the outer transaction succeeds, adopt its
-//!    [`Leadership`](crate::recipes::leader_election::Leadership) through
-//!    [`PollResult::into_next_state`](crate::recipes::leader_election::PollResult::into_next_state).
+//!    [`NextState::Leadership`](crate::recipes::leader_election::NextState::Leadership)
+//!    with [`LocalState::adopt`](crate::recipes::leader_election::LocalState::adopt).
 //! 3. A caller that sees another owner receives
 //!    [`PollOutcome::Follower`](crate::recipes::leader_election::PollOutcome::Follower).
 //!    Its next [`LocalState`](crate::recipes::leader_election::LocalState)
@@ -141,7 +149,7 @@
 //!    Repeated polls preserve that time only while the durable record is
 //!    unchanged.
 //! 4. The current holder polls with its matching, locally unexpired
-//!    [`Leadership`](crate::recipes::leader_election::Leadership) and receives
+//!    [`PollInput::Leadership`](crate::recipes::leader_election::PollInput::Leadership) and receives
 //!    [`PollTransition::Renewed`](crate::recipes::leader_election::PollTransition::Renewed)
 //!    with a new rank. An unchanged observation that has waited at least its
 //!    persisted duration permits
@@ -155,13 +163,40 @@
 //!    rank.
 //! 6. A holder may call
 //!    [`LeaderElection::resign`](crate::recipes::leader_election::LeaderElection::resign)
-//!    with its exact leadership token. The conditional release preserves the
+//!    with its exact rank and lease duration. The conditional release preserves the
 //!    revision, so the next acquisition receives a strictly newer rank. A stale
 //!    resignation is rejected.
 //! 7. If the outer run retries, fails, is cancelled, or has an unknown commit,
 //!    do not adopt its `PollResult`. The next successful run rediscovers the
 //!    durable state. After restart, discard all local state, generate a fresh
 //!    participant ID, and follow the observation path again.
+//!
+//! ## Remote callers
+//!
+//! A transport service may relay polls for remote participants, which then
+//! hold their own anchors and send the tuple they saw plus their measured
+//! elapsed time:
+//!
+//! - Apply the same anchoring rules on the caller: a leader anchors before
+//!   sending its request, a reset observation after receiving the reply.
+//! - A remote leader must consider itself expired at its anchor plus the
+//!   lease duration, even while a request is still in flight.
+//! - A resend must re-measure elapsed time from the same anchor, never restart
+//!   it.
+//! - After an unknown commit result, the caller does not know whether it
+//!   leads. It may then observe itself as owner and wait a full lease before
+//!   [`PollTransition::Reacquired`](crate::recipes::leader_election::PollTransition::Reacquired);
+//!   this is expected.
+//! - [`NextState::Leadership`](crate::recipes::leader_election::NextState::Leadership)
+//!   carries the relaying handle's lease duration, which is the one persisted.
+//! - Honest elapsed reporting is a protocol precondition. The exact-tuple
+//!   check only rejects stale or mismatched callers: a caller, even an
+//!   authenticated one, that reports an inflated elapsed time for the exact
+//!   current tuple can take over early. The service must also authenticate
+//!   the participant, since the tuple check does not stop a caller
+//!   impersonating another participant. A service that does not trust its
+//!   callers must enforce timing itself, for example by anchoring on its own
+//!   clock instead of relaying the reported elapsed time.
 //!
 //! ## Caller responsibilities
 //!
@@ -190,11 +225,11 @@ mod types;
 
 pub use errors::{LeaderElectionError, Result};
 pub use types::{
-    ElectionState, Leadership, LocalState, Observation, ParticipantId, PollOutcome, PollResult,
-    PollTransition, ResignOutcome,
+    ElectionState, Leadership, LocalState, NextState, Observation, ObservationTimer, ParticipantId,
+    PollInput, PollOutcome, PollResult, PollTransition, ResignOutcome,
 };
 
-use crate::{Transaction, tuple::Subspace};
+use crate::{Transaction, recipes::ranked_register::Rank, tuple::Subspace};
 use std::ops::Deref;
 use std::time::Duration;
 
@@ -238,18 +273,19 @@ impl LeaderElection {
     /// Polls the durable lease state in the caller's transaction.
     ///
     /// A released state is acquired immediately. An exact, locally unexpired
-    /// [`Leadership`] token renews ownership with a fresh revision. A first or
-    /// changed [`Observation`] never steals; only an exact unchanged observation
-    /// may take over, or same-owner reacquire, after the observed record's
-    /// persisted duration. An expired or mismatched leadership token becomes
-    /// observation/reacquisition state and cannot renew directly.
+    /// [`PollInput::Leadership`] renews ownership with a fresh revision. A
+    /// first or changed [`PollInput::Observation`] never steals; only an exact
+    /// unchanged observation may take over, or same-owner reacquire, after the
+    /// observed record's persisted duration. An expired or mismatched
+    /// leadership claim yields a follower result with a reset observation and
+    /// cannot renew directly.
     ///
-    /// `attempt_started_at` must be read from the caller's monotonic clock
-    /// immediately before this call in each retry attempt. It is deliberately
-    /// before the durable read, making renewal and takeover decisions
-    /// conservative relative to read and commit delay. After the enclosing
-    /// `Database::run` succeeds, pass a fresh caller-clock reading to
-    /// [`PollResult::into_next_state`] to adopt the returned state.
+    /// `input` carries elapsed time measured by the caller, see
+    /// [`LocalState::input`]. Measure it before the enclosing
+    /// `Database::run` and reuse it for every retry attempt, making renewal and
+    /// takeover decisions conservative relative to read and commit delay.
+    /// After the run succeeds, adopt [`PollResult::next`], for example with
+    /// [`LocalState::adopt`].
     ///
     /// Renew well before the local deadline represented by [`Leadership`],
     /// leaving headroom for scheduling delay, retries, and commit latency.
@@ -259,7 +295,7 @@ impl LeaderElection {
         feature = "trace",
         tracing::instrument(
             level = "debug",
-            skip(self, txn, participant, local_state),
+            skip(self, txn, participant, input),
             fields(participant = participant.as_str())
         )
     )]
@@ -267,21 +303,12 @@ impl LeaderElection {
         &self,
         txn: &T,
         participant: &ParticipantId,
-        local_state: &LocalState,
-        attempt_started_at: Duration,
+        input: &PollInput,
     ) -> Result<PollResult>
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::poll(
-            txn,
-            &self.subspace,
-            self.lease_duration,
-            participant,
-            local_state,
-            attempt_started_at,
-        )
-        .await
+        algorithm::poll(txn, &self.subspace, self.lease_duration, participant, input).await
     }
 
     /// Reads durable state without making any liveness or leadership-validity claim.
@@ -299,7 +326,8 @@ impl LeaderElection {
         algorithm::state(txn, &self.subspace).await
     }
 
-    /// Releases ownership only when `leadership` still exactly matches durable state.
+    /// Releases ownership only when `participant`, `rank`, and `lease_duration`
+    /// still exactly match durable state.
     ///
     /// The revision and persisted duration remain, so a later acquisition has
     /// a strictly newer fencing rank. A stale delayed resignation is rejected.
@@ -310,17 +338,23 @@ impl LeaderElection {
         feature = "trace",
         tracing::instrument(
             level = "debug",
-            skip(self, txn, leadership),
+            skip(self, txn, participant),
             fields(
-                participant = leadership.participant().as_str(),
-                leadership_revision = leadership.rank().as_u64()
+                participant = participant.as_str(),
+                leadership_revision = rank.as_u64()
             )
         )
     )]
-    pub async fn resign<T>(&self, txn: &T, leadership: &Leadership) -> Result<ResignOutcome>
+    pub async fn resign<T>(
+        &self,
+        txn: &T,
+        participant: &ParticipantId,
+        rank: Rank,
+        lease_duration: Duration,
+    ) -> Result<ResignOutcome>
     where
         T: Deref<Target = Transaction>,
     {
-        algorithm::resign(txn, &self.subspace, leadership).await
+        algorithm::resign(txn, &self.subspace, participant, rank, lease_duration).await
     }
 }

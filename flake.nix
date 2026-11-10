@@ -1,10 +1,13 @@
 {
   description = "A dev environment for the crate foundationdb-rs";
   inputs = {
-    nixpkgs.url = "nixpkgs";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.zst";
+    # git+https instead of github: so the flake also resolves behind proxies that
+    # only allow git smart-HTTP (e.g. sandboxed/cloud dev environments), where
+    # GitHub's tarball API is blocked.
+    rust-overlay.url = "git+https://github.com/oxalica/rust-overlay?shallow=1";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    fdb-overlay.url = "github:foundationdb-rs/overlay";
+    fdb-overlay.url = "git+https://github.com/foundationdb-rs/overlay?shallow=1";
     fdb-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -43,6 +46,7 @@
 
           # FDB part
           fdbserver74
+          fdbcli74
           libfdb74
 
           # bindingTester part

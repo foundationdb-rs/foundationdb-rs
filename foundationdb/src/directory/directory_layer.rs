@@ -408,10 +408,10 @@ impl DirectoryLayer {
         if let Some(fdb_key_value) = fdb_value {
             let previous_prefix: Vec<Element> = self.node_subspace.unpack(fdb_key_value.key())?;
 
-            if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first() {
-                if key.starts_with(previous_prefix) {
-                    return Ok(Some(self.node_with_prefix(previous_prefix)));
-                };
+            if let Some(Element::Bytes(previous_prefix)) = previous_prefix.first()
+                && key.starts_with(previous_prefix)
+            {
+                return Ok(Some(self.node_with_prefix(previous_prefix)));
             };
         }
         Ok(None)
@@ -428,8 +428,12 @@ impl DirectoryLayer {
                 let allocator = self.allocator.allocate(trx).await?;
                 let subspace = self.content_subspace.subspace(&allocator);
 
-                // checking range
-                let mut range_option = RangeOption::from(subspace.range());
+                // A directory owns every key with its raw prefix, including the
+                // prefix itself and 0xff suffixes excluded by tuple ranges.
+                let mut range_option = RangeOption::from((
+                    subspace.bytes().to_vec(),
+                    strinc(subspace.bytes().to_vec()),
+                ));
                 range_option.limit = Some(1);
 
                 let result = trx
@@ -485,7 +489,7 @@ impl DirectoryLayer {
                     return Err(DirectoryError::Version(msg));
                 }
 
-                if minor > MINOR_VERSION {
+                if minor > MINOR_VERSION && allow_creation {
                     let msg = format!(
                         "directory with version {major}.{minor}.{patch} is read-only when opened using directory layer {MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"
                     );

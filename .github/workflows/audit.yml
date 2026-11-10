@@ -7,7 +7,12 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     if: github.repository == 'foundationdb-rs/foundationdb-rs'
-    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.85.1),
+    # rustsec/audit-check reports findings through the checks API.
+    permissions:
+      contents: read
+      checks: write
+      issues: write
+    # The checked-in rust-toolchain.toml pins the repo to the MSRV (1.89.0),
     # but the latest cargo-audit needs a newer rustc to build. Override the
     # file here to install and run it on stable (same trick as msrv.yml).
     env:

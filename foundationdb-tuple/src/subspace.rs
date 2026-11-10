@@ -103,7 +103,11 @@ impl Subspace {
     }
 
     /// Returns the key encoding the specified Tuple with the prefix of this Subspace
-    /// prepended, with a versionstamp.
+    /// prepended, with a versionstamp offset for API 520 and later.
+    ///
+    /// Incomplete stamps append a four-byte offset. For earlier runtime APIs, use
+    /// [`Self::pack_with_versionstamp_for_key`]. Complete stamps are packed without
+    /// an offset suffix.
     pub fn pack_with_versionstamp<T: TuplePack>(&self, t: &T) -> Vec<u8> {
         let mut output = self.prefix.clone();
         let mut versionstamp_offset = self.versionstamp_offset;
@@ -117,6 +121,25 @@ impl Subspace {
             }
             _ => {}
         }
+        output
+    }
+
+    /// Pack a tuple key with this subspace's prefix for the selected runtime API.
+    ///
+    /// See [`pack_with_versionstamp_for_key`] for the encoding and version contract.
+    /// The offset includes the entire prefix, including any incomplete stamp in
+    /// the subspace itself. A raw prefix supplied via [`Self::from_bytes`] is
+    /// opaque: only stamps in the tuple are tracked in that case.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there are multiple incomplete stamps, the encoded size does not
+    /// fit in `u32`, or a legacy key's stamp offset does not fit in `u16`.
+    pub fn pack_with_versionstamp_for_key<T: TuplePack>(&self, t: &T, api_version: i32) -> Vec<u8> {
+        let mut output = self.prefix.clone();
+        let mut offset = self.versionstamp_offset;
+        offset += pack_into(t, &mut output);
+        offset.append_key_offset(&mut output, api_version);
         output
     }
 
@@ -189,6 +212,50 @@ mod tests {
         let packed = subspace.pack_with_versionstamp(&tup);
         let expected = pack_with_versionstamp(&(1, Versionstamp::incomplete(0), 2));
         assert_eq!(expected, packed);
+    }
+
+    #[test]
+    fn versionstamp_key_encoding_includes_prefix_and_nested_tuple() {
+        let stamp = Versionstamp::incomplete(9);
+        for api_version in [510, 520, 740] {
+            let subspace = Subspace::from("prefix");
+            assert_eq!(
+                subspace.pack_with_versionstamp_for_key(&((&stamp,), 2), api_version),
+                pack_with_versionstamp_for_key(&("prefix", (&stamp,), 2), api_version)
+            );
+            let subspace = subspace.subspace(&(&stamp,));
+            assert_eq!(
+                subspace.pack_with_versionstamp_for_key(&2, api_version),
+                pack_with_versionstamp_for_key(&("prefix", &stamp, 2), api_version)
+            );
+            assert!(
+                std::panic::catch_unwind(
+                    || subspace.pack_with_versionstamp_for_key(&stamp, api_version)
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_key_offset_is_checked_including_raw_prefix() {
+        let stamp = Versionstamp::incomplete(0);
+        let subspace = Subspace::from_bytes(vec![b'x'; u16::MAX as usize - 1]);
+        let key = subspace.pack_with_versionstamp_for_key(&stamp, 510);
+        assert_eq!(&key[key.len() - 2..], &u16::MAX.to_le_bytes());
+
+        let subspace = Subspace::from_bytes(vec![b'x'; u16::MAX as usize]);
+        assert!(
+            std::panic::catch_unwind(|| subspace.pack_with_versionstamp_for_key(&stamp, 510))
+                .is_err()
+        );
+        let key = subspace.pack_with_versionstamp_for_key(&stamp, 520);
+        assert_eq!(&key[key.len() - 4..], &65536_u32.to_le_bytes());
+        let complete = Versionstamp::complete([7; 10], 0);
+        assert_eq!(
+            subspace.pack_with_versionstamp_for_key(&complete, 510),
+            subspace.pack(&complete)
+        );
     }
 
     #[test]

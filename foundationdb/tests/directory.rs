@@ -5,7 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use foundationdb::directory::DirectoryLayer;
+use foundationdb::directory::{DirectoryError, DirectoryLayer};
 
 use foundationdb::directory::Directory;
 
@@ -43,6 +43,32 @@ async fn test_directory() {
     test_create_then_open_then_delete(&db, &directory, vec![String::from("1"), String::from("2")])
         .await
         .expect("failed to run");
+}
+
+#[tokio::test]
+async fn test_directory_rejects_occupied_raw_prefixes() {
+    let db = common::database().await.expect("cannot open fdb");
+    let test_root = Subspace::from("test-directory-raw-prefixes");
+    let content = test_root.subspace(&"content");
+    let directory = DirectoryLayer::new(test_root.subspace(&"node"), content.clone(), false);
+    let path = vec![String::from("occupied")];
+
+    for suffix in [&[][..], &[0xff][..]] {
+        let trx = db.create_trx().expect("cannot create txn");
+        trx.clear_subspace_range(&test_root);
+        // Cover every candidate in the initial window so either boundary is
+        // tested regardless of the allocator's random choice.
+        for candidate in 0..64_i64 {
+            let mut key = content.pack(&candidate);
+            key.extend_from_slice(suffix);
+            trx.set(&key, b"existing application data");
+        }
+
+        assert!(matches!(
+            directory.create(&trx, &path, None, None).await,
+            Err(DirectoryError::PrefixNotEmpty)
+        ));
+    }
 }
 
 async fn test_create_then_open_then_delete(
