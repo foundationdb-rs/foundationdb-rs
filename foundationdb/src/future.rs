@@ -98,18 +98,12 @@ where
         tracing::instrument(level = "debug", skip(self, cx))
     )]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<FdbResult<T>> {
-        let f = self.f.as_ref().expect("cannot poll after resolve");
-        let ready = unsafe { fdb_sys::fdb_future_is_ready(f.as_ptr()) };
-        if ready == 0 {
-            let f_ptr = f.as_ptr();
-            let mut register = false;
-            let waker = self.waker.get_or_insert_with(|| {
-                register = true;
-                Arc::new(AtomicWaker::new())
-            });
-            waker.register(cx.waker());
-            if register {
-                let network_waker: Arc<AtomicWaker> = waker.clone();
+        let f_ptr = self.f.as_ref().expect("cannot poll after resolve").as_ptr();
+        if poll_ready(
+            &mut self.waker,
+            cx,
+            || unsafe { fdb_sys::fdb_future_is_ready(f_ptr) != 0 },
+            |network_waker| {
                 let network_waker_ptr = Arc::into_raw(network_waker);
                 unsafe {
                     fdb_sys::fdb_future_set_callback(
@@ -118,14 +112,43 @@ where
                         network_waker_ptr as *mut _,
                     );
                 }
-            }
-            Poll::Pending
-        } else {
-            Poll::Ready(
-                error::eval(unsafe { fdb_sys::fdb_future_get_error(f.as_ptr()) })
-                    .and_then(|()| T::try_from(self.f.take().expect("self.f.is_some()"))),
-            )
+            },
+        )
+        .is_pending()
+        {
+            return Poll::Pending;
         }
+        Poll::Ready(
+            error::eval(unsafe { fdb_sys::fdb_future_get_error(f_ptr) })
+                .and_then(|()| T::try_from(self.f.take().expect("self.f.is_some()"))),
+        )
+    }
+}
+
+fn poll_ready(
+    waker: &mut Option<Arc<AtomicWaker>>,
+    cx: &Context<'_>,
+    mut is_ready: impl FnMut() -> bool,
+    set_callback: impl FnOnce(Arc<AtomicWaker>),
+) -> Poll<()> {
+    if is_ready() {
+        return Poll::Ready(());
+    }
+    let mut register = false;
+    let waker = waker.get_or_insert_with(|| {
+        register = true;
+        Arc::new(AtomicWaker::new())
+    });
+    waker.register(cx.waker());
+    if register {
+        set_callback(Arc::clone(waker));
+    }
+    // Completion may have consumed the previous task's waker before registration.
+    // Recheck readiness so the one-shot callback cannot leave this task pending.
+    if is_ready() {
+        Poll::Ready(())
+    } else {
+        Poll::Pending
     }
 }
 
@@ -514,5 +537,56 @@ impl TryFrom<FdbFutureHandle> for () {
     type Error = FdbError;
     fn try_from(_f: FdbFutureHandle) -> FdbResult<Self> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::task::{Wake, Waker};
+
+    struct Task;
+
+    impl Wake for Task {
+        fn wake(self: Arc<Self>) {}
+    }
+
+    #[test]
+    fn completion_before_registering_a_new_task_is_ready() {
+        let old_waker = Waker::from(Arc::new(Task));
+        let new_waker = Waker::from(Arc::new(Task));
+        let mut registration = None;
+        let mut callback = None;
+
+        assert!(
+            poll_ready(
+                &mut registration,
+                &Context::from_waker(&old_waker),
+                || false,
+                |waker| callback = Some(waker),
+            )
+            .is_pending()
+        );
+
+        let callback = callback.unwrap();
+        let mut ready = false;
+        assert!(
+            poll_ready(
+                &mut registration,
+                &Context::from_waker(&new_waker),
+                || {
+                    let was_ready = ready;
+                    if !ready {
+                        // Complete after observing not-ready, before registering
+                        // the new task. The one-shot callback wakes the old task.
+                        ready = true;
+                        callback.wake();
+                    }
+                    was_ready
+                },
+                |_| {},
+            )
+            .is_ready()
+        );
     }
 }
