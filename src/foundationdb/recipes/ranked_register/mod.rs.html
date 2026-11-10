@@ -1,565 +1,282 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/recipes/ranked_register/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.1 (4eb161250 2025-03-15)" data-channel="1.85.1" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../../static.files/storage-59e33391.js"></script><script defer src="../../../../static.files/src-script-56102188.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">foundationdb/recipes/ranked_register/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
-<a href="#1" id="1">1</a>
-<a href="#2" id="2">2</a>
-<a href="#3" id="3">3</a>
-<a href="#4" id="4">4</a>
-<a href="#5" id="5">5</a>
-<a href="#6" id="6">6</a>
-<a href="#7" id="7">7</a>
-<a href="#8" id="8">8</a>
-<a href="#9" id="9">9</a>
-<a href="#10" id="10">10</a>
-<a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a></pre></div><pre class="rust"><code><span class="comment">// Copyright 2024 foundationdb-rs developers
-//
-// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
-// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
-// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
-// copied, modified, or distributed except according to those terms.
-
-</span><span class="doccomment">//! # Ranked Register for FoundationDB
-//!
-//! A shared memory abstraction that encapsulates Paxos ballots, based on
-//! Chockler &amp; Malkhi's "Active Disk Paxos with infinitely many processes"
-//! (PODC 2002). A ranked register is a mutable register with conflict detection
-//! via ranks, supporting unbounded processes with finite storage.
-//!
-//! Sections 4.2 and 4.3 of the paper use one logical ranked register. Section
-//! 5.1 implements it from one read-modify-write object, while Section 5.2 uses
-//! `n` registers as replicas to emulate one fault-tolerant logical register.
-//! This implementation is the single logical cell because FoundationDB already
-//! supplies replication and transactions. Multiple child-subspace registers are
-//! application sharding, not a replication requirement from the paper.
-//!
-//! ## Operations
-//!
-//! | Operation | Who | Effect |
-//! |-----------|-----|--------|
-//! | [`read(rank)`](crate::recipes::ranked_register::RankedRegister::read) | Leader | Raises max_read_rank only for a higher rank, returns current value |
-//! | [`write(rank, value)`](crate::recipes::ranked_register::RankedRegister::write) | Leader | Commits only if rank is high enough |
-//! | [`value()`](crate::recipes::ranked_register::RankedRegister::value) | Followers | Plain read, no fence installed |
-//!
-//! ## Addressing, schema, and capacity
-//!
-//! One [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) owns
-//! one [`Subspace`](crate::tuple::Subspace). Its internal `"state"` key stores
-//! a versioned metadata tuple, while raw value bytes are stored in sequential
-//! `"value"/&lt;u64 index&gt;` child keys. For a keyed collection, derive a child
-//! subspace from each logical key before constructing the register:
-//!
-//! ```rust
-//! use foundationdb::{recipes::ranked_register::RankedRegister, tuple::Subspace};
-//!
-//! let registers = Subspace::all().subspace(&amp;"document-registers");
-//! let document_id = "document-42";
-//! let register = RankedRegister::new(registers.subspace(&amp;(document_id,)));
-//! # let _ = register;
-//! ```
-//!
-//! Each value chunk is raw bytes and may be exactly
-//! [`MAX_VALUE_CHUNK_BYTES`](crate::recipes::ranked_register::MAX_VALUE_CHUNK_BYTES)
-//! bytes. [`RankedRegister::new`](crate::recipes::ranked_register::RankedRegister::new)
-//! imposes no recipe aggregate limit, although
-//! FoundationDB transaction limits remain the backend boundary. Use
-//! [`RankedRegister::with_max_value_bytes`](crate::recipes::ranked_register::RankedRegister::with_max_value_bytes)
-//! to impose a local aggregate limit
-//! on one handle. That limit is never stored in FoundationDB, so all handles
-//! that write through the same subspace should use compatible limits.
-//!
-//! This schema is intentionally incompatible with ranked-register state from
-//! v0.11 and earlier. It does not decode the former unversioned tuple layout.
-//! Start with a fresh subspace, or clear an existing register subspace before
-//! using this version.
-//!
-//! Ranked reads and writes for one register contend on that single key and are
-//! serialized by FoundationDB conflicts. Use separate child subspaces to shard
-//! independently updated logical items.
-//!
-//! ## Rank domains
-//!
-//! A register rank space has one authority. Do not mix
-//! [`Rank::new`](crate::recipes::ranked_register::Rank::new) values with
-//! leader-election ranks or values issued by another rank allocator in the
-//! same register. A rank from a different domain can permanently fence valid
-//! future writes from the intended authority.
-//!
-//! Although the primitive stores one optional value, a successful ranked write
-//! can fence additional application-key writes staged in the same transaction.
-//! Stage those writes only when
-//! [`WriteResult::Committed`](crate::recipes::ranked_register::WriteResult::Committed)
-//! is returned. One rank can commit only once per register because each write
-//! requires a rank strictly greater than the stored maximum write rank.
-//!
-//! ## Composing with Leader Election
-//!
-//! The ranked register is designed to work with the leader election recipe.
-//! Every successful leader poll returns a fencing rank derived from the durable
-//! revision, providing automatic fencing against stale leaders. This includes
-//! same-owner renewal: installing the new rank fences delayed work using the
-//! prior rank from that same process.
-//!
-//! ```rust,no_run
-//! # #[cfg(feature = "recipes-leader-election")]
-//! # mod leader_election_example {
-//! # async fn example(db: &amp;foundationdb::Database) -&gt; Result&lt;(), foundationdb::FdbBindingError&gt; {
-//! use std::time::Duration;
-//!
-//! use foundationdb::{
-//!     env::{Clock, Environment},
-//!     options::TransactionOption,
-//!     recipes::{
-//!         leader_election::{LeaderElection, LocalState, ParticipantId, PollOutcome},
-//!         ranked_register::{RankedRegister, WriteResult},
-//!     },
-//!     tuple::Subspace,
-//!     FdbBindingError,
-//! };
-//!
-//! let election = LeaderElection::new(
-//!     Subspace::all().subspace(&amp;"my-election"),
-//!     Duration::from_secs(10),
-//! )?;
-//! let register = RankedRegister::new(Subspace::all().subspace(&amp;"my-state"));
-//! let participant = ParticipantId::new("process-incarnation")?;
-//! let mut local_state = LocalState::unknown();
-//! let env = Environment::default();
-//!
-//! // The application owns retries, options, scheduling, and local observation.
-//! // Measure elapsed time once, before the run, and reuse it on every retry.
-//! let now = env.clock().monotonic();
-//! let input = local_state.input(now);
-//! let result = db.run(|txn, _maybe_committed| {
-//!     let election = election.clone();
-//!     let register = register.clone();
-//!     let participant = participant.clone();
-//!     let input = input.clone();
-//!     async move {
-//!         txn.set_option(TransactionOption::AutomaticIdempotency)?;
-//!         let poll = election.poll(&amp;txn, &amp;participant, &amp;input).await?;
-//!         if let PollOutcome::Leader { rank, .. } = poll.outcome() {
-//!             register
-//!                 .read(&amp;txn, *rank)
-//!                 .await
-//!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
-//!             let write_result = register
-//!                 .write(&amp;txn, *rank, b"new_value")
-//!                 .await
-//!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
-//!             if write_result == WriteResult::Committed {
-//!                 txn.set(b"application-key", b"new_value");
-//!             }
-//!         }
-//!         Ok::&lt;_, FdbBindingError&gt;(poll)
-//!     }
-//! }).await?;
-//! // Adopt this only after db.run succeeded.
-//! local_state = local_state.adopt(now, env.clock().monotonic(), result.next());
-//! # let _ = local_state;
-//! # Ok(())
-//! # }
-//! # }
-//! ```
-//!
-//! ### Why This Works
-//!
-//! - Durable leader-election revisions increase monotonically
-//! - A renewal is a new fencing epoch, even for the same leader
-//! - `read(rank)` installs a fence at that fencing rank
-//! - Any write with a lower fencing rank is automatically rejected
-//! - `value()` is safe for followers, it never installs a fence
-
-</span><span class="kw">mod </span>algorithm;
-<span class="kw">mod </span>errors;
-<span class="kw">mod </span>keys;
-<span class="kw">mod </span>types;
-
-<span class="kw">pub use </span>errors::{RankedRegisterError, <span class="prelude-ty">Result</span>};
-<span class="kw">pub use </span>types::{Rank, ReadResult, RegisterState, WriteResult};
-
-<span class="kw">use crate</span>::{Transaction, tuple::Subspace};
-<span class="kw">use </span>std::ops::Deref;
-
-<span class="doccomment">/// Maximum size of one raw register-value chunk.
-///
-/// This is FoundationDB's exact 100,000-byte value limit.
-</span><span class="kw">pub const </span>MAX_VALUE_CHUNK_BYTES: usize = <span class="number">100_000</span>;
-
-<span class="doccomment">/// A ranked register backed by FoundationDB
-///
-/// Provides a mutable register with conflict detection via ranks.
-/// No initialization is needed — an absent key represents the bottom state
-/// (zero ranks, no value).
-///
-/// # Thread Safety
-///
-/// `RankedRegister` is [`Clone`], [`Send`], and [`Sync`]. It holds only a
-/// [`Subspace`] and can be safely shared across tasks.
-</span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>RankedRegister {
-    subspace: Subspace,
-    max_value_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-}
-
-<span class="kw">impl </span>RankedRegister {
-    <span class="doccomment">/// Create a new ranked register instance
-    ///
-    /// The subspace isolates this register from other data in the database.
-    /// No initialization step is required — the register starts in the
-    /// bottom state (zero ranks, no value) until the first write.
-    </span><span class="attr">#[cfg_attr(
-        feature = <span class="string">"trace"</span>,
-        tracing::instrument(level = <span class="string">"debug"</span>, skip(subspace))
-    )]
-    </span><span class="kw">pub fn </span>new(subspace: Subspace) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            subspace,
-            max_value_bytes: <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="doccomment">/// Create a ranked register with a local aggregate value-size limit.
-    ///
-    /// The limit applies only to writes through this handle. It is not durable
-    /// state, so use compatible limits for all writers of the same subspace.
-    </span><span class="attr">#[cfg_attr(
-        feature = <span class="string">"trace"</span>,
-        tracing::instrument(level = <span class="string">"debug"</span>, skip(subspace))
-    )]
-    </span><span class="kw">pub fn </span>with_max_value_bytes(subspace: Subspace, limit: usize) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            subspace,
-            max_value_bytes: <span class="prelude-val">Some</span>(limit),
-        }
-    }
-
-    <span class="doccomment">/// Returns a reference to the underlying subspace
-    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
-    </span><span class="kw">pub fn </span>subspace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Subspace {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.subspace
-    }
-
-    <span class="doccomment">/// Perform a ranked read
-    ///
-    /// Raises `max_read_rank` only when the given rank is higher, installing a
-    /// fence that prevents lower-ranked writes. A superseded rank returns the
-    /// current write rank and value without changing the installed fence.
-    ///
-    /// Used by the leader before writing to ensure consistency.
-    </span><span class="attr">#[cfg_attr(
-        feature = <span class="string">"trace"</span>,
-        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, txn))
-    )]
-    </span><span class="kw">pub async fn </span>read&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, txn: <span class="kw-2">&amp;</span>T, rank: Rank) -&gt; <span class="prelude-ty">Result</span>&lt;ReadResult&gt;
-    <span class="kw">where
-        </span>T: Deref&lt;Target = Transaction&gt;,
-    {
-        algorithm::read(txn, <span class="kw-2">&amp;</span><span class="self">self</span>.subspace, rank).<span class="kw">await
-    </span>}
-
-    <span class="doccomment">/// Perform a ranked write
-    ///
-    /// Commits the value only if:
-    /// - `rank &gt;= max_read_rank` (no higher fence)
-    /// - `rank &gt; max_write_rank` (no equal-or-higher write)
-    ///
-    /// Returns [`WriteResult::Committed`] or [`WriteResult::Aborted`].
-    /// Returns [`RankedRegisterError::ValueTooLarge`] when this handle has a
-    /// configured limit and `value` exceeds it.
-    </span><span class="attr">#[cfg_attr(
-        feature = <span class="string">"trace"</span>,
-        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, txn, value))
-    )]
-    </span><span class="kw">pub async fn </span>write&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, txn: <span class="kw-2">&amp;</span>T, rank: Rank, value: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;WriteResult&gt;
-    <span class="kw">where
-        </span>T: Deref&lt;Target = Transaction&gt;,
-    {
-        algorithm::write(txn, <span class="kw-2">&amp;</span><span class="self">self</span>.subspace, rank, value, <span class="self">self</span>.max_value_bytes).<span class="kw">await
-    </span>}
-
-    <span class="doccomment">/// Read the current value without updating ranks
-    ///
-    /// Safe for followers and observers: it installs no durable fence. Its
-    /// normal non-snapshot FoundationDB read still adds a conflict range for
-    /// this register key, so it can conflict with a concurrent leader write.
-    </span><span class="attr">#[cfg_attr(
-        feature = <span class="string">"trace"</span>,
-        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, txn))
-    )]
-    </span><span class="kw">pub async fn </span>value&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, txn: <span class="kw-2">&amp;</span>T) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;&gt;
-    <span class="kw">where
-        </span>T: Deref&lt;Target = Transaction&gt;,
-    {
-        algorithm::value(txn, <span class="kw-2">&amp;</span><span class="self">self</span>.subspace).<span class="kw">await
-    </span>}
-}
-</code></pre></div></section></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `foundationdb/src/recipes/ranked_register/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="foundationdb" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0 (29483883e 2025-08-04)" data-channel="1.89.0" data-search-js="search-92309212.js" data-settings-js="settings-5514c975.js" ><script src="../../../../static.files/storage-4e99c027.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">foundationdb/recipes/ranked_register/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright 2024 foundationdb-rs developers
+<a href=#2 id=2 data-nosnippet>2</a>//
+<a href=#3 id=3 data-nosnippet>3</a>// Licensed under the Apache License, Version 2.0, &lt;LICENSE-APACHE or
+<a href=#4 id=4 data-nosnippet>4</a>// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or
+<a href=#5 id=5 data-nosnippet>5</a>// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be
+<a href=#6 id=6 data-nosnippet>6</a>// copied, modified, or distributed except according to those terms.
+<a href=#7 id=7 data-nosnippet>7</a>
+<a href=#8 id=8 data-nosnippet>8</a></span><span class="doccomment">//! # Ranked Register for FoundationDB
+<a href=#9 id=9 data-nosnippet>9</a>//!
+<a href=#10 id=10 data-nosnippet>10</a>//! A shared memory abstraction that encapsulates Paxos ballots, based on
+<a href=#11 id=11 data-nosnippet>11</a>//! Chockler &amp; Malkhi's "Active Disk Paxos with infinitely many processes"
+<a href=#12 id=12 data-nosnippet>12</a>//! (PODC 2002). A ranked register is a mutable register with conflict detection
+<a href=#13 id=13 data-nosnippet>13</a>//! via ranks, supporting unbounded processes with finite storage.
+<a href=#14 id=14 data-nosnippet>14</a>//!
+<a href=#15 id=15 data-nosnippet>15</a>//! Sections 4.2 and 4.3 of the paper use one logical ranked register. Section
+<a href=#16 id=16 data-nosnippet>16</a>//! 5.1 implements it from one read-modify-write object, while Section 5.2 uses
+<a href=#17 id=17 data-nosnippet>17</a>//! `n` registers as replicas to emulate one fault-tolerant logical register.
+<a href=#18 id=18 data-nosnippet>18</a>//! This implementation is the single logical cell because FoundationDB already
+<a href=#19 id=19 data-nosnippet>19</a>//! supplies replication and transactions. Multiple child-subspace registers are
+<a href=#20 id=20 data-nosnippet>20</a>//! application sharding, not a replication requirement from the paper.
+<a href=#21 id=21 data-nosnippet>21</a>//!
+<a href=#22 id=22 data-nosnippet>22</a>//! ## Operations
+<a href=#23 id=23 data-nosnippet>23</a>//!
+<a href=#24 id=24 data-nosnippet>24</a>//! | Operation | Who | Effect |
+<a href=#25 id=25 data-nosnippet>25</a>//! |-----------|-----|--------|
+<a href=#26 id=26 data-nosnippet>26</a>//! | [`read(rank)`](crate::recipes::ranked_register::RankedRegister::read) | Leader | Raises max_read_rank only for a higher rank, returns current value |
+<a href=#27 id=27 data-nosnippet>27</a>//! | [`write(rank, value)`](crate::recipes::ranked_register::RankedRegister::write) | Leader | Commits only if rank is high enough |
+<a href=#28 id=28 data-nosnippet>28</a>//! | [`value()`](crate::recipes::ranked_register::RankedRegister::value) | Followers | Plain read, no fence installed |
+<a href=#29 id=29 data-nosnippet>29</a>//!
+<a href=#30 id=30 data-nosnippet>30</a>//! ## Addressing, schema, and capacity
+<a href=#31 id=31 data-nosnippet>31</a>//!
+<a href=#32 id=32 data-nosnippet>32</a>//! One [`RankedRegister`](crate::recipes::ranked_register::RankedRegister) owns
+<a href=#33 id=33 data-nosnippet>33</a>//! one [`Subspace`](crate::tuple::Subspace). Its internal `"state"` key stores
+<a href=#34 id=34 data-nosnippet>34</a>//! a versioned metadata tuple, while raw value bytes are stored in sequential
+<a href=#35 id=35 data-nosnippet>35</a>//! `"value"/&lt;u64 index&gt;` child keys. For a keyed collection, derive a child
+<a href=#36 id=36 data-nosnippet>36</a>//! subspace from each logical key before constructing the register:
+<a href=#37 id=37 data-nosnippet>37</a>//!
+<a href=#38 id=38 data-nosnippet>38</a>//! ```rust
+<a href=#39 id=39 data-nosnippet>39</a>//! use foundationdb::{recipes::ranked_register::RankedRegister, tuple::Subspace};
+<a href=#40 id=40 data-nosnippet>40</a>//!
+<a href=#41 id=41 data-nosnippet>41</a>//! let registers = Subspace::all().subspace(&amp;"document-registers");
+<a href=#42 id=42 data-nosnippet>42</a>//! let document_id = "document-42";
+<a href=#43 id=43 data-nosnippet>43</a>//! let register = RankedRegister::new(registers.subspace(&amp;(document_id,)));
+<a href=#44 id=44 data-nosnippet>44</a>//! # let _ = register;
+<a href=#45 id=45 data-nosnippet>45</a>//! ```
+<a href=#46 id=46 data-nosnippet>46</a>//!
+<a href=#47 id=47 data-nosnippet>47</a>//! Each value chunk is raw bytes and may be exactly
+<a href=#48 id=48 data-nosnippet>48</a>//! [`MAX_VALUE_CHUNK_BYTES`](crate::recipes::ranked_register::MAX_VALUE_CHUNK_BYTES)
+<a href=#49 id=49 data-nosnippet>49</a>//! bytes. [`RankedRegister::new`](crate::recipes::ranked_register::RankedRegister::new)
+<a href=#50 id=50 data-nosnippet>50</a>//! imposes no recipe aggregate limit, although
+<a href=#51 id=51 data-nosnippet>51</a>//! FoundationDB transaction limits remain the backend boundary. Use
+<a href=#52 id=52 data-nosnippet>52</a>//! [`RankedRegister::with_max_value_bytes`](crate::recipes::ranked_register::RankedRegister::with_max_value_bytes)
+<a href=#53 id=53 data-nosnippet>53</a>//! to impose a local aggregate limit
+<a href=#54 id=54 data-nosnippet>54</a>//! on one handle. That limit is never stored in FoundationDB, so all handles
+<a href=#55 id=55 data-nosnippet>55</a>//! that write through the same subspace should use compatible limits.
+<a href=#56 id=56 data-nosnippet>56</a>//!
+<a href=#57 id=57 data-nosnippet>57</a>//! This schema is intentionally incompatible with ranked-register state from
+<a href=#58 id=58 data-nosnippet>58</a>//! v0.11 and earlier. It does not decode the former unversioned tuple layout.
+<a href=#59 id=59 data-nosnippet>59</a>//! Start with a fresh subspace, or clear an existing register subspace before
+<a href=#60 id=60 data-nosnippet>60</a>//! using this version.
+<a href=#61 id=61 data-nosnippet>61</a>//!
+<a href=#62 id=62 data-nosnippet>62</a>//! Ranked reads and writes for one register contend on that single key and are
+<a href=#63 id=63 data-nosnippet>63</a>//! serialized by FoundationDB conflicts. Use separate child subspaces to shard
+<a href=#64 id=64 data-nosnippet>64</a>//! independently updated logical items.
+<a href=#65 id=65 data-nosnippet>65</a>//!
+<a href=#66 id=66 data-nosnippet>66</a>//! ## Rank domains
+<a href=#67 id=67 data-nosnippet>67</a>//!
+<a href=#68 id=68 data-nosnippet>68</a>//! A register rank space has one authority. Do not mix
+<a href=#69 id=69 data-nosnippet>69</a>//! [`Rank::new`](crate::recipes::ranked_register::Rank::new) values with
+<a href=#70 id=70 data-nosnippet>70</a>//! leader-election ranks or values issued by another rank allocator in the
+<a href=#71 id=71 data-nosnippet>71</a>//! same register. A rank from a different domain can permanently fence valid
+<a href=#72 id=72 data-nosnippet>72</a>//! future writes from the intended authority.
+<a href=#73 id=73 data-nosnippet>73</a>//!
+<a href=#74 id=74 data-nosnippet>74</a>//! Although the primitive stores one optional value, a successful ranked write
+<a href=#75 id=75 data-nosnippet>75</a>//! can fence additional application-key writes staged in the same transaction.
+<a href=#76 id=76 data-nosnippet>76</a>//! Stage those writes only when
+<a href=#77 id=77 data-nosnippet>77</a>//! [`WriteResult::Committed`](crate::recipes::ranked_register::WriteResult::Committed)
+<a href=#78 id=78 data-nosnippet>78</a>//! is returned. One rank can commit only once per register because each write
+<a href=#79 id=79 data-nosnippet>79</a>//! requires a rank strictly greater than the stored maximum write rank.
+<a href=#80 id=80 data-nosnippet>80</a>//!
+<a href=#81 id=81 data-nosnippet>81</a>//! ## Composing with Leader Election
+<a href=#82 id=82 data-nosnippet>82</a>//!
+<a href=#83 id=83 data-nosnippet>83</a>//! The ranked register is designed to work with the leader election recipe.
+<a href=#84 id=84 data-nosnippet>84</a>//! Every successful leader poll returns a fencing rank derived from the durable
+<a href=#85 id=85 data-nosnippet>85</a>//! revision, providing automatic fencing against stale leaders. This includes
+<a href=#86 id=86 data-nosnippet>86</a>//! same-owner renewal: installing the new rank fences delayed work using the
+<a href=#87 id=87 data-nosnippet>87</a>//! prior rank from that same process.
+<a href=#88 id=88 data-nosnippet>88</a>//!
+<a href=#89 id=89 data-nosnippet>89</a>//! ```rust,no_run
+<a href=#90 id=90 data-nosnippet>90</a>//! # #[cfg(feature = "recipes-leader-election")]
+<a href=#91 id=91 data-nosnippet>91</a>//! # mod leader_election_example {
+<a href=#92 id=92 data-nosnippet>92</a>//! # async fn example(db: &amp;foundationdb::Database) -&gt; Result&lt;(), foundationdb::FdbBindingError&gt; {
+<a href=#93 id=93 data-nosnippet>93</a>//! use std::time::Duration;
+<a href=#94 id=94 data-nosnippet>94</a>//!
+<a href=#95 id=95 data-nosnippet>95</a>//! use foundationdb::{
+<a href=#96 id=96 data-nosnippet>96</a>//!     env::{Clock, Environment},
+<a href=#97 id=97 data-nosnippet>97</a>//!     options::TransactionOption,
+<a href=#98 id=98 data-nosnippet>98</a>//!     recipes::{
+<a href=#99 id=99 data-nosnippet>99</a>//!         leader_election::{LeaderElection, LocalState, ParticipantId, PollOutcome},
+<a href=#100 id=100 data-nosnippet>100</a>//!         ranked_register::{RankedRegister, WriteResult},
+<a href=#101 id=101 data-nosnippet>101</a>//!     },
+<a href=#102 id=102 data-nosnippet>102</a>//!     tuple::Subspace,
+<a href=#103 id=103 data-nosnippet>103</a>//!     FdbBindingError,
+<a href=#104 id=104 data-nosnippet>104</a>//! };
+<a href=#105 id=105 data-nosnippet>105</a>//!
+<a href=#106 id=106 data-nosnippet>106</a>//! let election = LeaderElection::new(
+<a href=#107 id=107 data-nosnippet>107</a>//!     Subspace::all().subspace(&amp;"my-election"),
+<a href=#108 id=108 data-nosnippet>108</a>//!     Duration::from_secs(10),
+<a href=#109 id=109 data-nosnippet>109</a>//! )?;
+<a href=#110 id=110 data-nosnippet>110</a>//! let register = RankedRegister::new(Subspace::all().subspace(&amp;"my-state"));
+<a href=#111 id=111 data-nosnippet>111</a>//! let participant = ParticipantId::new("process-incarnation")?;
+<a href=#112 id=112 data-nosnippet>112</a>//! let mut local_state = LocalState::unknown();
+<a href=#113 id=113 data-nosnippet>113</a>//! let env = Environment::default();
+<a href=#114 id=114 data-nosnippet>114</a>//!
+<a href=#115 id=115 data-nosnippet>115</a>//! // The application owns retries, options, scheduling, and local observation.
+<a href=#116 id=116 data-nosnippet>116</a>//! // Measure elapsed time once, before the run, and reuse it on every retry.
+<a href=#117 id=117 data-nosnippet>117</a>//! let now = env.clock().monotonic();
+<a href=#118 id=118 data-nosnippet>118</a>//! let input = local_state.input(now);
+<a href=#119 id=119 data-nosnippet>119</a>//! let result = db.run(|txn, _maybe_committed| {
+<a href=#120 id=120 data-nosnippet>120</a>//!     let election = election.clone();
+<a href=#121 id=121 data-nosnippet>121</a>//!     let register = register.clone();
+<a href=#122 id=122 data-nosnippet>122</a>//!     let participant = participant.clone();
+<a href=#123 id=123 data-nosnippet>123</a>//!     let input = input.clone();
+<a href=#124 id=124 data-nosnippet>124</a>//!     async move {
+<a href=#125 id=125 data-nosnippet>125</a>//!         txn.set_option(TransactionOption::AutomaticIdempotency)?;
+<a href=#126 id=126 data-nosnippet>126</a>//!         let poll = election.poll(&amp;txn, &amp;participant, &amp;input).await?;
+<a href=#127 id=127 data-nosnippet>127</a>//!         if let PollOutcome::Leader { rank, .. } = poll.outcome() {
+<a href=#128 id=128 data-nosnippet>128</a>//!             register
+<a href=#129 id=129 data-nosnippet>129</a>//!                 .read(&amp;txn, *rank)
+<a href=#130 id=130 data-nosnippet>130</a>//!                 .await
+<a href=#131 id=131 data-nosnippet>131</a>//!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
+<a href=#132 id=132 data-nosnippet>132</a>//!             let write_result = register
+<a href=#133 id=133 data-nosnippet>133</a>//!                 .write(&amp;txn, *rank, b"new_value")
+<a href=#134 id=134 data-nosnippet>134</a>//!                 .await
+<a href=#135 id=135 data-nosnippet>135</a>//!                 .map_err(|error| FdbBindingError::new_custom_error(Box::new(error)))?;
+<a href=#136 id=136 data-nosnippet>136</a>//!             if write_result == WriteResult::Committed {
+<a href=#137 id=137 data-nosnippet>137</a>//!                 txn.set(b"application-key", b"new_value");
+<a href=#138 id=138 data-nosnippet>138</a>//!             }
+<a href=#139 id=139 data-nosnippet>139</a>//!         }
+<a href=#140 id=140 data-nosnippet>140</a>//!         Ok::&lt;_, FdbBindingError&gt;(poll)
+<a href=#141 id=141 data-nosnippet>141</a>//!     }
+<a href=#142 id=142 data-nosnippet>142</a>//! }).await?;
+<a href=#143 id=143 data-nosnippet>143</a>//! // Adopt this only after db.run succeeded.
+<a href=#144 id=144 data-nosnippet>144</a>//! local_state = local_state.adopt(now, env.clock().monotonic(), result.next());
+<a href=#145 id=145 data-nosnippet>145</a>//! # let _ = local_state;
+<a href=#146 id=146 data-nosnippet>146</a>//! # Ok(())
+<a href=#147 id=147 data-nosnippet>147</a>//! # }
+<a href=#148 id=148 data-nosnippet>148</a>//! # }
+<a href=#149 id=149 data-nosnippet>149</a>//! ```
+<a href=#150 id=150 data-nosnippet>150</a>//!
+<a href=#151 id=151 data-nosnippet>151</a>//! ### Why This Works
+<a href=#152 id=152 data-nosnippet>152</a>//!
+<a href=#153 id=153 data-nosnippet>153</a>//! - Durable leader-election revisions increase monotonically
+<a href=#154 id=154 data-nosnippet>154</a>//! - A renewal is a new fencing epoch, even for the same leader
+<a href=#155 id=155 data-nosnippet>155</a>//! - `read(rank)` installs a fence at that fencing rank
+<a href=#156 id=156 data-nosnippet>156</a>//! - Any write with a lower fencing rank is automatically rejected
+<a href=#157 id=157 data-nosnippet>157</a>//! - `value()` is safe for followers, it never installs a fence
+<a href=#158 id=158 data-nosnippet>158</a>
+<a href=#159 id=159 data-nosnippet>159</a></span><span class="kw">mod </span>algorithm;
+<a href=#160 id=160 data-nosnippet>160</a><span class="kw">mod </span>errors;
+<a href=#161 id=161 data-nosnippet>161</a><span class="kw">mod </span>keys;
+<a href=#162 id=162 data-nosnippet>162</a><span class="kw">mod </span>types;
+<a href=#163 id=163 data-nosnippet>163</a>
+<a href=#164 id=164 data-nosnippet>164</a><span class="kw">pub use </span>errors::{RankedRegisterError, <span class="prelude-ty">Result</span>};
+<a href=#165 id=165 data-nosnippet>165</a><span class="kw">pub use </span>types::{Rank, ReadResult, RegisterState, WriteResult};
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a><span class="kw">use crate</span>::{Transaction, tuple::Subspace};
+<a href=#168 id=168 data-nosnippet>168</a><span class="kw">use </span>std::ops::Deref;
+<a href=#169 id=169 data-nosnippet>169</a>
+<a href=#170 id=170 data-nosnippet>170</a><span class="doccomment">/// Maximum size of one raw register-value chunk.
+<a href=#171 id=171 data-nosnippet>171</a>///
+<a href=#172 id=172 data-nosnippet>172</a>/// This is FoundationDB's exact 100,000-byte value limit.
+<a href=#173 id=173 data-nosnippet>173</a></span><span class="kw">pub const </span>MAX_VALUE_CHUNK_BYTES: usize = <span class="number">100_000</span>;
+<a href=#174 id=174 data-nosnippet>174</a>
+<a href=#175 id=175 data-nosnippet>175</a><span class="doccomment">/// A ranked register backed by FoundationDB
+<a href=#176 id=176 data-nosnippet>176</a>///
+<a href=#177 id=177 data-nosnippet>177</a>/// Provides a mutable register with conflict detection via ranks.
+<a href=#178 id=178 data-nosnippet>178</a>/// No initialization is needed — an absent key represents the bottom state
+<a href=#179 id=179 data-nosnippet>179</a>/// (zero ranks, no value).
+<a href=#180 id=180 data-nosnippet>180</a>///
+<a href=#181 id=181 data-nosnippet>181</a>/// # Thread Safety
+<a href=#182 id=182 data-nosnippet>182</a>///
+<a href=#183 id=183 data-nosnippet>183</a>/// `RankedRegister` is [`Clone`], [`Send`], and [`Sync`]. It holds only a
+<a href=#184 id=184 data-nosnippet>184</a>/// [`Subspace`] and can be safely shared across tasks.
+<a href=#185 id=185 data-nosnippet>185</a></span><span class="attr">#[derive(Clone, Debug)]
+<a href=#186 id=186 data-nosnippet>186</a></span><span class="kw">pub struct </span>RankedRegister {
+<a href=#187 id=187 data-nosnippet>187</a>    subspace: Subspace,
+<a href=#188 id=188 data-nosnippet>188</a>    max_value_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+<a href=#189 id=189 data-nosnippet>189</a>}
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a><span class="kw">impl </span>RankedRegister {
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="doccomment">/// Create a new ranked register instance
+<a href=#193 id=193 data-nosnippet>193</a>    ///
+<a href=#194 id=194 data-nosnippet>194</a>    /// The subspace isolates this register from other data in the database.
+<a href=#195 id=195 data-nosnippet>195</a>    /// No initialization step is required — the register starts in the
+<a href=#196 id=196 data-nosnippet>196</a>    /// bottom state (zero ranks, no value) until the first write.
+<a href=#197 id=197 data-nosnippet>197</a>    </span><span class="attr">#[cfg_attr(
+<a href=#198 id=198 data-nosnippet>198</a>        feature = <span class="string">"trace"</span>,
+<a href=#199 id=199 data-nosnippet>199</a>        tracing::instrument(level = <span class="string">"debug"</span>, skip(subspace))
+<a href=#200 id=200 data-nosnippet>200</a>    )]
+<a href=#201 id=201 data-nosnippet>201</a>    </span><span class="kw">pub fn </span>new(subspace: Subspace) -&gt; <span class="self">Self </span>{
+<a href=#202 id=202 data-nosnippet>202</a>        <span class="self">Self </span>{
+<a href=#203 id=203 data-nosnippet>203</a>            subspace,
+<a href=#204 id=204 data-nosnippet>204</a>            max_value_bytes: <span class="prelude-val">None</span>,
+<a href=#205 id=205 data-nosnippet>205</a>        }
+<a href=#206 id=206 data-nosnippet>206</a>    }
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="doccomment">/// Create a ranked register with a local aggregate value-size limit.
+<a href=#209 id=209 data-nosnippet>209</a>    ///
+<a href=#210 id=210 data-nosnippet>210</a>    /// The limit applies only to writes through this handle. It is not durable
+<a href=#211 id=211 data-nosnippet>211</a>    /// state, so use compatible limits for all writers of the same subspace.
+<a href=#212 id=212 data-nosnippet>212</a>    </span><span class="attr">#[cfg_attr(
+<a href=#213 id=213 data-nosnippet>213</a>        feature = <span class="string">"trace"</span>,
+<a href=#214 id=214 data-nosnippet>214</a>        tracing::instrument(level = <span class="string">"debug"</span>, skip(subspace))
+<a href=#215 id=215 data-nosnippet>215</a>    )]
+<a href=#216 id=216 data-nosnippet>216</a>    </span><span class="kw">pub fn </span>with_max_value_bytes(subspace: Subspace, limit: usize) -&gt; <span class="self">Self </span>{
+<a href=#217 id=217 data-nosnippet>217</a>        <span class="self">Self </span>{
+<a href=#218 id=218 data-nosnippet>218</a>            subspace,
+<a href=#219 id=219 data-nosnippet>219</a>            max_value_bytes: <span class="prelude-val">Some</span>(limit),
+<a href=#220 id=220 data-nosnippet>220</a>        }
+<a href=#221 id=221 data-nosnippet>221</a>    }
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// Returns a reference to the underlying subspace
+<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="attr">#[cfg_attr(feature = <span class="string">"trace"</span>, tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>)))]
+<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">pub fn </span>subspace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Subspace {
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.subspace
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="doccomment">/// Perform a ranked read
+<a href=#230 id=230 data-nosnippet>230</a>    ///
+<a href=#231 id=231 data-nosnippet>231</a>    /// Raises `max_read_rank` only when the given rank is higher, installing a
+<a href=#232 id=232 data-nosnippet>232</a>    /// fence that prevents lower-ranked writes. A superseded rank returns the
+<a href=#233 id=233 data-nosnippet>233</a>    /// current write rank and value without changing the installed fence.
+<a href=#234 id=234 data-nosnippet>234</a>    ///
+<a href=#235 id=235 data-nosnippet>235</a>    /// Used by the leader before writing to ensure consistency.
+<a href=#236 id=236 data-nosnippet>236</a>    </span><span class="attr">#[cfg_attr(
+<a href=#237 id=237 data-nosnippet>237</a>        feature = <span class="string">"trace"</span>,
+<a href=#238 id=238 data-nosnippet>238</a>        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, txn))
+<a href=#239 id=239 data-nosnippet>239</a>    )]
+<a href=#240 id=240 data-nosnippet>240</a>    </span><span class="kw">pub async fn </span>read&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, txn: <span class="kw-2">&amp;</span>T, rank: Rank) -&gt; <span class="prelude-ty">Result</span>&lt;ReadResult&gt;
+<a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">where
+<a href=#242 id=242 data-nosnippet>242</a>        </span>T: Deref&lt;Target = Transaction&gt;,
+<a href=#243 id=243 data-nosnippet>243</a>    {
+<a href=#244 id=244 data-nosnippet>244</a>        algorithm::read(txn, <span class="kw-2">&amp;</span><span class="self">self</span>.subspace, rank).<span class="kw">await
+<a href=#245 id=245 data-nosnippet>245</a>    </span>}
+<a href=#246 id=246 data-nosnippet>246</a>
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="doccomment">/// Perform a ranked write
+<a href=#248 id=248 data-nosnippet>248</a>    ///
+<a href=#249 id=249 data-nosnippet>249</a>    /// Commits the value only if:
+<a href=#250 id=250 data-nosnippet>250</a>    /// - `rank &gt;= max_read_rank` (no higher fence)
+<a href=#251 id=251 data-nosnippet>251</a>    /// - `rank &gt; max_write_rank` (no equal-or-higher write)
+<a href=#252 id=252 data-nosnippet>252</a>    ///
+<a href=#253 id=253 data-nosnippet>253</a>    /// Returns [`WriteResult::Committed`] or [`WriteResult::Aborted`].
+<a href=#254 id=254 data-nosnippet>254</a>    /// Returns [`RankedRegisterError::ValueTooLarge`] when this handle has a
+<a href=#255 id=255 data-nosnippet>255</a>    /// configured limit and `value` exceeds it.
+<a href=#256 id=256 data-nosnippet>256</a>    </span><span class="attr">#[cfg_attr(
+<a href=#257 id=257 data-nosnippet>257</a>        feature = <span class="string">"trace"</span>,
+<a href=#258 id=258 data-nosnippet>258</a>        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, txn, value))
+<a href=#259 id=259 data-nosnippet>259</a>    )]
+<a href=#260 id=260 data-nosnippet>260</a>    </span><span class="kw">pub async fn </span>write&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, txn: <span class="kw-2">&amp;</span>T, rank: Rank, value: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;WriteResult&gt;
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">where
+<a href=#262 id=262 data-nosnippet>262</a>        </span>T: Deref&lt;Target = Transaction&gt;,
+<a href=#263 id=263 data-nosnippet>263</a>    {
+<a href=#264 id=264 data-nosnippet>264</a>        algorithm::write(txn, <span class="kw-2">&amp;</span><span class="self">self</span>.subspace, rank, value, <span class="self">self</span>.max_value_bytes).<span class="kw">await
+<a href=#265 id=265 data-nosnippet>265</a>    </span>}
+<a href=#266 id=266 data-nosnippet>266</a>
+<a href=#267 id=267 data-nosnippet>267</a>    <span class="doccomment">/// Read the current value without updating ranks
+<a href=#268 id=268 data-nosnippet>268</a>    ///
+<a href=#269 id=269 data-nosnippet>269</a>    /// Safe for followers and observers: it installs no durable fence. Its
+<a href=#270 id=270 data-nosnippet>270</a>    /// normal non-snapshot FoundationDB read still adds a conflict range for
+<a href=#271 id=271 data-nosnippet>271</a>    /// this register key, so it can conflict with a concurrent leader write.
+<a href=#272 id=272 data-nosnippet>272</a>    </span><span class="attr">#[cfg_attr(
+<a href=#273 id=273 data-nosnippet>273</a>        feature = <span class="string">"trace"</span>,
+<a href=#274 id=274 data-nosnippet>274</a>        tracing::instrument(level = <span class="string">"debug"</span>, skip(<span class="self">self</span>, txn))
+<a href=#275 id=275 data-nosnippet>275</a>    )]
+<a href=#276 id=276 data-nosnippet>276</a>    </span><span class="kw">pub async fn </span>value&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, txn: <span class="kw-2">&amp;</span>T) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;&gt;
+<a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">where
+<a href=#278 id=278 data-nosnippet>278</a>        </span>T: Deref&lt;Target = Transaction&gt;,
+<a href=#279 id=279 data-nosnippet>279</a>    {
+<a href=#280 id=280 data-nosnippet>280</a>        algorithm::value(txn, <span class="kw-2">&amp;</span><span class="self">self</span>.subspace).<span class="kw">await
+<a href=#281 id=281 data-nosnippet>281</a>    </span>}
+<a href=#282 id=282 data-nosnippet>282</a>}</code></pre></div></section></main></body></html>
