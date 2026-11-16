@@ -9,7 +9,8 @@ release_always = false
 # by creating a PR from a branch like "release-plz-fix-something".
 pr_branch_prefix = "release-plz-"
 
-git_release_draft = true
+# Publish GitHub releases directly: drafts were never published by hand (see #428).
+git_release_draft = false
 pr_draft = true
 pr_labels = ["release"]
 
@@ -32,17 +33,25 @@ dependencies_update = true
 
 [[package]]
 name = "foundationdb-macros"
+# Keep the "Latest" GitHub release badge on the main foundationdb crate.
+git_release_latest = false
 
 [[package]]
 name = "foundationdb-sys"
+# Keep the "Latest" GitHub release badge on the main foundationdb crate.
+git_release_latest = false
 publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
 name = "foundationdb-gen"
+# Keep the "Latest" GitHub release badge on the main foundationdb crate.
+git_release_latest = false
 publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
 name = "foundationdb-tuple"
+# Keep the "Latest" GitHub release badge on the main foundationdb crate.
+git_release_latest = false
 publish_features = ["uuid", "num-bigint"]
 
 [[package]]
@@ -51,6 +60,8 @@ publish_features = ["embedded-fdb-include", "fdb-7_4", "uuid"]
 
 [[package]]
 name = "foundationdb-simulation"
+# Keep the "Latest" GitHub release badge on the main foundationdb crate.
+git_release_latest = false
 publish_features = ["embedded-fdb-include", "fdb-7_4"]
 
 [[package]]
@@ -61,6 +72,8 @@ changelog_update = false
 
 [[package]]
 name = "foundationdb-profiling"
+# Keep the "Latest" GitHub release badge on the main foundationdb crate.
+git_release_latest = false
 
 [[package]]
 name = "foundationdb-recipes-simulation"
