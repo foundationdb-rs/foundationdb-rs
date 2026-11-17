@@ -95,9 +95,12 @@ impl Database {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `ptr` is a valid pointer to an `FDBDatabase` object
-    /// obtained from the FoundationDB C API, and that the pointer is not aliased or used
-    /// after being passed to this function.
+    /// `ptr` must identify a live `FDBDatabase` obtained from the FoundationDB C API.
+    /// Dropping the returned wrapper releases that native reference with
+    /// `fdb_database_destroy`; the caller must not release the same reference separately.
+    /// A borrowed reference may be wrapped only if the caller keeps it alive for
+    /// every use and prevents `Database::drop` from running, for example with
+    /// [`std::mem::ManuallyDrop`].
     pub unsafe fn new_from_pointer(ptr: NonNull<fdb_sys::FDBDatabase>) -> Self {
         Self { inner: ptr }
     }
