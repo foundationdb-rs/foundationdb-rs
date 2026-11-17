@@ -238,9 +238,13 @@ impl TransactionCommitError {
         self.tr.mark_attempt_end();
         let cause = self.err;
 
-        FdbFuture::<()>::new(unsafe {
-            fdb_sys::fdb_transaction_on_error(self.tr.inner.as_ptr(), self.err.code())
-        })
+        // SAFETY: The C API returns a fresh, owned future with no result value.
+        unsafe {
+            FdbFuture::<()>::new(fdb_sys::fdb_transaction_on_error(
+                self.tr.inner.as_ptr(),
+                self.err.code(),
+            ))
+        }
         .map_ok(move |()| {
             self.tr.end_attempt(AttemptOutcome::Retried { cause });
             self.tr.begin_attempt_usage();
@@ -895,14 +899,15 @@ impl Transaction {
         let usage = self.usage();
         let lenght_key = key.len();
 
-        FdbFuture::<Option<FdbSlice>>::new(unsafe {
-            fdb_sys::fdb_transaction_get(
+        // SAFETY: The C API returns a fresh, owned future containing an optional value.
+        unsafe {
+            FdbFuture::<Option<FdbSlice>>::new(fdb_sys::fdb_transaction_get(
                 self.inner.as_ptr(),
                 key.as_ptr(),
                 fdb_len(key.len(), "key"),
                 fdb_bool(snapshot),
-            )
-        })
+            ))
+        }
         .map(move |result| {
             if let Ok(value) = &result {
                 let (bytes_count, kv_fetched) = if let Some(values) = value {
@@ -998,16 +1003,17 @@ impl Transaction {
         let usage = self.usage();
         let length_key = key.len();
 
-        FdbFuture::<FdbSlice>::new(unsafe {
-            fdb_sys::fdb_transaction_get_key(
+        // SAFETY: The C API returns a fresh, owned future containing a key.
+        unsafe {
+            FdbFuture::<FdbSlice>::new(fdb_sys::fdb_transaction_get_key(
                 self.inner.as_ptr(),
                 key.as_ptr(),
                 fdb_len(key.len(), "key"),
                 fdb_bool(selector.or_equal()),
                 selector.offset(),
                 fdb_bool(snapshot),
-            )
-        })
+            ))
+        }
         .map(move |result| {
             if let Ok(resolved_key) = &result {
                 usage.record_get((length_key + resolved_key.len()) as u64, 0);
@@ -1146,8 +1152,9 @@ impl Transaction {
         let key_begin = begin.key();
         let key_end = end.key();
 
-        FdbFuture::<FdbValues>::new(unsafe {
-            fdb_sys::fdb_transaction_get_range(
+        // SAFETY: The C API returns a fresh, owned future containing key-value pairs.
+        unsafe {
+            FdbFuture::<FdbValues>::new(fdb_sys::fdb_transaction_get_range(
                 self.inner.as_ptr(),
                 key_begin.as_ptr(),
                 fdb_len(key_begin.len(), "key_begin"),
@@ -1163,8 +1170,8 @@ impl Transaction {
                 fdb_iteration(iteration),
                 fdb_bool(snapshot),
                 fdb_bool(opt.reverse),
-            )
-        })
+            ))
+        }
         .map(move |result| {
             if let Ok(values) = &result {
                 let kv_fetched = values.len();
@@ -1230,8 +1237,9 @@ impl Transaction {
 
         let usage = self.usage();
 
-        FdbFuture::<MappedKeyValues>::new(unsafe {
-            fdb_sys::fdb_transaction_get_mapped_range(
+        // SAFETY: The C API returns a fresh, owned future containing mapped key-value pairs.
+        unsafe {
+            FdbFuture::<MappedKeyValues>::new(fdb_sys::fdb_transaction_get_mapped_range(
                 self.inner.as_ptr(),
                 key_begin.as_ptr(),
                 fdb_len(key_begin.len(), "key_begin"),
@@ -1249,8 +1257,8 @@ impl Transaction {
                 fdb_iteration(iteration),
                 fdb_bool(snapshot),
                 fdb_bool(opt.reverse),
-            )
-        })
+            ))
+        }
         .map(move |result| {
             if let Ok(values) = &result {
                 let mut bytes_count = 0;
@@ -1359,15 +1367,16 @@ impl Transaction {
         begin: &[u8],
         end: &[u8],
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
-        FdbFuture::<i64>::new(unsafe {
-            fdb_sys::fdb_transaction_get_estimated_range_size_bytes(
+        // SAFETY: The C API returns a fresh, owned future containing an i64 size.
+        unsafe {
+            FdbFuture::<i64>::new(fdb_sys::fdb_transaction_get_estimated_range_size_bytes(
                 self.inner.as_ptr(),
                 begin.as_ptr(),
                 fdb_len(begin.len(), "begin"),
                 end.as_ptr(),
                 fdb_len(end.len(), "end"),
-            )
-        })
+            ))
+        }
     }
 
     /// Attempts to commit the sets and clears previously applied to the database snapshot
@@ -1403,7 +1412,8 @@ impl Transaction {
         let metrics = self.metrics().cloned();
         let started_at = Instant::now();
 
-        FdbFuture::<()>::new(unsafe { fdb_sys::fdb_transaction_commit(self.inner.as_ptr()) }).map(
+        // SAFETY: The C API returns a fresh, owned future with no result value.
+        unsafe { FdbFuture::<()>::new(fdb_sys::fdb_transaction_commit(self.inner.as_ptr())) }.map(
             move |r| {
                 if let Some(metrics) = &metrics {
                     metrics.record_commit(started_at.elapsed());
@@ -1461,9 +1471,13 @@ impl Transaction {
     ) -> impl Future<Output = (Transaction, FdbResult<()>)> + Send + Sync + Unpin {
         self.mark_attempt_end();
 
-        FdbFuture::<()>::new(unsafe {
-            fdb_sys::fdb_transaction_on_error(self.inner.as_ptr(), err.code())
-        })
+        // SAFETY: The C API returns a fresh, owned future with no result value.
+        unsafe {
+            FdbFuture::<()>::new(fdb_sys::fdb_transaction_on_error(
+                self.inner.as_ptr(),
+                err.code(),
+            ))
+        }
         .map(move |result| {
             if result.is_ok() {
                 self.end_attempt(AttemptOutcome::Retried { cause: err });
@@ -1566,13 +1580,14 @@ impl Transaction {
         &self,
         key: &[u8],
     ) -> impl Future<Output = FdbResult<FdbAddresses>> + Send + Sync + Unpin + use<> {
-        FdbFuture::new(unsafe {
-            fdb_sys::fdb_transaction_get_addresses_for_key(
+        // SAFETY: The C API returns a fresh, owned future containing an address array.
+        unsafe {
+            FdbFuture::new(fdb_sys::fdb_transaction_get_addresses_for_key(
                 self.inner.as_ptr(),
                 key.as_ptr(),
                 fdb_len(key.len(), "key"),
-            )
-        })
+            ))
+        }
     }
 
     /// A watch's behavior is relative to the transaction that created it. A watch will report a
@@ -1604,13 +1619,14 @@ impl Transaction {
         &self,
         key: &[u8],
     ) -> impl Future<Output = FdbResult<()>> + Send + Sync + Unpin + use<> {
-        FdbFuture::new(unsafe {
-            fdb_sys::fdb_transaction_watch(
+        // SAFETY: The C API returns a fresh, owned future with no result value.
+        unsafe {
+            FdbFuture::new(fdb_sys::fdb_transaction_watch(
                 self.inner.as_ptr(),
                 key.as_ptr(),
                 fdb_len(key.len(), "key"),
-            )
-        })
+            ))
+        }
     }
 
     /// Returns an FDBFuture which will be set to the approximate transaction size so far in the
@@ -1622,9 +1638,12 @@ impl Transaction {
     pub fn get_approximate_size(
         &self,
     ) -> impl Future<Output = FdbResult<i64>> + Send + Sync + Unpin + use<> {
-        FdbFuture::new(unsafe {
-            fdb_sys::fdb_transaction_get_approximate_size(self.inner.as_ptr())
-        })
+        // SAFETY: The C API returns a fresh, owned future containing an i64 size.
+        unsafe {
+            FdbFuture::new(fdb_sys::fdb_transaction_get_approximate_size(
+                self.inner.as_ptr(),
+            ))
+        }
     }
 
     /// Gets a list of keys that can split the given range into (roughly) equally sized chunks based on chunk_size.
@@ -1636,16 +1655,17 @@ impl Transaction {
         end: &[u8],
         chunk_size: i64,
     ) -> impl Future<Output = FdbResult<FdbKeys>> + Send + Sync + Unpin + use<> {
-        FdbFuture::<FdbKeys>::new(unsafe {
-            fdb_sys::fdb_transaction_get_range_split_points(
+        // SAFETY: The C API returns a fresh, owned future containing a key array.
+        unsafe {
+            FdbFuture::<FdbKeys>::new(fdb_sys::fdb_transaction_get_range_split_points(
                 self.inner.as_ptr(),
                 begin.as_ptr(),
                 fdb_len(begin.len(), "begin"),
                 end.as_ptr(),
                 fdb_len(end.len(), "end"),
                 chunk_size,
-            )
-        })
+            ))
+        }
     }
 
     /// Returns an FDBFuture which will be set to the versionstamp which was used by any
@@ -1660,7 +1680,12 @@ impl Transaction {
     pub fn get_versionstamp(
         &self,
     ) -> impl Future<Output = FdbResult<FdbSlice>> + Send + Sync + Unpin + use<> {
-        FdbFuture::new(unsafe { fdb_sys::fdb_transaction_get_versionstamp(self.inner.as_ptr()) })
+        // SAFETY: The C API returns a fresh, owned future containing a versionstamp byte string.
+        unsafe {
+            FdbFuture::new(fdb_sys::fdb_transaction_get_versionstamp(
+                self.inner.as_ptr(),
+            ))
+        }
     }
 
     /// The transaction obtains a snapshot read version automatically at the time of the first call
@@ -1678,9 +1703,12 @@ impl Transaction {
             .metrics()
             .map(|metrics| (metrics.clone(), self.usage(), Instant::now()));
 
-        FdbFuture::<i64>::new(unsafe {
-            fdb_sys::fdb_transaction_get_read_version(self.inner.as_ptr())
-        })
+        // SAFETY: The C API returns a fresh, owned future containing an i64 version.
+        unsafe {
+            FdbFuture::<i64>::new(fdb_sys::fdb_transaction_get_read_version(
+                self.inner.as_ptr(),
+            ))
+        }
         .map(move |result| {
             if let Some((metrics, usage, started_at)) = recording {
                 metrics.record_grv(&usage, started_at.elapsed(), result.as_ref().ok().copied());
