@@ -138,7 +138,8 @@ async fn init(db: &Database, all_classes: &[String]) {
 
 async fn get_available_classes(db: &Database) -> Vec<String> {
     db.run(|trx, _maybe_committed| async move {
-        let range = RangeOption::from(&Subspace::from("class"));
+        let class_subspace = Subspace::from("class");
+        let range = RangeOption::from(&class_subspace);
 
         let mut available_classes = Vec::<String>::new();
         let mut stream = trx.get_ranges_keyvalues(range, false);
@@ -146,7 +147,9 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
             let count: i64 = unpack(key_value.value()).expect("failed to decode count");
 
             if count > 0 {
-                let class: String = unpack(key_value.key()).expect("failed to decode class");
+                let class: String = class_subspace
+                    .unpack(key_value.key())
+                    .expect("failed to decode class");
                 available_classes.push(class);
             }
         }
@@ -160,14 +163,14 @@ async fn get_available_classes(db: &Database) -> Vec<String> {
 async fn ditch_trx(trx: &Transaction, student: &str, class: &str) -> FdbResult<()> {
     let attends_key = pack(&("attends", student, class));
 
-    // TODO: should get take an &Encode? current impl does encourage &[u8] reuse...
-    if trx.get(&attends_key, true).await?.is_none() {
+    // snapshot=false so the transaction is canceled and retried on conflict
+    if trx.get(&attends_key, false).await?.is_none() {
         return Ok(());
     }
 
     let class_key = pack(&("class", class));
     let available_seats = trx
-        .get(&class_key, true)
+        .get(&class_key, false)
         .await?
         .expect("class seats were not initialized");
     let available_seats: i64 =
@@ -193,14 +196,14 @@ async fn ditch(db: &Database, student: String, class: String) -> Result<()> {
 
 async fn signup_trx(trx: &Transaction, student: &str, class: &str) -> Result<()> {
     let attends_key = pack(&("attends", student, class));
-    if trx.get(&attends_key, true).await?.is_some() {
-        //println!("{} already taking class: {}", student, class);
+    // snapshot=false so the transaction is canceled and retried on conflict
+    if trx.get(&attends_key, false).await?.is_some() {
         return Ok(());
     }
 
     let class_key = pack(&("class", class));
     let available_seats: i64 = unpack(
-        &trx.get(&class_key, true)
+        &trx.get(&class_key, false)
             .await?
             .expect("class seats were not initialized"),
     )
@@ -246,8 +249,8 @@ async fn switch_classes(
         let old_class = old_class.clone();
         let new_class = new_class.clone();
         async move {
-            ditch_trx(&trx, &student_id, &old_class).await?;
             signup_trx(&trx, &student_id, &new_class).await?;
+            ditch_trx(&trx, &student_id, &old_class).await?;
             Ok::<_, Error>(())
         }
     })
