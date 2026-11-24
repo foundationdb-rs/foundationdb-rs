@@ -1,0 +1,18 @@
+# The `select!` / timeout pattern: each iteration polls a long timeout
+# (dropDelayMs = 60 s simulated) once, drops it when the "work" wins, then
+# awaits a short delay. Cancelled timeouts should be freed right away.
+[[test]]
+testTitle = 'DelayLeak_select_timeout'
+clearAfterTest = false
+runSetup = false
+
+  [[test.workload]]
+    useCAPI = true
+    testName = 'External'
+    workloadName = 'DelayLeakWorkload'
+    libraryPath = './target/release/examples'
+    libraryName = 'delay_leak'
+    mode = 'poll_drop'
+    dropDelayMs = 60000.0
+    iterations = 200000
+    reportEvery = 20000

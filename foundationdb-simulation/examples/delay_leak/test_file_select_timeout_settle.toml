@@ -1,0 +1,19 @@
+# Same as test_file_select_timeout.toml, but after every 50k iterations the
+# workload waits 61 s simulated, past the 60 s timeouts, and reports again.
+# Shows whether the memory comes back once the dropped timeouts expire.
+[[test]]
+testTitle = 'DelayLeak_select_timeout_settle'
+clearAfterTest = false
+runSetup = false
+
+  [[test.workload]]
+    useCAPI = true
+    testName = 'External'
+    workloadName = 'DelayLeakWorkload'
+    libraryPath = './target/release/examples'
+    libraryName = 'delay_leak'
+    mode = 'poll_drop'
+    dropDelayMs = 60000.0
+    iterations = 200000
+    reportEvery = 50000
+    settleMs = 61000.0

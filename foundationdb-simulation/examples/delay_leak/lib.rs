@@ -12,6 +12,11 @@
 //!
 //! Both are observational only: nothing branches on them.
 //!
+//! Options: `mode`, `iterations`, `reportEvery`, `delayMs` (default 0.1),
+//! `dropDelayMs` (length of the delay that gets dropped, default 10x `delayMs`),
+//! `settleMs` (if set, await this long after every report, then report again),
+//! `client0Only` (default true; false runs the loop on every test client).
+//!
 //! Modes (option `mode`):
 //! - `await` (default): `ctx.delay(d).await` each iteration.
 //! - `drop`: create the delay future and drop it before it is ready (cancel path),
@@ -22,6 +27,7 @@
 //!   pending (the `select!`/timeout case), then await a short delay.
 //! - `drop_yield`: drop a pending delay (like a timeout losing a race), then await a
 //!   short delay so the network thread processes the cancellation each iteration.
+//! - `grv`: control, await `get_read_version` instead of a delay.
 //! - `none`: control run, no delay at all (yields nothing, just loops).
 
 use std::{
@@ -83,6 +89,9 @@ struct DelayLeakWorkload {
     report_every: u64,
     delay: Duration,
     mode: String,
+    settle_every_report: Option<Duration>,
+    drop_delay: Duration,
+    client0_only: bool,
     rss_start: u64,
     rss_end: u64,
     rust_start: isize,
@@ -113,8 +122,8 @@ impl DelayLeakWorkload {
 impl RustWorkload for DelayLeakWorkload {
     async fn setup(&mut self, _db: SimDatabase) {}
 
-    async fn start(&mut self, _db: SimDatabase) {
-        if self.client_id != 0 {
+    async fn start(&mut self, db: SimDatabase) {
+        if self.client0_only && self.client_id != 0 {
             return;
         }
         // Warm up allocator / FDB internal pools before taking the baseline.
@@ -132,6 +141,13 @@ impl RustWorkload for DelayLeakWorkload {
                     .await
                     .expect("delay future should resolve"),
                 "drop" => drop(self.context.delay(self.delay)),
+                "grv" => {
+                    // Control: pace with a future owned by fdbserver instead of
+                    // delay, the workaround used by workloads today.
+                    if let Ok(trx) = db.create_trx() {
+                        let _ = trx.get_read_version().await;
+                    }
+                }
                 "drop_rounds" => {
                     // Burst of drops without yielding, then let the network
                     // settle once per report period. If memory is only queued
@@ -146,7 +162,7 @@ impl RustWorkload for DelayLeakWorkload {
                     // (so a callback and waker are registered on the FDBFuture),
                     // then dropped while pending. Then yield so the
                     // cancellation is processed.
-                    let mut pending = Box::pin(self.context.delay(self.delay * 10));
+                    let mut pending = Box::pin(self.context.delay(self.drop_delay));
                     std::future::poll_fn(|cx| {
                         let _ = pending.as_mut().poll(cx);
                         std::task::Poll::Ready(())
@@ -163,7 +179,7 @@ impl RustWorkload for DelayLeakWorkload {
                     // and dropped while still pending, then we yield to the
                     // network with a short delay so the cancellation is processed
                     // before the next iteration.
-                    drop(self.context.delay(self.delay * 10));
+                    drop(self.context.delay(self.drop_delay));
                     self.context
                         .delay(self.delay)
                         .await
@@ -173,6 +189,10 @@ impl RustWorkload for DelayLeakWorkload {
             }
             if i % self.report_every == 0 {
                 self.report(i);
+                if let Some(settle) = self.settle_every_report {
+                    let _ = self.context.delay(settle).await;
+                    self.report(i);
+                }
             }
         }
         // Let cancelled delays (drop mode) settle before the final reading.
@@ -221,6 +241,9 @@ impl RustWorkloadFactory for DelayLeakFactory {
         let mode = context
             .get_option::<String>("mode")
             .unwrap_or_else(|| "await".to_string());
+        let drop_delay_ms: f64 = context.get_option("dropDelayMs").unwrap_or(delay_ms * 10.0);
+        let settle_ms: Option<f64> = context.get_option("settleMs");
+        let client0_only = context.get_option("client0Only").unwrap_or(true);
         match name.as_str() {
             "DelayLeakWorkload" => DelayLeakWorkload {
                 context,
@@ -229,6 +252,9 @@ impl RustWorkloadFactory for DelayLeakFactory {
                 report_every,
                 delay: Duration::from_secs_f64(delay_ms / 1000.0),
                 mode,
+                settle_every_report: settle_ms.map(|ms| Duration::from_secs_f64(ms / 1000.0)),
+                drop_delay: Duration::from_secs_f64(drop_delay_ms / 1000.0),
+                client0_only,
                 rss_start: 0,
                 rss_end: 0,
                 rust_start: 0,
