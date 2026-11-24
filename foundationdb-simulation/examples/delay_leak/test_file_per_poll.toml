@@ -1,0 +1,17 @@
+# A delay created inside poll(): see the `per_poll` mode in lib.rs.
+[[test]]
+testTitle = 'DelayLeak_per_poll'
+clearAfterTest = false
+runSetup = false
+
+  [[test.workload]]
+    useCAPI = true
+    testName = 'External'
+    workloadName = 'DelayLeakWorkload'
+    libraryPath = './target/release/examples'
+    libraryName = 'delay_leak'
+    mode = 'per_poll'
+    dropDelayMs = 1000.0
+    iterations = 100000000
+    reportEvery = 1000000
+    rssLimitMiB = 3072

@@ -1,0 +1,17 @@
+# Deferred cancels pump the executor: see the `pump` mode in lib.rs.
+[[test]]
+testTitle = 'DelayLeak_pump'
+clearAfterTest = false
+runSetup = false
+
+  [[test.workload]]
+    useCAPI = true
+    testName = 'External'
+    workloadName = 'DelayLeakWorkload'
+    libraryPath = './target/release/examples'
+    libraryName = 'delay_leak'
+    mode = 'pump'
+    dropDelayMs = 60000.0
+    iterations = 100000000
+    reportEvery = 1000000
+    rssLimitMiB = 3072

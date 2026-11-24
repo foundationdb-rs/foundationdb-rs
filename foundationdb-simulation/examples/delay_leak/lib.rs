@@ -30,6 +30,9 @@
 //!   short delay so the network thread processes the cancellation each iteration.
 //! - `select_ready`: `select!` between an always-ready future and a fresh timeout:
 //!   the loop never yields, so simulated time is frozen.
+//! - `pump`: `select!` between a fresh timeout and a future that only needs a
+//!   Rust-side wake: the deferred cancel callbacks keep re-polling the task.
+//! - `per_poll`: a hand-rolled future that creates a delay on every poll.
 //! - `grv`: control, await `get_read_version` instead of a delay.
 //! - `none`: control run, no delay at all (yields nothing, just loops).
 
@@ -83,6 +86,24 @@ fn rss_kib() -> u64 {
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     pages * 4
+}
+
+/// Returns Pending once (waking itself right away), then Ready.
+struct YieldOnce(bool);
+impl Future for YieldOnce {
+    type Output = ();
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        if self.0 {
+            std::task::Poll::Ready(())
+        } else {
+            self.0 = true;
+            cx.waker().wake_by_ref();
+            std::task::Poll::Pending
+        }
+    }
 }
 
 struct DelayLeakWorkload {
@@ -174,6 +195,63 @@ impl RustWorkload for DelayLeakWorkload {
                         self.report(i);
                         break;
                     }
+                }
+                "pump" => {
+                    // The work branch progresses through a Rust-side wake only
+                    // (YieldOnce, like a channel between tasks). fdb_rt polls woken
+                    // tasks only from FDB callbacks, and the deferred cancel of the
+                    // previous losing timeout supplies exactly that callback, so
+                    // the loop drives itself while simulated time stays frozen.
+                    use futures_util::FutureExt;
+                    if i == 1 {
+                        // Kick: one real race so a first timeout gets dropped.
+                        let timeout = self.context.delay(self.drop_delay);
+                        let kick = self.context.delay(self.delay);
+                        futures_util::select_biased! {
+                            _ = timeout.fuse() => {},
+                            _ = kick.fuse() => {},
+                        }
+                    } else {
+                        let timeout = self.context.delay(self.drop_delay);
+                        futures_util::select_biased! {
+                            _ = timeout.fuse() => {},
+                            _ = YieldOnce(false).fuse() => {},
+                        }
+                    }
+                    if rss_kib() > self.rss_start + self.rss_limit_kib {
+                        println!(
+                            "delay_leak[{}] RSS limit hit at iter={i} sim_now={}",
+                            self.client_id,
+                            self.context.now()
+                        );
+                        self.report(i);
+                        break;
+                    }
+                }
+                "per_poll" => {
+                    // A hand-rolled timeout that creates the delay inside poll():
+                    // each poll creates, polls and drops a delay, whose deferred
+                    // cancel callback re-polls the task, forever.
+                    let ctx = &self.context;
+                    let limit = self.rss_start + self.rss_limit_kib;
+                    let mut polls = 0u64;
+                    std::future::poll_fn(|cx| {
+                        polls += 1;
+                        if rss_kib() > limit {
+                            return std::task::Poll::Ready(());
+                        }
+                        let mut d = Box::pin(ctx.delay(Duration::from_secs(60)));
+                        let _ = d.as_mut().poll(cx);
+                        std::task::Poll::Pending
+                    })
+                    .await;
+                    println!(
+                        "delay_leak[{}] per_poll: {polls} polls, sim_now={}",
+                        self.client_id,
+                        self.context.now()
+                    );
+                    self.report(i);
+                    break;
                 }
                 "drop_rounds" => {
                     // Burst of drops without yielding, then let the network
