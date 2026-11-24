@@ -1,0 +1,14 @@
+[[test]]
+testTitle = 'DelayLeak_drop'
+clearAfterTest = false
+runSetup = false
+
+  [[test.workload]]
+    useCAPI = true
+    testName = 'External'
+    workloadName = 'DelayLeakWorkload'
+    libraryPath = './target/release/examples'
+    libraryName = 'delay_leak'
+    mode = 'drop'
+    iterations = 200000
+    reportEvery = 20000
