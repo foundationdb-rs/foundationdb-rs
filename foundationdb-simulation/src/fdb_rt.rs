@@ -6,7 +6,7 @@
 #![doc = include_str!("../docs/fdb_rt.md")]
 
 use std::{
-    cell::{RefCell, UnsafeCell},
+    cell::{Cell, RefCell, UnsafeCell},
     future::Future,
     mem,
     pin::Pin,
@@ -20,6 +20,8 @@ thread_local! {
 
 struct Task {
     f: UnsafeCell<Option<Pin<Box<dyn Future<Output = ()>>>>>,
+    /// Whether the task already sits in `TASKS`, so repeated wakes queue it only once.
+    queued: Cell<bool>,
 }
 
 impl Task {
@@ -27,6 +29,7 @@ impl Task {
         RawWakerVTable::new(Self::clone, Self::wake, Self::wake_by_ref, Self::drop);
 
     fn poll(self: Arc<Self>) {
+        self.queued.set(false);
         let waker = unsafe { Waker::from_raw(self.clone().into_waker()) };
         let cx = &mut Context::from_waker(&waker);
         let slot = unsafe { &mut *self.f.get() };
@@ -51,11 +54,15 @@ impl Task {
     }
     fn wake(ptr: *const ()) {
         let task = Self::from_ptr(ptr);
-        TASKS.with_borrow_mut(|tasks| tasks.push(task))
+        if !task.queued.replace(true) {
+            TASKS.with_borrow_mut(|tasks| tasks.push(task))
+        }
     }
     fn wake_by_ref(ptr: *const ()) {
         let task = Self::from_ptr(ptr);
-        TASKS.with_borrow_mut(|tasks| tasks.push(task.clone()));
+        if !task.queued.replace(true) {
+            TASKS.with_borrow_mut(|tasks| tasks.push(task.clone()));
+        }
         mem::forget(task);
     }
     fn drop(ptr: *const ()) {
@@ -80,6 +87,7 @@ where
     #[allow(clippy::arc_with_non_send_sync)]
     let task = Arc::new(Task {
         f: UnsafeCell::new(Some(Box::pin(future))),
+        queued: Cell::new(false),
     });
     task.poll();
 }

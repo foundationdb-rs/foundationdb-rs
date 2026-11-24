@@ -235,7 +235,7 @@ impl RustWorkload for DelayLeakWorkload {
                     let ctx = &self.context;
                     let limit = self.rss_start + self.rss_limit_kib;
                     let mut polls = 0u64;
-                    std::future::poll_fn(|cx| {
+                    let runaway = std::future::poll_fn(|cx| {
                         polls += 1;
                         if rss_kib() > limit {
                             return std::task::Poll::Ready(());
@@ -243,8 +243,13 @@ impl RustWorkload for DelayLeakWorkload {
                         let mut d = Box::pin(ctx.delay(Duration::from_secs(60)));
                         let _ = d.as_mut().poll(cx);
                         std::task::Poll::Pending
-                    })
-                    .await;
+                    });
+                    // Bound the run in simulated time, for when the loop does not spin.
+                    use futures_util::FutureExt;
+                    futures_util::select_biased! {
+                        _ = runaway.fuse() => {},
+                        _ = ctx.delay(Duration::from_secs(120)).fuse() => {},
+                    }
                     println!(
                         "delay_leak[{}] per_poll: {polls} polls, sim_now={}",
                         self.client_id,

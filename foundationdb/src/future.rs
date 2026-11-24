@@ -87,6 +87,22 @@ where
     }
 }
 
+impl<T> Drop for FdbFuture<T> {
+    fn drop(&mut self) {
+        // Dropped while still pending: `fdb_future_destroy` cancels the future, and the C API
+        // then still fires the registered callback (with `operation_cancelled`). Nobody waits
+        // for that result anymore, so clear the waker: the callback then neither wakes the task
+        // nor runs the custom executor hook. Without this, under the simulation executor every
+        // dropped timeout re-polls its task, which can drop the next timeout, and so on, at the
+        // same simulated instant: memory grows at CPU speed and simulated time never advances.
+        if self.f.is_some()
+            && let Some(waker) = &self.waker
+        {
+            drop(waker.take());
+        }
+    }
+}
+
 impl<T> Future for FdbFuture<T>
 where
     T: TryFrom<FdbFutureHandle, Error = FdbError> + Unpin,
@@ -162,7 +178,12 @@ extern "C" fn fdb_future_callback(
 ) {
     // resolve all wakeup chain
     let network_waker: Arc<AtomicWaker> = unsafe { Arc::from_raw(callback_parameter as *const _) };
-    network_waker.wake();
+    // No waker means the `FdbFuture` was dropped before completing (see its `Drop`): there is
+    // nobody to wake, and polling the custom executor here would only spin it.
+    let Some(waker) = network_waker.take() else {
+        return;
+    };
+    waker.wake();
 
     // polling phase for a custom executor (e.g. the simulation)
     if let Some(poll_pending_tasks) = CUSTOM_EXECUTOR_HOOK.get() {
