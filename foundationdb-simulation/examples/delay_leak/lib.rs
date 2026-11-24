@@ -15,6 +15,7 @@
 //! Options: `mode`, `iterations`, `reportEvery`, `delayMs` (default 0.1),
 //! `dropDelayMs` (length of the delay that gets dropped, default 10x `delayMs`),
 //! `settleMs` (if set, await this long after every report, then report again),
+//! `rssLimitMiB` (select_ready stops once RSS grew this much, default 2048),
 //! `client0Only` (default true; false runs the loop on every test client).
 //!
 //! Modes (option `mode`):
@@ -27,6 +28,8 @@
 //!   pending (the `select!`/timeout case), then await a short delay.
 //! - `drop_yield`: drop a pending delay (like a timeout losing a race), then await a
 //!   short delay so the network thread processes the cancellation each iteration.
+//! - `select_ready`: `select!` between an always-ready future and a fresh timeout:
+//!   the loop never yields, so simulated time is frozen.
 //! - `grv`: control, await `get_read_version` instead of a delay.
 //! - `none`: control run, no delay at all (yields nothing, just loops).
 
@@ -89,6 +92,7 @@ struct DelayLeakWorkload {
     report_every: u64,
     delay: Duration,
     mode: String,
+    rss_limit_kib: u64,
     settle_every_report: Option<Duration>,
     drop_delay: Duration,
     client0_only: bool,
@@ -133,6 +137,8 @@ impl RustWorkload for DelayLeakWorkload {
         self.rss_start = rss_kib();
         self.rust_start = LIVE.load(Ordering::Relaxed);
         self.report(0);
+        // Wall-clock is observational only (how fast memory grows), nothing branches on it.
+        let wall = std::time::Instant::now();
         for i in 1..=self.iterations {
             match self.mode.as_str() {
                 "await" => self
@@ -146,6 +152,27 @@ impl RustWorkload for DelayLeakWorkload {
                     // delay, the workaround used by workloads today.
                     if let Ok(trx) = db.create_trx() {
                         let _ = trx.get_read_version().await;
+                    }
+                }
+                "select_ready" => {
+                    // A select! loop whose "work" branch is immediately ready, so
+                    // the fresh timeout loses every time and the loop never yields
+                    // to the simulator: simulated time never advances.
+                    use futures_util::FutureExt;
+                    let work = std::future::ready(());
+                    let timeout = self.context.delay(self.drop_delay);
+                    futures_util::select_biased! {
+                        _ = work.fuse() => {},
+                        _ = timeout.fuse() => {},
+                    }
+                    if rss_kib() > self.rss_start + self.rss_limit_kib {
+                        println!(
+                            "delay_leak[{}] RSS limit hit at iter={i} sim_now={}",
+                            self.client_id,
+                            self.context.now()
+                        );
+                        self.report(i);
+                        break;
                     }
                 }
                 "drop_rounds" => {
@@ -189,6 +216,11 @@ impl RustWorkload for DelayLeakWorkload {
             }
             if i % self.report_every == 0 {
                 self.report(i);
+                println!(
+                    "    wall={:?} sim_now={}",
+                    wall.elapsed(),
+                    self.context.now()
+                );
                 if let Some(settle) = self.settle_every_report {
                     let _ = self.context.delay(settle).await;
                     self.report(i);
@@ -242,6 +274,7 @@ impl RustWorkloadFactory for DelayLeakFactory {
             .get_option::<String>("mode")
             .unwrap_or_else(|| "await".to_string());
         let drop_delay_ms: f64 = context.get_option("dropDelayMs").unwrap_or(delay_ms * 10.0);
+        let rss_limit_mib: u64 = context.get_option("rssLimitMiB").unwrap_or(2048);
         let settle_ms: Option<f64> = context.get_option("settleMs");
         let client0_only = context.get_option("client0Only").unwrap_or(true);
         match name.as_str() {
@@ -252,6 +285,7 @@ impl RustWorkloadFactory for DelayLeakFactory {
                 report_every,
                 delay: Duration::from_secs_f64(delay_ms / 1000.0),
                 mode,
+                rss_limit_kib: rss_limit_mib * 1024,
                 settle_every_report: settle_ms.map(|ms| Duration::from_secs_f64(ms / 1000.0)),
                 drop_delay: Duration::from_secs_f64(drop_delay_ms / 1000.0),
                 client0_only,
