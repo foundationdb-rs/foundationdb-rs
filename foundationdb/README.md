@@ -173,6 +173,14 @@ foundationdb::boot().expect("failed to initialize FoundationDB");
 
 Calling `boot` is even optional if you create a `Database`. Tests no longer need to be serialized with `--test-threads=1`: every test can boot in any order, in parallel.
 
+### Raw future construction
+
+`foundationdb::future::FdbFuture::new` now requires an `unsafe` call because it
+takes ownership of a raw C future. When updating a direct caller, verify that the
+pointer is valid and non-null, its result matches the requested Rust type, and no
+other owner will destroy the future or release its result memory. Transfer each
+pointer exactly once, and document those guarantees at the call site.
+
 ### API stability
 
 _WARNING_ Until the 1.0 release of this library, the API may be in constant flux.
