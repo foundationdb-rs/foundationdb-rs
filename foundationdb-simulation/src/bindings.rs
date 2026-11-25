@@ -330,6 +330,48 @@ impl WorkloadContext {
         with! { self.0 => sharedRandomNumber() }
     }
     /// Return a future that will be ready after a given (simulated) duration
+    ///
+    /// # Memory and simulated time
+    ///
+    /// Each call creates a timer inside fdbserver. Awaiting it to completion, like a sleep,
+    /// is free of leaks. The patterns below are not, and can fill gigabytes of RAM within
+    /// seconds:
+    ///
+    /// - **Dropping a pending delay does not free its timer.** The future is cancelled, but
+    ///   Flow keeps the timer (a few hundred bytes) until its original deadline. A `select!`
+    ///   loop that creates a fresh long timeout every iteration, and drops it whenever the
+    ///   other branch wins, therefore grows memory with the iteration rate × the timeout
+    ///   length. Create the timeout once, outside the loop, and poll it by reference; or keep
+    ///   dropped timeouts short; or compare [`WorkloadContext::now`] with a deadline.
+    /// - **Every loop iteration must wait on something that takes simulated time**: a delay
+    ///   awaited to completion or a database operation. Simulated time only advances when
+    ///   the workload yields. A loop whose other `select!` branch is always immediately ready
+    ///   (a ready future, a backlogged channel, a wake that only comes from Rust) never
+    ///   yields: time freezes, so timers and cancellations pile up without ever running.
+    /// - **Never create a delay inside a `poll()` implementation.** Each poll would create
+    ///   and drop a timer, and the cancellation of the dropped timer can poll the task again,
+    ///   forever, at the same simulated instant.
+    ///
+    /// ```no_run
+    /// # use std::time::Duration;
+    /// # use foundationdb_simulation::{SimDatabase, WorkloadContext};
+    /// use futures_util::FutureExt;
+    ///
+    /// async fn read_until_deadline(ctx: &WorkloadContext, db: SimDatabase) {
+    ///     // One timer for the whole loop, created outside of it.
+    ///     let mut deadline = Box::pin(ctx.delay(Duration::from_secs(60)).fuse());
+    ///     loop {
+    ///         let trx = db.create_trx().expect("transaction");
+    ///         // A real database operation: simulated time advances on every iteration.
+    ///         let work = trx.get_read_version().fuse();
+    ///         futures_util::pin_mut!(work);
+    ///         futures_util::select! {
+    ///             _ = work => {}
+    ///             _ = deadline => break,
+    ///         }
+    ///     }
+    /// }
+    /// ```
     pub fn delay(
         &self,
         duration: Duration,

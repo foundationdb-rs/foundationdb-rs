@@ -52,11 +52,6 @@ path = "examples/noop/lib.rs"
 crate-type = ["cdylib"]
 
 [[example]]
-name = "delay_leak"
-path = "examples/delay_leak/lib.rs"
-crate-type = ["cdylib"]
-
-[[example]]
 name = "shared"
 path = "examples/shared/lib.rs"
 crate-type = ["cdylib"]
