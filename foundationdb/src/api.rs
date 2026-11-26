@@ -16,9 +16,10 @@
 //! The network lifecycle is tracked by a process-global state machine
 //! (`Uninitialized -> ApiVersionSelected -> Running -> Stopped`). Booting is safe
 //! and idempotent, the network is started lazily by [`crate::Database`]
-//! constructors if needed, and it runs until process exit: an atexit hook stops it
-//! and joins the network thread, as required by the C API. Applications that
-//! manage their own shutdown can call [`disable_stop_on_exit`] and/or
+//! constructors if needed, and it runs until process exit, where it is stopped and
+//! the network thread joined, as required by the C API (see "Stopping the network
+//! at process exit" in the source of this module for how and why). Applications
+//! that manage their own shutdown can call [`disable_stop_on_exit`] and/or
 //! [`stop_network`].
 //!
 //! <div class="warning">
@@ -153,12 +154,11 @@ impl NetworkLifecycle {
             NetworkLifecycle::ApiVersionSelected { api_version } => {
                 let api_version = *api_version;
                 error::eval(unsafe { fdb_sys::fdb_setup_network() })?;
-                // Registered once the network is set up, i.e. after libfdb_c was
-                // loaded: atexit handlers run in LIFO order, so ours stops and joins
-                // the network before any exit-time cleanup of the library itself.
+                // Fallback of the exit-time stop, see "Stopping the network at
+                // process exit" below.
                 if unsafe { libc::atexit(network_atexit_hook) } != 0 {
                     eprintln!(
-                        "failed to register the FoundationDB atexit hook; the network will not be stopped automatically at process exit"
+                        "failed to register the FoundationDB atexit hook; the network may not be stopped automatically at process exit"
                     );
                 }
                 let handle = std::thread::Builder::new()
@@ -228,11 +228,122 @@ fn run_network_thread() {
     }
 }
 
-/// Stops the network at process exit, as required by the C API contract.
+// # Stopping the network at process exit
+//
+// The C API requires `fdb_stop_network()` and a join of the thread running
+// `fdb_run_network()` before the process exits. Since the network belongs to the
+// process (#195), we do it automatically at exit. *When* exactly we do it matters,
+// because of how libfdb_c is written.
+//
+// ## The problem (foundationdb-rs#585)
+//
+// libfdb_c is C++. Its function-local statics are constructed lazily, by whichever
+// thread first reaches them, and their destructors are registered with
+// `__cxa_atexit` at that moment. `exit()` runs everything registered with
+// `atexit`/`__cxa_atexit` in a single list, in reverse order of registration.
+//
+// Some of those statics are first reached by the network thread, after the
+// network started, and are used again by the network thread while it shuts down.
+// With client tracing enabled, the culprit is `static StatisticsState statState`
+// in `systemMonitor()` (flow/SystemMonitor.cpp): it is first built when a
+// database connects (`initializeClientTracing`, fdbclient/NativeAPI.cpp), and
+// `runNetwork()` calls `systemMonitor()` again right after the event loop returns.
+// gdb shows 3 such late registrations from the network thread, all before the
+// first transaction completes, and one more during `fdb_stop_network()` itself.
+//
+// An `atexit` hook registered when the network starts is older than these
+// destructors, so it runs after them: the network thread then shuts down on
+// destroyed state and the process dies with SIGSEGV in `fdb_run_network`, while
+// the trace file is left truncated (no stop events, no closing tag).
+// Registrations made *during* our stop are harmless: they happen while our hook
+// runs, so their destructors run after it, once the network thread is joined.
+//
+// ## What the other bindings do
+//
+// - Python stops and joins from a Python `atexit` handler, and Java from a JVM
+//   shutdown hook. Both run during runtime shutdown, before libc `exit()` starts,
+//   so before any libfdb_c destructor.
+// - Go never stops the network at exit; a Go process exits without running C++
+//   static destructors at all.
+// - C and Flow programs (fdbcli, fdbserver) run the network on their own main
+//   thread, so `fdb_run_network()` returned before `exit()` begins.
+//
+// Rust has no runtime shutdown hook, and a library cannot make the application
+// skip the libc exit sequence. Fixing libfdb_c (never destroying these statics,
+// as `~TraceLog` already does for its writer thread) is out of scope here.
+//
+// ## Our approach: stop from a main-thread thread-local destructor
+//
+// `exit()` runs the thread-local destructors of the thread calling it *before*
+// the atexit list: glibc's `__run_exit_handlers` calls `__call_tls_dtors` first,
+// and Apple's `exit()` runs the `_tlv_atexit` destructors first. Rust std
+// registers its thread-local destructors through exactly these mechanisms. So a
+// thread-local whose `Drop` stops and joins the network (`MainThreadExitGuard`)
+// runs before every libfdb_c destructor, including any a future libfdb_c might
+// create at any time. It is the closest Rust equivalent of the pre-exit hooks of
+// Python and Java.
+//
+// The guard lives on the main thread, the one that exits when `main` returns or
+// calls `std::process::exit`. It is armed from a load-time constructor
+// (`#[ctor]`, which runs on the main thread before `main` in an executable), not
+// when the network starts, so the thread that starts the network does not
+// matter: plain `main`, `#[tokio::main]`, `tokio::spawn`, libtest worker threads
+// are all covered. Arming only registers a destructor, which does nothing unless
+// the network is running at exit, so it costs nothing to processes that never
+// use FoundationDB or only use a simulated network.
+//
+// The atexit hook registered when the network starts stays as the fallback,
+// through the same idempotent `stop_network_on_exit`: whichever runs first
+// stops the network, the other finds it `Stopped`. It is what stops the network
+// on other platforms, and when the guard does not run.
+//
+// Limits:
+// - `exit()` called from a thread other than the main thread runs that thread's
+//   destructors, not the main thread's: only the atexit fallback runs, and with
+//   tracing enabled the crash above comes back. Call `stop_network()` first.
+// - A library containing this crate and loaded with `dlopen` from a non-main
+//   thread arms that thread, which then stops the network when it ends.
+//
+// None of this replaces an explicit `stop_network()` in a production shutdown
+// sequence, which avoids exit-handler ordering altogether.
+
+/// Stops the network when the main thread runs its thread-local destructors at
+/// exit, before the atexit list.
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+struct MainThreadExitGuard;
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+impl Drop for MainThreadExitGuard {
+    fn drop(&mut self) {
+        stop_network_on_exit();
+    }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+thread_local! {
+    static MAIN_THREAD_EXIT_GUARD: MainThreadExitGuard = const { MainThreadExitGuard };
+}
+
+/// Arms [`MainThreadExitGuard`] on the main thread, before `main`: the first
+/// access to the thread-local registers its destructor.
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[ctor::ctor(unsafe)]
+fn arm_main_thread_exit_guard() {
+    MAIN_THREAD_EXIT_GUARD.with(|_| {});
+}
+
+/// Fallback exit-time stop, registered when the network starts.
 ///
 /// Panic-free: unwinding out of an `extern "C"` function would abort with a less
 /// useful message.
 extern "C" fn network_atexit_hook() {
+    stop_network_on_exit();
+}
+
+/// Stops and joins the network at process exit if it is still running. Shared by
+/// the thread-local guard and the atexit hook; panic-free, as it runs from an `extern "C"` atexit hook and
+/// from a thread-local destructor.
+fn stop_network_on_exit() {
     if !STOP_ON_EXIT.load(Ordering::Acquire) {
         return;
     }
@@ -278,7 +389,7 @@ pub fn stop_network() -> FdbResult<()> {
 
 /// Disables the automatic network stop at process exit.
 ///
-/// The atexit hook registered when the network starts becomes a no-op. Use it
+/// Every exit-time stop (thread-local guard and atexit hook) becomes a no-op. Use it
 /// when your application owns its shutdown sequence and calls [`stop_network`]
 /// itself: the C API requires the network to be stopped and joined before a
 /// normal process exit.
@@ -376,8 +487,8 @@ impl NetworkBuilder {
     /// Starts the FoundationDB network event loop in a dedicated thread.
     ///
     /// Safe and idempotent: booting an already running network is a no-op. The
-    /// network runs until process exit, where an atexit hook stops it and joins the
-    /// network thread, or until an explicit [`stop_network`] call.
+    /// network runs until process exit, where it is stopped and the network thread
+    /// joined, or until an explicit [`stop_network`] call.
     ///
     /// # Errors
     ///
@@ -411,8 +522,8 @@ impl NetworkBuilder {
 
 /// Kept for backward compatibility: dropping it does nothing.
 ///
-/// The network runs until process exit (an atexit hook stops it and joins the
-/// network thread), or until an explicit [`stop_network`] call.
+/// The network runs until process exit (where it is stopped and the network
+/// thread joined), or until an explicit [`stop_network`] call.
 pub struct NetworkAutoStop {
     _private: (),
 }
