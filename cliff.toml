@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # https://keats.github.io/tera/docs/#introduction
 body = """
 {% if version -%}
-    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+    ## [{{ version | trim_start_matches(pat="v") }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
 {% else -%}
     ## [Unreleased]
 {% endif -%}
@@ -26,21 +26,9 @@ body = """
 {% endfor %}\n
 """
 
-# template for the changelog footer
-footer = """
-{% for release in releases -%}
-    {% if release.version -%}
-        {% if release.previous.version -%}
-            [{{ release.version | trim_start_matches(pat="v") }}]: \
-                https://github.com/foundationdb-rs}/foundationdb-rs\
-                    /compare/{{ release.previous.version }}..{{ release.version }}
-        {% endif -%}
-    {% else -%}
-        [unreleased]: https://github.com/foundationdb-rs}/foundationdb-rs\
-            /compare/{{ release.previous.version }}..HEAD
-    {% endif -%}
-{% endfor %}
-"""
+# no footer: release-plz fills `release_link` (used in the version heading above)
+# from the real per-package tag names, e.g. foundationdb-v0.11.0...foundationdb-v0.12.0
+footer = ""
 # remove the leading and trailing whitespace from the templates
 trim = true
 
@@ -85,7 +73,11 @@ commit_parsers = [
     { body = ".*skip changelog.*", skip = true },
 
     # Breaking changes (highest priority)
-    { message = ".*!", group = "<!-- 0 -->⚠️ BREAKING CHANGES" },
+    # `!` before the colon only: a bare ".*!" also matched `select!` or `eprintln!` in
+    # commit bodies. Parsed conventional commits expose `breaking`; the message regex
+    # catches the ones git-cliff could not parse (their message keeps the type prefix).
+    { field = "breaking", pattern = "true", group = "<!-- 0 -->⚠️ BREAKING CHANGES" },
+    { message = '^\w+(\([^)]*\))?!:', group = "<!-- 0 -->⚠️ BREAKING CHANGES" },
     { body = ".*BREAKING CHANGE.*", group = "<!-- 0 -->⚠️ BREAKING CHANGES" },
 
     # Features / Additions
