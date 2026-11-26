@@ -366,9 +366,13 @@ thread_local! {
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 #[ctor::ctor(unsafe)]
 fn arm_main_thread_exit_guard() {
+    // Raw syscall rather than `libc::gettid()`: the glibc wrapper only exists since
+    // glibc 2.30, and an undefined `gettid` symbol makes the library fail to load
+    // on older systems (e.g. the CentOS 7 image of the 7.3 simulation job).
     #[cfg(target_os = "linux")]
     // SAFETY: both calls are always safe.
-    let is_main_thread = unsafe { libc::gettid() == libc::getpid() };
+    let is_main_thread =
+        unsafe { libc::syscall(libc::SYS_gettid) == libc::getpid() as libc::c_long };
     #[cfg(target_vendor = "apple")]
     // SAFETY: always safe.
     let is_main_thread = unsafe { libc::pthread_main_np() != 0 };
