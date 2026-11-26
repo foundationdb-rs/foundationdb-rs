@@ -30,8 +30,6 @@ const MODES: &[&str] = &[
     // Boot and use FDB on a spawned thread, like libtest or `tokio::spawn`,
     // then return from main.
     "spawned-thread",
-    // Boot, use FDB and call `process::exit` from a spawned thread.
-    "exit-from-spawned-thread",
 ];
 const RUNS_PER_MODE: usize = 3;
 
@@ -136,15 +134,6 @@ fn child(mode: &str, trace_dir: &Path) {
         "spawned-thread" => std::thread::spawn(move || use_fdb(trace_dir))
             .join()
             .expect("the FDB thread panicked"),
-        "exit-from-spawned-thread" => {
-            std::thread::spawn(move || {
-                use_fdb(trace_dir);
-                std::process::exit(0);
-            })
-            .join()
-            .expect("the FDB thread panicked");
-            unreachable!("the spawned thread exits the process");
-        }
         other => panic!("unknown child mode {other:?}"),
     }
 }

@@ -81,8 +81,8 @@ Layered, bottom to top:
 - **foundationdb** - the public async API. Key files in `foundationdb/src/`:
   - `api.rs` - process-global `NetworkLifecycle` state machine managing the C API and the
     network event-loop: safe idempotent `boot()`, lazy start from `Database` constructors,
-    automatic stop + join at process exit (main-thread TLS guard armed by `#[ctor]`, then
-    atexit hooks; see the "Stopping the network at process exit" comment), explicit
+    automatic stop + join at process exit (main-thread TLS guard armed by `#[ctor]`, atexit
+    hook as fallback; see the "Stopping the network at process exit" comment), explicit
     `stop_network()`.
   - `database.rs` - `Database` and the entry points of the retry runner: `run()`,
     `runner()` (builder), `run_with_hooks()`, `instrumented_run()`.

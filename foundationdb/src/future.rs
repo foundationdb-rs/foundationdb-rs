@@ -118,8 +118,6 @@ where
         {
             return Poll::Pending;
         }
-        // Layer 2 of the exit-time network stop, see crate::api.
-        crate::api::rearm_exit_hook_after_first_completed_future();
         Poll::Ready(
             error::eval(unsafe { fdb_sys::fdb_future_get_error(f_ptr) })
                 .and_then(|()| T::try_from(self.f.take().expect("self.f.is_some()"))),
