@@ -805,12 +805,7 @@ impl StackMachine {
         number: usize,
         mut instr: Instr,
     ) -> Result<(), ()> {
-        use crate::InstrCode::*;
-
         let is_db = instr.pop_database();
-
-        let mut mutation = false;
-        let mut pending = false;
 
         let (mut trx, trx_name) = if is_db {
             (
@@ -834,8 +829,38 @@ impl StackMachine {
                     trx = state;
                 }
             }
-            (trx, Some(&self.cur_transaction))
+            (trx, Some(self.cur_transaction.clone()))
         };
+
+        let result = self
+            .run_instr(db, number, instr, is_db, &mut trx, trx_name)
+            .await;
+
+        // Every instruction borrows the current transaction from the map. Put it back
+        // whatever the outcome, otherwise an instruction that reports its error on the
+        // stack would leave the next one without a transaction.
+        if !is_db && !self.transactions.contains_key(&self.cur_transaction) {
+            self.transactions.insert(self.cur_transaction.clone(), trx);
+        }
+
+        result
+    }
+
+    /// Runs one instruction on `trx`, the transaction [`Self::run_step`] borrowed.
+    #[allow(clippy::cognitive_complexity, clippy::too_many_arguments)]
+    async fn run_instr(
+        &mut self,
+        db: Arc<Database>,
+        number: usize,
+        mut instr: Instr,
+        is_db: bool,
+        trx: &mut TransactionState,
+        trx_name: Option<Bytes<'static>>,
+    ) -> Result<(), ()> {
+        use crate::InstrCode::*;
+
+        let mut mutation = false;
+        let mut pending = false;
 
         match instr.code {
             // Pushes the provided item onto the stack.
@@ -958,7 +983,7 @@ impl StackMachine {
                     }
                 }
                 t = t.commit().await.unwrap().reset();
-                trx = TransactionState::Transaction(t);
+                *trx = TransactionState::Transaction(t);
             }
 
             // Creates a new transaction and stores it in the global transaction map
@@ -990,7 +1015,7 @@ impl StackMachine {
                     // current transaction already. Keep that newer state if it exists.
                     self.transactions
                         .entry(self.cur_transaction.clone())
-                        .or_insert_with(|| std::mem::replace(&mut trx, TransactionState::Dead));
+                        .or_insert_with(|| std::mem::replace(trx, TransactionState::Dead));
                 }
                 if !self.transactions.contains_key(&name) {
                     let trx = self.check(number, db.create_trx())?;
@@ -1005,7 +1030,7 @@ impl StackMachine {
             // the error out as indicated above. May optionally push a future onto the
             // stack.
             OnError => {
-                let trx_name = trx_name.cloned();
+                let trx_name = trx_name.clone();
                 let error_code: i32 = self.pop_i32().await;
                 let error = FdbError::from_code(error_code);
                 debug!("on_error {error:?}");
@@ -1336,7 +1361,7 @@ impl StackMachine {
             // push a future onto the stack.
             Commit => {
                 debug!("commit");
-                let trx_name = trx_name.cloned();
+                let trx_name = trx_name.clone();
                 let trx_id = self.next_trx_id();
                 let f = trx
                     .take(trx_id)
@@ -1368,7 +1393,7 @@ impl StackMachine {
             Cancel => {
                 debug!("cancel");
                 let cancelled = trx.take(0).cancel();
-                trx = TransactionState::TransactionCancelled(cancelled);
+                *trx = TransactionState::TransactionCancelled(cancelled);
             }
 
             // Gets the committed version from the current transaction and stores it in the
@@ -1376,7 +1401,7 @@ impl StackMachine {
             // string "GOT_COMMITTED_VERSION" onto the stack.
             GetCommittedVersion => {
                 debug!("committed_version");
-                if let TransactionState::TransactionCommitted(t) = &trx {
+                if let TransactionState::TransactionCommitted(t) = &*trx {
                     let last_version = t
                         .committed_version()
                         .expect("failed to get committed version");
@@ -1819,7 +1844,7 @@ impl StackMachine {
 
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, path, prefix, layer),
                     |txn, (directory, path, prefix, layer)| {
@@ -1875,7 +1900,7 @@ impl StackMachine {
 
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, path, layer),
                     |txn, (directory, path, layer)| {
@@ -1927,7 +1952,7 @@ impl StackMachine {
                 );
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, path, layer),
                     |txn, (directory, path, layer)| {
@@ -2004,7 +2029,7 @@ impl StackMachine {
 
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, paths),
                     |txn, (directory, paths)| {
@@ -2045,7 +2070,7 @@ impl StackMachine {
 
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, paths),
                     |txn, (directory, paths)| {
@@ -2091,7 +2116,7 @@ impl StackMachine {
                 );
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, paths),
                     |txn, (directory, paths)| {
@@ -2130,7 +2155,7 @@ impl StackMachine {
                 let paths = paths.first().expect("could not retrieve a path");
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, paths),
                     |txn, (directory, paths)| directory.remove_if_exists(txn, paths).boxed_local(),
@@ -2165,7 +2190,7 @@ impl StackMachine {
 
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, &paths),
                     |txn, (directory, paths)| directory.list(txn, paths).boxed_local(),
@@ -2211,7 +2236,7 @@ impl StackMachine {
                 let paths = paths.first().expect("could not retrieve a path");
                 match directory_operation(
                     &db,
-                    &trx,
+                    &*trx,
                     is_db,
                     (directory, paths),
                     |txn, (directory, paths)| directory.exists(txn, paths).boxed_local(),
@@ -2389,7 +2414,7 @@ impl StackMachine {
                     self.directory_stack.len()
                 );
                 let raw_prefix = self.pop_bytes().await;
-                let txn = match trx {
+                let txn = match *trx {
                     TransactionState::Transaction(ref t) => t,
                     _ => {
                         panic!("could not find an active transaction");
@@ -2460,7 +2485,7 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
-                let txn = match trx {
+                let txn = match *trx {
                     TransactionState::Transaction(ref t) => t,
                     _ => {
                         panic!("could not find an active transaction");
@@ -2582,8 +2607,6 @@ impl StackMachine {
             let r = trx.take(0).commit().await.map_err(|e| e.into());
             self.check(number, r)?;
             self.push(number, RESULT_NOT_PRESENT.clone().into_owned());
-        } else if !self.transactions.contains_key(&self.cur_transaction) {
-            self.transactions.insert(self.cur_transaction.clone(), trx);
         }
 
         if instr.has_flags() {
@@ -2806,6 +2829,58 @@ mod tests {
             // A replacement transaction or implicit reset would hide this state.
             assert_eq!(sm.stack[3].data.as_ref(), Some(&cancelled));
             assert_eq!(sm.stack[4].data.as_ref(), Some(&GOT_READ_VERSION));
+        });
+    }
+
+    #[test]
+    #[ignore = "requires a running FoundationDB cluster"]
+    fn failed_instruction_keeps_current_transaction() {
+        futures::executor::block_on(async {
+            // A dedicated handle, so the retry limit below does not leak into other tests.
+            let db = Arc::new(Database::new_compat(None).await.expect("cannot open fdb"));
+            db.set_option(DatabaseOption::TransactionRetryLimit(0))
+                .expect("cannot set retry limit");
+            let prefix = b"failed-instr-keeps-trx".as_slice();
+            db.run(|trx, _| async move {
+                trx.set(&[prefix, b"/key"].concat(), b"value");
+                Ok::<_, fdb::FdbBindingError>(())
+            })
+            .await
+            .expect("cannot write key");
+
+            // WAIT_EMPTY on a non empty prefix fails once the retry limit is reached, so it
+            // pushes an error and leaves run_step early. The next instruction must still
+            // find the current transaction instead of panicking.
+            let mut sm = StackMachine::new(&db, Bytes::from(prefix));
+            let instructions = [
+                pack(&("NEW_TRANSACTION",)),
+                pack(&("PUSH", prefix)),
+                pack(&("WAIT_EMPTY",)),
+                pack(&("GET_READ_VERSION",)),
+            ];
+            let mut results = Vec::new();
+            for (number, instruction) in instructions.iter().enumerate() {
+                results.push(
+                    sm.run_step(db.clone(), number, Instr::from(instruction))
+                        .await,
+                );
+            }
+
+            db.run(|trx, _| async move {
+                let (begin, end) = range(Bytes::from(prefix));
+                trx.clear_range(&begin, &end);
+                Ok::<_, fdb::FdbBindingError>(())
+            })
+            .await
+            .expect("cannot clean up");
+
+            assert_eq!(results, [Ok(()), Ok(()), Err(()), Ok(())]);
+            let not_committed =
+                Element::Bytes(pack(&(b"ERROR".as_slice(), b"1020".as_slice())).into());
+            assert_eq!(sm.stack.len(), 2);
+            assert_eq!(sm.stack[0].data.as_ref(), Some(&not_committed));
+            assert_eq!(sm.stack[1].data.as_ref(), Some(&GOT_READ_VERSION));
+            assert!(sm.transactions.contains_key(&sm.cur_transaction));
         });
     }
 }
