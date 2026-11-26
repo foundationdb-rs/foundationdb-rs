@@ -68,6 +68,14 @@ async-trait = "0.1.89"
 async-recursion = "1.1.1"
 tracing = { version = "0.1.44", optional = true }
 
+# Arms the exit-time network stop on the main thread at load time (see api.rs).
+[target.'cfg(any(target_os = "linux", target_vendor = "apple"))'.dependencies]
+ctor = "1.0.14"
+
+[[test]]
+name = "exit_with_client_trace"
+harness = false
+
 [dev-dependencies]
 byteorder = "1.5.0"
 lazy_static = "1.5.0"

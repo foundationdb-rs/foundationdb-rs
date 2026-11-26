@@ -79,8 +79,8 @@ pub use crate::transaction::*;
 /// Safe and idempotent: calling it multiple times returns `Ok` as long as the
 /// (default) API version matches. Calling it is optional: creating a [`Database`]
 /// initializes the client automatically. The network runs until process exit,
-/// where an atexit hook stops it and joins the network thread, or until an
-/// explicit [`api::stop_network`] call.
+/// where it is stopped and the network thread joined, or until an explicit
+/// [`api::stop_network`] call.
 ///
 /// The returned guard is kept for backward compatibility, dropping it does
 /// nothing.
