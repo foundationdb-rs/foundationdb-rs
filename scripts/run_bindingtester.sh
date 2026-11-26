@@ -30,14 +30,24 @@ cd "${fdb_builddir:?}/foundationdb"
 # Database-level directory operations must retry concurrent commit conflicts.
 ./bindings/bindingtester/bindingtester.py --num-ops 100 --api-version 610 --test-name directory_hca --concurrency 5 rust --seed 3179331380
 
+# Random seeds by default. Set BINDINGTESTER_SEED to a base seed to make the random
+# loop reproducible: iteration i, test k then uses seed BINDINGTESTER_SEED + 10 * i + k.
+# The coverage job uses this so the covered lines do not change from run to run.
+# Concurrent tests still depend on thread scheduling, so their coverage may vary a little.
+seed_args() {
+  if [ -n "${BINDINGTESTER_SEED:-}" ]; then
+    echo "--seed $(( (BINDINGTESTER_SEED + 10 * $1 + $2) % 4294967296 ))"
+  fi
+}
+
 START=1
 END=${1-1}
 for i in $(eval echo "{$START..$END}")
 do
   echo "Running iteration $i"
   ./bindings/bindingtester/bindingtester.py --test-name scripted rust
-  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --compare python rust
-  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --concurrency 5 rust
-  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python
-  ./bindings/bindingtester/bindingtester.py --num-ops 100 --api-version $fdb_api_version --test-name directory_hca --concurrency 1 rust --no-directory-snapshot-ops
+  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --compare python rust $(seed_args "$i" 1)
+  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name api --concurrency 5 rust $(seed_args "$i" 2)
+  ./bindings/bindingtester/bindingtester.py --num-ops 1000 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python $(seed_args "$i" 3)
+  ./bindings/bindingtester/bindingtester.py --num-ops 100 --api-version $fdb_api_version --test-name directory_hca --concurrency 5 rust --no-directory-snapshot-ops $(seed_args "$i" 4)
 done
