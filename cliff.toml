@@ -68,6 +68,15 @@ commit_parsers = [
     { message = "^chore\\(release\\)", skip = true },
     { message = "^Merge pull request", skip = true },
     { message = "^Merge branch", skip = true },
+    { message = "^Merge remote-tracking branch", skip = true },
+    # Intermediate commits of #574 (merged without squash): the delay_leak
+    # workload and the future.rs change were removed before merge, only the
+    # docs commit landed in the code.
+    { sha = "7808a18edc797cf1d14135387c4c6820968770c7", skip = true },
+    { sha = "2261fb8e055776a3d617f75e8422df2e465ca437", skip = true },
+    { sha = "184b57b82d16a82c9681fe2661f4c5b5df519437", skip = true },
+    { sha = "a5e4913caeb6b45e9c0c53b68fc18aa6aef37b89", skip = true },
+    { sha = "138e0a1f9d1a4390b7c7d08dbf8d8036e4af2df2", skip = true },
     { message = "^[fF]ixup!", skip = true },
     { message = "^[bB]uild\\(deps\\)", skip = true },
     { message = "^[bB]ump", skip = true },
