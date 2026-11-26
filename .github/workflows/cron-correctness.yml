@@ -58,5 +58,18 @@ jobs:
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/debug/bindingtester
 
+      # Keeps the output, the Rust tester debug logs and the client traces of every
+      # failing run (passing runs are deleted), and prints a repro command for each.
       - name: Run bindingtester
+        env:
+          BINDINGTESTER_TRACE: ${{ runner.temp }}/bindingtester-logs
         run: scripts/run_bindingtester.sh 300
+
+      - name: Upload logs of failing runs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bindingtester-logs-${{ matrix.toolchain }}-${{ matrix.parallelism }}
+          path: ${{ runner.temp }}/bindingtester-logs
+          if-no-files-found: ignore
+          retention-days: 7
