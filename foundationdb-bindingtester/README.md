@@ -1,17 +1,30 @@
 Rust FoundationDB bindingtester
 ===============================
 
-This exe implements the official FoundationDB bindingtester protocol.
+This binary implements the official FoundationDB bindingtester stack machine protocol, so the
+Rust bindings can be checked against the specification and compared with the Python bindings.
 
-By running `./bindingtester.py ${this_executable}`, you can test how the rust foundationdb bindings behave.
+It is invoked by the harness as `bindingtester PREFIX API_VERSION [CLUSTER_FILE]`. You normally
+do not run it by hand: set it up once and use the run script, which needs a running cluster.
 
-The following configurations are tested and should pass without any issue:
-
+```bash
+cargo build -p bindingtester
+./scripts/setup_bindingtester.sh target/debug/bindingtester   # one-time
+./scripts/run_bindingtester.sh 10                              # N iterations
 ```
-./bindingtester.py --test-name scripted
-./bindingtester.py --num-ops 1000 --test-name api --api-version 610
-./bindingtester.py --num-ops 1000 --concurrency 5 --test-name api --api-version 610
-```
+
+Each iteration runs the `scripted`, `api` (with and without `--concurrency 5`), `directory`
+and `directory_hca` tests at the latest API version, after a fixed list of regression seeds.
+`--compare python` is used wherever the harness supports it.
+
+## Code layout
+
+- `main.rs`: the stack machine loop and the non-directory instructions.
+- `instr.rs`: instruction parsing (`Instr`, `InstrCode`).
+- `stack.rs`: stack items and the futures pushed on the stack.
+- `trx_state.rs`: the per-name transaction state.
+- `directory.rs`: the directory layer instructions.
+- `unit_tests.rs`: the `UNIT_TESTS` instruction, a port of the Python bindings' unit tests.
 
 ## Debugging a failing seed
 
