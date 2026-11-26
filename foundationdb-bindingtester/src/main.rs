@@ -964,26 +964,31 @@ impl StackMachine {
             // after every 100 sets) to avoid past_version errors.
             LogStack => {
                 let prefix: Bytes = self.pop_bytes().await;
+                debug!("log_stack {prefix:?}");
+                let mut entries = Vec::with_capacity(self.stack.len());
                 let mut stack_idx = self.stack.len();
-                let trx_id = self.next_trx_id();
-                let mut t = trx.take(trx_id);
-                let mut n = 0;
                 while let Some(stack_item) = self.maybe_pop().await {
                     stack_idx -= 1;
                     let mut key = prefix.clone().into_owned();
                     stack_idx.pack_into_vec(&mut key);
                     stack_item.number.pack_into_vec(&mut key);
 
-                    let value = pack(&stack_item.data.unwrap());
-                    t.set(&key, &value[..value.len().min(40000)]);
-                    n += 1;
-                    if n == 100 {
-                        t = t.commit().await.unwrap().reset();
-                        n = 0;
-                    }
+                    let mut value = pack(&stack_item.data.unwrap());
+                    value.truncate(40000);
+                    entries.push((key, value));
                 }
-                t = t.commit().await.unwrap().reset();
-                *trx = TransactionState::Transaction(t);
+                // Like the Python reference, write in batches of 100 on fresh transactions,
+                // and leave the current transaction alone.
+                for batch in entries.chunks(100) {
+                    db.run(|trx, _| async move {
+                        for (key, value) in batch {
+                            trx.set(key, value);
+                        }
+                        Ok::<_, fdb::FdbBindingError>(())
+                    })
+                    .await
+                    .expect("LOG_STACK failed to write the stack");
+                }
             }
 
             // Creates a new transaction and stores it in the global transaction map
@@ -2881,6 +2886,60 @@ mod tests {
             assert_eq!(sm.stack[0].data.as_ref(), Some(&not_committed));
             assert_eq!(sm.stack[1].data.as_ref(), Some(&GOT_READ_VERSION));
             assert!(sm.transactions.contains_key(&sm.cur_transaction));
+        });
+    }
+
+    #[test]
+    #[ignore = "requires a running FoundationDB cluster"]
+    fn log_stack_leaves_current_transaction_alone() {
+        futures::executor::block_on(async {
+            let db = Arc::new(Database::new_compat(None).await.expect("cannot open fdb"));
+            let prefix = b"log-stack-new-trx".as_slice();
+            let key = [prefix, b"/key"].concat();
+            let log_prefix = [prefix, b"/log/"].concat();
+            let mut sm = StackMachine::new(&db, Bytes::from(prefix));
+            let instructions = [
+                pack(&("NEW_TRANSACTION",)),
+                pack(&("PUSH", b"value".as_slice())),
+                pack(&("PUSH", key.as_slice())),
+                pack(&("SET",)),
+                pack(&("PUSH", b"logged".as_slice())),
+                pack(&("PUSH", log_prefix.as_slice())),
+                pack(&("LOG_STACK",)),
+            ];
+            for (number, instruction) in instructions.iter().enumerate() {
+                sm.run_step(db.clone(), number, Instr::from(instruction))
+                    .await
+                    .expect("instruction failed");
+            }
+
+            let (begin, end) = range(Bytes::from(prefix));
+            let (pending_key, logged) = db
+                .run(|trx, _| {
+                    let (key, log_prefix, begin, end) = (&key, &log_prefix, &begin, &end);
+                    async move {
+                        let pending_key = trx.get(key, false).await?.map(|v| v.to_vec());
+                        let mut log_key = log_prefix.clone();
+                        0usize.pack_into_vec(&mut log_key);
+                        4usize.pack_into_vec(&mut log_key);
+                        let logged = trx.get(&log_key, false).await?.map(|v| v.to_vec());
+                        trx.clear_range(begin, end);
+                        Ok::<_, fdb::FdbBindingError>((pending_key, logged))
+                    }
+                })
+                .await
+                .expect("cannot read back");
+
+            // The SET is still pending on the current transaction, not committed.
+            assert_eq!(pending_key, None);
+            assert_eq!(logged, Some(pack(&(b"logged".as_slice(),))));
+            assert!(sm.stack.is_empty());
+            let trx = sm
+                .transactions
+                .get_mut(&sm.cur_transaction)
+                .expect("current transaction is gone");
+            let value = trx.as_mut().get(&key, false).await.expect("cannot read");
+            assert_eq!(value.as_deref(), Some(b"value".as_slice()));
         });
     }
 }
