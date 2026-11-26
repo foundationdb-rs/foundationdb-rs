@@ -131,6 +131,10 @@ run_test --num-ops 1000 --api-version $fdb_api_version --test-name directory --c
 # https://github.com/foundationdb-rs/foundationdb-rs/issues/42
 run_test --num-ops 1000 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python --seed 584458794
 
+# Directory snapshot reads (DIRECTORY_OPEN/LIST/EXISTS_SNAPSHOT), #577. The seeds above keep
+# --no-directory-snapshot-ops so they still generate the tests they were added for.
+run_test --num-ops 300 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --compare python --seed 777
+
 # Database-level directory operations must retry concurrent commit conflicts.
 run_test --num-ops 100 --api-version 610 --test-name directory_hca --concurrency 5 rust --seed 3179331380
 
@@ -155,9 +159,9 @@ do
   # shellcheck disable=SC2046
   run_test --num-ops 1000 --api-version $fdb_api_version --test-name api --concurrency 5 rust $(seed_args "$i" 2)
   # shellcheck disable=SC2046
-  run_test --num-ops 1000 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --no-directory-snapshot-ops --compare python $(seed_args "$i" 3)
+  run_test --num-ops 1000 --api-version $fdb_api_version --test-name directory --concurrency 1 rust --compare python $(seed_args "$i" 3)
   # shellcheck disable=SC2046
-  run_test --num-ops 100 --api-version $fdb_api_version --test-name directory_hca --concurrency 5 rust --no-directory-snapshot-ops $(seed_args "$i" 4)
+  run_test --num-ops 100 --api-version $fdb_api_version --test-name directory_hca --concurrency 5 rust $(seed_args "$i" 4)
 done
 
 summary

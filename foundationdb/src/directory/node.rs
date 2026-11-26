@@ -22,9 +22,10 @@ impl Node {
     pub(crate) async fn load_metadata(
         trx: &Transaction,
         subspace: &Subspace,
+        snapshot: bool,
     ) -> Result<Vec<u8>, DirectoryError> {
         let key = subspace.pack(&LAYER_SUFFIX);
-        let layer = match trx.get(&key, false).await {
+        let layer = match trx.get(&key, snapshot).await {
             Err(err) => return Err(DirectoryError::FdbError(err)),
             Ok(fdb_slice) => fdb_slice.as_deref().unwrap_or_default().to_vec(),
         };
@@ -39,11 +40,12 @@ impl Node {
     pub(crate) async fn list_sub_folders(
         &self,
         trx: &Transaction,
+        snapshot: bool,
     ) -> Result<Vec<String>, DirectoryError> {
         let range_option = RangeOption::from(&self.subspace.subspace(&DEFAULT_SUB_DIRS));
 
         let results: Vec<String> = trx
-            .get_ranges_keyvalues(range_option, false)
+            .get_ranges_keyvalues(range_option, snapshot)
             .map_ok(|fdb_value| {
                 let subspace = Subspace::from_bytes(fdb_value.key());
                 // stripping from subspace

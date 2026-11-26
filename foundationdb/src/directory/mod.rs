@@ -119,15 +119,26 @@ pub trait Directory {
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Opens the subdirectory of this Directory located at path.
+    ///
+    /// With `snapshot`, the directory metadata is read with snapshot reads, which add no read
+    /// conflict ranges to the transaction.
     async fn open(
         &self,
         txn: &Transaction,
         path: &[String],
         layer: Option<&[u8]>,
+        snapshot: bool,
     ) -> Result<DirectoryOutput, DirectoryError>;
 
     /// Checks if the subdirectory of this Directory located at path exists.
-    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError>;
+    ///
+    /// With `snapshot`, the directory metadata is read with snapshot reads.
+    async fn exists(
+        &self,
+        trx: &Transaction,
+        path: &[String],
+        snapshot: bool,
+    ) -> Result<bool, DirectoryError>;
 
     /// Moves this Directory to the specified newAbsolutePath.
     async fn move_directory(
@@ -155,8 +166,14 @@ pub trait Directory {
     ) -> Result<bool, DirectoryError>;
 
     /// List the subdirectories of this directory at a given subpath.
-    async fn list(&self, trx: &Transaction, path: &[String])
-    -> Result<Vec<String>, DirectoryError>;
+    ///
+    /// With `snapshot`, the directory metadata is read with snapshot reads.
+    async fn list(
+        &self,
+        trx: &Transaction,
+        path: &[String],
+        snapshot: bool,
+    ) -> Result<Vec<String>, DirectoryError>;
 }
 
 pub(crate) fn compare_slice<T: Ord>(a: &[T], b: &[T]) -> cmp::Ordering {
@@ -281,17 +298,23 @@ impl Directory for DirectoryOutput {
         txn: &Transaction,
         path: &[String],
         layer: Option<&[u8]>,
+        snapshot: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.open(txn, path, layer).await,
-            DirectoryOutput::DirectoryPartition(d) => d.open(txn, path, layer).await,
+            DirectoryOutput::DirectorySubspace(d) => d.open(txn, path, layer, snapshot).await,
+            DirectoryOutput::DirectoryPartition(d) => d.open(txn, path, layer, snapshot).await,
         }
     }
 
-    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
+    async fn exists(
+        &self,
+        trx: &Transaction,
+        path: &[String],
+        snapshot: bool,
+    ) -> Result<bool, DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.exists(trx, path).await,
-            DirectoryOutput::DirectoryPartition(d) => d.exists(trx, path).await,
+            DirectoryOutput::DirectorySubspace(d) => d.exists(trx, path, snapshot).await,
+            DirectoryOutput::DirectoryPartition(d) => d.exists(trx, path, snapshot).await,
         }
     }
 
@@ -340,10 +363,11 @@ impl Directory for DirectoryOutput {
         &self,
         trx: &Transaction,
         path: &[String],
+        snapshot: bool,
     ) -> Result<Vec<String>, DirectoryError> {
         match self {
-            DirectoryOutput::DirectorySubspace(d) => d.list(trx, path).await,
-            DirectoryOutput::DirectoryPartition(d) => d.list(trx, path).await,
+            DirectoryOutput::DirectorySubspace(d) => d.list(trx, path, snapshot).await,
+            DirectoryOutput::DirectoryPartition(d) => d.list(trx, path, snapshot).await,
         }
     }
 }

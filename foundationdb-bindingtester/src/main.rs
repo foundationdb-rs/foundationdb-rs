@@ -1861,6 +1861,7 @@ impl StackMachine {
                     self.directory_index
                 );
 
+                let snapshot = instr.pop_snapshot();
                 match directory_operation(
                     &db,
                     &*trx,
@@ -1868,7 +1869,7 @@ impl StackMachine {
                     (directory, path, layer),
                     |txn, (directory, path, layer)| {
                         directory
-                            .open(txn, path.first().unwrap(), layer.as_deref())
+                            .open(txn, path.first().unwrap(), layer.as_deref(), snapshot)
                             .boxed_local()
                     },
                 )
@@ -2151,12 +2152,13 @@ impl StackMachine {
                     .get_current_directory()
                     .expect("could not find a directory");
 
+                let snapshot = instr.pop_snapshot();
                 match directory_operation(
                     &db,
                     &*trx,
                     is_db,
                     (directory, &paths),
-                    |txn, (directory, paths)| directory.list(txn, paths).boxed_local(),
+                    |txn, (directory, paths)| directory.list(txn, paths, snapshot).boxed_local(),
                 )
                 .await
                 {
@@ -2197,12 +2199,13 @@ impl StackMachine {
                     .expect("could not find a directory");
 
                 let paths = paths.first().expect("could not retrieve a path");
+                let snapshot = instr.pop_snapshot();
                 match directory_operation(
                     &db,
                     &*trx,
                     is_db,
                     (directory, paths),
-                    |txn, (directory, paths)| directory.exists(txn, paths).boxed_local(),
+                    |txn, (directory, paths)| directory.exists(txn, paths, snapshot).boxed_local(),
                 )
                 .await
                 {
@@ -2466,7 +2469,7 @@ impl StackMachine {
                 let value_layer = pack(&self.get_layer_for_current_directory().unwrap());
 
                 let exists = directory
-                    .exists(txn, &[])
+                    .exists(txn, &[], false)
                     .await
                     .expect("could not list directory");
 
@@ -2474,7 +2477,7 @@ impl StackMachine {
                 let value_exists = pack(&Element::Tuple(vec![Element::Int(exists.into())]));
 
                 let children = if exists {
-                    directory.list(txn, &[]).await.unwrap()
+                    directory.list(txn, &[], false).await.unwrap()
                 } else {
                     vec![]
                 };

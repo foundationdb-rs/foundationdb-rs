@@ -89,7 +89,7 @@ async fn test_create_then_open_then_delete(
     let trx = db.create_trx()?;
 
     eprintln!("opening {:?}", path);
-    let open_output = directory.open(&trx, &path, None).await;
+    let open_output = directory.open(&trx, &path, None, false).await;
     assert!(
         open_output.is_ok(),
         "cannot create: {:?}",
@@ -104,4 +104,68 @@ async fn test_create_then_open_then_delete(
 
     // removing folder
     Ok(())
+}
+
+#[tokio::test]
+// open, list and exists with `snapshot` add no read conflict on the directory metadata.
+async fn test_directory_snapshot_reads_do_not_conflict() {
+    let db = common::database().await.expect("cannot open fdb");
+    let test_root = Subspace::from("test-directory-snapshot");
+    let directory = DirectoryLayer::new(
+        test_root.subspace(&"node"),
+        test_root.subspace(&"content"),
+        false,
+    );
+    let path = vec![String::from("app")];
+
+    for snapshot in [false, true] {
+        let trx = db.create_trx().expect("cannot create txn");
+        trx.clear_subspace_range(&test_root);
+        directory
+            .create(&trx, &path, None, None)
+            .await
+            .expect("cannot create directory");
+        trx.commit().await.expect("cannot commit");
+
+        let reader = db.create_trx().expect("cannot create txn");
+        directory
+            .open(&reader, &path, None, snapshot)
+            .await
+            .expect("cannot open directory");
+        assert!(
+            directory
+                .exists(&reader, &path, snapshot)
+                .await
+                .expect("cannot check directory")
+        );
+        assert!(
+            directory
+                .list(&reader, &path, snapshot)
+                .await
+                .expect("cannot list directory")
+                .is_empty()
+        );
+
+        // A concurrent change of the metadata the reader looked at.
+        let writer = db.create_trx().expect("cannot create txn");
+        directory
+            .create(
+                &writer,
+                &[String::from("app"), String::from("child")],
+                None,
+                None,
+            )
+            .await
+            .expect("cannot create child directory");
+        writer.commit().await.expect("cannot commit");
+
+        reader.set(&test_root.pack(&"written"), b"");
+        match reader.commit().await {
+            Ok(_) => assert!(snapshot, "non snapshot reads must conflict"),
+            Err(e) => {
+                assert!(!snapshot, "snapshot reads must not conflict: {e}");
+                assert_eq!(e.code(), 1020);
+            }
+        }
+    }
 }

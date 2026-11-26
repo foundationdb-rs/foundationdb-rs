@@ -141,6 +141,7 @@ impl DirectoryLayer {
         &self,
         trx: &Transaction,
         path: &[String],
+        snapshot: bool,
     ) -> Result<Option<Node>, DirectoryError> {
         let mut current_path = vec![];
         let mut node_subspace = self.root_node.clone();
@@ -153,7 +154,7 @@ impl DirectoryLayer {
             let key = node_subspace.subspace(&(DEFAULT_SUB_DIRS, path_name.to_owned()));
 
             // finding the next node
-            let fdb_slice_value = trx.get(key.bytes(), false).await?;
+            let fdb_slice_value = trx.get(key.bytes(), snapshot).await?;
 
             loaded = true;
             node_subspace = match self.node_with_optional_prefix(fdb_slice_value) {
@@ -161,14 +162,14 @@ impl DirectoryLayer {
                 Some(subspace) => subspace,
             };
 
-            layer = Node::load_metadata(trx, &node_subspace).await?;
+            layer = Node::load_metadata(trx, &node_subspace, snapshot).await?;
             if layer.as_slice().eq(PARTITION_LAYER) {
                 break;
             }
         }
 
         if !loaded {
-            layer = Node::load_metadata(trx, &node_subspace).await?;
+            layer = Node::load_metadata(trx, &node_subspace, snapshot).await?;
         }
 
         Ok(Some(Node {
@@ -212,6 +213,7 @@ impl DirectoryLayer {
     }
 
     /// `create_or_open_internal` is the function used to open and/or create a directory.
+    #[allow(clippy::too_many_arguments)]
     #[async_recursion]
     async fn create_or_open_internal(
         &self,
@@ -221,8 +223,9 @@ impl DirectoryLayer {
         layer: Option<&'async_recursion [u8]>,
         allow_create: bool,
         allow_open: bool,
+        snapshot: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.check_version(trx, false).await?;
+        self.check_version(trx, false, snapshot).await?;
 
         if prefix.is_some() && !self.allow_manual_prefixes {
             if self.path.is_empty() {
@@ -236,7 +239,7 @@ impl DirectoryLayer {
             return Err(DirectoryError::NoPathProvided);
         }
 
-        if let Some(node) = self.find(trx, path).await? {
+        if let Some(node) = self.find(trx, path, snapshot).await? {
             if node.is_in_partition(false) {
                 let sub_path = node.get_partition_subpath();
                 match node.get_contents()? {
@@ -252,6 +255,7 @@ impl DirectoryLayer {
                                 layer,
                                 allow_create,
                                 allow_open,
+                                snapshot,
                             )
                             .await?;
                         Ok(dir_space)
@@ -306,7 +310,7 @@ impl DirectoryLayer {
 
         let layer = layer.unwrap_or_default();
 
-        self.check_version(trx, true).await?;
+        self.check_version(trx, true, false).await?;
         let new_prefix = self.get_prefix(trx, prefix).await?;
 
         let is_prefix_free = self
@@ -341,7 +345,7 @@ impl DirectoryLayer {
                     return Ok(self.root_node.clone());
                 }
                 let parent = self
-                    .create_or_open_internal(trx, remains, None, None, true, true)
+                    .create_or_open_internal(trx, remains, None, None, true, true, false)
                     .await?;
 
                 Ok(self.node_with_prefix(&parent.bytes()?))
@@ -456,8 +460,9 @@ impl DirectoryLayer {
         &self,
         trx: &Transaction,
         allow_creation: bool,
+        snapshot: bool,
     ) -> Result<(), DirectoryError> {
-        let version = self.get_version_value(trx).await?;
+        let version = self.get_version_value(trx, snapshot).await?;
         match version {
             None => {
                 if allow_creation {
@@ -514,25 +519,30 @@ impl DirectoryLayer {
         Ok(())
     }
 
-    async fn get_version_value(&self, trx: &Transaction) -> FdbResult<Option<FdbSlice>> {
+    async fn get_version_value(
+        &self,
+        trx: &Transaction,
+        snapshot: bool,
+    ) -> FdbResult<Option<FdbSlice>> {
         let version_subspace: &[u8] = b"version";
         let version_key = self.root_node.subspace(&version_subspace);
 
-        trx.get(version_key.bytes(), false).await
+        trx.get(version_key.bytes(), snapshot).await
     }
 
     async fn exists_internal(
         &self,
         trx: &Transaction,
         path: &[String],
+        snapshot: bool,
     ) -> Result<bool, DirectoryError> {
-        self.check_version(trx, false).await?;
+        self.check_version(trx, false, snapshot).await?;
 
-        match self.find(trx, path).await? {
+        match self.find(trx, path, snapshot).await? {
             None => Ok(false),
             Some(node) if node.is_in_partition(false) => {
                 node.get_contents()?
-                    .exists(trx, &node.get_partition_subpath())
+                    .exists(trx, &node.get_partition_subpath(), snapshot)
                     .await
             }
             Some(_node) => Ok(true),
@@ -543,11 +553,12 @@ impl DirectoryLayer {
         &self,
         trx: &Transaction,
         path: &[String],
+        snapshot: bool,
     ) -> Result<Vec<String>, DirectoryError> {
-        self.check_version(trx, false).await?;
+        self.check_version(trx, false, snapshot).await?;
 
         let node = self
-            .find(trx, path)
+            .find(trx, path, snapshot)
             .await?
             .ok_or(DirectoryError::PathDoesNotExists)?;
         if node.is_in_partition(true) {
@@ -557,13 +568,13 @@ impl DirectoryLayer {
                     return directory_partition
                         .directory_subspace
                         .directory_layer
-                        .list(trx, &node.get_partition_subpath())
+                        .list(trx, &node.get_partition_subpath(), snapshot)
                         .await;
                 }
             };
         }
 
-        node.list_sub_folders(trx).await
+        node.list_sub_folders(trx, snapshot).await
     }
 
     async fn move_to_internal(
@@ -572,7 +583,7 @@ impl DirectoryLayer {
         old_path: &[String],
         new_path: &[String],
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.check_version(trx, true).await?;
+        self.check_version(trx, true, false).await?;
 
         if old_path.len() <= new_path.len()
             && compare_slice(old_path, &new_path[..old_path.len()]) == Ordering::Equal
@@ -580,8 +591,8 @@ impl DirectoryLayer {
             return Err(DirectoryError::CannotMoveBetweenSubdirectory);
         }
 
-        let old_node = self.find(trx, old_path).await?;
-        let new_node = self.find(trx, new_path).await?;
+        let old_node = self.find(trx, old_path, false).await?;
+        let new_node = self.find(trx, new_path, false).await?;
 
         let old_node = match old_node {
             None => return Err(DirectoryError::PathDoesNotExists),
@@ -623,7 +634,7 @@ impl DirectoryLayer {
             .ok_or(DirectoryError::DirAlreadyExists)?;
 
         let parent_node = self
-            .find(trx, parent_path)
+            .find(trx, parent_path, false)
             .await?
             .ok_or(DirectoryError::ParentDirDoesNotExists)?;
 
@@ -647,7 +658,7 @@ impl DirectoryLayer {
             .split_last()
             .ok_or(DirectoryError::BadDestinationDirectory)?;
 
-        match self.find(trx, parent_path).await? {
+        match self.find(trx, parent_path, false).await? {
             None => {}
             Some(parent_node) => {
                 let key = parent_node.subspace.pack(&(DEFAULT_SUB_DIRS, last_element));
@@ -665,13 +676,13 @@ impl DirectoryLayer {
         path: &[String],
         fail_on_nonexistent: bool,
     ) -> Result<bool, DirectoryError> {
-        self.check_version(trx, true).await?;
+        self.check_version(trx, true, false).await?;
 
         if path.is_empty() {
             return Err(DirectoryError::CannotModifyRootDirectory);
         }
 
-        let node = match self.find(trx, path).await? {
+        let node = match self.find(trx, path, false).await? {
             Some(node) => node,
             None if fail_on_nonexistent => return Err(DirectoryError::DirectoryDoesNotExists),
             None => return Ok(false),
@@ -731,7 +742,7 @@ impl Directory for DirectoryLayer {
         prefix: Option<&[u8]>,
         layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.create_or_open_internal(txn, path, prefix, layer, true, true)
+        self.create_or_open_internal(txn, path, prefix, layer, true, true, false)
             .await
     }
 
@@ -742,7 +753,7 @@ impl Directory for DirectoryLayer {
         prefix: Option<&[u8]>,
         layer: Option<&[u8]>,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.create_or_open_internal(txn, path, prefix, layer, true, false)
+        self.create_or_open_internal(txn, path, prefix, layer, true, false, false)
             .await
     }
 
@@ -751,13 +762,19 @@ impl Directory for DirectoryLayer {
         txn: &Transaction,
         path: &[String],
         layer: Option<&[u8]>,
+        snapshot: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.create_or_open_internal(txn, path, None, layer, false, true)
+        self.create_or_open_internal(txn, path, None, layer, false, true, snapshot)
             .await
     }
 
-    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
-        self.exists_internal(trx, path).await
+    async fn exists(
+        &self,
+        trx: &Transaction,
+        path: &[String],
+        snapshot: bool,
+    ) -> Result<bool, DirectoryError> {
+        self.exists_internal(trx, path, snapshot).await
     }
 
     async fn move_directory(
@@ -798,7 +815,8 @@ impl Directory for DirectoryLayer {
         &self,
         trx: &Transaction,
         path: &[String],
+        snapshot: bool,
     ) -> Result<Vec<String>, DirectoryError> {
-        self.list_internal(trx, path).await
+        self.list_internal(trx, path, snapshot).await
     }
 }
