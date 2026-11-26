@@ -65,8 +65,11 @@ jobs:
       - name: Setup bindingtester
         run: scripts/setup_bindingtester.sh target/debug/bindingtester
 
+      # Fixed seeds, so coverage is reproducible from run to run (#318).
       - name: Run bindingtester
-        run:  source <(cargo llvm-cov show-env --export-prefix) && scripts/run_bindingtester.sh 50
+        env:
+          BINDINGTESTER_SEED: "1000"
+        run: source <(cargo llvm-cov show-env --export-prefix) && scripts/run_bindingtester.sh 50
 
       - name: Generate code coverage
         run: source <(cargo llvm-cov show-env --export-prefix) && cargo llvm-cov report --lcov --output-path lcov.info
