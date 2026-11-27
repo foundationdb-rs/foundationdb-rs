@@ -151,17 +151,27 @@ impl Directory for DirectoryPartition {
         txn: &Transaction,
         path: &[String],
         layer: Option<&[u8]>,
+        snapshot: bool,
     ) -> Result<DirectoryOutput, DirectoryError> {
-        self.inner.directory_subspace.open(txn, path, layer).await
+        self.inner
+            .directory_subspace
+            .open(txn, path, layer, snapshot)
+            .await
     }
 
-    async fn exists(&self, trx: &Transaction, path: &[String]) -> Result<bool, DirectoryError> {
+    async fn exists(
+        &self,
+        trx: &Transaction,
+        path: &[String],
+        snapshot: bool,
+    ) -> Result<bool, DirectoryError> {
         let directory_layer = self.get_directory_layer_for_path(path);
 
         directory_layer
             .exists(
                 trx,
                 &self.get_partition_subpath(path, Some(directory_layer.clone()))?,
+                snapshot,
             )
             .await
     }
@@ -241,7 +251,11 @@ impl Directory for DirectoryPartition {
         &self,
         trx: &Transaction,
         path: &[String],
+        snapshot: bool,
     ) -> Result<Vec<String>, DirectoryError> {
-        self.inner.directory_subspace.list(trx, path).await
+        self.inner
+            .directory_subspace
+            .list(trx, path, snapshot)
+            .await
     }
 }
