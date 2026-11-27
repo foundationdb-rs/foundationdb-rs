@@ -4,6 +4,8 @@ extern crate log;
 use foundationdb as fdb;
 use foundationdb_sys as fdb_sys;
 
+mod unit_tests;
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -13,7 +15,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::thread;
 
-use fdb::options::{ConflictRangeType, DatabaseOption, TransactionOption};
+use fdb::options::{ConflictRangeType, TransactionOption};
 use fdb::tuple::{Bytes, Element, Subspace, TuplePack, pack, pack_into, unpack};
 use fdb::*;
 use futures::future;
@@ -1708,55 +1710,11 @@ impl StackMachine {
                 self.push(number, WAITED_FOR_EMPTY.clone().into_owned());
             }
 
+            // Runs the unit tests of the binding, ported from the Python tester.
             UnitTests => {
-                async fn unit_test(db: &fdb::Database, tr: &mut fdb::Transaction) -> FdbResult<()> {
-                    db.set_option(DatabaseOption::LocationCacheSize(100_001))?;
-                    db.set_option(DatabaseOption::MaxWatches(100_001))?;
-                    db.set_option(DatabaseOption::DatacenterId("dc_id".to_string()))?;
-                    db.set_option(DatabaseOption::MachineId("machine_id".to_string()))?;
-                    db.set_option(DatabaseOption::TransactionTimeout(100_000))?;
-                    db.set_option(DatabaseOption::TransactionTimeout(0))?;
-                    db.set_option(DatabaseOption::TransactionTimeout(0))?;
-                    db.set_option(DatabaseOption::TransactionMaxRetryDelay(100))?;
-                    db.set_option(DatabaseOption::TransactionRetryLimit(10))?;
-                    db.set_option(DatabaseOption::TransactionRetryLimit(-1))?;
-                    db.set_option(DatabaseOption::SnapshotRywEnable)?;
-                    db.set_option(DatabaseOption::SnapshotRywDisable)?;
-
-                    tr.set_option(TransactionOption::PrioritySystemImmediate)?;
-                    tr.set_option(TransactionOption::PriorityBatch)?;
-                    tr.set_option(TransactionOption::CausalReadRisky)?;
-                    tr.set_option(TransactionOption::CausalWriteRisky)?;
-                    tr.set_option(TransactionOption::ReadYourWritesDisable)?;
-                    tr.set_option(TransactionOption::ReadSystemKeys)?;
-                    tr.set_option(TransactionOption::AccessSystemKeys)?;
-                    tr.set_option(TransactionOption::Timeout(60 * 1000))?;
-                    tr.set_option(TransactionOption::RetryLimit(50))?;
-                    tr.set_option(TransactionOption::MaxRetryDelay(100))?;
-                    tr.set_option(TransactionOption::UsedDuringCommitProtectionDisable)?;
-                    tr.set_option(TransactionOption::DebugTransactionIdentifier(
-                        "my_transaction".to_string(),
-                    ))?;
-                    tr.set_option(TransactionOption::LogTransaction)?;
-                    tr.set_option(TransactionOption::ReadLockAware)?;
-                    tr.set_option(TransactionOption::LockAware)?;
-
-                    tr.get(b"\xff", false).await?;
-
-                    Ok(())
-                }
-                let r = unit_test(&db, trx.as_mut()).await;
+                debug!("unit_tests");
+                let r = unit_tests::run_unit_tests(&db).await;
                 self.check(number, r)?;
-
-                // TODO
-                // test_cancellation(db)
-                // test_retry_limits(db)
-                // test_db_retry_limits(db)
-                // test_timeouts(db)
-                // test_db_timeouts(db)
-                // test_combinations(db)
-                // test_locality(db)
-                // test_predicates()
             }
 
             // Pop 1 tuple off the stack as [path]. Pop 1 additional item as [raw_prefix].
@@ -2769,6 +2727,7 @@ fn main() {
     };
 
     let api_version = args[2].parse::<i32>().expect("failed to parse api version");
+    unit_tests::API_VERSION.store(api_version, std::sync::atomic::Ordering::Relaxed);
 
     info!("Starting rust bindingtester with api_version {api_version}");
     api::FdbApiBuilder::default()
@@ -2849,7 +2808,7 @@ mod tests {
         futures::executor::block_on(async {
             // A dedicated handle, so the retry limit below does not leak into other tests.
             let db = Arc::new(Database::new_compat(None).await.expect("cannot open fdb"));
-            db.set_option(DatabaseOption::TransactionRetryLimit(0))
+            db.set_option(fdb::options::DatabaseOption::TransactionRetryLimit(0))
                 .expect("cannot set retry limit");
             let prefix = b"failed-instr-keeps-trx".as_slice();
             db.run(|trx, _| async move {
