@@ -2786,6 +2786,12 @@ fn main() {
     let mut sm = StackMachine::new(&db, Bytes::from(prefix.to_owned().into_bytes()));
     futures::executor::block_on(sm.run(db)).unwrap();
     sm.join();
+    drop(sm);
+
+    // Stop the network explicitly rather than through the atexit hook: with client
+    // trace logging enabled (FDB_NETWORK_OPTION_TRACE_ENABLE), stopping it from the
+    // hook crashes the network thread at exit.
+    api::stop_network().expect("failed to stop the FoundationDB network");
 
     info!("Closing...");
 
