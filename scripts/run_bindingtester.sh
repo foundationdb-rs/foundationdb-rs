@@ -19,6 +19,10 @@
 #   BINDINGTESTER_MAX_FAILURES
 #                        Stop after this many failed runs (default 10), so a bug that
 #                        fails every seed does not run the whole loop.
+#   BINDINGTESTER_TIME_BUDGET
+#                        Seconds. When set, no new iteration of the random loop starts
+#                        once the script has run this long, so a slow CI runner ends
+#                        with a result instead of hitting the job time limit.
 
 set -uo pipefail
 
@@ -140,6 +144,10 @@ START=1
 END=${1-1}
 for i in $(eval echo "{$START..$END}")
 do
+  if [ -n "${BINDINGTESTER_TIME_BUDGET:-}" ] && [ "${SECONDS}" -ge "${BINDINGTESTER_TIME_BUDGET}" ]; then
+    echo "Time budget of ${BINDINGTESTER_TIME_BUDGET}s reached after $((i - START)) iterations."
+    break
+  fi
   echo "Running iteration $i"
   run_test --test-name scripted rust
   # shellcheck disable=SC2046

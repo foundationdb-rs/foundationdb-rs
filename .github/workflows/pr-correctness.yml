@@ -58,12 +58,13 @@ jobs:
 
       # Keeps the output, the Rust tester debug logs and the client traces of every
       # failing run (passing runs are deleted), and prints a repro command for each.
-      # Tracing makes each run slower: 1000 iterations took up to 6 hours and hit the
-      # GitHub job limit, so the 12 jobs run 500 each (6000 iterations per PR).
+      # Runner speed varies a lot: 500 iterations took from 2 to over 5 hours. The time
+      # budget stops starting new iterations after 4 hours, well before the step timeout.
       - name: Run bindingtester
         timeout-minutes: 300
         env:
           BINDINGTESTER_TRACE: ${{ runner.temp }}/bindingtester-logs
+          BINDINGTESTER_TIME_BUDGET: 14400
         run: scripts/run_bindingtester.sh 500
 
       - name: Upload logs of failing runs
