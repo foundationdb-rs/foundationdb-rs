@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DirectoryStackItem"],"fn":["directory_operation"]};
