@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/foundationdb-rs/foundationdb-rs/compare/foundationdb-macros-v0.4.0...foundationdb-macros-v0.5.0) - 2026-11-28
+
+### <!-- 0 -->⚠️ BREAKING CHANGES
+
+- Chore!: bump MSRV to 1.89.0
+
+
+
 ## [0.4.0] - 2026-06-24
 
 ### <!-- 1 -->🚀 Features

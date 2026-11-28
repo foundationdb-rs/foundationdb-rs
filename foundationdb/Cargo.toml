@@ -1,6 +1,6 @@
 [package]
 name = "foundationdb"
-version = "0.11.0"
+version = "0.12.0"
 authors = [
     "Benjamin Fry <benjaminfry@me.com>",
     "Vincent Rouillé <vincent@clikengo.com>",
@@ -52,12 +52,12 @@ recipes-ranked-register = []
 trace = ["tracing"]
 
 [build-dependencies]
-foundationdb-gen = { version = "0.11.0", path = "../foundationdb-gen", default-features = false }
+foundationdb-gen = { version = "0.12.0", path = "../foundationdb-gen", default-features = false }
 
 [dependencies]
-foundationdb-sys = { version = "0.11.0", path = "../foundationdb-sys", default-features = false }
-foundationdb-macros = { version = "0.4.0", path = "../foundationdb-macros" }
-foundationdb-tuple = { version = "0.11.0", path = "../foundationdb-tuple" }
+foundationdb-sys = { version = "0.12.0", path = "../foundationdb-sys", default-features = false }
+foundationdb-macros = { version = "0.5.0", path = "../foundationdb-macros" }
+foundationdb-tuple = { version = "0.12.0", path = "../foundationdb-tuple" }
 futures = "0.3.32"
 libc = "0.2"
 rand = { version = "0.10.1", features = ["default"] }
