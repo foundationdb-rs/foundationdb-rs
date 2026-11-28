@@ -18,7 +18,7 @@ keywords = ["foundationdb", "simulation", "tracing"]
 features = ["embedded-fdb-include", "fdb-7_4"]
 
 [dependencies]
-foundationdb-simulation = { version = "0.3.0", path = "../foundationdb-simulation", default-features = false }
+foundationdb-simulation = { version = "0.4.0", path = "../foundationdb-simulation", default-features = false }
 tracing-core = "0.1.36"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry"] }
 

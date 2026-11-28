@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/foundationdb-rs/foundationdb-rs/compare/foundationdb-gen-v0.11.0...foundationdb-gen-v0.12.0) - 2026-11-28
+
+### <!-- 0 -->⚠️ BREAKING CHANGES
+
+- Support signed 64-bit option values
+- Chore!: bump MSRV to 1.89.0
+
+
+
 ## [0.11.0] - 2026-06-24
 
 ### <!-- 1 -->🚀 Features
